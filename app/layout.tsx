@@ -1,44 +1,56 @@
-import React from "react"
-import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import type React from "react"
+import type { Metadata, Viewport } from 'next'
+import { Inter, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { ThemeProvider } from '@/components/theme-provider'
+import { AuthProvider } from '@/lib/auth-context'
 import './globals.css'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const _geist = Inter({ 
+  subsets: ["latin"],
+  preload: false,
+  fallback: ["system-ui", "sans-serif"],
+})
+
+const _geistMono = JetBrains_Mono({ 
+  subsets: ["latin"],
+  preload: false,
+  fallback: ["monospace"],
+})
 
 export const metadata: Metadata = {
-  title: 'SafeGate - Student Attendance System',
-  description: 'Modern student entry, exit, and attendance monitoring system for schools',
+  title: 'SGCDC SafeGate - Student Attendance System',
+  description: 'Subic Gateway Child Development Center - Modern student entry, exit, and attendance monitoring system',
   generator: 'v0.app',
   manifest: '/manifest.json',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f8f8f8' },
-    { media: '(prefers-color-scheme: dark)', color: '#1f1f1f' },
-  ],
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "SGCDC SafeGate",
   },
+  applicationName: "SGCDC SafeGate",
   icons: {
     icon: [
       {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
+        url: '/SGCDC.png',
+        sizes: '512x512',
+        type: 'image/png',
       },
       {
         url: '/icon.svg',
         type: 'image/svg+xml',
       },
     ],
-    apple: '/apple-icon.png',
+    apple: '/SGCDC.png',
   },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#6B21A8',
 }
 
 export default function RootLayout({
@@ -47,16 +59,25 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="SafeGate" />
+        <meta name="apple-mobile-web-app-title" content="SGCDC SafeGate" />
+        <link rel="icon" href="/SGCDC.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/SGCDC.png" />
       </head>
-      <body className={`font-sans antialiased`}>
-        {children}
-        <Analytics />
+      <body className={`${_geist.className} ${_geistMono.className} font-sans antialiased`}
+        suppressHydrationWarning
+        key="body"
+      >
+        <ThemeProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+          <Analytics />
+        </ThemeProvider>
         <script dangerouslySetInnerHTML={{__html: `
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));

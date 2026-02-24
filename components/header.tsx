@@ -1,113 +1,157 @@
 "use client"
 
-import { Bell, User, Sun, Moon, Home, Users as UsersIcon, ScanLine, BarChart3, Settings } from "lucide-react"
+import { Sun, Moon, Bell, Lock, User as UserIcon, LogOut, Settings, Calendar } from "lucide-react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { usePathname } from "next/navigation"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
+import { useAuth } from "@/lib/auth-context"
 
 export function Header() {
-  const pathname = usePathname()
   const { theme, setTheme, resolvedTheme } = useTheme()
+  const { user, logout } = useAuth()
   const [mounted, setMounted] = useState(false)
+  const [dateTime, setDateTime] = useState<string>("")
 
-  useEffect(() => setMounted(true), [])
+  useEffect(() => {
+    setMounted(true)
+    // Format: "11:37 PM\nFriday, 6th February 2026"
+    const updateDateTime = () => {
+      const now = new Date()
+      const time = now.toLocaleString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit', 
+        hour12: true 
+      })
+      const date = now.toLocaleString('en-US', { 
+        weekday: 'long', 
+        day: 'numeric', 
+        month: 'long', 
+        year: 'numeric' 
+      })
+      const ordinal = getOrdinal(now.getDate())
+      setDateTime(`${time}\n${date.replace(now.getDate().toString(), ordinal)}`)
+    }
+    
+    updateDateTime()
+    const interval = setInterval(updateDateTime, 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const getOrdinal = (num: number) => {
+    const j = num % 10
+    const k = num % 100
+    if (j === 1 && k !== 11) return num + "st"
+    if (j === 2 && k !== 12) return num + "nd"
+    if (j === 3 && k !== 13) return num + "rd"
+    return num + "th"
+  }
 
   const currentTheme = mounted ? resolvedTheme : 'light'
 
-  const getPageTitle = () => {
-    const segments = pathname.split("/").filter(Boolean)
-    if (segments.length === 0) return "Dashboard"
-    const page = segments[0]
-    return page.charAt(0).toUpperCase() + page.slice(1)
-  }
-
-  const getPageIcon = () => {
-    const segments = pathname.split("/").filter(Boolean)
-    const page = segments[0] || "dashboard"
-    
-    switch (page) {
-      case "dashboard":
-        return <Home size={18} />
-      case "scan":
-        return <ScanLine size={18} />
-      case "students":
-        return <UsersIcon size={18} />
-      case "analytics":
-        return <BarChart3 size={18} />
-      case "settings":
-        return <Settings size={18} />
-      default:
-        return <Home size={18} />
-    }
-  }
-
   return (
-    <header className="sticky top-0 z-20 backdrop-blur-xl bg-gradient-to-r from-card/95 via-card/90 to-card/85 border-b-2 border-primary/20 px-4 py-3 sm:px-6 lg:px-10 shadow-lg">
-      <div className="flex items-center gap-4 justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white shadow-md">
-            {getPageIcon()}
+    <>
+      {/* Blue top bar */}
+      <div className="h-2 bg-gradient-to-r from-[#1e3a8a] to-[#2563eb] dark:from-slate-900 dark:to-slate-800" />
+      
+      <header className="sticky top-2 z-20 backdrop-blur-lg px-6 py-4 shadow-md bg-white/97 dark:bg-slate-950/97 border-b border-orange-200/30 dark:border-slate-800/60 transition-all duration-300 ease-out">
+        <div className="flex items-center justify-between">
+          {/* Left side - Date/Time and Logo */}
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:flex flex-col gap-0.5">
+              <div className="w-10 h-10 rounded-lg bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm p-1">
+                <Image 
+                  src="/SGCDC.png" 
+                  alt="SGCDC Logo" 
+                  width={40} 
+                  height={40} 
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-[#1e3a8a] dark:text-orange-400" />
+              <div className="text-xs text-slate-700 dark:text-slate-300 leading-tight">
+                {dateTime.split('\n').map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-foreground">{getPageTitle()}</h2>
-            <p className="text-xs text-muted-foreground">SafeGate Attendance System</p>
+
+          {/* Right side - Controls */}
+          <div className="flex items-center gap-4">
+            {/* Theme Toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setTheme(currentTheme === 'dark' ? 'light' : 'dark')}
+              className="rounded-lg text-[#1e3a8a] dark:text-orange-400 hover:bg-[#fbbf24]/20 dark:hover:bg-orange-500/10 hover:text-[#ff8a00] dark:hover:text-orange-300 transition-all duration-200 active:scale-95"
+              title={`Switch to ${currentTheme === 'dark' ? 'light' : 'dark'} theme`}
+            >
+              {currentTheme === 'dark' ? (
+                <Sun className="h-5 w-5" />
+              ) : (
+                <Moon className="h-5 w-5" />
+              )}
+            </Button>
+
+            {/* Notifications */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-lg text-[#2563eb] dark:text-orange-400 hover:bg-[#2563eb]/10 dark:hover:bg-orange-500/10 hover:text-[#1e3a8a] dark:hover:text-orange-300 transition-all duration-200 active:scale-95 relative"
+              title="Notifications"
+            >
+              <Bell className="h-5 w-5" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full shadow-md" />
+            </Button>
+
+            {/* Lock/Settings */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-lg text-gray-700 dark:text-slate-400 hover:bg-yellow-100 dark:hover:bg-slate-800 hover:text-yellow-600 dark:hover:text-yellow-400 transition-all duration-200 active:scale-95"
+              title="Settings"
+            >
+              <Lock className="h-5 w-5" />
+            </Button>
+
+            {/* User Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-lg text-gray-700 dark:text-slate-400 hover:bg-orange-100 dark:hover:bg-slate-800 hover:text-orange-600 dark:hover:text-orange-400 transition-all duration-200 active:scale-95"
+                  title="User menu"
+                >
+                  <UserIcon className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 rounded-lg shadow-lg border border-orange-200/30 dark:border-slate-800 bg-white dark:bg-slate-900">
+                <div className="px-3 py-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {user?.full_name || user?.username}
+                </div>
+                <div className="px-3 pb-2 text-xs text-gray-600 dark:text-slate-400">
+                  {user?.role === 'admin' ? 'Administrator' : 'User'}
+                </div>
+                <DropdownMenuSeparator className="dark:bg-slate-800" />
+                <DropdownMenuItem className="cursor-pointer transition-all duration-150 hover:bg-orange-100 dark:hover:bg-slate-800">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="dark:bg-slate-800" />
+                <DropdownMenuItem className="cursor-pointer text-red-600 dark:text-red-400 transition-all duration-150 hover:bg-red-100 dark:hover:bg-slate-800" onClick={logout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          {/* Theme Toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setTheme(currentTheme === 'dark' ? 'light' : 'dark')}
-            className="rounded-full hover:bg-muted hover:scale-110 transition-all"
-          >
-            {currentTheme === 'dark' ? (
-              <Sun className="h-5 w-5 text-yellow-500" />
-            ) : (
-              <Moon className="h-5 w-5 text-slate-700" />
-            )}
-          </Button>
-
-          {/* Notifications */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full hover:bg-muted hover:scale-110 transition-all relative"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full animate-pulse" />
-          </Button>
-
-          {/* User Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="rounded-full hover:bg-muted hover:scale-110 transition-all"
-              >
-                <User className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem className="cursor-pointer">
-                <User className="mr-2 h-4 w-4" />
-                Profile
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer">
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer text-destructive">
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    </header>
+      </header>
+    </>
   )
 }

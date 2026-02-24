@@ -1,14 +1,20 @@
 {
-  "name": "SafeGate - Student Entry, Exit, and Attendance Monitoring System",
-  "short_name": "SafeGate",
-  "description": "Modern student entry, exit, and attendance monitoring system for schools",
+  "name": "SGCDC SafeGate - Subic Gateway Child Development Center Attendance System",
+  "short_name": "SGCDC SafeGate",
+  "description": "Subic Gateway Child Development Center - Student entry, exit, and attendance monitoring system",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "scope": "/",
-  "theme_color": "#1f1f1f",
+  "theme_color": "#6B21A8",
   "background_color": "#ffffff",
   "icons": [
+    {
+      "src": "/SGCDC.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "/icon-192x192.png",
       "sizes": "192x192",
@@ -16,22 +22,10 @@
       "purpose": "any"
     },
     {
-      "src": "/icon-192x192-maskable.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
       "src": "/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
-    },
-    {
-      "src": "/icon-512x512-maskable.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
     }
   ],
   "categories": ["education"],
