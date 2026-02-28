@@ -43,17 +43,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [pathname, router]);
 
   // Supabase client setup
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase URL or Anon Key is missing. Check your environment variables.');
+  }
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
   const login = async (email: string, password: string): Promise<boolean> => {
+    if (!email || !password) {
+      alert('Email and password are required.');
+      return false;
+    }
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      if (error || !data.user) {
+      if (error) {
+        alert(error.message || 'Login failed. Please check your credentials.');
+        return false;
+      }
+      if (!data.user) {
+        alert('No user returned from Supabase.');
         return false;
       }
       // Fetch user profile from Supabase 'users' table
@@ -78,7 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       router.push('/');
       return true;
-    } catch (error) {
+    } catch (error: any) {
+      alert(error?.message || 'Login error.');
       console.error('Login error:', error);
       return false;
     }
