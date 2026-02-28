@@ -16,16 +16,16 @@
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-192x192.png",
+      "src": "/SGCDC.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
-      "src": "/icon-512x512.png",
-      "sizes": "512x512",
+      "src": "/SGCDC.png",
+      "sizes": "96x96",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ],
   "categories": ["education"],
@@ -51,7 +51,7 @@
       "url": "/scan",
       "icons": [
         {
-          "src": "/icon-96x96.png",
+          "src": "/logo.png",
           "sizes": "96x96",
           "type": "image/png"
         }
@@ -64,7 +64,7 @@
       "url": "/students",
       "icons": [
         {
-          "src": "/icon-96x96.png",
+          "src": "/logo.png",
           "sizes": "96x96",
           "type": "image/png"
         }

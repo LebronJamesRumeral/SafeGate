@@ -1,3 +1,8 @@
+
+<div align="center">
+  <img src="public/logo.png" alt="SGCDC Logo" width="180" height="180" />
+</div>
+
 # SafeGate - Attendance & Behavior Analytics Platform
 
 A modern, production-ready platform combining a responsive Next.js frontend with a robust FastAPI backend for comprehensive attendance tracking and behavioral analytics in educational institutions.

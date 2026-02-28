@@ -5,8 +5,7 @@ const urlsToCache = [
   '/students',
   '/analytics',
   '/manifest.json',
-  '/icon-192x192.png',
-  '/icon-512x512.png',
+  '/logo.png',
 ];
 
 // Install event
@@ -87,8 +86,8 @@ self.addEventListener('sync', (event) => {
 self.addEventListener('push', (event) => {
   const options = {
     body: event.data ? event.data.text() : 'New notification',
-    icon: '/icon-192x192.png',
-    badge: '/icon-96x96.png',
+    icon: '/logo.png',
+    badge: '/logo.png',
     vibrate: [100, 50, 100],
   };
 
