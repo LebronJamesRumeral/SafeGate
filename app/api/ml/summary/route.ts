@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const response = await fetch(${BACKEND_URL}/api/attendance/summary/, {
+    const response = await fetch(`${BACKEND_URL}/api/attendance/summary/`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
