@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
 interface User {
-  id: number;
+  id: string;
   username: string;
   full_name: string | null;
   role: string;
@@ -32,10 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedUser = localStorage.getItem('safegate_user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
-    } else if (pathname !== '/login') {
-      router.push('/login');
+      setLoading(false);
+    } else {
+      setUser(null);
+      setLoading(false);
+      if (pathname !== '/login') {
+        router.push('/login');
+      }
     }
-    setLoading(false);
   }, [pathname, router]);
 
   // Supabase client setup
@@ -52,13 +56,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error || !data.user) {
         return false;
       }
-      setUser({
-        id: data.user.id,
-        username: data.user.email,
-        full_name: data.user.user_metadata?.full_name || '',
-        role: data.user.role || 'user',
-      });
-      localStorage.setItem('safegate_user', JSON.stringify(data.user));
+      // Fetch user profile from Supabase 'users' table
+      const { data: profile, error: profileError } = await supabase
+        .from('users')
+        .select('id, username, full_name, role')
+        .eq('id', data.user.id)
+        .single();
+      if (profileError || !profile) {
+        // fallback to minimal info if profile not found
+        const fallbackUser: User = {
+          id: data.user.id,
+          username: data.user.email ?? '',
+          full_name: '',
+          role: 'user',
+        };
+        setUser(fallbackUser);
+        localStorage.setItem('safegate_user', JSON.stringify(fallbackUser));
+      } else {
+        setUser(profile);
+        localStorage.setItem('safegate_user', JSON.stringify(profile));
+      }
       router.push('/');
       return true;
     } catch (error) {
