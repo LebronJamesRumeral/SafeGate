@@ -62,6 +62,11 @@ export default function SettingsPage() {
     if (savedTimes) {
       try {
         setYearLevelTimes(JSON.parse(savedTimes));
+        toast({
+          title: 'Settings Loaded',
+          description: 'Year level times loaded successfully.',
+          variant: 'default',
+        });
       } catch (error) {
         console.error('Error loading year level times:', error);
         toast({

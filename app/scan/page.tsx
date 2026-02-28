@@ -68,6 +68,11 @@ export default function ScanPage() {
       }
       
       if (data) {
+        toast({
+          title: 'Student Found',
+          description: `Student ${data.name} found successfully.`,
+          variant: 'default',
+        });
         return {
           ...data,
           parentName: data.parent_name,

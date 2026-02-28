@@ -223,6 +223,11 @@ export default function AttendancePage() {
       setStudents(sortedStudents);
       setLogs(attendanceData || []);
       setAppliedRange({ start, end });
+      toast({
+        title: 'Attendance Loaded',
+        description: 'Attendance data loaded successfully.',
+        variant: 'default',
+      });
     } catch (error) {
       console.error('Error fetching attendance data:', error);
       toast({

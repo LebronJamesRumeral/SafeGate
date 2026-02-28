@@ -82,6 +82,11 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
+    toast({
+      title: 'Login Successful',
+      description: `Welcome, ${role.charAt(0).toUpperCase() + role.slice(1)}!`,
+      variant: 'default',
+    });
     setLoading(false);
   };
 

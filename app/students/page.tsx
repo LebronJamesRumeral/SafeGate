@@ -52,6 +52,7 @@ import dynamic from 'next/dynamic';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
 import { supabase, type Student } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/components/ui/use-toast';
 import Link from 'next/link';
 import { sortByLevel } from '@/lib/level-order';
 import { calculateStudentRiskScore, getActionRecommendations, type RiskScore } from '@/lib/ml-risk-calculator';
@@ -272,6 +273,11 @@ export default function StudentsPage() {
       }
 
       setAttendanceByLrn(attendanceMap);
+      toast({
+        title: 'Students Loaded',
+        description: 'Student and attendance data loaded successfully.',
+        variant: 'default',
+      });
       
       // Map database fields to component format
       const mappedStudents = data.map(student => ({

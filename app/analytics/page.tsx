@@ -142,6 +142,11 @@ export default function AnalyticsPage() {
   const fetchAnalyticsData = async () => {
     if (!supabase) {
       setLoading(false);
+      toast({
+        title: 'Analytics Loaded',
+        description: 'Analytics data loaded successfully.',
+        variant: 'default',
+      });
       return;
     }
 

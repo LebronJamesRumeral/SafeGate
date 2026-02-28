@@ -71,6 +71,11 @@ export default function MasterlistPage() {
       
       // Sort by level order
       setStudents(sortByLevel(mappedStudents));
+      toast({
+        title: 'Masterlist Loaded',
+        description: 'Student masterlist loaded successfully.',
+        variant: 'default',
+      });
     } catch (error) {
       console.error('Error fetching students:', error);
       toast({

@@ -211,6 +211,12 @@ export default function BehavioralEventsPage() {
         .order('event_date', { ascending: false });
 
       if (eventsError) {
+              } else {
+                toast({
+                  title: 'Events Loaded',
+                  description: 'Behavioral events loaded successfully.',
+                  variant: 'default',
+                });
         console.error('Events error:', eventsError);
         toast({
           title: 'Failed to fetch events',
