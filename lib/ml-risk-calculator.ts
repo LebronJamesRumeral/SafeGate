@@ -464,9 +464,9 @@ export async function getForecastedRisk(
     if (data && data.length > 0) {
       const forecast = data[0];
       // console.log(
-        `[ML FORECAST] ${studentLrn}: Risk forecast ${forecast.current_risk_score} → ` +
-        `${forecast.forecasted_risk_score} (${forecast.risk_trajectory})`
-      );
+      //   `[ML FORECAST] ${studentLrn}: Risk forecast ${forecast.current_risk_score} → ` +
+      //   `${forecast.forecasted_risk_score} (${forecast.risk_trajectory})`
+      // );
       return forecast;
     }
 
