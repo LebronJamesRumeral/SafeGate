@@ -418,9 +418,9 @@ export async function getTrendAnalysis(
     if (data && data.length > 0) {
       const trend = data[0];
       // console.log(
-        `[ML TREND] ${studentLrn}: ${trend.trend_direction} ` +
-        `(${trend.current_attendance_rate}% from ${trend.previous_attendance_rate}%)`
-      );
+      //   `[ML TREND] ${studentLrn}: ${trend.trend_direction} ` +
+      //   `(${trend.current_attendance_rate}% from ${trend.previous_attendance_rate}%)`
+      // );
       return trend;
     }
 
