@@ -154,13 +154,13 @@ export async function calculateStudentRiskScore(
     return await getSimpleRiskScore(studentLrn);
   } catch (error) {
     // console.error(
-      `[ML EXCEPTION] Unexpected error in calculateStudentRiskScore for ${studentLrn}:`,
-      {
-        name: (error as Error).name,
-        message: (error as Error).message,
-        stack: (error as Error).stack
-      }
-    );
+    //   `[ML EXCEPTION] Unexpected error in calculateStudentRiskScore for ${studentLrn}:`,
+    //   {
+    //     name: (error as Error).name,
+    //     message: (error as Error).message,
+    //     stack: (error as Error).stack
+    //   }
+    // );
     
     // console.warn(`[ML] Falling back to simple risk score calculation due to exception for ${studentLrn}`);
     return await getSimpleRiskScore(studentLrn);
