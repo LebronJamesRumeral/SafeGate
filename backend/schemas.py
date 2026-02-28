@@ -1,4 +1,5 @@
 # ==================== User Schemas ====================
+from pydantic import BaseModel
 
 class UserBase(BaseModel):
     """Base schema for user data."""
