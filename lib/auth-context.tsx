@@ -1,7 +1,9 @@
 'use client';
 
+
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
 
 interface User {
   id: number;
@@ -12,7 +14,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string, role?: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   loading: boolean;
 }
@@ -36,24 +38,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, [pathname, router]);
 
-  const login = async (username: string, password: string, role: string = 'teacher'): Promise<boolean> => {
+  // Supabase client setup
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+  const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      // Simple authentication - in production, use proper authentication
-      // For now, accept admin/admin123 or teacher/teacher123
-      if (username.trim() && password.trim()) {
-        const userData: User = {
-          id: 1,
-          username: username,
-          full_name: role === 'admin' ? 'Administrator' : 'Teacher',
-          role: role,
-        };
-        
-        setUser(userData);
-        localStorage.setItem('safegate_user', JSON.stringify(userData));
-        router.push('/');
-        return true;
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error || !data.user) {
+        return false;
       }
-      return false;
+      setUser({
+        id: data.user.id,
+        username: data.user.email,
+        full_name: data.user.user_metadata?.full_name || '',
+        role: data.user.role || 'user',
+      });
+      localStorage.setItem('safegate_user', JSON.stringify(data.user));
+      router.push('/');
+      return true;
     } catch (error) {
       console.error('Login error:', error);
       return false;
