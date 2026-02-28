@@ -8,7 +8,7 @@ import uvicorn
 
 from config import settings
 from database import init_db, close_db
-from routers import health, attendance, behavior, students, risk
+from routers import health, attendance, behavior, students, risk, auth
 
 # Configure logging
 logging.basicConfig(
@@ -86,6 +86,7 @@ app.include_router(students.router)
 app.include_router(attendance.router)
 app.include_router(behavior.router)
 app.include_router(risk.router)
+app.include_router(auth.router)
 
 
 # Root endpoint

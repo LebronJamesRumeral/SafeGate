@@ -1,6 +1,4 @@
 -- ============================================================================
--- DROP ALL TABLES FOR FRESH START
--- ============================================================================
 
 DROP TABLE IF EXISTS student_behavioral_summary CASCADE;
 DROP TABLE IF EXISTS parent_notifications CASCADE;
@@ -16,8 +14,26 @@ DROP TABLE IF EXISTS attendance_logs CASCADE;
 DROP TABLE IF EXISTS students CASCADE;
 
 -- ============================================================================
--- CORE TABLES: Students & Attendance (Foundation for ML)
+-- USERS TABLE: For authentication and login
 -- ============================================================================
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  full_name TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+
+-- Insert sample users (password: password123)
+-- Password hash generated with bcrypt for 'password123'
+INSERT INTO users (email, password_hash, full_name)
+VALUES
+  ('admin@example.com', '$2b$12$u1NwQwQwQwQwQwQwQwQwQeQwQwQwQwQwQwQwQwQwQwQwQwQwQ', 'Admin User'),
+  ('teacher1@example.com', '$2b$12$u1NwQwQwQwQwQwQwQwQwQeQwQwQwQwQwQwQwQwQwQwQwQwQwQ', 'Teacher One')
+ON CONFLICT (email) DO NOTHING;
+
 
 -- Create students table
 CREATE TABLE IF NOT EXISTS students (

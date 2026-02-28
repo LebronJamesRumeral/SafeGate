@@ -1,3 +1,20 @@
+# ==================== User Schemas ====================
+
+class UserBase(BaseModel):
+    """Base schema for user data."""
+    email: str = Field(..., max_length=255)
+    full_name: Optional[str] = None
+    role: str = Field(..., max_length=50)
+
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=6)
+
+class UserResponse(UserBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    class Config:
+        from_attributes = True
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List
