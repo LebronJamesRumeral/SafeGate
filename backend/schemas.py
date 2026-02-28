@@ -1,5 +1,6 @@
 # ==================== User Schemas ====================
 from pydantic import BaseModel, Field
+from typing import Optional
 
 class UserBase(BaseModel):
     """Base schema for user data."""
