@@ -6,10 +6,10 @@ import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
 interface User {
-  id: number;
+  id: string;
   username: string;
   full_name: string | null;
-  role: string;
+  role: 'admin' | 'teacher' | string;
 }
 
 interface AuthContextType {

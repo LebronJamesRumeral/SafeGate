@@ -25,14 +25,15 @@ import { useContext, createContext } from "react"
 export const SidebarContext = createContext<{ collapsed: boolean; setCollapsed: (v: boolean) => void }>({ collapsed: false, setCollapsed: () => {} })
 
 const allNavItems = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/", roles: ["admin"] },
+  { icon: LayoutDashboard, label: "Dashboard", href: "/", roles: ["admin", "teacher"] },
   { icon: School, label: "Masterlist", href: "/masterlist", roles: ["admin"] },
   { icon: ScanLine, label: "Scan Attendance", href: "/scan", roles: ["teacher", "admin"] },
   { icon: CalendarDays, label: "Attendance", href: "/attendance", roles: ["teacher", "admin"] },
   { icon: Users, label: "Students", href: "/students", roles: ["teacher", "admin"] },
   { icon: AlertTriangle, label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin"] },
+  // Only admin sees Analytics and Settings
   { icon: BarChart3, label: "Analytics", href: "/analytics", roles: ["admin"] },
-  { icon: Settings, label: "Settings", href: "/settings", roles: ["teacher", "admin"] },
+  { icon: Settings, label: "Settings", href: "/settings", roles: ["admin"] },
 ]
 
 export function Sidebar() {
