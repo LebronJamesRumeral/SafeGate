@@ -507,14 +507,14 @@ export async function getInterventionLearning(
 
     if (data && data.length > 0) {
       // console.log(
-        `[ML ADAPTIVE] Found ${data.length} intervention types for ${studentLrn}`
-      );
+      //   `[ML ADAPTIVE] Found ${data.length} intervention types for ${studentLrn}`
+      // );
       data.forEach((intervention: InterventionLearning) => {
         // console.log(
-          `[ML ADAPTIVE] ${intervention.intervention_type}: ` +
-          `${intervention.effectiveness_rating}/5 effectiveness, ` +
-          `${intervention.success_rate}% success rate`
-        );
+        //   `[ML ADAPTIVE] ${intervention.intervention_type}: ` +
+        //   `${intervention.effectiveness_rating}/5 effectiveness, ` +
+        //   `${intervention.success_rate}% success rate`
+        // );
       });
       return data;
     }
