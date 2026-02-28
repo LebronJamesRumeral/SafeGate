@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
 interface User {
-  id: string;
+  id: number;
   username: string;
   full_name: string | null;
   role: string;
@@ -32,66 +32,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedUser = localStorage.getItem('safegate_user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
-      setLoading(false);
-    } else {
-      setUser(null);
-      setLoading(false);
-      if (pathname !== '/login') {
-        router.push('/login');
-      }
+    } else if (pathname !== '/login') {
+      router.push('/login');
     }
+    setLoading(false);
   }, [pathname, router]);
 
   // Supabase client setup
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Supabase URL or Anon Key is missing. Check your environment variables.');
-  }
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    if (!email || !password) {
-      alert('Email and password are required.');
-      return false;
-    }
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      if (error) {
-        alert(error.message || 'Login failed. Please check your credentials.');
+      if (error || !data.user) {
         return false;
       }
-      if (!data.user) {
-        alert('No user returned from Supabase.');
-        return false;
-      }
-      // Fetch user profile from Supabase 'users' table
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('id, username, full_name, role')
-        .eq('id', data.user.id)
-        .single();
-      if (profileError || !profile) {
-        // fallback to minimal info if profile not found
-        const fallbackUser: User = {
-          id: data.user.id,
-          username: data.user.email ?? '',
-          full_name: '',
-          role: 'user',
-        };
-        setUser(fallbackUser);
-        localStorage.setItem('safegate_user', JSON.stringify(fallbackUser));
-      } else {
-        setUser(profile);
-        localStorage.setItem('safegate_user', JSON.stringify(profile));
-      }
+      setUser({
+        id: data.user.id,
+        username: data.user.email,
+        full_name: data.user.user_metadata?.full_name || '',
+        role: data.user.role || 'user',
+      });
+      localStorage.setItem('safegate_user', JSON.stringify(data.user));
       router.push('/');
       return true;
-    } catch (error: any) {
-      alert(error?.message || 'Login error.');
+    } catch (error) {
       console.error('Login error:', error);
       return false;
     }
