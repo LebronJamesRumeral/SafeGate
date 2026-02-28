@@ -126,15 +126,15 @@ export async function calculateStudentRiskScore(
     if (error) {
       // Detailed error logging to diagnose RPC issues
       // console.error(
-        `[ML ERROR] RPC call failed for ${studentLrn}:`,
-        JSON.stringify({
-          error_message: error.message,
-          error_code: (error as any).code,
-          error_details: (error as any).details,
-          error_hint: (error as any).hint,
-          full_error: error
-        }, null, 2)
-      );
+      //   `[ML ERROR] RPC call failed for ${studentLrn}:`,
+      //   JSON.stringify({
+      //     error_message: error.message,
+      //     error_code: (error as any).code,
+      //     error_details: (error as any).details,
+      //     error_hint: (error as any).hint,
+      //     full_error: error
+      //   }, null, 2)
+      // );
       
       // console.warn(`[ML] Falling back to simple risk score calculation for ${studentLrn}`);
       return await getSimpleRiskScore(studentLrn);
