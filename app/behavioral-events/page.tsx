@@ -117,6 +117,7 @@ const SEVERITY_COLORS = {
 
 const CHART_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899'];
 
+// Enforce consistent layout structure for behavioral events
 export default function BehavioralEventsPage() {
   const router = useRouter();
   const [authLoading, setAuthLoading] = useState(true);
@@ -211,6 +212,11 @@ export default function BehavioralEventsPage() {
 
       if (eventsError) {
         console.error('Events error:', eventsError);
+        toast({
+          title: 'Failed to fetch events',
+          description: eventsError.message || String(eventsError),
+          variant: 'destructive',
+        });
         throw new Error(eventsError.message || 'Failed to fetch events');
       }
       setEvents(eventsData || []);
@@ -224,6 +230,11 @@ export default function BehavioralEventsPage() {
 
       if (categoriesError) {
         console.error('Categories error:', categoriesError);
+        toast({
+          title: 'Failed to fetch categories',
+          description: categoriesError.message || String(categoriesError),
+          variant: 'destructive',
+        });
         throw new Error(categoriesError.message || 'Failed to fetch categories');
       }
       setCategories(categoriesData || []);
@@ -237,6 +248,11 @@ export default function BehavioralEventsPage() {
 
       if (studentsError) {
         console.error('Students error:', studentsError);
+        toast({
+          title: 'Failed to fetch students',
+          description: studentsError.message || String(studentsError),
+          variant: 'destructive',
+        });
         throw new Error(studentsError.message || 'Failed to fetch students');
       }
       setStudents(studentsData || []);

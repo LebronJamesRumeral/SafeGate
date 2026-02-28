@@ -8,6 +8,7 @@ import { QrCode, Camera, CheckCircle, XCircle, User, Clock, Hash, LogOut } from 
 import { useState, useRef, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
+import { toast } from '@/components/ui/use-toast';
 import { motion } from 'framer-motion';
 
 interface ScanResult {
@@ -38,7 +39,13 @@ export default function ScanPage() {
   const findStudent = async (text: string) => {
     try {
       if (!supabase) {
-        console.error('Supabase client not initialized');
+        const msg = 'Supabase client not initialized';
+        console.error(msg);
+        toast({
+          title: 'Internal Error',
+          description: msg,
+          variant: 'destructive',
+        });
         return null;
       }
       
@@ -52,6 +59,11 @@ export default function ScanPage() {
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error finding student:', error);
+        toast({
+          title: 'Failed to find student',
+          description: error.message || String(error),
+          variant: 'destructive',
+        });
         return null;
       }
       
@@ -66,6 +78,11 @@ export default function ScanPage() {
       return null;
     } catch (error) {
       console.error('Error finding student:', error);
+      toast({
+        title: 'Failed to find student',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
       return null;
     }
   };
@@ -93,7 +110,13 @@ export default function ScanPage() {
 
     try {
       if (!supabase) {
-        throw new Error('Supabase client not initialized');
+        const msg = 'Supabase client not initialized';
+        toast({
+          title: 'Internal Error',
+          description: msg,
+          variant: 'destructive',
+        });
+        throw new Error(msg);
       }
 
       const { data: existing, error: existingError } = await supabase

@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { sortByLevel } from '@/lib/level-order';
+import { toast } from '@/components/ui/use-toast';
 import { MLDashboard } from '@/components/ml-dashboard';
 import { TablePageSkeleton } from '@/components/loading-skeletons';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -107,6 +108,7 @@ function getSchoolDays(start: string, end: string) {
   return days;
 }
 
+// Enforce consistent layout structure for attendance page
 export default function AttendancePage() {
   const today = new Date().toISOString().split('T')[0];
   const [dateMode, setDateMode] = useState<DateMode>('all');
@@ -147,7 +149,14 @@ export default function AttendancePage() {
 
       const { data: studentsData, error: studentsError } = await studentsQuery;
 
-      if (studentsError) throw studentsError;
+      if (studentsError) {
+        toast({
+          title: 'Failed to fetch students',
+          description: studentsError.message || String(studentsError),
+          variant: 'destructive',
+        });
+        throw studentsError;
+      }
 
       const sortedStudents = sortByLevel(studentsData || []);
 
@@ -170,7 +179,14 @@ export default function AttendancePage() {
           .order('date', { ascending: true })
           .limit(1);
 
-        if (earliestError) throw earliestError;
+        if (earliestError) {
+          toast({
+            title: 'Failed to fetch earliest attendance date',
+            description: earliestError.message || String(earliestError),
+            variant: 'destructive',
+          });
+          throw earliestError;
+        }
         start = earliest && earliest.length > 0 ? earliest[0].date : today;
         end = today;
       } else {
@@ -195,13 +211,25 @@ export default function AttendancePage() {
 
       const { data: attendanceData, error: attendanceError } = await attendanceQuery;
 
-      if (attendanceError) throw attendanceError;
+      if (attendanceError) {
+        toast({
+          title: 'Failed to fetch attendance',
+          description: attendanceError.message || String(attendanceError),
+          variant: 'destructive',
+        });
+        throw attendanceError;
+      }
 
       setStudents(sortedStudents);
       setLogs(attendanceData || []);
       setAppliedRange({ start, end });
     } catch (error) {
       console.error('Error fetching attendance data:', error);
+      toast({
+        title: 'Failed to fetch attendance data',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
       setIsInitialLoad(false);

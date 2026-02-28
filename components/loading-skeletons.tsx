@@ -9,6 +9,7 @@ export function HeaderSkeleton() {
   );
 }
 
+// Skeleton for stat cards, used in dashboards
 export function StatCardSkeleton({ count = 4 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -132,6 +133,7 @@ export function AnalyticsSkeleton() {
     </div>
   );
 }
+// Skeleton for tables, used in data-heavy pages
 export function TableSkeleton({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -155,6 +157,7 @@ export function TableSkeleton({ rows = 5, columns = 5 }: { rows?: number; column
   );
 }
 
+// Skeleton for cards, used in analytics and dashboards
 export function CardSkeleton({ lines = 3 }: { lines?: number }) {
   return (
     <div className="space-y-3">

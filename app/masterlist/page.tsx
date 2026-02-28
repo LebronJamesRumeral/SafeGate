@@ -12,10 +12,12 @@ import { Download, Search, Eye, Mail, Phone, Archive } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
 import { supabase, type Student } from '@/lib/supabase';
+import { toast } from '@/components/ui/use-toast';
 import { sortByLevel } from '@/lib/level-order';
 import { MLDashboard } from '@/components/ml-dashboard';
 import { MasterlistSkeleton } from '@/components/loading-skeletons';
 
+// Enforce consistent layout structure for masterlist page
 export default function MasterlistPage() {
   const [search, setSearch] = useState('');
   const [filterGrade, setFilterGrade] = useState('all');
@@ -34,7 +36,13 @@ export default function MasterlistPage() {
       setLoading(true);
       
       if (!supabase) {
-        console.error('Supabase client not initialized');
+        const msg = 'Supabase client not initialized';
+        console.error(msg);
+        toast({
+          title: 'Internal Error',
+          description: msg,
+          variant: 'destructive',
+        });
         return;
       }
       
@@ -43,7 +51,14 @@ export default function MasterlistPage() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        toast({
+          title: 'Failed to fetch students',
+          description: error.message || String(error),
+          variant: 'destructive',
+        });
+        throw error;
+      }
       
       // Map database fields to component format
       const mappedStudents = data.map(student => ({
@@ -58,6 +73,11 @@ export default function MasterlistPage() {
       setStudents(sortByLevel(mappedStudents));
     } catch (error) {
       console.error('Error fetching students:', error);
+      toast({
+        title: 'Failed to fetch students',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }

@@ -5,7 +5,9 @@ import { Sidebar, SidebarContext } from "@/components/sidebar"
 import { Header } from "@/components/header"
 import { useContext, useState, useEffect } from "react"
 
+// DashboardLayout provides sidebar context and enforces layout structure
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
+  // Sidebar collapsed state is managed via context for consistency
   const [collapsed, setCollapsed] = useState(false)
   const [mounted, setMounted] = useState(false)
 
@@ -25,6 +27,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   if (!mounted) return null
 
+  // Provide sidebar state via context for all children
   return (
     <SidebarContext.Provider value={{ collapsed, setCollapsed: handleSetCollapsed }}>
       <div className="flex min-h-screen">

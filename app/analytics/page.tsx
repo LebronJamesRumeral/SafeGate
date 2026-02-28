@@ -30,6 +30,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { useState, useEffect } from 'react';
+import { toast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase';
 import { MLDashboard } from '@/components/ml-dashboard';
 import { AnalyticsSkeleton } from '@/components/loading-skeletons';
@@ -72,6 +73,7 @@ const COLORS = {
   }
 };
 
+// Enforce consistent layout structure for analytics
 export default function AnalyticsPage() {
   const today = new Date().toISOString().split('T')[0];
   const [dateMode, setDateMode] = useState<DateMode>('all');
@@ -123,6 +125,11 @@ export default function AnalyticsPage() {
       console.log('[Analytics] ML data refreshed:', data.results);
     } catch (error) {
       console.warn('[Analytics] ML update trigger failed (non-critical):', error);
+      toast({
+        title: 'ML update failed',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
     }
   };
 
@@ -148,7 +155,14 @@ export default function AnalyticsPage() {
       }
       const { data: students, error: studentsError } = await studentsQuery;
 
-      if (studentsError) throw studentsError;
+      if (studentsError) {
+        toast({
+          title: 'Failed to fetch students',
+          description: studentsError.message || String(studentsError),
+          variant: 'destructive',
+        });
+        throw studentsError;
+      }
 
       const totalStudents = students?.length || 0;
 
@@ -193,7 +207,15 @@ export default function AnalyticsPage() {
         .gte('date', dateRange[0])
         .lte('date', dateRange[dateRange.length - 1]);
 
-      if (attendanceError) throw attendanceError;
+      if (attendanceError) {
+        setLoading(false);
+        toast({
+          title: 'Failed to fetch attendance',
+          description: attendanceError.message || String(attendanceError),
+          variant: 'destructive',
+        });
+        return;
+      }
 
       // Calculate weekly stats (last 7 days)
       const weeklyData = last7Days.map(date => {
@@ -397,6 +419,11 @@ export default function AnalyticsPage() {
 
     } catch (error) {
       console.error('Error fetching analytics data:', error);
+      toast({
+        title: 'Failed to fetch analytics data',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
       setIsInitialLoad(false);

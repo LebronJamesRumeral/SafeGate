@@ -51,6 +51,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
 import { supabase, type Student } from '@/lib/supabase';
+import { toast } from '@/components/ui/use-toast';
 import Link from 'next/link';
 import { sortByLevel } from '@/lib/level-order';
 import { calculateStudentRiskScore, getActionRecommendations, type RiskScore } from '@/lib/ml-risk-calculator';
@@ -107,6 +108,7 @@ const LEVEL_COLORS = {
 
 const CHART_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
+// Enforce consistent layout structure for students page
 export default function StudentsPage() {
   const [search, setSearch] = useState('');
   const [filterGrade, setFilterGrade] = useState('all');
@@ -190,6 +192,11 @@ export default function StudentsPage() {
         setYearLevelTimes(timeMap);
       } catch (error) {
         console.error('Error loading year level times:', error);
+        toast({
+          title: 'Failed to load year level times',
+          description: error instanceof Error ? error.message : String(error),
+          variant: 'destructive',
+        });
       }
     }
   }, []);
@@ -199,7 +206,13 @@ export default function StudentsPage() {
       setLoading(true);
       
       if (!supabase) {
-        console.error('Supabase client not initialized');
+        const msg = 'Supabase client not initialized';
+        console.error(msg);
+        toast({
+          title: 'Internal Error',
+          description: msg,
+          variant: 'destructive',
+        });
         return;
       }
       
@@ -208,7 +221,14 @@ export default function StudentsPage() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        toast({
+          title: 'Failed to fetch students',
+          description: error.message || String(error),
+          variant: 'destructive',
+        });
+        throw error;
+      }
 
       const today = new Date().toISOString().split('T')[0];
       const { data: attendance, error: attendanceError } = await supabase
@@ -216,7 +236,14 @@ export default function StudentsPage() {
         .select('student_lrn, check_in_time, check_out_time')
         .eq('date', today);
 
-      if (attendanceError) throw attendanceError;
+      if (attendanceError) {
+        toast({
+          title: 'Failed to fetch attendance',
+          description: attendanceError.message || String(attendanceError),
+          variant: 'destructive',
+        });
+        throw attendanceError;
+      }
 
       // If school day has ended, reset all unchecked-out students to "not checked in"
       const attendanceMap: Record<string, any> = {};
@@ -263,6 +290,11 @@ export default function StudentsPage() {
           return { lrn: student.lrn, score };
         } catch (error) {
           console.error(`Error fetching risk score for ${student.lrn}:`, error);
+          toast({
+            title: `Failed to fetch risk score for ${student.lrn}`,
+            description: error instanceof Error ? error.message : String(error),
+            variant: 'destructive',
+          });
           return { lrn: student.lrn, score: null };
         }
       });
@@ -276,6 +308,11 @@ export default function StudentsPage() {
 
     } catch (error) {
       console.error('Error fetching students:', error);
+      toast({
+        title: 'Failed to fetch students',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);

@@ -38,7 +38,7 @@ const allNavItems = [
 
 export function Sidebar() {
   const pathname = usePathname()
-  const [open, setOpen] = useState(true)
+  // SidebarContext provides collapsed state for consistent sidebar behavior
   const { collapsed, setCollapsed } = useContext(SidebarContext)
   const { user } = useAuth()
 

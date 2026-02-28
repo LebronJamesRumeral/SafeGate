@@ -472,44 +472,5 @@ export function HighRiskStudentsExample() {
   );
 }
 
-/**
- * Example 7: Combined Dashboard with All Features
- * Demonstrates: Using multiple API endpoints together
- */
-export function ComprehensiveDashboardExample() {
-  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
-
-  return (
-    <div className="comprehensive-dashboard">
-      <h1>SafeGate Management Dashboard</h1>
-
-      <section>
-        <StudentListExample />
-      </section>
-
-      <section>
-        <CreateStudentFormExample />
-      </section>
-
-      {selectedStudentId && (
-        <>
-          <section>
-            <StudentDashboardExample studentId={selectedStudentId} />
-          </section>
-
-          <section>
-            <AttendanceRecorderExample studentId={selectedStudentId} />
-          </section>
-
-          <section>
-            <BehaviorLoggerExample studentId={selectedStudentId} />
-          </section>
-        </>
-      )}
-
-      <section>
-        <HighRiskStudentsExample />
-      </section>
-    </div>
-  );
-}
+// NOTE: The following components are for API integration examples and demo purposes only.
+// They are not used in production code. Remove or refactor if not needed for documentation.

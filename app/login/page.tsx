@@ -5,10 +5,10 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
 import { Users, UserCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
 const fadeInOut = `
   @keyframes fadeInSlide {
@@ -41,8 +41,14 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const { login, user, logout } = useAuth();
+  const { login, logout } = useAuth();
+
+  // Setup Supabase client for direct user fetch after login
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,18 +59,30 @@ export default function LoginPage() {
     const success = await login(email, password);
     if (!success) {
       setError('Invalid email or password');
+      toast({
+        title: 'Login Failed',
+        description: 'Invalid email or password',
+        variant: 'destructive',
+      });
       setLoading(false);
       return;
     }
 
-    // Wait for user context to update, then check role
-    setTimeout(() => {
-      if (user && user.role && user.role !== accountType) {
-        logout();
-        setError(`You do not have ${accountType} access. Please use the correct login role.`);
-      }
+    // Fetch the latest user from Supabase after login
+    const { data, error } = await supabase.auth.getUser();
+    const role = data?.user?.user_metadata?.role || 'user';
+    if (role !== accountType) {
+      await logout();
+      setError(`You do not have ${accountType} access. Please use the correct login role.`);
+      toast({
+        title: 'Access Denied',
+        description: `You do not have ${accountType} access. Please use the correct login role.`,
+        variant: 'destructive',
+      });
       setLoading(false);
-    }, 200); // Small delay to ensure user context is updated
+      return;
+    }
+    setLoading(false);
   };
 
   return (
@@ -229,17 +247,7 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && (
-              <div
-                style={{
-                  animation: 'fadeInSlide 0.3s ease-out forwards',
-                }}
-              >
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              </div>
-            )}
+            {/* Error toast replaces error alert */}
 
             <Button 
               type="submit" 

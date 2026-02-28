@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Bell, Lock, User, School, Save, Database, Brain, Clock, ChevronRight } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { toast } from '@/components/ui/use-toast';
 import { MLDashboard } from '@/components/ml-dashboard';
 
 interface YearLevelCheckoutTime {
@@ -63,6 +64,11 @@ export default function SettingsPage() {
         setYearLevelTimes(JSON.parse(savedTimes));
       } catch (error) {
         console.error('Error loading year level times:', error);
+        toast({
+          title: 'Failed to load year level times',
+          description: error instanceof Error ? error.message : String(error),
+          variant: 'destructive',
+        });
       }
     }
   }, []);

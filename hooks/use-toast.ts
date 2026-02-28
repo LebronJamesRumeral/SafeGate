@@ -188,4 +188,5 @@ function useToast() {
   }
 }
 
+// Export custom toast hook and toast function for consistent usage
 export { useToast, toast }

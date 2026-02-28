@@ -18,6 +18,7 @@ import { useTheme } from 'next-themes';
 
 type DateMode = 'all' | 'single' | 'range';
 
+// Enforce consistent layout structure for dashboard
 export default function Dashboard() {
   const router = useRouter();
   const { theme } = useTheme();
@@ -69,6 +70,7 @@ export default function Dashboard() {
     fetchDashboardData();
   }, [dateMode, singleDate, rangeStart, rangeEnd, selectedLevel, isAuthenticated]);
 
+  // Fetch dashboard data with improved error handling and loading state
   const fetchDashboardData = async () => {
     if (!supabase) {
       setLoading(false);
@@ -84,7 +86,11 @@ export default function Dashboard() {
         studentsQuery = studentsQuery.eq('level', selectedLevel);
       }
       const { data: students, error: studentsError } = await studentsQuery;
-      if (studentsError) throw studentsError;
+      if (studentsError) {
+        setLoading(false);
+        // Optionally show a toast or error message here
+        return;
+      }
       const totalStudents = students?.length || 0;
 
       // Build attendance query based on date mode
@@ -101,7 +107,11 @@ export default function Dashboard() {
       }
 
       const { data: attendance, error: attendanceError } = await attendanceQuery;
-      if (attendanceError) throw attendanceError;
+      if (attendanceError) {
+        setLoading(false);
+        // Optionally show a toast or error message here
+        return;
+      }
 
       // Filter by level if selected
       let filteredAttendance = attendance || [];

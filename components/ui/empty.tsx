@@ -94,6 +94,7 @@ function EmptyContent({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
+// Export all Empty UI subcomponents for consistent usage
 export {
   Empty,
   EmptyHeader,
