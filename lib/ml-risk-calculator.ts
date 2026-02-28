@@ -42,7 +42,7 @@ export async function getAttendanceMetrics(
   studentLrn: string
 ): Promise<AttendanceMetrics | null> {
   try {
-    console.log(`[ML] Fetching attendance metrics for ${studentLrn}`);
+    // console.log(`[ML] Fetching attendance metrics for ${studentLrn}`);
     const { data, error } = await supabase.rpc(
       'calculate_student_attendance_metrics',
       {
@@ -52,19 +52,19 @@ export async function getAttendanceMetrics(
     );
 
     if (error) {
-      console.error(`[ML] Attendance metrics RPC failed for ${studentLrn}:`, error);
+      // console.error(`[ML] Attendance metrics RPC failed for ${studentLrn}:`, error);
       return null;
     }
 
     if (data && data.length > 0) {
-      console.log(`[ML] Attendance: ${data[0].attendance_rate}% for ${studentLrn}`);
+      // console.log(`[ML] Attendance: ${data[0].attendance_rate}% for ${studentLrn}`);
       return data[0] as AttendanceMetrics;
     }
 
-    console.warn(`[ML] No attendance data returned for ${studentLrn}`);
+    // console.warn(`[ML] No attendance data returned for ${studentLrn}`);
     return null;
   } catch (error) {
-    console.error(`[ML] Exception in getAttendanceMetrics for ${studentLrn}:`, error);
+    // console.error(`[ML] Exception in getAttendanceMetrics for ${studentLrn}:`, error);
     return null;
   }
 }
@@ -78,7 +78,7 @@ export async function detectAbsencePatterns(
   daysBack: number = 30
 ): Promise<AbsencePattern[]> {
   try {
-    console.log(`[ML] Detecting absence patterns for ${studentLrn} (${daysBack} days)`);
+    // console.log(`[ML] Detecting absence patterns for ${studentLrn} (${daysBack} days)`);
     const { data, error } = await supabase.rpc(
       'detect_student_absence_patterns',
       {
@@ -88,19 +88,19 @@ export async function detectAbsencePatterns(
     );
 
     if (error) {
-      console.error(`[ML] Absence pattern RPC failed for ${studentLrn}:`, error);
+      // console.error(`[ML] Absence pattern RPC failed for ${studentLrn}:`, error);
       return [];
     }
 
     if (data && data.length > 0) {
-      console.log(`[ML] Detected ${data.length} pattern(s) for ${studentLrn}`);
+      // console.log(`[ML] Detected ${data.length} pattern(s) for ${studentLrn}`);
       return data as AbsencePattern[];
     }
 
-    console.log(`[ML] No absence patterns detected for ${studentLrn}`);
+    // console.log(`[ML] No absence patterns detected for ${studentLrn}`);
     return [];
   } catch (error) {
-    console.error(`[ML] Exception in detectAbsencePatterns for ${studentLrn}:`, error);
+    // console.error(`[ML] Exception in detectAbsencePatterns for ${studentLrn}:`, error);
     return [];
   }
 }
@@ -114,7 +114,7 @@ export async function calculateStudentRiskScore(
   studentLrn: string
 ): Promise<RiskScore | null> {
   try {
-    console.log(`[ML] Calling RPC function calculate_student_risk_score for student: ${studentLrn}`);
+    // console.log(`[ML] Calling RPC function calculate_student_risk_score for student: ${studentLrn}`);
     
     const { data, error } = await supabase.rpc(
       'calculate_student_risk_score',
@@ -125,7 +125,7 @@ export async function calculateStudentRiskScore(
 
     if (error) {
       // Detailed error logging to diagnose RPC issues
-      console.error(
+      // console.error(
         `[ML ERROR] RPC call failed for ${studentLrn}:`,
         JSON.stringify({
           error_message: error.message,
@@ -136,24 +136,24 @@ export async function calculateStudentRiskScore(
         }, null, 2)
       );
       
-      console.warn(`[ML] Falling back to simple risk score calculation for ${studentLrn}`);
+      // console.warn(`[ML] Falling back to simple risk score calculation for ${studentLrn}`);
       return await getSimpleRiskScore(studentLrn);
     }
 
     if (!data) {
-      console.warn(`[ML] RPC returned no data for student ${studentLrn}, using fallback`);
+      // console.warn(`[ML] RPC returned no data for student ${studentLrn}, using fallback`);
       return await getSimpleRiskScore(studentLrn);
     }
 
     if (data && data.length > 0) {
-      console.log(`[ML] Successfully calculated risk score: ${data[0].risk_score} (${data[0].risk_level}) for ${studentLrn}`);
+      // console.log(`[ML] Successfully calculated risk score: ${data[0].risk_score} (${data[0].risk_level}) for ${studentLrn}`);
       return data[0] as RiskScore;
     }
 
-    console.warn(`[ML] RPC returned empty data array for student ${studentLrn}, using fallback`);
+    // console.warn(`[ML] RPC returned empty data array for student ${studentLrn}, using fallback`);
     return await getSimpleRiskScore(studentLrn);
   } catch (error) {
-    console.error(
+    // console.error(
       `[ML EXCEPTION] Unexpected error in calculateStudentRiskScore for ${studentLrn}:`,
       {
         name: (error as Error).name,
@@ -162,7 +162,7 @@ export async function calculateStudentRiskScore(
       }
     );
     
-    console.warn(`[ML] Falling back to simple risk score calculation due to exception for ${studentLrn}`);
+    // console.warn(`[ML] Falling back to simple risk score calculation due to exception for ${studentLrn}`);
     return await getSimpleRiskScore(studentLrn);
   }
 }
@@ -173,7 +173,7 @@ export async function calculateStudentRiskScore(
  */
 async function getSimpleRiskScore(studentLrn: string): Promise<RiskScore | null> {
   try {
-    console.log(`[ML FALLBACK] Computing simple risk score for ${studentLrn} using direct queries`);
+    // console.log(`[ML FALLBACK] Computing simple risk score for ${studentLrn} using direct queries`);
     
     // Fetch attendance data
     const { data: attendanceData, error: attendanceError } = await supabase
@@ -190,7 +190,7 @@ async function getSimpleRiskScore(studentLrn: string): Promise<RiskScore | null>
       return dayOfWeek >= 1 && dayOfWeek <= 5;
     }).length || 0;
 
-    console.log(`[ML FALLBACK] Found ${schoolDays} school days for ${studentLrn}`);
+    // console.log(`[ML FALLBACK] Found ${schoolDays} school days for ${studentLrn}`);
 
     // Estimate based on simple checks
     let simpleRiskScore = 0;
@@ -207,7 +207,7 @@ async function getSimpleRiskScore(studentLrn: string): Promise<RiskScore | null>
       riskLevel = 'low';
     }
 
-    console.log(`[ML FALLBACK] Risk score (simple method): ${simpleRiskScore} (${riskLevel}) for ${studentLrn}`);
+    // console.log(`[ML FALLBACK] Risk score (simple method): ${simpleRiskScore} (${riskLevel}) for ${studentLrn}`);
 
     return {
       risk_score: simpleRiskScore,
@@ -227,7 +227,7 @@ async function getSimpleRiskScore(studentLrn: string): Promise<RiskScore | null>
       }
     };
   } catch (error) {
-    console.error(`Error in fallback risk calculation for ${studentLrn}:`, error);
+    // console.error(`Error in fallback risk calculation for ${studentLrn}:`, error);
     return null;
   }
 }
@@ -255,10 +255,10 @@ export async function calculateBatchRiskScores(
       }
     });
 
-    console.log(`Risk scores calculated: ${results.size}/${studentLrns.length} students`);
+    // console.log(`Risk scores calculated: ${results.size}/${studentLrns.length} students`);
     return results;
   } catch (error) {
-    console.error('Error in calculateBatchRiskScores:', error);
+    // console.error('Error in calculateBatchRiskScores:', error);
     return results;
   }
 }
@@ -280,7 +280,7 @@ export async function getStudentMLProfile(studentLrn: string) {
       riskScore,
     };
   } catch (error) {
-    console.error('Error getting student ML profile:', error);
+    // console.error('Error getting student ML profile:', error);
     return {
       metrics: null,
       patterns: [],
@@ -404,20 +404,20 @@ export async function getTrendAnalysis(
   studentLrn: string
 ): Promise<TrendAnalysis | null> {
   try {
-    console.log(`[ML TREND] Analyzing attendance trends for ${studentLrn}`);
+    // console.log(`[ML TREND] Analyzing attendance trends for ${studentLrn}`);
     const { data, error } = await supabase.rpc(
       'calculate_student_trend',
       { p_student_lrn: studentLrn }
     );
 
     if (error) {
-      console.error(`[ML ERROR] Trend analysis failed for ${studentLrn}:`, error);
+      // console.error(`[ML ERROR] Trend analysis failed for ${studentLrn}:`, error);
       return null;
     }
 
     if (data && data.length > 0) {
       const trend = data[0];
-      console.log(
+      // console.log(
         `[ML TREND] ${studentLrn}: ${trend.trend_direction} ` +
         `(${trend.current_attendance_rate}% from ${trend.previous_attendance_rate}%)`
       );
@@ -426,7 +426,7 @@ export async function getTrendAnalysis(
 
     return null;
   } catch (error) {
-    console.error(`[ML ERROR] Exception in getTrendAnalysis:`, error);
+    // console.error(`[ML ERROR] Exception in getTrendAnalysis:`, error);
     return null;
   }
 }
@@ -450,20 +450,20 @@ export async function getForecastedRisk(
   daysAhead: number = 7
 ): Promise<RiskForecast | null> {
   try {
-    console.log(`[ML FORECAST] Predicting ${daysAhead}-day risk for ${studentLrn}`);
+    // console.log(`[ML FORECAST] Predicting ${daysAhead}-day risk for ${studentLrn}`);
     const { data, error } = await supabase.rpc(
       'forecast_student_risk',
       { p_student_lrn: studentLrn, p_days_ahead: daysAhead }
     );
 
     if (error) {
-      console.error(`[ML ERROR] Risk forecast failed for ${studentLrn}:`, error);
+      // console.error(`[ML ERROR] Risk forecast failed for ${studentLrn}:`, error);
       return null;
     }
 
     if (data && data.length > 0) {
       const forecast = data[0];
-      console.log(
+      // console.log(
         `[ML FORECAST] ${studentLrn}: Risk forecast ${forecast.current_risk_score} → ` +
         `${forecast.forecasted_risk_score} (${forecast.risk_trajectory})`
       );
@@ -472,7 +472,7 @@ export async function getForecastedRisk(
 
     return null;
   } catch (error) {
-    console.error(`[ML ERROR] Exception in getForecastedRisk:`, error);
+    // console.error(`[ML ERROR] Exception in getForecastedRisk:`, error);
     return null;
   }
 }
@@ -494,23 +494,23 @@ export async function getInterventionLearning(
   studentLrn: string
 ): Promise<InterventionLearning[]> {
   try {
-    console.log(`[ML ADAPTIVE] Learning from interventions for ${studentLrn}`);
+    // console.log(`[ML ADAPTIVE] Learning from interventions for ${studentLrn}`);
     const { data, error } = await supabase.rpc(
       'learn_from_interventions',
       { p_student_lrn: studentLrn }
     );
 
     if (error) {
-      console.error(`[ML ERROR] Intervention learning failed for ${studentLrn}:`, error);
+      // console.error(`[ML ERROR] Intervention learning failed for ${studentLrn}:`, error);
       return [];
     }
 
     if (data && data.length > 0) {
-      console.log(
+      // console.log(
         `[ML ADAPTIVE] Found ${data.length} intervention types for ${studentLrn}`
       );
       data.forEach((intervention: InterventionLearning) => {
-        console.log(
+        // console.log(
           `[ML ADAPTIVE] ${intervention.intervention_type}: ` +
           `${intervention.effectiveness_rating}/5 effectiveness, ` +
           `${intervention.success_rate}% success rate`
@@ -521,7 +521,7 @@ export async function getInterventionLearning(
 
     return [];
   } catch (error) {
-    console.error(`[ML ERROR] Exception in getInterventionLearning:`, error);
+    // console.error(`[ML ERROR] Exception in getInterventionLearning:`, error);
     return [];
   }
 }
@@ -543,25 +543,25 @@ export async function getAdaptiveThresholds(
   gradeLevel?: string
 ): Promise<AdaptiveThreshold[]> {
   try {
-    console.log(`[ML ADAPTIVE] Calculating adaptive thresholds for ${studentLrn}`);
+    // console.log(`[ML ADAPTIVE] Calculating adaptive thresholds for ${studentLrn}`);
     const { data, error } = await supabase.rpc(
       'get_adaptive_thresholds',
       { p_student_lrn: studentLrn, p_grade_level: gradeLevel || null }
     );
 
     if (error) {
-      console.error(`[ML ERROR] Adaptive thresholds failed for ${studentLrn}:`, error);
+      // console.error(`[ML ERROR] Adaptive thresholds failed for ${studentLrn}:`, error);
       return [];
     }
 
     if (data && data.length > 0) {
-      console.log(`[ML ADAPTIVE] Adjusted ${data.length} thresholds for ${studentLrn}`);
+      // console.log(`[ML ADAPTIVE] Adjusted ${data.length} thresholds for ${studentLrn}`);
       return data;
     }
 
     return [];
   } catch (error) {
-    console.error(`[ML ERROR] Exception in getAdaptiveThresholds:`, error);
+    // console.error(`[ML ERROR] Exception in getAdaptiveThresholds:`, error);
     return [];
   }
 }
@@ -571,7 +571,7 @@ export async function getAdaptiveThresholds(
  */
 export async function getPredictiveMLProfile(studentLrn: string) {
   try {
-    console.log(`[ML PREDICT] Building comprehensive ML profile for ${studentLrn}`);
+    // console.log(`[ML PREDICT] Building comprehensive ML profile for ${studentLrn}`);
 
     const [trend, forecast, interventions, thresholds] = await Promise.all([
       getTrendAnalysis(studentLrn),
@@ -588,7 +588,7 @@ export async function getPredictiveMLProfile(studentLrn: string) {
       generated_at: new Date().toISOString(),
     };
   } catch (error) {
-    console.error(`[ML ERROR] Exception in getPredictiveMLProfile:`, error);
+    // console.error(`[ML ERROR] Exception in getPredictiveMLProfile:`, error);
     return null;
   }
 }
@@ -613,20 +613,20 @@ export async function forecastStudentAbsences(
   daysAhead: number = 14
 ): Promise<AbsenceForecast | null> {
   try {
-    console.log(`[ML FORECAST] Predicting absences for ${studentLrn} (${daysAhead} days)`);
+    // console.log(`[ML FORECAST] Predicting absences for ${studentLrn} (${daysAhead} days)`);
     const { data, error } = await supabase.rpc(
       'forecast_student_absences',
       { p_student_lrn: studentLrn, p_days_ahead: daysAhead }
     );
 
     if (error) {
-      console.error(`[ML ERROR] Absence forecast failed for ${studentLrn}:`, error);
+      // console.error(`[ML ERROR] Absence forecast failed for ${studentLrn}:`, error);
       return null;
     }
 
     if (data && data.length > 0) {
       const forecast = data[0];
-      console.log(
+      // console.log(
         `[ML FORECAST] ${studentLrn}: Pattern "${forecast.absence_pattern}" ` +
         `(${forecast.confidence}% confidence). High risk days: ${forecast.high_risk_days}`
       );
@@ -635,7 +635,7 @@ export async function forecastStudentAbsences(
 
     return null;
   } catch (error) {
-    console.error(`[ML ERROR] Exception in forecastStudentAbsences:`, error);
+    // console.error(`[ML ERROR] Exception in forecastStudentAbsences:`, error);
     return null;
   }
 }
@@ -660,20 +660,20 @@ export async function getAttendanceBehavioralCorrelation(
   studentLrn: string
 ): Promise<AttendanceBehavioralCorrelation | null> {
   try {
-    console.log(`[ML ADAPTIVE] Analyzing attendance-behavioral correlation for ${studentLrn}`);
+    // console.log(`[ML ADAPTIVE] Analyzing attendance-behavioral correlation for ${studentLrn}`);
     const { data, error } = await supabase.rpc(
       'get_attendance_behavioral_correlation',
       { p_student_lrn: studentLrn }
     );
 
     if (error) {
-      console.error(`[ML ERROR] Correlation analysis failed for ${studentLrn}:`, error);
+      // console.error(`[ML ERROR] Correlation analysis failed for ${studentLrn}:`, error);
       return null;
     }
 
     if (data && data.length > 0) {
       const corr = data[0];
-      console.log(
+      // console.log(
         `[ML ADAPTIVE] ${studentLrn}: ${corr.attendance_presence_days} present days, ` +
         `${corr.behavioral_events_on_present_days} behavioral events. ` +
         `Correlation: ${corr.correlation_strength}`
@@ -683,7 +683,7 @@ export async function getAttendanceBehavioralCorrelation(
 
     return null;
   } catch (error) {
-    console.error(`[ML ERROR] Exception in getAttendanceBehavioralCorrelation:`, error);
+    // console.error(`[ML ERROR] Exception in getAttendanceBehavioralCorrelation:`, error);
     return null;
   }
 }
@@ -694,7 +694,7 @@ export async function getAttendanceBehavioralCorrelation(
  */
 export async function getCompleteBehavioralForecast(studentLrn: string) {
   try {
-    console.log(`[ML PREDICT] Building complete behavioral forecast for ${studentLrn}`);
+    // console.log(`[ML PREDICT] Building complete behavioral forecast for ${studentLrn}`);
 
     const [absenceForecast, correlation] = await Promise.all([
       forecastStudentAbsences(studentLrn),
@@ -713,7 +713,7 @@ export async function getCompleteBehavioralForecast(studentLrn: string) {
       `,
     };
   } catch (error) {
-    console.error(`[ML ERROR] Exception in getCompleteBehavioralForecast:`, error);
+    // console.error(`[ML ERROR] Exception in getCompleteBehavioralForecast:`, error);
     return null;
   }
 }
