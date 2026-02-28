@@ -48,14 +48,11 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    // Extract username from email (part before @)
-    const username = email.includes('@') ? email.split('@')[0] : email;
-    const success = await login(username, password, accountType);
-    
+    // Use full email and password for authentication
+    const success = await login(email, password);
     if (!success) {
       setError('Invalid email or password');
     }
-    
     setLoading(false);
   };
 
