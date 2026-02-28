@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Users, UserCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useEffect } from 'react';
 
 const fadeInOut = `
   @keyframes fadeInSlide {
@@ -41,7 +42,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user, logout } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,8 +53,18 @@ export default function LoginPage() {
     const success = await login(email, password);
     if (!success) {
       setError('Invalid email or password');
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    // Wait for user context to update, then check role
+    setTimeout(() => {
+      if (user && user.role && user.role !== accountType) {
+        logout();
+        setError(`You do not have ${accountType} access. Please use the correct login role.`);
+      }
+      setLoading(false);
+    }, 200); // Small delay to ensure user context is updated
   };
 
   return (
