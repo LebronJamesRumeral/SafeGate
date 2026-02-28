@@ -56,9 +56,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: data.user.id,
         username: data.user.email,
         full_name: data.user.user_metadata?.full_name || '',
-        role: data.user.role || 'user',
+        role: data.user.user_metadata?.role || 'user',
       });
-      localStorage.setItem('safegate_user', JSON.stringify(data.user));
+      // Store the user with role in localStorage for persistence
+      localStorage.setItem('safegate_user', JSON.stringify({
+        ...data.user,
+        role: data.user.user_metadata?.role || 'user',
+      }));
       router.push('/');
       return true;
     } catch (error) {
