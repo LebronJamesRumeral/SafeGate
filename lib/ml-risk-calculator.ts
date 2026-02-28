@@ -626,10 +626,7 @@ export async function forecastStudentAbsences(
 
     if (data && data.length > 0) {
       const forecast = data[0];
-      // console.log(
-        `[ML FORECAST] ${studentLrn}: Pattern "${forecast.absence_pattern}" ` +
-        `(${forecast.confidence}% confidence). High risk days: ${forecast.high_risk_days}`
-      );
+      // [ML FORECAST] ${studentLrn}: Pattern "${forecast.absence_pattern}" (${forecast.confidence}% confidence). High risk days: ${forecast.high_risk_days}
       return forecast;
     }
 
@@ -673,11 +670,7 @@ export async function getAttendanceBehavioralCorrelation(
 
     if (data && data.length > 0) {
       const corr = data[0];
-      // console.log(
-        `[ML ADAPTIVE] ${studentLrn}: ${corr.attendance_presence_days} present days, ` +
-        `${corr.behavioral_events_on_present_days} behavioral events. ` +
-        `Correlation: ${corr.correlation_strength}`
-      );
+      // [ML ADAPTIVE] ${studentLrn}: ${corr.attendance_presence_days} present days, ${corr.behavioral_events_on_present_days} behavioral events. Correlation: ${corr.correlation_strength}
       return corr;
     }
 
