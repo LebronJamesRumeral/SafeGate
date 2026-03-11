@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { QrCode, Camera, CheckCircle, XCircle, User, Clock, Hash, LogOut } from 'lucide-react';
+import { QrCode, Camera, CheckCircle, XCircle, User, Clock, Hash } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
@@ -26,11 +26,11 @@ interface ScanResult {
 }
 
 export default function ScanPage() {
-  const [scanning, setScanning] = useState(false);
+  const [scanning, setScanning] = useState(true);
   const [qrText, setQrText] = useState<string | null>(null);
   const [lastScan, setLastScan] = useState<ScanResult | null>(null);
   const [manualId, setManualId] = useState('');
-  const [scanMode, setScanMode] = useState<'check-in' | 'check-out'>('check-in');
+  const [showManualEntry, setShowManualEntry] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scannerRef = useRef<any>(null);
   const recordingRef = useRef(false);
@@ -129,25 +129,12 @@ export default function ScanPage() {
         .select('id, check_in_time, check_out_time')
         .eq('student_lrn', student.lrn)
         .eq('date', date)
+        .order('check_in_time', { ascending: false })
         .limit(1);
 
       if (existingError) throw existingError;
 
-      if (scanMode === 'check-in') {
-        if (existing && existing.length > 0) {
-          setLastScan({
-            student: student.name,
-            studentId: student.lrn,
-            grade: student.level,
-            time: now.toLocaleTimeString(),
-            date: now.toLocaleDateString(),
-            status: 'error',
-            message: 'Student already checked in',
-            action: 'Check In'
-          });
-          return;
-        }
-        
+      if (!existing || existing.length === 0) {
         const { error } = await supabase
           .from('attendance_logs')
           .insert([{
@@ -179,20 +166,6 @@ export default function ScanPage() {
           console.error('ML scan logging error:', mlError);
         }
       } else {
-        if (!existing || existing.length === 0) {
-          setLastScan({
-            student: student.name,
-            studentId: student.lrn,
-            grade: student.level,
-            time: now.toLocaleTimeString(),
-            date: now.toLocaleDateString(),
-            status: 'error',
-            message: 'Student has not checked in today',
-            action: 'Check Out'
-          });
-          return;
-        }
-
         if (existing[0].check_out_time) {
           setLastScan({
             student: student.name,
@@ -201,7 +174,7 @@ export default function ScanPage() {
             time: now.toLocaleTimeString(),
             date: now.toLocaleDateString(),
             status: 'error',
-            message: 'Student already checked out',
+            message: 'Student already checked out today',
             action: 'Check Out'
           });
           return;
@@ -272,7 +245,8 @@ export default function ScanPage() {
               
               if (student) {
                 await recordAttendance(student);
-                setScanning(false);
+                // Keep scanner active for continuous queue processing.
+                setScanning(true);
               } else {
                 setLastScan({
                   status: 'error',
@@ -280,9 +254,17 @@ export default function ScanPage() {
                   scannedText: data,
                   time: new Date().toLocaleTimeString(),
                 });
-                setScanning(false);
+                // Resume scanner even for unknown QR values.
+                setScanning(true);
               }
             } finally {
+              if (mounted && scannerRef.current) {
+                try {
+                  await scannerRef.current.start();
+                } catch (restartErr) {
+                  console.error('Failed to restart camera scanner:', restartErr);
+                }
+              }
               recordingRef.current = false;
             }
           },
@@ -351,37 +333,12 @@ export default function ScanPage() {
               Attendance Scanner
             </h1>
             <p className="text-base text-gray-600 dark:text-gray-300 mt-2">
-              Scan student QR codes for attendance {scanMode === 'check-in' ? 'check-in' : 'check-out'}
+              Scan student QR codes to automatically check in or check out
             </p>
           </div>
-          <div className="flex gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-            <Button
-              variant={scanMode === 'check-in' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setScanMode('check-in')}
-              className={`gap-2 transition-all ${
-                scanMode === 'check-in' 
-                  ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 shadow-lg shadow-emerald-500/25' 
-                  : ''
-              }`}
-            >
-              <CheckCircle size={16} />
-              Check In
-            </Button>
-            <Button
-              variant={scanMode === 'check-out' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setScanMode('check-out')}
-              className={`gap-2 transition-all ${
-                scanMode === 'check-out' 
-                  ? 'bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 shadow-lg shadow-orange-500/25' 
-                  : ''
-              }`}
-            >
-              <LogOut size={16} />
-              Check Out
-            </Button>
-          </div>
+          <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 px-3 py-1">
+            Auto Mode
+          </Badge>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -535,7 +492,7 @@ export default function ScanPage() {
                             {lastScan.checkinTime || lastScan.time}
                           </span>
                         </div>
-                        {scanMode === 'check-out' && (
+                        {lastScan.action === 'Checked Out' && (
                           <>
                             <div className="flex items-center justify-between p-3 rounded-lg bg-orange-50/80 dark:bg-orange-900/20 backdrop-blur-sm border border-orange-200/40 dark:border-orange-700/30">
                               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Check Out Time</span>
@@ -560,7 +517,7 @@ export default function ScanPage() {
 
                       <div className="flex items-center gap-3 pt-2">
                         <Badge className={`${
-                          scanMode === 'check-in'
+                          lastScan.action === 'Checked In'
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                             : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                         } px-3 py-1`}>
@@ -602,61 +559,57 @@ export default function ScanPage() {
               </Card>
             )}
 
-            {/* Manual Entry */}
-            <Card className="border-0 shadow-xl bg-gradient-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/50">
-              <CardHeader className="border-b border-orange-200/40 dark:border-orange-700/30 bg-gradient-to-r from-orange-50/50 to-transparent">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25">
-                    <Hash className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl">Manual Entry</CardTitle>
-                    <CardDescription className="text-sm">Enter ID for {scanMode === 'check-in' ? 'check-in' : 'check-out'}</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-6">
-                <div className="flex gap-3">
-                  <Input
-                    placeholder="Enter Student ID"
-                    value={manualId}
-                    onChange={(e) => setManualId(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleManualEntry()}
-                    className="flex-1 bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500/20"
-                  />
-                  <Button 
-                    variant="default" 
-                    onClick={handleManualEntry} 
-                    size="lg" 
-                    className={`gap-2 bg-gradient-to-r ${
-                      scanMode === 'check-in'
-                        ? 'from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600'
-                        : 'from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600'
-                    } shadow-lg ${
-                      scanMode === 'check-in'
-                        ? 'shadow-emerald-500/25'
-                        : 'shadow-orange-500/25'
-                    }`}
-                  >
-                    {scanMode === 'check-in' ? (
-                      <>
-                        <CheckCircle size={16} />
-                        Check In
-                      </>
-                    ) : (
-                      <>
-                        <LogOut size={16} />
-                        Check Out
-                      </>
-                    )}
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                  <kbd className="px-2 py-1 text-xs border rounded-md bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600">Enter</kbd>
-                  to submit
-                </p>
-              </CardContent>
-            </Card>
+            <div className="space-y-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowManualEntry((prev) => !prev)}
+                className="w-full gap-2 border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950/20"
+              >
+                <Hash className="w-4 h-4" />
+                {showManualEntry ? 'Hide Manual Entry' : 'Manual Entry'}
+              </Button>
+
+              {showManualEntry && (
+                <Card className="border-0 shadow-xl bg-gradient-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/50">
+                  <CardHeader className="border-b border-orange-200/40 dark:border-orange-700/30 bg-gradient-to-r from-orange-50/50 to-transparent">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25">
+                        <Hash className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl">Manual Entry</CardTitle>
+                        <CardDescription className="text-sm">Enter student ID to auto check in or check out</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3 pt-6">
+                    <div className="flex gap-3">
+                      <Input
+                        placeholder="Enter Student ID"
+                        value={manualId}
+                        onChange={(e) => setManualId(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleManualEntry()}
+                        className="flex-1 bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500/20"
+                      />
+                      <Button
+                        variant="default"
+                        onClick={handleManualEntry}
+                        size="lg"
+                        className="gap-2 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 shadow-lg shadow-orange-500/25"
+                      >
+                        <Hash size={16} />
+                        Submit
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                      <kbd className="px-2 py-1 text-xs border rounded-md bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600">Enter</kbd>
+                      to submit
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </div>
         </div>
       </motion.div>
