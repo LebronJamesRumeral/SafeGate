@@ -26,13 +26,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const publicPaths = ['/login', '/scan-public'];
 
   useEffect(() => {
     // Check if user is logged in
     const storedUser = localStorage.getItem('safegate_user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
-    } else if (pathname !== '/login') {
+    } else if (!publicPaths.includes(pathname)) {
       router.push('/login');
     }
     setLoading(false);
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setUser({
         id: data.user.id,
-        username: data.user.email,
+        username: data.user.email ?? '',
         full_name: data.user.user_metadata?.full_name || '',
         role: data.user.user_metadata?.role || 'user',
       });
