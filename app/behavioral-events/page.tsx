@@ -962,9 +962,9 @@ export default function BehavioralEventsPage() {
                   Log Event
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="text-2xl">Log Student Behavior Incident</DialogTitle>
+              <DialogContent className="w-[95vw] max-w-5xl max-h-[92vh] overflow-hidden p-0">
+                <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/60">
+                  <DialogTitle className="text-2xl md:text-3xl">Log Student Behavior Incident</DialogTitle>
                   <DialogDescription>
                     Use accurate details for compliance and parent-notification scoring. Fields marked with * are required.
                   </DialogDescription>
@@ -973,9 +973,9 @@ export default function BehavioralEventsPage() {
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="space-y-4 py-4"
+                  className="space-y-6 p-6 overflow-y-auto max-h-[calc(92vh-170px)]"
                 >
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
                       <Label htmlFor="student" className="flex items-center gap-1">
                         Student <span className="text-red-500">*</span>
@@ -1044,7 +1044,7 @@ export default function BehavioralEventsPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
                       <Label htmlFor="category">Database Category (Optional)</Label>
                       <Select value={formData.category_id} onValueChange={(value) => {
@@ -1071,9 +1071,15 @@ export default function BehavioralEventsPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-3 bg-slate-50/40 dark:bg-slate-900/20">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Tip</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Choose Category Template first for quick, consistent logging. Use Database Category only if you need to map to an existing DB category.
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
                       <Label htmlFor="event_type" className="flex items-center gap-1">
                         Event Type <span className="text-red-500">*</span>
@@ -1122,12 +1128,12 @@ export default function BehavioralEventsPage() {
                       value={formData.description}
                       onChange={(e) => setFormData({...formData, description: e.target.value})}
                       placeholder="State what happened, who was involved, and immediate context."
-                      rows={3}
+                      rows={4}
                       className="resize-none"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
                       <Label htmlFor="location">Location</Label>
                       <div className="relative">
@@ -1180,12 +1186,12 @@ export default function BehavioralEventsPage() {
                       value={formData.action_taken}
                       onChange={(e) => setFormData({...formData, action_taken: e.target.value})}
                       placeholder="What action was taken..."
-                      rows={2}
+                      rows={3}
                       className="resize-none"
                     />
                   </div>
 
-                  <div className="flex gap-4">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50/50 dark:bg-slate-900/30">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
@@ -1195,10 +1201,10 @@ export default function BehavioralEventsPage() {
                       />
                       <span className="text-sm">Requires Follow-up</span>
                     </label>
+                    <p className="text-xs text-muted-foreground">
+                      Parent email is ML-driven. The system compiles attendance + behavior + risk data first, then decides automatically.
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Parent email is ML-driven. The system compiles attendance + behavior + risk data first, then decides automatically.
-                  </p>
 
                   <div className="space-y-2">
                     <Label htmlFor="notes">Additional Notes</Label>
@@ -1212,7 +1218,7 @@ export default function BehavioralEventsPage() {
                     />
                   </div>
 
-                  <div className="flex justify-end gap-2 pt-4 border-t">
+                  <div className="sticky bottom-0 flex justify-end gap-2 pt-4 border-t bg-white/90 dark:bg-slate-950/90 backdrop-blur-sm">
                     <Button variant="outline" onClick={() => {
                       setIsAddDialogOpen(false);
                       resetForm();
