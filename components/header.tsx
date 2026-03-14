@@ -55,10 +55,10 @@ export function Header() {
       {/* Blue top bar */}
       <div className="h-2 bg-gradient-to-r from-[#1e3a8a] to-[#2563eb] dark:from-slate-900 dark:to-slate-800" />
       
-      <header className="sticky top-2 z-20 backdrop-blur-lg px-6 py-4 shadow-md bg-white/97 dark:bg-slate-950/97 border-b border-orange-200/30 dark:border-slate-800/60 transition-all duration-300 ease-out">
+      <header className="sticky top-2 z-20 backdrop-blur-lg px-4 py-3 sm:px-6 sm:py-4 shadow-md bg-white/97 dark:bg-slate-950/97 border-b border-orange-200/30 dark:border-slate-800/60 transition-all duration-300 ease-out">
         <div className="flex items-center justify-between">
           {/* Left side - Date/Time and Logo */}
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <div className="hidden sm:flex flex-col gap-0.5">
               <div className="w-10 h-10 rounded-lg bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm p-1">
                 <Image 
@@ -70,9 +70,9 @@ export function Header() {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-[#1e3a8a] dark:text-orange-400" />
-              <div className="text-xs text-slate-700 dark:text-slate-300 leading-tight">
+            <div className="flex min-w-0 items-center gap-2">
+              <Calendar className="h-4 w-4 shrink-0 text-[#1e3a8a] dark:text-orange-400 sm:h-5 sm:w-5" />
+              <div className="text-[11px] sm:text-xs text-slate-700 dark:text-slate-300 leading-tight truncate">
                 {dateTime.split('\n').map((line, i) => (
                   <div key={i}>{line}</div>
                 ))}
@@ -81,13 +81,13 @@ export function Header() {
           </div>
 
           {/* Right side - Controls */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             {/* Theme Toggle */}
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setTheme(currentTheme === 'dark' ? 'light' : 'dark')}
-              className="rounded-lg text-[#1e3a8a] dark:text-orange-400 hover:bg-[#fbbf24]/20 dark:hover:bg-orange-500/10 hover:text-[#ff8a00] dark:hover:text-orange-300 transition-all duration-200 active:scale-95"
+              className="rounded-lg text-[#1e3a8a] dark:text-orange-400 hover:bg-[#fbbf24]/20 dark:hover:bg-orange-500/10 hover:text-[#ff8a00] dark:hover:text-orange-300 transition-all duration-200 active:scale-95 h-9 w-9 sm:h-10 sm:w-10"
               title={`Switch to ${currentTheme === 'dark' ? 'light' : 'dark'} theme`}
             >
               {currentTheme === 'dark' ? (
@@ -101,7 +101,7 @@ export function Header() {
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-lg text-[#2563eb] dark:text-orange-400 hover:bg-[#2563eb]/10 dark:hover:bg-orange-500/10 hover:text-[#1e3a8a] dark:hover:text-orange-300 transition-all duration-200 active:scale-95 relative"
+              className="rounded-lg text-[#2563eb] dark:text-orange-400 hover:bg-[#2563eb]/10 dark:hover:bg-orange-500/10 hover:text-[#1e3a8a] dark:hover:text-orange-300 transition-all duration-200 active:scale-95 relative h-9 w-9 sm:h-10 sm:w-10"
               title="Notifications"
             >
               <Bell className="h-5 w-5" />
@@ -112,7 +112,7 @@ export function Header() {
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-lg text-gray-700 dark:text-slate-400 hover:bg-yellow-100 dark:hover:bg-slate-800 hover:text-yellow-600 dark:hover:text-yellow-400 transition-all duration-200 active:scale-95"
+              className="hidden sm:inline-flex rounded-lg text-gray-700 dark:text-slate-400 hover:bg-yellow-100 dark:hover:bg-slate-800 hover:text-yellow-600 dark:hover:text-yellow-400 transition-all duration-200 active:scale-95 h-9 w-9 sm:h-10 sm:w-10"
               title="Settings"
             >
               <Lock className="h-5 w-5" />
@@ -124,7 +124,7 @@ export function Header() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="rounded-lg text-gray-700 dark:text-slate-400 hover:bg-orange-100 dark:hover:bg-slate-800 hover:text-orange-600 dark:hover:text-orange-400 transition-all duration-200 active:scale-95"
+                  className="rounded-lg text-gray-700 dark:text-slate-400 hover:bg-orange-100 dark:hover:bg-slate-800 hover:text-orange-600 dark:hover:text-orange-400 transition-all duration-200 active:scale-95 h-9 w-9 sm:h-10 sm:w-10"
                   title="User menu"
                 >
                   <UserIcon className="h-5 w-5" />

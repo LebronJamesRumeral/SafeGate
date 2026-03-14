@@ -112,15 +112,15 @@ export default function SettingsPage() {
     <DashboardLayout>
       <div className="animate-fade-in-up">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-2">Settings & Configuration</h1>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="mb-2 text-3xl font-bold text-slate-900 dark:text-white sm:text-4xl">Settings & Configuration</h1>
           <p className="text-base text-gray-600 dark:text-gray-300">Manage your system preferences and settings</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Sidebar Navigation */}
           <div className="lg:col-span-1">
-            <Card className="sticky top-6 shadow-lg border-border/60">
+            <Card className="shadow-lg border-border/60 lg:sticky lg:top-6">
               <CardHeader>
                 <CardTitle className="text-lg">Categories</CardTitle>
               </CardHeader>
@@ -129,15 +129,15 @@ export default function SettingsPage() {
                   <button
                     key={category.id}
                     onClick={() => setActiveCategory(category.id)}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 text-left font-medium ${
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-3 sm:px-4 rounded-lg transition-all duration-200 text-left font-medium ${
                       activeCategory === category.id
                         ? `bg-gradient-to-r ${getCategoryColor(category.color)} text-white shadow-md`
                         : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       {category.icon}
-                      <span>{category.label}</span>
+                      <span className="truncate">{category.label}</span>
                     </div>
                     {activeCategory === category.id && <ChevronRight size={18} />}
                   </button>
@@ -188,7 +188,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex justify-end gap-3 pt-6">
+                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
                   <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('school')}>Cancel</Button>
                   <Button className="min-w-32 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
                     <Save size={16} />
@@ -233,7 +233,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex justify-end gap-3 pt-6">
+                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
                   <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('account')}>Cancel</Button>
                   <Button className="min-w-32 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
                     <Save size={16} />
@@ -277,7 +277,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex justify-end gap-3 pt-6">
+                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
                   <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('notifications')}>Cancel</Button>
                   <Button className="min-w-32 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
                     <Save size={16} />
@@ -320,7 +320,7 @@ export default function SettingsPage() {
                     </p>
                   </div>
                 </CardContent>
-                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex justify-end gap-3 pt-6">
+                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
                   <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('security')}>Cancel</Button>
                   <Button className="min-w-32 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
                     <Save size={16} />
@@ -378,7 +378,7 @@ export default function SettingsPage() {
                     </p>
                   </div>
                 </CardContent>
-                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex justify-end gap-3 pt-6">
+                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
                   <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('attendance')}>Cancel</Button>
                   <Button className="min-w-32 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
                     <Save size={16} />
@@ -427,7 +427,7 @@ export default function SettingsPage() {
                     </Select>
                   </div>
                 </CardContent>
-                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex justify-end gap-3 pt-6">
+                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
                   <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('system')}>Cancel</Button>
                   <Button className="min-w-32 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
                     <Save size={16} />
@@ -505,7 +505,7 @@ export default function SettingsPage() {
                     </p>
                   </div>
                 </CardContent>
-                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex justify-end gap-3 pt-6">
+                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
                   <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('ml')}>Cancel</Button>
                   <Button className="min-w-32 bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
                     <Save size={16} />

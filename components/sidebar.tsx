@@ -18,9 +18,9 @@ import {
   ChevronLeft,
   ChevronRight
 } from "lucide-react"
-import { useState } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { useContext, createContext } from "react"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 export const SidebarContext = createContext<{ collapsed: boolean; setCollapsed: (v: boolean) => void }>({ collapsed: false, setCollapsed: () => {} })
 
@@ -41,6 +41,18 @@ export function Sidebar() {
   // SidebarContext provides collapsed state for consistent sidebar behavior
   const { collapsed, setCollapsed } = useContext(SidebarContext)
   const { user } = useAuth()
+  const [open, setOpen] = useState(false)
+  const isMobile = useIsMobile()
+
+  useEffect(() => {
+    if (!isMobile) {
+      setOpen(false)
+    }
+  }, [isMobile])
+
+  useEffect(() => {
+    setOpen(false)
+  }, [pathname])
 
   // Filter nav items based on user role
   const navItems = user ? allNavItems.filter(item => item.roles.includes(user.role)) : []
@@ -60,7 +72,7 @@ export function Sidebar() {
         <div
           className={cn(
             "fixed left-0 top-0 h-screen border-r transition-all duration-300 ease-out lg:translate-x-0 z-30 shadow-2xl flex flex-col bg-gradient-to-b from-[#1e3a8a] via-[#1e3a8a] to-[#2563eb] dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 border-white/20 dark:border-slate-800/60",
-            collapsed ? "w-20 lg:w-20" : "w-64 lg:w-64",
+            isMobile ? "w-72 max-w-[85vw]" : collapsed ? "w-20 lg:w-20" : "w-64 lg:w-64",
             open ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           )}
         >
@@ -116,9 +128,7 @@ export function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  onClick={() => {
-                    setOpen(false)
-                  }}
+                  onClick={() => setOpen(false)}
                   title={collapsed ? item.label : undefined}
                   className={cn(
                     "flex items-center gap-3 px-3 py-3 rounded-lg font-medium text-sm transition-all duration-200 group relative overflow-hidden",

@@ -4,6 +4,7 @@ import type React from "react"
 import { Sidebar, SidebarContext } from "@/components/sidebar"
 import { Header } from "@/components/header"
 import { useContext, useState, useEffect } from "react"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 // DashboardLayout provides sidebar context and enforces layout structure
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -40,6 +41,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { collapsed } = useContext(SidebarContext)
+  const isMobile = useIsMobile()
 
   const fadeInUp = `
     @keyframes fadeInUp {
@@ -62,7 +64,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     <div 
       className="relative flex-1 transition-all duration-300 overflow-hidden bg-gradient-to-br from-white via-blue-50/30 to-orange-50/20 dark:from-slate-950 dark:via-slate-900/80 dark:to-slate-950"
       style={{
-        marginLeft: collapsed ? '80px' : '256px'
+        marginLeft: isMobile ? '0px' : collapsed ? '80px' : '256px'
       }}>
       <style>{fadeInUp}</style>
       
@@ -81,9 +83,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         aria-hidden="true"
       />
       
-      <div className="flex flex-col h-screen">
+      <div className="flex flex-col min-h-screen">
         <Header />
-        <main className="flex-1 overflow-auto pt-6 px-6 lg:px-10">
+        <main className="flex-1 overflow-auto px-4 pt-4 sm:px-6 sm:pt-6 lg:px-10">
           <div className="max-w-7xl mx-auto">
             {children}
           </div>
