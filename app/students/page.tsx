@@ -130,6 +130,11 @@ const WEEKDAY_OPTIONS = [
   { label: 'Thursday', dayNumber: 4 },
   { label: 'Friday', dayNumber: 5 },
 ];
+const DEFAULT_SCHEDULE_SLOTS = [
+  { label: 'Session 1', startTime: '08:00', endTime: '09:30' },
+  { label: 'Session 2', startTime: '09:45', endTime: '11:15' },
+  { label: 'Session 3', startTime: '13:00', endTime: '14:30' },
+];
 
 // Enforce consistent layout structure for students page
 export default function StudentsPage() {
@@ -149,8 +154,7 @@ export default function StudentsPage() {
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [addingStudent, setAddingStudent] = useState(false);
   const [selectedScheduleDays, setSelectedScheduleDays] = useState<string[]>(WEEKDAY_OPTIONS.map((d) => d.label));
-  const [scheduleStartTime, setScheduleStartTime] = useState('08:00');
-  const [scheduleEndTime, setScheduleEndTime] = useState('11:30');
+  const [scheduleTimeSlots, setScheduleTimeSlots] = useState<Array<{ label: string; startTime: string; endTime: string }>>([...DEFAULT_SCHEDULE_SLOTS]);
   const [newStudentForm, setNewStudentForm] = useState({
     lrn: '',
     name: '',
@@ -434,13 +438,40 @@ export default function StudentsPage() {
       status: 'active',
     });
     setSelectedScheduleDays(WEEKDAY_OPTIONS.map((d) => d.label));
-    setScheduleStartTime('08:00');
-    setScheduleEndTime('11:30');
+    setScheduleTimeSlots([...DEFAULT_SCHEDULE_SLOTS]);
   };
 
   const toggleScheduleDay = (day: string) => {
     setSelectedScheduleDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
+  };
+
+  const addScheduleSlot = () => {
+    setScheduleTimeSlots((prev) => [
+      ...prev,
+      {
+        label: `Session ${prev.length + 1}`,
+        startTime: '08:00',
+        endTime: '09:00',
+      },
+    ]);
+  };
+
+  const removeScheduleSlot = (slotIndex: number) => {
+    setScheduleTimeSlots((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((_, index) => index !== slotIndex);
+    });
+  };
+
+  const updateScheduleSlot = (slotIndex: number, field: 'label' | 'startTime' | 'endTime', value: string) => {
+    setScheduleTimeSlots((prev) =>
+      prev.map((slot, index) =>
+        index === slotIndex
+          ? { ...slot, [field]: value }
+          : slot
+      )
     );
   };
 
@@ -473,13 +504,28 @@ export default function StudentsPage() {
       return;
     }
 
-    if (isEarlyLevel && scheduleStartTime >= scheduleEndTime) {
+    if (isEarlyLevel && scheduleTimeSlots.length === 0) {
       toast({
-        title: 'Invalid schedule time',
-        description: 'Schedule start time must be earlier than end time.',
+        title: 'Schedule slots required',
+        description: 'Please add at least one schedule time slot.',
         variant: 'destructive',
       });
       return;
+    }
+
+    if (isEarlyLevel) {
+      const invalidSlot = scheduleTimeSlots.find((slot) => {
+        return !slot.startTime || !slot.endTime || slot.startTime >= slot.endTime;
+      });
+
+      if (invalidSlot) {
+        toast({
+          title: 'Invalid schedule slot',
+          description: 'Each schedule slot must have start and end time, and start must be earlier than end.',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     setAddingStudent(true);
@@ -512,21 +558,21 @@ export default function StudentsPage() {
           .eq('is_current', true)
           .maybeSingle();
 
-        const scheduleRows = selectedScheduleDays.map((day) => {
+        const scheduleRows = selectedScheduleDays.flatMap((day) => {
           const dayConfig = WEEKDAY_OPTIONS.find((item) => item.label === day);
-          return {
+          return scheduleTimeSlots.map((slot, slotIndex) => ({
             student_lrn: newStudentForm.lrn.trim(),
             school_year_id: currentSchoolYear?.id ?? null,
             day_of_week: day,
             day_number: dayConfig?.dayNumber ?? 1,
-            subject: `${newStudentForm.level} Class`,
-            start_time: scheduleStartTime,
-            end_time: scheduleEndTime,
+            subject: slot.label?.trim() ? `${newStudentForm.level} ${slot.label.trim()}` : `${newStudentForm.level} Session ${slotIndex + 1}`,
+            start_time: slot.startTime,
+            end_time: slot.endTime,
             room: null,
             teacher_name: null,
             is_active: true,
             updated_at: new Date().toISOString(),
-          };
+          }));
         });
 
         const { error: scheduleError } = await supabase
@@ -1177,7 +1223,7 @@ export default function StudentsPage() {
                   Add Student
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="w-[96vw] max-w-4xl max-h-[92vh] overflow-y-auto p-6 md:p-8">
                 <DialogHeader>
                   <DialogTitle className="text-xl font-bold">Add New Student</DialogTitle>
                   <DialogDescription>Fill out the required details to register a student.</DialogDescription>
@@ -1249,7 +1295,7 @@ export default function StudentsPage() {
                       <div>
                         <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Early Level Weekly Schedule</p>
                         <p className="text-xs text-blue-700/80 dark:text-blue-400/80 mt-1">
-                          Select weekdays (Monday to Friday). You can choose 3-4 days or fewer based on preference.
+                          Select weekdays (Monday to Friday). You can choose 3-4 days or fewer, and add multiple daily schedule slots.
                         </p>
                       </div>
 
@@ -1269,22 +1315,42 @@ export default function StudentsPage() {
                         ))}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Start Time</label>
-                          <Input
-                            type="time"
-                            value={scheduleStartTime}
-                            onChange={(e) => setScheduleStartTime(e.target.value)}
-                          />
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-medium">Daily Time Slots</label>
+                          <Button type="button" variant="outline" size="sm" onClick={addScheduleSlot}>
+                            Add Slot
+                          </Button>
                         </div>
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">End Time</label>
-                          <Input
-                            type="time"
-                            value={scheduleEndTime}
-                            onChange={(e) => setScheduleEndTime(e.target.value)}
-                          />
+                          {scheduleTimeSlots.map((slot, slotIndex) => (
+                            <div key={`${slot.label}-${slotIndex}`} className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_1fr_auto] gap-2 rounded-md border border-border bg-background p-2">
+                              <Input
+                                value={slot.label}
+                                onChange={(e) => updateScheduleSlot(slotIndex, 'label', e.target.value)}
+                                placeholder={`Session ${slotIndex + 1}`}
+                              />
+                              <Input
+                                type="time"
+                                value={slot.startTime}
+                                onChange={(e) => updateScheduleSlot(slotIndex, 'startTime', e.target.value)}
+                              />
+                              <Input
+                                type="time"
+                                value={slot.endTime}
+                                onChange={(e) => updateScheduleSlot(slotIndex, 'endTime', e.target.value)}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={scheduleTimeSlots.length <= 1}
+                                onClick={() => removeScheduleSlot(slotIndex)}
+                              >
+                                Remove
+                              </Button>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
