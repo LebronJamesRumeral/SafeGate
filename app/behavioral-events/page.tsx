@@ -48,12 +48,17 @@ import {
   Activity,
   PieChart,
   BarChart3,
-  ArrowUpDown
+  ArrowUpDown,
+  Wifi,
+  WifiOff,
+  CloudUpload
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
 import { MLDashboard } from '@/components/ml-dashboard';
 import { TablePageSkeleton } from '@/components/loading-skeletons';
+import { getOfflineQueueCount } from '@/lib/offline-secure-queue';
+import { queueBehaviorEvent, syncOfflineQueue } from '@/lib/offline-sync';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   AreaChart, 
@@ -159,6 +164,9 @@ export default function BehavioralEventsPage() {
   const [activeTab, setActiveTab] = useState('list');
   const [showFilters, setShowFilters] = useState(true);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'event_date', direction: 'desc' });
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine);
+  const [syncing, setSyncing] = useState(false);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
   // Form state for adding new event
   const [formData, setFormData] = useState({
@@ -190,6 +198,39 @@ export default function BehavioralEventsPage() {
       fetchData();
     }
   }, [authLoading]);
+
+  useEffect(() => {
+    void refreshPendingSyncCount();
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      void syncQueuedRecords(true);
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    const handleServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'OFFLINE_SYNC_REQUEST') {
+        void syncQueuedRecords(false);
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage);
+
+    if (navigator.onLine) {
+      void syncQueuedRecords(false);
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
+    };
+  }, []);
 
   useEffect(() => {
     filterEvents();
@@ -419,16 +460,78 @@ export default function BehavioralEventsPage() {
     return payload;
   };
 
-  const handleAddEvent = async () => {
-    if (!supabase) {
-      toast({
-        title: 'Configuration Error',
-        description: 'Supabase is not configured in this environment.',
-        variant: 'destructive',
-      });
+  const refreshPendingSyncCount = async () => {
+    try {
+      const count = await getOfflineQueueCount();
+      setPendingSyncCount(count);
+    } catch (error) {
+      console.error('Failed to read offline queue count:', error);
+    }
+  };
+
+  const syncQueuedRecords = async (showToastFeedback = false) => {
+    if (!supabase || !navigator.onLine || syncing) {
       return;
     }
 
+    const client = supabase;
+
+    setSyncing(true);
+    try {
+      const result = await syncOfflineQueue(client, {
+        onBehaviorEventInserted: async (record) => {
+          try {
+            const automationResult = await triggerParentAutomation({
+              eventId: record.id,
+              studentLrn: record.student_lrn,
+              triggerSource: 'behavior_event_logged',
+            });
+
+            if (automationResult?.queued) {
+              const { error: notifyUpdateError } = await client
+                .from('behavioral_events')
+                .update({ parent_notified: true })
+                .eq('id', record.id);
+
+              if (notifyUpdateError) {
+                console.error('Unable to set parent_notified flag:', notifyUpdateError);
+              }
+            }
+          } catch (error) {
+            console.error('Parent automation after sync failed:', error);
+          }
+        },
+      });
+
+      await refreshPendingSyncCount();
+
+      if (showToastFeedback && result.synced > 0) {
+        toast({
+          title: 'Offline Records Synced',
+          description: `${result.synced} queued record(s) uploaded successfully.`,
+          variant: 'default',
+        });
+      }
+
+      if (showToastFeedback && result.failed > 0) {
+        toast({
+          title: 'Some Records Still Pending',
+          description: `${result.failed} record(s) could not sync yet.`,
+          variant: 'destructive',
+        });
+      }
+
+      if (result.synced > 0) {
+        await fetchData();
+      }
+    } catch (error) {
+      console.error('Failed syncing offline records:', error);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleAddEvent = async () => {
     if (!formData.student_lrn || !formData.event_type || !formData.description) {
       toast({
         title: "Validation Error",
@@ -471,6 +574,25 @@ export default function BehavioralEventsPage() {
         event_time: eventTime,
         reported_by: currentUser?.full_name || currentUser?.username || 'Admin',
       };
+
+      if (!navigator.onLine) {
+        await queueBehaviorEvent(insertPayload);
+        await refreshPendingSyncCount();
+
+        toast({
+          title: 'Saved Offline',
+          description: `Behavioral event for ${selectedStudent.name} was encrypted locally and queued for sync.`,
+          variant: 'default',
+        });
+
+        setIsAddDialogOpen(false);
+        resetForm();
+        return;
+      }
+
+      if (!supabase) {
+        throw new Error('Supabase is not configured in this environment.');
+      }
 
       const { data, error } = await supabase
         .from('behavioral_events')
@@ -521,11 +643,46 @@ export default function BehavioralEventsPage() {
 
     } catch (error: any) {
       console.error('Error adding event:', error);
-      toast({
-        title: "Error",
-        description: error?.message || 'Failed to log behavioral event',
-        variant: "destructive"
-      });
+
+      try {
+        const today = new Date();
+        const fallbackNotes = formData.witness_names.trim()
+          ? `${formData.notes?.trim() ? `${formData.notes.trim()}\n\n` : ''}Witnesses: ${formData.witness_names.trim()}`
+          : formData.notes;
+        const fallbackPayload = {
+          student_lrn: formData.student_lrn,
+          category_id: formData.category_id ? Number(formData.category_id) : null,
+          event_type: formData.event_type,
+          severity: formData.severity,
+          description: formData.description,
+          location: formData.location || null,
+          action_taken: formData.action_taken || null,
+          follow_up_required: formData.follow_up_required,
+          parent_notified: false,
+          notes: fallbackNotes || null,
+          event_date: today.toISOString().split('T')[0],
+          event_time: today.toTimeString().split(' ')[0],
+          reported_by: currentUser?.full_name || currentUser?.username || 'Admin',
+        };
+
+        await queueBehaviorEvent(fallbackPayload);
+        await refreshPendingSyncCount();
+
+        toast({
+          title: 'Queued Offline',
+          description: 'Network issue detected. Event saved securely and queued for sync.',
+          variant: 'default',
+        });
+
+        setIsAddDialogOpen(false);
+        resetForm();
+      } catch {
+        toast({
+          title: "Error",
+          description: error?.message || 'Failed to log behavioral event',
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -696,6 +853,15 @@ export default function BehavioralEventsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Badge className={isOnline ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+              {isOnline ? <Wifi className="w-3 h-3 mr-1" /> : <WifiOff className="w-3 h-3 mr-1" />}
+              {isOnline ? 'Online' : 'Offline'}
+            </Badge>
+            <Badge className="bg-blue-100 text-blue-700">
+              <CloudUpload className="w-3 h-3 mr-1" />
+              Pending Sync: {pendingSyncCount}
+            </Badge>
+            {syncing && <Badge className="bg-indigo-100 text-indigo-700">Syncing...</Badge>}
             <Button
               variant="outline"
               size="sm"

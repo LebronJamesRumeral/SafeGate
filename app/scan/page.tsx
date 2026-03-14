@@ -11,12 +11,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { QrCode, Camera, CheckCircle, XCircle, User, Clock, Hash } from 'lucide-react';
+import { QrCode, Camera, CheckCircle, XCircle, User, Clock, Hash, Wifi, WifiOff, CloudUpload } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
 import { motion } from 'framer-motion';
+import { getOfflineQueueCount } from '@/lib/offline-secure-queue';
+import { queueAttendanceScan, syncOfflineQueue } from '@/lib/offline-sync';
 
 interface ScanResult {
   status: 'success' | 'error';
@@ -38,6 +40,10 @@ export default function ScanPage() {
   const [lastScan, setLastScan] = useState<ScanResult | null>(null);
   const [manualId, setManualId] = useState('');
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine);
+  const [syncing, setSyncing] = useState(false);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [offlineAttendanceState, setOfflineAttendanceState] = useState<Record<string, 'in' | 'out'>>({});
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scannerRef = useRef<any>(null);
   const recordingRef = useRef(false);
@@ -118,41 +124,155 @@ export default function ScanPage() {
     }
   };
 
-  const recordAttendance = async (student: any) => {
-    const now = new Date();
-    const date = now.toISOString().split('T')[0];
-
+  const refreshPendingSyncCount = async () => {
     try {
-      if (!supabase) {
-        const msg = 'Supabase client not initialized';
-        toast({
-          title: 'Internal Error',
-          description: msg,
-          variant: 'destructive',
-        });
-        throw new Error(msg);
+      const count = await getOfflineQueueCount();
+      setPendingSyncCount(count);
+    } catch (error) {
+      console.error('Failed to read offline queue count:', error);
+    }
+  };
+
+  const applyAttendanceOnline = async (studentLrn: string, scanIsoTime: string) => {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized');
+    }
+
+    const date = scanIsoTime.split('T')[0];
+    const { data: existing, error: existingError } = await supabase
+      .from('attendance_logs')
+      .select('id, check_in_time, check_out_time')
+      .eq('student_lrn', studentLrn)
+      .eq('date', date)
+      .order('check_in_time', { ascending: false })
+      .limit(1);
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    if (!existing || existing.length === 0) {
+      const { error } = await supabase
+        .from('attendance_logs')
+        .insert([
+          {
+            student_lrn: studentLrn,
+            check_in_time: scanIsoTime,
+            date,
+          },
+        ]);
+
+      if (error) {
+        throw error;
       }
 
-      const { data: existing, error: existingError } = await supabase
-        .from('attendance_logs')
-        .select('id, check_in_time, check_out_time')
-        .eq('student_lrn', student.lrn)
-        .eq('date', date)
-        .order('check_in_time', { ascending: false })
-        .limit(1);
+      return {
+        action: 'Checked In' as const,
+      };
+    }
 
-      if (existingError) throw existingError;
+    if (existing[0].check_out_time) {
+      return {
+        action: 'Already Checked Out' as const,
+      };
+    }
 
-      if (!existing || existing.length === 0) {
-        const { error } = await supabase
-          .from('attendance_logs')
-          .insert([{
-            student_lrn: student.lrn,
-            check_in_time: now.toISOString(),
-            date: date,
-          }]);
+    const { error } = await supabase
+      .from('attendance_logs')
+      .update({ check_out_time: scanIsoTime })
+      .eq('id', existing[0].id);
 
-        if (error) throw error;
+    if (error) {
+      throw error;
+    }
+
+    return {
+      action: 'Checked Out' as const,
+      checkInTime: existing[0].check_in_time as string,
+    };
+  };
+
+  const syncQueuedRecords = async (showToastFeedback = false) => {
+    if (!supabase || !navigator.onLine || syncing) {
+      return;
+    }
+
+    setSyncing(true);
+    try {
+      const result = await syncOfflineQueue(supabase);
+      await refreshPendingSyncCount();
+
+      if (showToastFeedback && result.synced > 0) {
+        toast({
+          title: 'Offline Records Synced',
+          description: `${result.synced} queued record(s) uploaded successfully.`,
+          variant: 'default',
+        });
+      }
+
+      if (showToastFeedback && result.failed > 0) {
+        toast({
+          title: 'Some Records Still Pending',
+          description: `${result.failed} record(s) could not sync yet.`,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Failed syncing offline records:', error);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const recordAttendance = async (student: any) => {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const date = nowIso.split('T')[0];
+
+    if (!navigator.onLine) {
+      try {
+        await queueAttendanceScan({
+          student_lrn: student.lrn,
+          scanned_at: nowIso,
+        });
+
+        const stateKey = `${student.lrn}:${date}`;
+        const lastState = offlineAttendanceState[stateKey] || 'out';
+        const nextState = lastState === 'out' ? 'in' : 'out';
+        const action = nextState === 'in' ? 'Checked In' : 'Checked Out';
+
+        setOfflineAttendanceState((current) => ({
+          ...current,
+          [stateKey]: nextState,
+        }));
+
+        setLastScan({
+          student: student.name,
+          studentId: student.lrn,
+          grade: student.level,
+          time: now.toLocaleTimeString(),
+          date: now.toLocaleDateString(),
+          status: 'success',
+          action,
+          message: 'Saved securely offline. Will sync automatically when online.',
+        });
+
+        await refreshPendingSyncCount();
+      } catch (error) {
+        console.error('Failed to save offline attendance:', error);
+        setLastScan({
+          status: 'error',
+          message: 'Unable to save attendance offline',
+          time: now.toLocaleTimeString(),
+        });
+      }
+      return;
+    }
+
+    try {
+      const result = await applyAttendanceOnline(student.lrn, nowIso);
+
+      if (result.action === 'Checked In') {
 
         setLastScan({
           student: student.name,
@@ -174,8 +294,7 @@ export default function ScanPage() {
         } catch (mlError) {
           console.error('ML scan logging error:', mlError);
         }
-      } else {
-        if (existing[0].check_out_time) {
+      } else if (result.action === 'Already Checked Out') {
           setLastScan({
             student: student.name,
             studentId: student.lrn,
@@ -186,25 +305,16 @@ export default function ScanPage() {
             message: 'Student already checked out today',
             action: 'Check Out'
           });
-          return;
-        }
-
-        const { error } = await supabase
-          .from('attendance_logs')
-          .update({
-            check_out_time: now.toISOString(),
-          })
-          .eq('id', existing[0].id);
-
-        if (error) throw error;
-
-        const duration = calculateDuration(existing[0].check_in_time, now.toISOString());
+      } else {
+        const duration = result.checkInTime
+          ? calculateDuration(result.checkInTime, nowIso)
+          : undefined;
         
         setLastScan({
           student: student.name,
           studentId: student.lrn,
           grade: student.level,
-          checkinTime: new Date(existing[0].check_in_time).toLocaleTimeString(),
+          checkinTime: result.checkInTime ? new Date(result.checkInTime).toLocaleTimeString() : undefined,
           time: now.toLocaleTimeString(),
           date: now.toLocaleDateString(),
           duration: duration,
@@ -213,14 +323,66 @@ export default function ScanPage() {
         });
       }
     } catch (error) {
-      console.error('Error recording attendance:', error);
-      setLastScan({
-        status: 'error',
-        message: 'Failed to record attendance',
-        time: now.toLocaleTimeString(),
-      });
+      console.error('Error recording attendance online, queueing offline fallback:', error);
+      try {
+        await queueAttendanceScan({
+          student_lrn: student.lrn,
+          scanned_at: nowIso,
+        });
+        await refreshPendingSyncCount();
+        setLastScan({
+          student: student.name,
+          studentId: student.lrn,
+          grade: student.level,
+          time: now.toLocaleTimeString(),
+          date: now.toLocaleDateString(),
+          status: 'success',
+          action: 'Queued Offline',
+          message: 'Network issue detected. Record saved offline and queued for sync.',
+        });
+      } catch (queueError) {
+        console.error('Error queueing fallback attendance:', queueError);
+        setLastScan({
+          status: 'error',
+          message: 'Failed to record attendance',
+          time: now.toLocaleTimeString(),
+        });
+      }
     }
   };
+
+  useEffect(() => {
+    void refreshPendingSyncCount();
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      void syncQueuedRecords(true);
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    const handleServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'OFFLINE_SYNC_REQUEST') {
+        void syncQueuedRecords(false);
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage);
+
+    if (navigator.onLine) {
+      void syncQueuedRecords(false);
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -362,9 +524,22 @@ export default function ScanPage() {
               Scan student QR codes to automatically check in or check out
             </p>
           </div>
-          <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 px-3 py-1">
-            Auto Mode
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 px-3 py-1">
+              Auto Mode
+            </Badge>
+            <Badge className={isOnline ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+              {isOnline ? <Wifi className="w-3 h-3 mr-1" /> : <WifiOff className="w-3 h-3 mr-1" />}
+              {isOnline ? 'Online' : 'Offline'}
+            </Badge>
+            <Badge className="bg-blue-100 text-blue-700">
+              <CloudUpload className="w-3 h-3 mr-1" />
+              Pending Sync: {pendingSyncCount}
+            </Badge>
+            {syncing && (
+              <Badge className="bg-indigo-100 text-indigo-700">Syncing...</Badge>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

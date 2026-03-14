@@ -74,10 +74,13 @@ self.addEventListener('fetch', (event) => {
 
 // Background sync for offline attendance recording
 self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-attendance') {
+  if (event.tag === 'sync-attendance' || event.tag === 'safegate-sync') {
     event.waitUntil(
-      // This would sync attendance records when connection is restored
-      Promise.resolve()
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        clientList.forEach((client) => {
+          client.postMessage({ type: 'OFFLINE_SYNC_REQUEST' });
+        });
+      })
     );
   }
 });
