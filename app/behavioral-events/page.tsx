@@ -1138,12 +1138,10 @@ export default function BehavioralEventsPage() {
                     />
                   </div>
 
-                  <div className="rounded-md border border-blue-200 bg-blue-50/70 px-3 py-2 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-                    Follow-up is automatically enabled for behavior entries to support timely intervention and parent communication.
+                  <div className="rounded-md border border-blue-200 bg-blue-50/70 px-3 py-2 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200 space-y-1">
+                    <p>Follow-up is automatically enabled for behavior entries to support timely intervention and parent communication.</p>
+                    <p>Parent email is ML-driven. The system compiles attendance + behavior + risk data first, then decides automatically.</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Parent email is ML-driven. The system compiles attendance + behavior + risk data first, then decides automatically.
-                  </p>
 
                   <div className="space-y-2">
                     <Label htmlFor="notes">Additional Notes</Label>
