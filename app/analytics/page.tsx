@@ -513,14 +513,14 @@ export default function AnalyticsPage() {
         {/* Header with Actions */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
               Analytics & Insights
             </h1>
             <p className="text-base text-gray-600 dark:text-gray-300 mt-2">
               Comprehensive attendance and behavioral analytics with AI-powered predictions
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <Button
               variant="outline"
               size="sm"
@@ -544,7 +544,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl w-fit">
+        <div className="flex w-full gap-2 overflow-x-auto p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl sm:w-fit">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart3 },
             { id: 'behavioral', label: 'Behavioral', icon: Activity },
@@ -566,7 +566,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Date and Level Filter */}
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm p-6 rounded-xl border border-slate-200/60 dark:border-slate-700/40 shadow-lg">
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm p-3 sm:p-6 rounded-xl border border-slate-200/60 dark:border-slate-700/40 shadow-lg">
           <DateLevelFilter
             dateMode={dateMode}
             setDateMode={setDateMode}

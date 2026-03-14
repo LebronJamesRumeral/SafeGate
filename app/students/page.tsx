@@ -58,6 +58,7 @@ import { calculateStudentRiskScore, getActionRecommendations, type RiskScore } f
 import { StudentRiskCard } from '@/components/ml-dashboard';
 import { TablePageSkeleton } from '@/components/loading-skeletons';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { 
   AreaChart, 
   Area, 
@@ -110,6 +111,7 @@ const CHART_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#e
 
 // Enforce consistent layout structure for students page
 export default function StudentsPage() {
+  const isMobile = useIsMobile();
   const [search, setSearch] = useState('');
   const [filterGrade, setFilterGrade] = useState('all');
   const [filterGender, setFilterGender] = useState('all');
@@ -148,6 +150,12 @@ export default function StudentsPage() {
     'Grade 7': '16:00',
     'Grade 8': '16:00',
   });
+
+  useEffect(() => {
+    if (isMobile) {
+      setShowFilters(false);
+    }
+  }, [isMobile]);
 
   // Function to calculate duration
   const calculateDuration = (startTime: string, endTime: string): string => {
@@ -681,7 +689,7 @@ export default function StudentsPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
               Current Students
             </h1>
             <p className="text-base text-gray-600 dark:text-gray-300 mt-2">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -110,6 +111,7 @@ function getSchoolDays(start: string, end: string) {
 
 // Enforce consistent layout structure for attendance page
 export default function AttendancePage() {
+  const isMobile = useIsMobile();
   const today = new Date().toISOString().split('T')[0];
   const [dateMode, setDateMode] = useState<DateMode>('all');
   const [rangeStart, setRangeStart] = useState(today);
@@ -127,6 +129,12 @@ export default function AttendancePage() {
   const [showFilters, setShowFilters] = useState(true);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'absentDays', direction: 'desc' });
   const [exportLoading, setExportLoading] = useState(false);
+
+  useEffect(() => {
+    if (isMobile) {
+      setShowFilters(false);
+    }
+  }, [isMobile]);
 
   useEffect(() => {
     fetchData();
@@ -469,14 +477,14 @@ export default function AttendancePage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
               Attendance Records
             </h1>
             <p className="text-base text-gray-600 dark:text-gray-300 mt-2">
               Track and analyze student attendance patterns with detailed insights
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <Button
               variant="outline"
               size="sm"
@@ -503,7 +511,7 @@ export default function AttendancePage() {
         </div>
 
         {/* Date Range Display */}
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 border border-blue-200/60 dark:border-blue-700/40 w-fit">
+        <div className="flex w-full flex-wrap items-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 border border-blue-200/60 dark:border-blue-700/40 sm:w-fit">
           <CalendarDays className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           <span className="text-sm font-medium text-slate-900 dark:text-white">
             {appliedRange.start} — {appliedRange.end}

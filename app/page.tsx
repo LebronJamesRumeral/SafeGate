@@ -298,7 +298,7 @@ export default function Dashboard() {
         {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
               Admin Dashboard
             </h1>
             <p className="text-base text-slate-600 dark:text-slate-400 mt-2">
@@ -346,7 +346,7 @@ export default function Dashboard() {
               <CardContent className="p-6 flex items-center justify-between relative z-10">
                 <div>
                   <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold mb-2 uppercase tracking-wider">Students Present</p>
-                  <div className="text-4xl font-bold text-blue-600 dark:text-blue-400">{stats.totalPresent}</div>
+                  <div className="text-3xl sm:text-4xl font-bold text-blue-600 dark:text-blue-400">{stats.totalPresent}</div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">out of {stats.totalStudents} total</p>
                 </div>
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
@@ -369,7 +369,7 @@ export default function Dashboard() {
               <CardContent className="p-6 flex items-center justify-between relative z-10">
                 <div>
                   <p className="text-xs text-red-600 dark:text-red-400 font-semibold mb-2 uppercase tracking-wider">Absent</p>
-                  <div className="text-4xl font-bold text-red-600 dark:text-red-400">{stats.absent}</div>
+                  <div className="text-3xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{stats.absent}</div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">no check-in recorded</p>
                 </div>
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
@@ -392,7 +392,7 @@ export default function Dashboard() {
               <CardContent className="p-6 flex items-center justify-between relative z-10">
                 <div>
                   <p className="text-xs text-orange-600 dark:text-orange-400 font-semibold mb-2 uppercase tracking-wider">Late Arrivals</p>
-                  <div className="text-4xl font-bold text-orange-600 dark:text-orange-400">{stats.lateArrivals}</div>
+                  <div className="text-3xl sm:text-4xl font-bold text-orange-600 dark:text-orange-400">{stats.lateArrivals}</div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">after 8:00 AM</p>
                 </div>
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">

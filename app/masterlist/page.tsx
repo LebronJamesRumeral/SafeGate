@@ -16,15 +16,24 @@ import { toast } from '@/components/ui/use-toast';
 import { sortByLevel } from '@/lib/level-order';
 import { MLDashboard } from '@/components/ml-dashboard';
 import { MasterlistSkeleton } from '@/components/loading-skeletons';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // Enforce consistent layout structure for masterlist page
 export default function MasterlistPage() {
+  const isMobile = useIsMobile();
   const [search, setSearch] = useState('');
   const [filterGrade, setFilterGrade] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showFilters, setShowFilters] = useState(true);
+
+  useEffect(() => {
+    if (isMobile) {
+      setShowFilters(false);
+    }
+  }, [isMobile]);
 
   // Fetch all students from Supabase
   useEffect(() => {
@@ -112,13 +121,17 @@ export default function MasterlistPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2 flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 flex items-center gap-2">
               <Archive size={32} className="text-primary" />
               Student Masterlist
             </h1>
             <p className="text-muted-foreground font-medium">Complete archive of all recorded students from previous to current generations</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" className="gap-2" onClick={() => setShowFilters(!showFilters)}>
+              <Search size={16} />
+              {showFilters ? 'Hide Filters' : 'Show Filters'}
+            </Button>
             <Button variant="secondary" className="gap-2">
               <Download size={16} />
               Export
@@ -172,6 +185,7 @@ export default function MasterlistPage() {
         </div>
 
         {/* Filters */}
+        {showFilters && (
         <Card className="bg-card border-border/50 shadow-lg card-elevated animate-slide-in-left" style={{ animationDelay: '0.1s' }}>
           <CardHeader>
             <CardTitle className="text-lg">Search & Filter Masterlist</CardTitle>
@@ -223,6 +237,7 @@ export default function MasterlistPage() {
             </div>
           </CardContent>
         </Card>
+        )}
 
         {/* Students Table */}
         <Card className="bg-card border-border/50 shadow-lg card-elevated animate-fade-in-up" style={{ animationDelay: '0.2s' }}>

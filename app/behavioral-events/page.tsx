@@ -1,3 +1,4 @@
+import { useIsMobile } from '@/hooks/use-mobile';
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -158,6 +159,7 @@ const CATEGORY_TEMPLATES: CategoryTemplate[] = [
 
 // Enforce consistent layout structure for behavioral events
 export default function BehavioralEventsPage() {
+    const isMobile = useIsMobile();
   const router = useRouter();
   const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -182,6 +184,11 @@ export default function BehavioralEventsPage() {
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [syncing, setSyncing] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  useEffect(() => {
+    if (isMobile) {
+      setShowFilters(false);
+    }
+  }, [isMobile]);
 
   // Form state for adding new event
   const [formData, setFormData] = useState({
@@ -917,14 +924,14 @@ export default function BehavioralEventsPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
               Behavioral Events
             </h1>
             <p className="text-base text-gray-600 dark:text-gray-300 mt-2">
               Track and analyze student behavioral patterns and achievements
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <Badge className={isOnline ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
               {isOnline ? <Wifi className="w-3 h-3 mr-1" /> : <WifiOff className="w-3 h-3 mr-1" />}
               {isOnline ? 'Online' : 'Offline'}
