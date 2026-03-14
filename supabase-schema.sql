@@ -11,6 +11,8 @@ DROP TABLE IF EXISTS student_attendance_summary CASCADE;
 DROP TABLE IF EXISTS absence_predictions CASCADE;
 DROP TABLE IF EXISTS attendance_patterns CASCADE;
 DROP TABLE IF EXISTS attendance_logs CASCADE;
+DROP TABLE IF EXISTS student_schedules CASCADE;
+DROP TABLE IF EXISTS school_years CASCADE;
 DROP TABLE IF EXISTS students CASCADE;
 
 -- ============================================================================
@@ -57,6 +59,38 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
   UNIQUE(student_lrn, date)
 );
 
+-- School years for enrollment and advancement tracking
+CREATE TABLE IF NOT EXISTS school_years (
+  id BIGSERIAL PRIMARY KEY,
+  label VARCHAR(20) UNIQUE NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  is_current BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT school_year_dates_valid CHECK (start_date <= end_date)
+);
+
+-- Weekly schedule per student
+CREATE TABLE IF NOT EXISTS student_schedules (
+  id BIGSERIAL PRIMARY KEY,
+  student_lrn VARCHAR(50) NOT NULL REFERENCES students(lrn) ON DELETE CASCADE,
+  school_year_id BIGINT REFERENCES school_years(id) ON DELETE SET NULL,
+  day_of_week VARCHAR(12) NOT NULL,
+  day_number SMALLINT NOT NULL,
+  subject VARCHAR(120) NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  room VARCHAR(80),
+  teacher_name VARCHAR(120),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT student_schedule_time_valid CHECK (start_time < end_time),
+  CONSTRAINT student_schedule_day_valid CHECK (day_number BETWEEN 1 AND 7),
+  CONSTRAINT student_schedule_unique UNIQUE (student_lrn, day_number, start_time, end_time, subject)
+);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_students_lrn ON students(lrn);
 CREATE INDEX IF NOT EXISTS idx_students_level ON students(level);
@@ -64,6 +98,10 @@ CREATE INDEX IF NOT EXISTS idx_students_status ON students(status);
 CREATE INDEX IF NOT EXISTS idx_attendance_student_lrn ON attendance_logs(student_lrn);
 CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance_logs(date);
 CREATE INDEX IF NOT EXISTS idx_attendance_is_present ON attendance_logs(is_present);
+CREATE INDEX IF NOT EXISTS idx_school_years_current ON school_years(is_current);
+CREATE INDEX IF NOT EXISTS idx_student_schedules_lrn ON student_schedules(student_lrn);
+CREATE INDEX IF NOT EXISTS idx_student_schedules_day_time ON student_schedules(day_number, start_time);
+CREATE INDEX IF NOT EXISTS idx_student_schedules_active ON student_schedules(is_active);
 
 -- Insert sample students
 INSERT INTO students (lrn, name, gender, birthday, address, level, parent_name, parent_contact, parent_email, status) VALUES
@@ -83,6 +121,30 @@ INSERT INTO students (lrn, name, gender, birthday, address, level, parent_name, 
   ('LRN-2026-0014', 'Emma Gonzalez', 'Female', '2016-06-14', '36 Elm St, City', 'Grade 2', 'Miguel Gonzalez', '0917-555-0114', 'miguel.gonzalez@example.com', 'active'),
   ('LRN-2026-0015', 'Ava Ramirez', 'Female', '2023-07-22', '58 Spruce Dr, City', 'Kinder 1', 'Isabel Ramirez', '0917-555-0115', 'isabel.ramirez@example.com', 'active')
 ON CONFLICT (lrn) DO NOTHING;
+
+-- Insert school year records
+INSERT INTO school_years (label, start_date, end_date, is_current) VALUES
+  ('S.Y. 2025-2026', '2025-06-10', '2026-03-31', false),
+  ('S.Y. 2026-2027', '2026-06-08', '2027-03-31', true)
+ON CONFLICT (label) DO UPDATE
+SET
+  start_date = EXCLUDED.start_date,
+  end_date = EXCLUDED.end_date,
+  is_current = EXCLUDED.is_current,
+  updated_at = NOW();
+
+-- Insert sample student schedules
+INSERT INTO student_schedules (
+  student_lrn, school_year_id, day_of_week, day_number, subject,
+  start_time, end_time, room, teacher_name, is_active
+) VALUES
+  ('LRN-2026-0001', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Monday', 1, 'English', '08:00', '08:50', 'Room 401', 'Ms. Flores', true),
+  ('LRN-2026-0001', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Monday', 1, 'Mathematics', '09:00', '09:50', 'Room 401', 'Mr. Reyes', true),
+  ('LRN-2026-0001', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Tuesday', 2, 'Science', '08:00', '08:50', 'Lab 2', 'Mrs. Santos', true),
+  ('LRN-2026-0002', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Monday', 1, 'Filipino', '08:00', '08:50', 'Room 502', 'Ms. Dela Cruz', true),
+  ('LRN-2026-0002', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Wednesday', 3, 'Araling Panlipunan', '09:00', '09:50', 'Room 502', 'Mr. Lim', true),
+  ('LRN-2026-0012', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Friday', 5, 'MAPEH', '10:00', '10:50', 'Gym', 'Coach Rivera', true)
+ON CONFLICT (student_lrn, day_number, start_time, end_time, subject) DO NOTHING;
 
 -- Insert sample attendance logs (last 90 days) - Foundation for ML training
 INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, is_present) VALUES
@@ -131,6 +193,20 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0002', '2026-02-03 08:35:00+00', '2026-02-03 15:28:00+00', '2026-02-03', true),
   ('LRN-2026-0012', '2026-02-04 08:10:00+00', '2026-02-04 15:20:00+00', '2026-02-04', true)
 ON CONFLICT (student_lrn, date) DO NOTHING;
+
+-- Enable RLS on schedule tables
+ALTER TABLE school_years ENABLE ROW LEVEL SECURITY;
+ALTER TABLE student_schedules ENABLE ROW LEVEL SECURITY;
+
+-- Public access policies for schedule tables
+CREATE POLICY "Enable read for all on school years" ON school_years FOR SELECT USING (true);
+CREATE POLICY "Enable insert for all on school years" ON school_years FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for all on school years" ON school_years FOR UPDATE USING (true);
+
+CREATE POLICY "Enable read for all on student schedules" ON student_schedules FOR SELECT USING (true);
+CREATE POLICY "Enable insert for all on student schedules" ON student_schedules FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for all on student schedules" ON student_schedules FOR UPDATE USING (true);
+CREATE POLICY "Enable delete for all on student schedules" ON student_schedules FOR DELETE USING (true);
 
 -- ============================================================================
 -- ML CORE: Behavioral Analytics Based on Attendance Patterns

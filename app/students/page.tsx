@@ -126,6 +126,8 @@ export default function StudentsPage() {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
   
   const [newSchoolYearOpen, setNewSchoolYearOpen] = useState(false);
+  const [schoolYearStartDate, setSchoolYearStartDate] = useState('');
+  const [schoolYearEndDate, setSchoolYearEndDate] = useState('');
   const [processingStudents, setProcessingStudents] = useState<{ [key: string]: string }>({});
   const [processedCount, setProcessedCount] = useState(0);
   const [previousStudentData, setPreviousStudentData] = useState<Student[]>([]);
@@ -136,6 +138,17 @@ export default function StudentsPage() {
   const [loadingBehavioral, setLoadingBehavioral] = useState(false);
   const [attendanceByLrn, setAttendanceByLrn] = useState<Record<string, { checkInTime?: string; checkOutTime?: string; passedDayEnd?: boolean }>>({});
   const [riskScores, setRiskScores] = useState<Record<string, RiskScore | null>>({});
+  const [studentSchedules, setStudentSchedules] = useState<Record<string, Array<{
+    id: number;
+    day_of_week: string;
+    day_number: number;
+    subject: string;
+    start_time: string;
+    end_time: string;
+    room: string | null;
+    teacher_name: string | null;
+  }>>>({});
+  const [loadingSchedule, setLoadingSchedule] = useState(false);
   const [yearLevelTimes, setYearLevelTimes] = useState<Record<string, string>>({
     'Toddler & Nursery': '11:30',
     'Pre-K': '11:30',
@@ -421,6 +434,43 @@ export default function StudentsPage() {
     }
   };
 
+  const fetchStudentSchedule = async (studentLrn: string) => {
+    if (!supabase || studentSchedules[studentLrn]) return;
+
+    try {
+      setLoadingSchedule(true);
+      const { data, error } = await supabase
+        .from('student_schedules')
+        .select('id, day_of_week, day_number, subject, start_time, end_time, room, teacher_name')
+        .eq('student_lrn', studentLrn)
+        .eq('is_active', true)
+        .order('day_number', { ascending: true })
+        .order('start_time', { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      setStudentSchedules((prev) => ({
+        ...prev,
+        [studentLrn]: data || [],
+      }));
+    } catch (error) {
+      console.error('Error fetching student schedule:', error);
+      toast({
+        title: 'Failed to load schedule',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+      setStudentSchedules((prev) => ({
+        ...prev,
+        [studentLrn]: [],
+      }));
+    } finally {
+      setLoadingSchedule(false);
+    }
+  };
+
   const handlePrintQR = () => {
     if (qrRef.current) {
       const canvas = qrRef.current.querySelector('canvas');
@@ -449,6 +499,24 @@ export default function StudentsPage() {
   };
 
   const handleNewSchoolYear = async () => {
+    if (!schoolYearStartDate || !schoolYearEndDate) {
+      toast({
+        title: 'School year dates are required',
+        description: 'Please set the school year start and end dates before proceeding.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (new Date(schoolYearStartDate) > new Date(schoolYearEndDate)) {
+      toast({
+        title: 'Invalid school year range',
+        description: 'Start date must be earlier than or equal to end date.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setProcessingStudents({});
     setProcessedCount(0);
     setPreviousStudentData(students); // Store original data for undo
@@ -487,9 +555,22 @@ export default function StudentsPage() {
       // Refresh students list after all updates
       await fetchStudents();
       setUndoAvailable(true); // Enable undo after successful completion
+      toast({
+        title: 'School year advancement completed',
+        description: `School year set from ${schoolYearStartDate} to ${schoolYearEndDate}.`,
+        variant: 'default',
+      });
       
     } catch (error) {
       console.error('Error processing new school year:', error);
+    }
+  };
+
+  const handleSchoolYearDialogChange = (open: boolean) => {
+    setNewSchoolYearOpen(open);
+    if (!open) {
+      setSchoolYearStartDate('');
+      setSchoolYearEndDate('');
     }
   };
 
@@ -736,7 +817,7 @@ export default function StudentsPage() {
               <Download className="w-4 h-4" />
               Export
             </Button>
-            <Dialog open={newSchoolYearOpen} onOpenChange={setNewSchoolYearOpen}>
+            <Dialog open={newSchoolYearOpen} onOpenChange={handleSchoolYearDialogChange}>
               <DialogTrigger asChild>
                 <Button variant="default" size="sm" className="gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600">
                   <Calendar size={16} />
@@ -759,6 +840,37 @@ export default function StudentsPage() {
                   >
                     {processedCount === 0 && !undoInProgress ? (
                       <>
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                              <label htmlFor="school-year-start" className="text-sm font-medium text-foreground">
+                                School Year Start Date
+                              </label>
+                              <Input
+                                id="school-year-start"
+                                type="date"
+                                value={schoolYearStartDate}
+                                onChange={(e) => setSchoolYearStartDate(e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label htmlFor="school-year-end" className="text-sm font-medium text-foreground">
+                                School Year End Date
+                              </label>
+                              <Input
+                                id="school-year-end"
+                                type="date"
+                                value={schoolYearEndDate}
+                                onChange={(e) => setSchoolYearEndDate(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          {schoolYearStartDate && schoolYearEndDate && new Date(schoolYearStartDate) > new Date(schoolYearEndDate) && (
+                            <p className="text-xs text-red-600 dark:text-red-400">
+                              End date must be on or after the start date.
+                            </p>
+                          )}
+                        </div>
                         <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/50 rounded-lg p-4 space-y-3">
                           <h3 className="font-semibold text-foreground flex items-center gap-2">
                             <Sparkles className="w-4 h-4 text-blue-600" />
@@ -783,11 +895,16 @@ export default function StudentsPage() {
                           onClick={handleNewSchoolYear}
                           variant="default"
                           className="w-full"
+                          disabled={
+                            !schoolYearStartDate ||
+                            !schoolYearEndDate ||
+                            new Date(schoolYearStartDate) > new Date(schoolYearEndDate)
+                          }
                         >
                           Proceed with School Year Advancement
                         </Button>
                         <Button 
-                          onClick={() => setNewSchoolYearOpen(false)}
+                          onClick={() => handleSchoolYearDialogChange(false)}
                           variant="outline"
                           className="w-full"
                         >
@@ -1056,17 +1173,6 @@ export default function StudentsPage() {
                         </TableHead>
                         <TableHead 
                           className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
-                          onClick={() => handleSort('gender')}
-                        >
-                          <div className="flex items-center gap-1">
-                            Gender
-                            <ArrowUpDown className="w-3 h-3" />
-                          </div>
-                        </TableHead>
-                        <TableHead>Birthday</TableHead>
-                        <TableHead>Age</TableHead>
-                        <TableHead 
-                          className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
                           onClick={() => handleSort('level')}
                         >
                           <div className="flex items-center gap-1">
@@ -1091,14 +1197,14 @@ export default function StudentsPage() {
                     <TableBody>
                       {loading ? (
                         <TableRow>
-                          <TableCell colSpan={10} className="text-center py-8">
+                          <TableCell colSpan={7} className="text-center py-8">
                             <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                             <p className="text-sm text-muted-foreground mt-2">Loading students...</p>
                           </TableCell>
                         </TableRow>
                       ) : filteredStudents.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={10} className="text-center py-12">
+                          <TableCell colSpan={7} className="text-center py-12">
                             <div className="flex flex-col items-center gap-2">
                               <Users className="w-12 h-12 text-gray-300" />
                               <p className="text-gray-500 dark:text-gray-400">No students found</p>
@@ -1119,9 +1225,6 @@ export default function StudentsPage() {
                         </TableRow>
                       ) : (
                         filteredStudents.map((student, index) => {
-                          const age = shouldShowAge(student.level) 
-                            ? calculateAgeWithDecimal(student.birthday) 
-                            : null;
                           const riskScore = riskScores[student.lrn];
                           const riskLevel = riskScore?.risk_level || 'low';
                           const riskColors = getRiskLevelColor(riskLevel);
@@ -1146,17 +1249,6 @@ export default function StudentsPage() {
                                   </Avatar>
                                   <span className="font-medium">{student.name}</span>
                                 </div>
-                              </TableCell>
-                              <TableCell>{student.gender}</TableCell>
-                              <TableCell>{student.birthday}</TableCell>
-                              <TableCell>
-                                {age ? (
-                                  <Badge variant="outline" className="border-blue-200 dark:border-blue-800">
-                                    {age} yrs
-                                  </Badge>
-                                ) : (
-                                  <span className="text-muted-foreground text-sm">—</span>
-                                )}
                               </TableCell>
                               <TableCell>
                                 <Badge 
@@ -1243,6 +1335,7 @@ export default function StudentsPage() {
                                         setSelectedStudent(student);
                                         setDetailsOpen(false);
                                         fetchBehavioralData(student.lrn);
+                                        fetchStudentSchedule(student.lrn);
                                       }}
                                       className="gap-1.5 hover:bg-primary/10 hover:text-primary"
                                     >
@@ -1270,9 +1363,10 @@ export default function StudentsPage() {
                                         </DialogHeader>
 
                                         <Tabs defaultValue="overview" className="mt-4">
-                                          <TabsList className="grid w-full grid-cols-4">
+                                          <TabsList className="grid w-full grid-cols-5">
                                             <TabsTrigger value="overview">Overview</TabsTrigger>
                                             <TabsTrigger value="attendance">Attendance</TabsTrigger>
+                                            <TabsTrigger value="schedule">Schedule</TabsTrigger>
                                             <TabsTrigger value="behavioral">Behavioral</TabsTrigger>
                                             <TabsTrigger value="qr">QR Code</TabsTrigger>
                                           </TabsList>
@@ -1301,8 +1395,10 @@ export default function StudentsPage() {
                                                   Birthday
                                                 </p>
                                                 <p className="font-medium">{selectedStudent.birthday}</p>
-                                                {age && (
-                                                  <p className="text-sm text-muted-foreground mt-1">{age} years old</p>
+                                                {shouldShowAge(selectedStudent.level) && (
+                                                  <p className="text-sm text-muted-foreground mt-1">
+                                                    {calculateAgeWithDecimal(selectedStudent.birthday)} years old
+                                                  </p>
                                                 )}
                                               </div>
                                               <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
@@ -1339,6 +1435,44 @@ export default function StudentsPage() {
                                                 </div>
                                               </div>
                                             </div>
+                                          </TabsContent>
+
+                                          <TabsContent value="schedule" className="space-y-4 mt-4">
+                                            {loadingSchedule ? (
+                                              <div className="flex justify-center py-8">
+                                                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                                              </div>
+                                            ) : (studentSchedules[selectedStudent.lrn] || []).length > 0 ? (
+                                              <div className="border rounded-lg overflow-hidden">
+                                                <Table>
+                                                  <TableHeader>
+                                                    <TableRow>
+                                                      <TableHead>Day</TableHead>
+                                                      <TableHead>Subject</TableHead>
+                                                      <TableHead>Time</TableHead>
+                                                      <TableHead>Room</TableHead>
+                                                      <TableHead>Teacher</TableHead>
+                                                    </TableRow>
+                                                  </TableHeader>
+                                                  <TableBody>
+                                                    {(studentSchedules[selectedStudent.lrn] || []).map((schedule) => (
+                                                      <TableRow key={schedule.id}>
+                                                        <TableCell className="font-medium">{schedule.day_of_week}</TableCell>
+                                                        <TableCell>{schedule.subject}</TableCell>
+                                                        <TableCell>{schedule.start_time} - {schedule.end_time}</TableCell>
+                                                        <TableCell>{schedule.room || '—'}</TableCell>
+                                                        <TableCell>{schedule.teacher_name || '—'}</TableCell>
+                                                      </TableRow>
+                                                    ))}
+                                                  </TableBody>
+                                                </Table>
+                                              </div>
+                                            ) : (
+                                              <div className="text-center py-8 text-muted-foreground">
+                                                <CalendarDays className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                                <p>No schedule available for this student</p>
+                                              </div>
+                                            )}
                                           </TabsContent>
 
                                           <TabsContent value="attendance" className="space-y-4 mt-4">

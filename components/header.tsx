@@ -126,16 +126,6 @@ export function Header() {
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full shadow-md" />
             </Button>
 
-            {/* Lock/Settings */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden sm:inline-flex rounded-lg text-gray-700 dark:text-slate-400 hover:bg-yellow-100 dark:hover:bg-slate-800 hover:text-yellow-600 dark:hover:text-yellow-400 transition-all duration-200 active:scale-95 h-9 w-9 sm:h-10 sm:w-10"
-              title="Settings"
-            >
-              <Lock className="h-5 w-5" />
-            </Button>
-
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
