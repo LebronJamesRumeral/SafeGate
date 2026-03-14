@@ -145,17 +145,6 @@ const SEVERITY_COLORS = {
 
 const CHART_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899'];
 
-const EVENT_TYPE_SUGGESTIONS = [
-  'Late Arrival',
-  'Absence Without Notice',
-  'Disruptive Behavior',
-  'Bullying Incident',
-  'Respectful Conduct',
-  'Outstanding Participation',
-  'Academic Improvement',
-  'Safety Concern',
-];
-
 const CATEGORY_TEMPLATES: CategoryTemplate[] = [
   { id: 'classroom-disruption', name: 'Classroom Disruption', categoryType: 'Behavior', severity: 'major' },
   { id: 'academic-dishonesty', name: 'Academic Dishonesty', categoryType: 'Academic', severity: 'major' },
@@ -204,7 +193,7 @@ export default function BehavioralEventsPage() {
     location: '',
     witness_names: '',
     action_taken: '',
-    follow_up_required: false,
+    follow_up_required: true,
     notes: ''
   });
 
@@ -284,11 +273,22 @@ export default function BehavioralEventsPage() {
     return [...dbCategoryTemplates, ...extras];
   }, [dbCategoryTemplates]);
 
-  const eventTypeSuggestions = useMemo(() => {
-    const categoryBased = categories.map((category) => category.name);
-    const templates = CATEGORY_TEMPLATES.map((template) => template.name);
-    return Array.from(new Set([...EVENT_TYPE_SUGGESTIONS, ...categoryBased, ...templates])).sort();
-  }, [categories]);
+  const eventTypeOptions = useMemo(() => {
+    const severityOrder: Record<string, number> = {
+      positive: 0,
+      neutral: 1,
+      minor: 2,
+      major: 3,
+      critical: 4,
+    };
+
+    return [...availableCategoryTemplates].sort((a, b) => {
+      const aRank = severityOrder[a.severity] ?? 99;
+      const bRank = severityOrder[b.severity] ?? 99;
+      if (aRank !== bRank) return aRank - bRank;
+      return a.name.localeCompare(b.name);
+    });
+  }, [availableCategoryTemplates]);
 
   const fetchTeacherAccounts = async () => {
     try {
@@ -624,9 +624,13 @@ export default function BehavioralEventsPage() {
         ? `${formData.notes?.trim() ? `${formData.notes.trim()}\n\n` : ''}Witnesses: ${formData.witness_names.trim()}`
         : formData.notes;
 
+      const matchedCategory = categories.find(
+        (category) => category.name.toLowerCase() === formData.event_type.toLowerCase()
+      );
+
       const insertPayload = {
         student_lrn: formData.student_lrn,
-        category_id: formData.category_id ? Number(formData.category_id) : null,
+        category_id: matchedCategory ? Number(matchedCategory.id) : null,
         event_type: formData.event_type,
         severity: formData.severity,
         description: formData.description,
@@ -714,9 +718,12 @@ export default function BehavioralEventsPage() {
         const fallbackNotes = formData.witness_names.trim()
           ? `${formData.notes?.trim() ? `${formData.notes.trim()}\n\n` : ''}Witnesses: ${formData.witness_names.trim()}`
           : formData.notes;
+        const fallbackCategory = categories.find(
+          (category) => category.name.toLowerCase() === formData.event_type.toLowerCase()
+        );
         const fallbackPayload = {
           student_lrn: formData.student_lrn,
-          category_id: formData.category_id ? Number(formData.category_id) : null,
+          category_id: fallbackCategory ? Number(fallbackCategory.id) : null,
           event_type: formData.event_type,
           severity: formData.severity,
           description: formData.description,
@@ -761,7 +768,7 @@ export default function BehavioralEventsPage() {
       location: '',
       witness_names: '',
       action_taken: '',
-      follow_up_required: false,
+      follow_up_required: true,
       notes: ''
     });
   };
@@ -962,7 +969,7 @@ export default function BehavioralEventsPage() {
                   Log Event
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[96vw] max-w-5xl lg:max-w-6xl max-h-[92vh] overflow-hidden p-0">
+              <DialogContent className="w-[96vw] max-w-5xl lg:max-w-6xl h-[92vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
                 <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40">
                   <DialogTitle className="text-3xl leading-tight">Log Student Behavior Incident</DialogTitle>
                   <DialogDescription>
@@ -973,7 +980,7 @@ export default function BehavioralEventsPage() {
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="space-y-5 px-6 py-5 overflow-y-auto max-h-[calc(92vh-170px)]"
+                  className="space-y-5 px-6 py-5 overflow-y-auto flex-1"
                 >
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -1007,89 +1014,35 @@ export default function BehavioralEventsPage() {
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="category_template">Category Template</Label>
-                      <Select
-                        value=""
-                        onValueChange={(value) => {
-                          const template = availableCategoryTemplates.find((item) => item.id === value);
-                          if (!template) return;
-
-                          const dbCategory = categories.find(
-                            (category) => category.name.toLowerCase() === template.name.toLowerCase()
-                          );
-
-                          setFormData({
-                            ...formData,
-                            category_id: dbCategory ? dbCategory.id.toString() : '',
-                            event_type: template.name,
-                            severity: template.severity,
-                          });
-                        }}
-                      >
-                        <SelectTrigger id="category_template">
-                          <SelectValue placeholder="Select from event templates" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableCategoryTemplates.map((template) => (
-                            <SelectItem key={template.id} value={template.id}>
-                              <div className="flex items-center gap-2">
-                                {getSeverityIcon(template.severity)}
-                                <span>{template.name}</span>
-                                <span className="text-xs text-muted-foreground">({template.categoryType})</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="category">Database Category (Optional)</Label>
-                      <Select value={formData.category_id} onValueChange={(value) => {
-                        const category = categories.find(c => c.id.toString() === value);
-                        setFormData({
-                          ...formData, 
-                          category_id: value,
-                          event_type: category?.name || '',
-                          severity: category?.severity_level || 'minor'
-                        });
-                      }}>
-                        <SelectTrigger id="category">
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map(category => (
-                            <SelectItem key={category.id} value={category.id.toString()}>
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: category.color_code }} />
-                                {category.name} ({category.category_type})
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
                       <Label htmlFor="event_type" className="flex items-center gap-1">
                         Event Type <span className="text-red-500">*</span>
                       </Label>
-                      <Input
-                        id="event_type"
+                      <Select
                         value={formData.event_type}
-                        onChange={(e) => setFormData({...formData, event_type: e.target.value})}
-                        list="event-type-suggestions"
-                        placeholder="e.g., Late Arrival, Excellent Work"
-                      />
-                      <datalist id="event-type-suggestions">
-                        {eventTypeSuggestions.map((suggestion) => (
-                          <option key={suggestion} value={suggestion} />
-                        ))}
-                      </datalist>
+                        onValueChange={(value) => {
+                          const selected = eventTypeOptions.find((option) => option.name === value);
+                          setFormData({
+                            ...formData,
+                            event_type: value,
+                            severity: selected?.severity || formData.severity,
+                          });
+                        }}
+                      >
+                        <SelectTrigger id="event_type">
+                          <SelectValue placeholder="Select event type (positive to critical)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {eventTypeOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.name}>
+                              <div className="flex items-center gap-2">
+                                {getSeverityIcon(option.severity)}
+                                <span>{option.name}</span>
+                                <span className="text-xs text-muted-foreground">({option.categoryType})</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="severity" className="flex items-center gap-1">
@@ -1185,16 +1138,8 @@ export default function BehavioralEventsPage() {
                     />
                   </div>
 
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.follow_up_required}
-                        onChange={(e) => setFormData({...formData, follow_up_required: e.target.checked})}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm">Requires Follow-up</span>
-                    </label>
+                  <div className="rounded-md border border-blue-200 bg-blue-50/70 px-3 py-2 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                    Follow-up is automatically enabled for behavior entries to support timely intervention and parent communication.
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Parent email is ML-driven. The system compiles attendance + behavior + risk data first, then decides automatically.
@@ -1212,19 +1157,20 @@ export default function BehavioralEventsPage() {
                     />
                   </div>
 
-                  <div className="sticky bottom-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur border-t -mx-6 px-6 py-4 flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => {
-                      setIsAddDialogOpen(false);
-                      resetForm();
-                    }}>
-                      Cancel
-                    </Button>
-                    <Button variant="default" onClick={handleAddEvent} className="gap-2">
-                      <Plus className="w-4 h-4" />
-                      Log Event
-                    </Button>
-                  </div>
                 </motion.div>
+
+                <div className="border-t bg-white dark:bg-slate-950 px-6 py-4 flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => {
+                    setIsAddDialogOpen(false);
+                    resetForm();
+                  }}>
+                    Cancel
+                  </Button>
+                  <Button variant="default" onClick={handleAddEvent} className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Log Event
+                  </Button>
+                </div>
               </DialogContent>
             </Dialog>
           </div>
