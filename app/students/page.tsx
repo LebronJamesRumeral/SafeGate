@@ -108,6 +108,20 @@ const LEVEL_COLORS = {
 };
 
 const CHART_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+const YEAR_LEVEL_OPTIONS = [
+  'Toddler & Nursery',
+  'Pre-K',
+  'Kinder 1',
+  'Kinder 2',
+  'Grade 1',
+  'Grade 2',
+  'Grade 3',
+  'Grade 4',
+  'Grade 5',
+  'Grade 6',
+  'Grade 7',
+  'Grade 8',
+];
 
 // Enforce consistent layout structure for students page
 export default function StudentsPage() {
@@ -124,6 +138,20 @@ export default function StudentsPage() {
   const [showFilters, setShowFilters] = useState(true);
   const [activeTab, setActiveTab] = useState('list');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
+  const [addStudentOpen, setAddStudentOpen] = useState(false);
+  const [addingStudent, setAddingStudent] = useState(false);
+  const [newStudentForm, setNewStudentForm] = useState({
+    lrn: '',
+    name: '',
+    gender: '',
+    birthday: '',
+    level: '',
+    address: '',
+    parentName: '',
+    parentContact: '',
+    parentEmail: '',
+    status: 'active',
+  });
   
   const [newSchoolYearOpen, setNewSchoolYearOpen] = useState(false);
   const [schoolYearStartDate, setSchoolYearStartDate] = useState('');
@@ -354,6 +382,84 @@ export default function StudentsPage() {
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchStudents();
+  };
+
+  const resetAddStudentForm = () => {
+    setNewStudentForm({
+      lrn: '',
+      name: '',
+      gender: '',
+      birthday: '',
+      level: '',
+      address: '',
+      parentName: '',
+      parentContact: '',
+      parentEmail: '',
+      status: 'active',
+    });
+  };
+
+  const handleAddStudent = async () => {
+    if (!supabase) {
+      toast({
+        title: 'Database not connected',
+        description: 'Supabase client is not initialized.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!newStudentForm.lrn.trim() || !newStudentForm.name.trim() || !newStudentForm.gender || !newStudentForm.birthday || !newStudentForm.level) {
+      toast({
+        title: 'Missing required fields',
+        description: 'Please complete LRN, Name, Gender, Birthday, and Year Level.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setAddingStudent(true);
+
+    try {
+      const { error } = await supabase
+        .from('students')
+        .insert({
+          lrn: newStudentForm.lrn.trim(),
+          name: newStudentForm.name.trim(),
+          gender: newStudentForm.gender,
+          birthday: newStudentForm.birthday,
+          level: newStudentForm.level,
+          address: newStudentForm.address.trim() || null,
+          parent_name: newStudentForm.parentName.trim() || null,
+          parent_contact: newStudentForm.parentContact.trim() || null,
+          parent_email: newStudentForm.parentEmail.trim() || null,
+          status: newStudentForm.status,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: 'Student added',
+        description: `${newStudentForm.name} was added successfully.`,
+        variant: 'default',
+      });
+
+      setAddStudentOpen(false);
+      resetAddStudentForm();
+      await fetchStudents();
+    } catch (error) {
+      console.error('Error adding student:', error);
+      toast({
+        title: 'Failed to add student',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setAddingStudent(false);
+    }
   };
 
   const handleSort = (key: string) => {
@@ -955,10 +1061,159 @@ export default function StudentsPage() {
                 </AnimatePresence>
               </DialogContent>
             </Dialog>
-            <Button variant="default" size="sm" className="gap-2">
-              <UserPlus size={16} />
-              Add Student
-            </Button>
+            <Dialog
+              open={addStudentOpen}
+              onOpenChange={(open) => {
+                setAddStudentOpen(open);
+                if (!open) {
+                  resetAddStudentForm();
+                }
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button variant="default" size="sm" className="gap-2">
+                  <UserPlus size={16} />
+                  Add Student
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-bold">Add New Student</DialogTitle>
+                  <DialogDescription>Fill out the required details to register a student.</DialogDescription>
+                </DialogHeader>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">LRN *</label>
+                    <Input
+                      value={newStudentForm.lrn}
+                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, lrn: e.target.value }))}
+                      placeholder="e.g., LRN-2026-0016"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Full Name *</label>
+                    <Input
+                      value={newStudentForm.name}
+                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, name: e.target.value }))}
+                      placeholder="Student full name"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Gender *</label>
+                    <Select
+                      value={newStudentForm.gender}
+                      onValueChange={(value) => setNewStudentForm((prev) => ({ ...prev, gender: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select gender" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Male">Male</SelectItem>
+                        <SelectItem value="Female">Female</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Birthday *</label>
+                    <Input
+                      type="date"
+                      value={newStudentForm.birthday}
+                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, birthday: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Year Level *</label>
+                    <Select
+                      value={newStudentForm.level}
+                      onValueChange={(value) => setNewStudentForm((prev) => ({ ...prev, level: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select year level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {YEAR_LEVEL_OPTIONS.map((level) => (
+                          <SelectItem key={level} value={level}>{level}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Status</label>
+                    <Select
+                      value={newStudentForm.status}
+                      onValueChange={(value) => setNewStudentForm((prev) => ({ ...prev, status: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="text-sm font-medium">Address</label>
+                    <Input
+                      value={newStudentForm.address}
+                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, address: e.target.value }))}
+                      placeholder="Home address"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Parent/Guardian Name</label>
+                    <Input
+                      value={newStudentForm.parentName}
+                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parentName: e.target.value }))}
+                      placeholder="Parent/Guardian full name"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Parent Contact</label>
+                    <Input
+                      value={newStudentForm.parentContact}
+                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parentContact: e.target.value }))}
+                      placeholder="e.g., 0917-555-0116"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="text-sm font-medium">Parent Email</label>
+                    <Input
+                      type="email"
+                      value={newStudentForm.parentEmail}
+                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parentEmail: e.target.value }))}
+                      placeholder="parent@example.com"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setAddStudentOpen(false)}
+                    disabled={addingStudent}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleAddStudent}
+                    disabled={addingStudent}
+                  >
+                    {addingStudent ? 'Saving...' : 'Save Student'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
@@ -1343,7 +1598,7 @@ export default function StudentsPage() {
                                       View
                                     </Button>
                                   </DialogTrigger>
-                                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                                  <DialogContent className="w-[95vw] max-w-6xl max-h-[92vh] overflow-y-auto p-6 md:p-8">
                                     {selectedStudent && (
                                       <>
                                         <DialogHeader>
@@ -1362,8 +1617,8 @@ export default function StudentsPage() {
                                           </div>
                                         </DialogHeader>
 
-                                        <Tabs defaultValue="overview" className="mt-4">
-                                          <TabsList className="grid w-full grid-cols-5">
+                                        <Tabs defaultValue="overview" className="mt-6 space-y-4">
+                                          <TabsList className="grid w-full grid-cols-5 gap-1 h-auto p-1">
                                             <TabsTrigger value="overview">Overview</TabsTrigger>
                                             <TabsTrigger value="attendance">Attendance</TabsTrigger>
                                             <TabsTrigger value="schedule">Schedule</TabsTrigger>
