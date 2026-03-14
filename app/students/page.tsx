@@ -1223,7 +1223,7 @@ export default function StudentsPage() {
                   Add Student
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[96vw] max-w-5xl lg:max-w-6xl h-[92vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
+              <DialogContent className="w-[76vw] max-w-5xl lg:max-w-6xl h-[92vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
                 <div className="h-full overflow-y-auto p-6 md:p-8 space-y-4">
                   <DialogHeader>
                     <DialogTitle className="text-xl font-bold">Add New Student</DialogTitle>
