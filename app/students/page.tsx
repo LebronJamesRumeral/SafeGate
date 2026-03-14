@@ -846,21 +846,21 @@ export default function StudentsPage() {
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1 }}
           >
             <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 text-white">
-                    <Users className="w-5 h-5" />
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 text-white">
+                    <Users className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
-                    <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">Total Students</p>
-                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.total}</p>
+                    <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 font-medium leading-tight">Total Students</p>
+                    <p className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.total}</p>
                   </div>
                 </div>
               </CardContent>
@@ -873,14 +873,14 @@ export default function StudentsPage() {
             transition={{ delay: 0.2 }}
           >
             <Card className="border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white">
-                    <User className="w-5 h-5" />
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white">
+                    <User className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
-                    <p className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">Male / Female</p>
-                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.male} / {stats.female}</p>
+                    <p className="text-xs sm:text-sm text-emerald-700 dark:text-emerald-300 font-medium leading-tight">Male / Female</p>
+                    <p className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.male} / {stats.female}</p>
                   </div>
                 </div>
               </CardContent>
@@ -893,14 +893,14 @@ export default function StudentsPage() {
             transition={{ delay: 0.3 }}
           >
             <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 text-white">
-                    <CheckCircle className="w-5 h-5" />
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 text-white">
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
-                    <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">Checked In Today</p>
-                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.checkedIn}</p>
+                    <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 font-medium leading-tight">Checked In Today</p>
+                    <p className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.checkedIn}</p>
                   </div>
                 </div>
               </CardContent>
@@ -913,14 +913,14 @@ export default function StudentsPage() {
             transition={{ delay: 0.4 }}
           >
             <Card className="border-0 bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/40 dark:to-amber-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-white">
-                    <Activity className="w-5 h-5" />
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-white">
+                    <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
-                    <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">Attendance Rate</p>
-                    <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.attendanceRate}%</p>
+                    <p className="text-xs sm:text-sm text-amber-700 dark:text-amber-300 font-medium leading-tight">Attendance Rate</p>
+                    <p className="text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.attendanceRate}%</p>
                   </div>
                 </div>
               </CardContent>

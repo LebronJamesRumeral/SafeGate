@@ -151,13 +151,13 @@ export default function SettingsPage() {
             {/* School Information */}
             {activeCategory === 'school' && (
               <Card className="shadow-xl duration-200 animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 border-b border-blue-200/50 dark:border-blue-700/40 p-8">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 border-b border-blue-200/50 dark:border-blue-700/40 p-5 sm:p-8">
                   <div className="flex items-center justify-between gap-6">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">School Information</CardTitle>
                       <CardDescription className="text-sm mt-2">Update your school details and contact information</CardDescription>
                     </div>
-                    <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
                       <School size={32} />
                     </div>
                   </div>
@@ -201,13 +201,13 @@ export default function SettingsPage() {
             {/* Account Settings */}
             {activeCategory === 'account' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 border-b border-blue-200/50 dark:border-blue-700/40 p-8">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 border-b border-blue-200/50 dark:border-blue-700/40 p-5 sm:p-8">
                   <div className="flex items-center justify-between gap-6">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Account Settings</CardTitle>
                       <CardDescription className="text-sm mt-2">Manage your account and user preferences</CardDescription>
                     </div>
-                    <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
                       <User size={32} />
                     </div>
                   </div>
@@ -246,13 +246,13 @@ export default function SettingsPage() {
             {/* Notifications */}
             {activeCategory === 'notifications' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-100/50 dark:from-orange-950/40 dark:to-orange-900/30 border-b border-orange-200/50 dark:border-orange-700/40 p-8">
+                <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-100/50 dark:from-orange-950/40 dark:to-orange-900/30 border-b border-orange-200/50 dark:border-orange-700/40 p-5 sm:p-8">
                   <div className="flex items-center justify-between gap-6">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Notifications</CardTitle>
                       <CardDescription className="text-sm mt-2">Configure how you receive alerts and updates</CardDescription>
                     </div>
-                    <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
                       <Bell size={32} />
                     </div>
                   </div>
@@ -290,13 +290,13 @@ export default function SettingsPage() {
             {/* Security */}
             {activeCategory === 'security' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-red-50 to-red-100/50 dark:from-red-950/40 dark:to-red-900/30 border-b border-red-200/50 dark:border-red-700/40 p-8">
+                <CardHeader className="bg-gradient-to-r from-red-50 to-red-100/50 dark:from-red-950/40 dark:to-red-900/30 border-b border-red-200/50 dark:border-red-700/40 p-5 sm:p-8">
                   <div className="flex items-center justify-between gap-6">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Security</CardTitle>
                       <CardDescription className="text-sm mt-2">Update your password and security settings</CardDescription>
                     </div>
-                    <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-red-400 to-red-600 dark:from-red-500 dark:to-red-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-red-400 to-red-600 dark:from-red-500 dark:to-red-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
                       <Lock size={32} />
                     </div>
                   </div>
@@ -333,13 +333,13 @@ export default function SettingsPage() {
             {/* Attendance Times */}
             {activeCategory === 'attendance' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-green-50 to-green-100/50 dark:from-green-950/40 dark:to-green-900/30 border-b border-green-200/50 dark:border-green-700/40 p-8">
+                <CardHeader className="bg-gradient-to-r from-green-50 to-green-100/50 dark:from-green-950/40 dark:to-green-900/30 border-b border-green-200/50 dark:border-green-700/40 p-5 sm:p-8">
                   <div className="flex items-center justify-between gap-6">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Year Level Check-out Times</CardTitle>
                       <CardDescription className="text-sm mt-2">Set the school day end time for each year level</CardDescription>
                     </div>
-                    <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-green-400 to-green-600 dark:from-green-500 dark:to-green-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-green-400 to-green-600 dark:from-green-500 dark:to-green-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
                       <Clock size={32} />
                     </div>
                   </div>
@@ -391,13 +391,13 @@ export default function SettingsPage() {
             {/* System Settings */}
             {activeCategory === 'system' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/30 border-b border-emerald-200/50 dark:border-emerald-700/40 p-8">
+                <CardHeader className="bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/30 border-b border-emerald-200/50 dark:border-emerald-700/40 p-5 sm:p-8">
                   <div className="flex items-center justify-between gap-6">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">System Settings</CardTitle>
                       <CardDescription className="text-sm mt-2">Configure system behavior and preferences</CardDescription>
                     </div>
-                    <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
                       <Database size={32} />
                     </div>
                   </div>
@@ -440,13 +440,13 @@ export default function SettingsPage() {
             {/* ML Settings */}
             {activeCategory === 'ml' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-violet-50 to-violet-100/50 dark:from-violet-950/40 dark:to-violet-900/30 border-b border-violet-200/50 dark:border-violet-700/40 p-8">
+                <CardHeader className="bg-gradient-to-r from-violet-50 to-violet-100/50 dark:from-violet-950/40 dark:to-violet-900/30 border-b border-violet-200/50 dark:border-violet-700/40 p-5 sm:p-8">
                   <div className="flex items-center justify-between gap-6">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">ML Prediction Settings</CardTitle>
                       <CardDescription className="text-sm mt-2">Configure machine learning and AI features</CardDescription>
                     </div>
-                    <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-violet-400 to-violet-600 dark:from-violet-500 dark:to-violet-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-violet-400 to-violet-600 dark:from-violet-500 dark:to-violet-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
                       <Brain size={32} />
                     </div>
                   </div>
@@ -520,3 +520,4 @@ export default function SettingsPage() {
     </DashboardLayout>
   );
 }
+

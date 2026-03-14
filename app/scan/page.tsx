@@ -517,14 +517,14 @@ export default function ScanPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
               Attendance Scanner
             </h1>
             <p className="text-base text-gray-600 dark:text-gray-300 mt-2">
               Scan student QR codes to automatically check in or check out
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-1.5 sm:gap-2 md:w-auto">
             <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 px-3 py-1">
               Auto Mode
             </Badge>
@@ -558,7 +558,7 @@ export default function ScanPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-6">
+              <CardContent className="p-4 sm:p-6">
                 <div className="flex flex-col items-center gap-4">
                   {scanning ? (
                     <div className="w-full">
@@ -673,15 +673,15 @@ export default function ScanPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-6">
+                <CardContent className="pt-4 sm:pt-6">
                   {lastScan.status === 'success' ? (
                     <div className="space-y-4">
-                      <div className="flex items-start gap-4 p-4 rounded-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-emerald-200/40 dark:border-emerald-700/30 shadow-sm">
-                        <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
-                          <User className="w-6 h-6" />
+                      <div className="flex items-start gap-3 p-3 sm:gap-4 sm:p-4 rounded-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-emerald-200/40 dark:border-emerald-700/30 shadow-sm">
+                        <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
+                          <User className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
                         <div className="flex-1">
-                          <p className="font-bold text-lg text-slate-900 dark:text-white">{lastScan.student}</p>
+                          <p className="font-bold text-base sm:text-lg text-slate-900 dark:text-white">{lastScan.student}</p>
                           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                             {lastScan.studentId} • {lastScan.grade}
                           </p>

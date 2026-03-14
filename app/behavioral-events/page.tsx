@@ -1182,21 +1182,21 @@ export default function BehavioralEventsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1 }}
           >
             <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 text-white">
-                    <Activity className="w-5 h-5" />
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 text-white">
+                    <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
-                    <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">Total Events</p>
-                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.total}</p>
+                    <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 font-medium leading-tight">Total Events</p>
+                    <p className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.total}</p>
                   </div>
                 </div>
               </CardContent>
@@ -1209,14 +1209,14 @@ export default function BehavioralEventsPage() {
             transition={{ delay: 0.2 }}
           >
             <Card className="border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white">
-                    <Heart className="w-5 h-5" />
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white">
+                    <Heart className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
-                    <p className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">Positive Events</p>
-                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.positive}</p>
+                    <p className="text-xs sm:text-sm text-emerald-700 dark:text-emerald-300 font-medium leading-tight">Positive Events</p>
+                    <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.positive}</p>
                   </div>
                 </div>
               </CardContent>
@@ -1229,14 +1229,14 @@ export default function BehavioralEventsPage() {
             transition={{ delay: 0.3 }}
           >
             <Card className="border-0 bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/40 dark:to-rose-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-rose-400 to-rose-600 text-white">
-                    <AlertOctagon className="w-5 h-5" />
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-rose-400 to-rose-600 text-white">
+                    <AlertOctagon className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
-                    <p className="text-sm text-rose-700 dark:text-rose-300 font-medium">Negative Events</p>
-                    <p className="text-2xl font-bold text-rose-600 dark:text-rose-400">{stats.negative}</p>
+                    <p className="text-xs sm:text-sm text-rose-700 dark:text-rose-300 font-medium leading-tight">Negative Events</p>
+                    <p className="text-xl sm:text-2xl font-bold text-rose-600 dark:text-rose-400">{stats.negative}</p>
                   </div>
                 </div>
               </CardContent>
@@ -1249,14 +1249,14 @@ export default function BehavioralEventsPage() {
             transition={{ delay: 0.4 }}
           >
             <Card className="border-0 bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/40 dark:to-orange-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-white">
-                    <Bell className="w-5 h-5" />
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-white">
+                    <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
-                    <p className="text-sm text-orange-700 dark:text-orange-300 font-medium">Needs Follow-up</p>
-                    <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.needsFollowUp}</p>
+                    <p className="text-xs sm:text-sm text-orange-700 dark:text-orange-300 font-medium leading-tight">Needs Follow-up</p>
+                    <p className="text-xl sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.needsFollowUp}</p>
                   </div>
                 </div>
               </CardContent>

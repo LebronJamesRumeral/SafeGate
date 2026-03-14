@@ -140,13 +140,13 @@ export default function MasterlistPage() {
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-slide-in-left">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 sm:gap-4 animate-slide-in-left">
           <Card className="bg-card border-border/50 shadow-lg card-elevated">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Total Records</p>
-                  <p className="text-3xl font-bold text-foreground mt-2">{students.length}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-foreground mt-2">{students.length}</p>
                 </div>
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Archive size={24} className="text-primary" />
@@ -156,11 +156,11 @@ export default function MasterlistPage() {
           </Card>
 
           <Card className="bg-card border-border/50 shadow-lg card-elevated">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6">
               <div className="flex justify-between items-center gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Active</p>
-                  <p className="text-3xl font-bold text-foreground mt-2">{activeCount}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-foreground mt-2">{activeCount}</p>
                 </div>
                 <div className="shrink-0">
                   <Badge className="bg-success/20 text-success border-success/30 px-3 py-1 text-xs">Active</Badge>
@@ -170,11 +170,11 @@ export default function MasterlistPage() {
           </Card>
 
           <Card className="bg-card border-border/50 shadow-lg card-elevated">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6">
               <div className="flex justify-between items-center gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Graduated</p>
-                  <p className="text-3xl font-bold text-foreground mt-2">{graduatedCount}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-foreground mt-2">{graduatedCount}</p>
                 </div>
                 <div className="shrink-0">
                   <Badge className="bg-info/20 text-info border-info/30 px-3 py-1 text-xs">Graduated</Badge>

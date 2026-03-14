@@ -592,7 +592,7 @@ export default function AnalyticsPage() {
               className="space-y-6"
             >
               {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-4 sm:gap-6">
                 <motion.div
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
@@ -600,15 +600,15 @@ export default function AnalyticsPage() {
                 >
                   <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/30 hover:shadow-xl transition-all duration-300">
                     <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <CardContent className="p-6">
+                    <CardContent className="p-4 sm:p-6">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300 mb-2">Average Attendance</p>
-                          <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{stats.averageAttendance}%</p>
+                          <p className="text-xs sm:text-sm font-medium text-emerald-700 dark:text-emerald-300 mb-1 sm:mb-2">Average Attendance</p>
+                          <p className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">{stats.averageAttendance}%</p>
                           <p className="text-xs text-emerald-600/70 dark:text-emerald-400/60 mt-2">Last 7 days average</p>
                         </div>
-                        <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg">
-                          <TrendingUp className="w-5 h-5" />
+                        <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg">
+                          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
                         </div>
                       </div>
                       <div className="mt-4 flex items-center gap-2 text-xs text-emerald-600/80 dark:text-emerald-400/80">
@@ -626,15 +626,15 @@ export default function AnalyticsPage() {
                 >
                   <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 hover:shadow-xl transition-all duration-300">
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <CardContent className="p-6">
+                    <CardContent className="p-4 sm:p-6">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">Total Students</p>
-                          <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.totalStudents}</p>
+                          <p className="text-xs sm:text-sm font-medium text-blue-700 dark:text-blue-300 mb-1 sm:mb-2">Total Students</p>
+                          <p className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.totalStudents}</p>
                           <p className="text-xs text-blue-600/70 dark:text-blue-400/60 mt-2">Across {stats.levelStats.length} levels</p>
                         </div>
-                        <div className="p-3 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg">
-                          <Users className="w-5 h-5" />
+                        <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg">
+                          <Users className="w-4 h-4 sm:w-5 sm:h-5" />
                         </div>
                       </div>
                       <div className="mt-4 flex items-center gap-2 text-xs text-blue-600/80 dark:text-blue-400/80">
@@ -652,15 +652,15 @@ export default function AnalyticsPage() {
                 >
                   <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/40 dark:to-orange-900/30 hover:shadow-xl transition-all duration-300">
                     <div className="absolute inset-0 bg-gradient-to-r from-orange-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <CardContent className="p-6">
+                    <CardContent className="p-4 sm:p-6">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-2">Late Arrivals</p>
-                          <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.lateArrivals}</p>
+                          <p className="text-xs sm:text-sm font-medium text-orange-700 dark:text-orange-300 mb-1 sm:mb-2">Late Arrivals</p>
+                          <p className="text-2xl sm:text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.lateArrivals}</p>
                           <p className="text-xs text-orange-600/70 dark:text-orange-400/60 mt-2">This week total</p>
                         </div>
-                        <div className="p-3 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg">
-                          <Clock className="w-5 h-5" />
+                        <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg">
+                          <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
                         </div>
                       </div>
                       <div className="mt-4 flex items-center gap-2 text-xs text-orange-600/80 dark:text-orange-400/80">
@@ -678,15 +678,15 @@ export default function AnalyticsPage() {
                 >
                   <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-950/40 dark:to-violet-900/30 hover:shadow-xl transition-all duration-300">
                     <div className="absolute inset-0 bg-gradient-to-r from-violet-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <CardContent className="p-6">
+                    <CardContent className="p-4 sm:p-6">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="text-sm font-medium text-violet-700 dark:text-violet-300 mb-2">At Risk Students</p>
-                          <p className="text-3xl font-bold text-violet-600 dark:text-violet-400">{behavioralStats.studentsAtRisk}</p>
+                          <p className="text-xs sm:text-sm font-medium text-violet-700 dark:text-violet-300 mb-1 sm:mb-2">At Risk Students</p>
+                          <p className="text-2xl sm:text-3xl font-bold text-violet-600 dark:text-violet-400">{behavioralStats.studentsAtRisk}</p>
                           <p className="text-xs text-violet-600/70 dark:text-violet-400/60 mt-2">Need intervention</p>
                         </div>
-                        <div className="p-3 rounded-xl bg-gradient-to-br from-violet-400 to-violet-600 text-white shadow-lg">
-                          <Shield className="w-5 h-5" />
+                        <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-violet-400 to-violet-600 text-white shadow-lg">
+                          <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
                         </div>
                       </div>
                       <div className="mt-4 flex items-center gap-2 text-xs text-violet-600/80 dark:text-violet-400/80">
