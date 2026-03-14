@@ -1223,7 +1223,10 @@ export default function StudentsPage() {
                   Add Student
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[97vw] max-w-5xl max-h-[92vh] overflow-y-auto p-6 md:p-8">
+              <DialogContent
+                className="w-auto max-w-none !sm:max-w-none max-h-[92vh] overflow-y-auto p-6 md:p-8"
+                style={{ width: 'min(98vw, 1280px)' }}
+              >
                 <DialogHeader>
                   <DialogTitle className="text-xl font-bold">Add New Student</DialogTitle>
                   <DialogDescription>Fill out the required details to register a student.</DialogDescription>
