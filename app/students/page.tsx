@@ -1223,7 +1223,7 @@ export default function StudentsPage() {
                   Add Student
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[96vw] max-w-4xl max-h-[92vh] overflow-y-auto p-6 md:p-8">
+              <DialogContent className="w-[97vw] max-w-5xl max-h-[92vh] overflow-y-auto p-6 md:p-8">
                 <DialogHeader>
                   <DialogTitle className="text-xl font-bold">Add New Student</DialogTitle>
                   <DialogDescription>Fill out the required details to register a student.</DialogDescription>
