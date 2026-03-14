@@ -107,6 +107,21 @@ const LEVEL_COLORS = {
   'Grade 8': '#d946ef'
 };
 
+const LEVEL_BADGE_STYLES: Record<string, string> = {
+  'Toddler & Nursery': 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/35 dark:text-amber-300 dark:border-amber-800',
+  'Pre-K': 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/35 dark:text-emerald-300 dark:border-emerald-800',
+  'Kinder 1': 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/35 dark:text-sky-300 dark:border-sky-800',
+  'Kinder 2': 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/35 dark:text-violet-300 dark:border-violet-800',
+  'Grade 1': 'bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-950/35 dark:text-pink-300 dark:border-pink-800',
+  'Grade 2': 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/35 dark:text-rose-300 dark:border-rose-800',
+  'Grade 3': 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/35 dark:text-cyan-300 dark:border-cyan-800',
+  'Grade 4': 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/35 dark:text-orange-300 dark:border-orange-800',
+  'Grade 5': 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/35 dark:text-indigo-300 dark:border-indigo-800',
+  'Grade 6': 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/35 dark:text-purple-300 dark:border-purple-800',
+  'Grade 7': 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/35 dark:text-teal-300 dark:border-teal-800',
+  'Grade 8': 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-950/35 dark:text-fuchsia-300 dark:border-fuchsia-800',
+};
+
 const CHART_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 const YEAR_LEVEL_OPTIONS = [
   'Toddler & Nursery',
@@ -135,6 +150,17 @@ const DEFAULT_SCHEDULE_SLOTS = [
   { label: 'Session 2', startTime: '09:45', endTime: '11:15' },
   { label: 'Session 3', startTime: '13:00', endTime: '14:30' },
 ];
+
+type EditableScheduleRow = {
+  id: number;
+  day_of_week: string;
+  day_number: number;
+  subject: string;
+  start_time: string;
+  end_time: string;
+  room: string;
+  teacher_name: string;
+};
 
 // Enforce consistent layout structure for students page
 export default function StudentsPage() {
@@ -192,6 +218,9 @@ export default function StudentsPage() {
     teacher_name: string | null;
   }>>>({});
   const [loadingSchedule, setLoadingSchedule] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState(false);
+  const [savingScheduleChanges, setSavingScheduleChanges] = useState(false);
+  const [scheduleDraft, setScheduleDraft] = useState<EditableScheduleRow[]>([]);
   const [yearLevelTimes, setYearLevelTimes] = useState<Record<string, string>>({
     'Toddler & Nursery': '11:30',
     'Pre-K': '11:30',
@@ -708,6 +737,21 @@ export default function StudentsPage() {
         ...prev,
         [studentLrn]: data || [],
       }));
+
+      if (selectedStudent?.lrn === studentLrn && !editingSchedule) {
+        setScheduleDraft(
+          (data || []).map((row) => ({
+            id: row.id,
+            day_of_week: row.day_of_week,
+            day_number: row.day_number,
+            subject: row.subject,
+            start_time: row.start_time?.slice(0, 5) || '08:00',
+            end_time: row.end_time?.slice(0, 5) || '09:00',
+            room: row.room || '',
+            teacher_name: row.teacher_name || '',
+          }))
+        );
+      }
     } catch (error) {
       console.error('Error fetching student schedule:', error);
       toast({
@@ -721,6 +765,202 @@ export default function StudentsPage() {
       }));
     } finally {
       setLoadingSchedule(false);
+    }
+  };
+
+  const startEditingSchedule = () => {
+    if (!selectedStudent) return;
+
+    const baseRows = (studentSchedules[selectedStudent.lrn] || []).map((row) => ({
+      id: row.id,
+      day_of_week: row.day_of_week,
+      day_number: row.day_number,
+      subject: row.subject,
+      start_time: row.start_time?.slice(0, 5) || '08:00',
+      end_time: row.end_time?.slice(0, 5) || '09:00',
+      room: row.room || '',
+      teacher_name: row.teacher_name || '',
+    }));
+
+    setScheduleDraft(
+      baseRows.length > 0
+        ? baseRows
+        : [
+            {
+              id: -Date.now(),
+              day_of_week: 'Monday',
+              day_number: 1,
+              subject: `${selectedStudent.level} Session 1`,
+              start_time: '08:00',
+              end_time: '09:00',
+              room: '',
+              teacher_name: '',
+            },
+          ]
+    );
+    setEditingSchedule(true);
+  };
+
+  const addScheduleDraftRow = () => {
+    if (!selectedStudent) return;
+
+    setScheduleDraft((prev) => [
+      ...prev,
+      {
+        id: -(Date.now() + prev.length),
+        day_of_week: 'Monday',
+        day_number: 1,
+        subject: `${selectedStudent.level} Session ${prev.length + 1}`,
+        start_time: '08:00',
+        end_time: '09:00',
+        room: '',
+        teacher_name: '',
+      },
+    ]);
+  };
+
+  const removeScheduleDraftRow = (rowId: number) => {
+    setScheduleDraft((prev) => prev.filter((row) => row.id !== rowId));
+  };
+
+  const updateScheduleDraftRow = (rowId: number, field: keyof EditableScheduleRow, value: string | number) => {
+    setScheduleDraft((prev) =>
+      prev.map((row) => (row.id === rowId ? { ...row, [field]: value } : row))
+    );
+  };
+
+  const handleSaveScheduleChanges = async () => {
+    if (!supabase || !selectedStudent) return;
+
+    if (scheduleDraft.length === 0) {
+      toast({
+        title: 'No schedule rows',
+        description: 'Please add at least one schedule row.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const weekdayMap = new Map(WEEKDAY_OPTIONS.map((d) => [d.label, d.dayNumber]));
+    const invalidRow = scheduleDraft.find((row) => {
+      return !weekdayMap.has(row.day_of_week) || !row.subject.trim() || !row.start_time || !row.end_time || row.start_time >= row.end_time;
+    });
+
+    if (invalidRow) {
+      toast({
+        title: 'Invalid schedule row',
+        description: 'Each row must have valid weekday, subject, and time range.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSavingScheduleChanges(true);
+
+    try {
+      const { data: currentSchoolYear } = await supabase
+        .from('school_years')
+        .select('id')
+        .eq('is_current', true)
+        .maybeSingle();
+
+      const { error: deleteError } = await supabase
+        .from('student_schedules')
+        .delete()
+        .eq('student_lrn', selectedStudent.lrn)
+        .eq('is_active', true);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      const rowsToInsert = scheduleDraft.map((row) => ({
+        student_lrn: selectedStudent.lrn,
+        school_year_id: currentSchoolYear?.id ?? null,
+        day_of_week: row.day_of_week,
+        day_number: weekdayMap.get(row.day_of_week) || 1,
+        subject: row.subject.trim(),
+        start_time: row.start_time,
+        end_time: row.end_time,
+        room: row.room.trim() || null,
+        teacher_name: row.teacher_name.trim() || null,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { data: insertedRows, error: insertError } = await supabase
+        .from('student_schedules')
+        .insert(rowsToInsert)
+        .select('id, day_of_week, day_number, subject, start_time, end_time, room, teacher_name');
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      setStudentSchedules((prev) => ({
+        ...prev,
+        [selectedStudent.lrn]: insertedRows || [],
+      }));
+
+      setScheduleDraft(
+        (insertedRows || []).map((row) => ({
+          id: row.id,
+          day_of_week: row.day_of_week,
+          day_number: row.day_number,
+          subject: row.subject,
+          start_time: row.start_time?.slice(0, 5) || '08:00',
+          end_time: row.end_time?.slice(0, 5) || '09:00',
+          room: row.room || '',
+          teacher_name: row.teacher_name || '',
+        }))
+      );
+
+      if (selectedStudent.parentEmail) {
+        try {
+          await fetch('/api/automation/schedule-change', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              studentName: selectedStudent.name,
+              studentLrn: selectedStudent.lrn,
+              level: selectedStudent.level,
+              parentName: selectedStudent.parentName,
+              parentEmail: selectedStudent.parentEmail,
+              scheduleRows: rowsToInsert.map((row) => ({
+                dayOfWeek: row.day_of_week,
+                subject: row.subject,
+                startTime: row.start_time,
+                endTime: row.end_time,
+                room: row.room,
+                teacherName: row.teacher_name,
+              })),
+            }),
+          });
+        } catch (mailError) {
+          console.error('Failed to trigger schedule change email:', mailError);
+          toast({
+            title: 'Schedule saved, email failed',
+            description: 'Parent email notification could not be sent.',
+            variant: 'destructive',
+          });
+        }
+      }
+
+      setEditingSchedule(false);
+      toast({
+        title: 'Schedule updated',
+        description: 'Student schedule has been updated successfully.',
+        variant: 'default',
+      });
+    } catch (error) {
+      console.error('Error saving schedule changes:', error);
+      toast({
+        title: 'Failed to save schedule',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingScheduleChanges(false);
     }
   };
 
@@ -1721,12 +1961,9 @@ export default function StudentsPage() {
                                 </div>
                               </TableCell>
                               <TableCell>
-                                <Badge 
-                                  style={{ 
-                                    backgroundColor: `${LEVEL_COLORS[student.level as keyof typeof LEVEL_COLORS]}20`,
-                                    color: LEVEL_COLORS[student.level as keyof typeof LEVEL_COLORS],
-                                    borderColor: `${LEVEL_COLORS[student.level as keyof typeof LEVEL_COLORS]}40`
-                                  }}
+                                <Badge
+                                  variant="outline"
+                                  className={`font-semibold shadow-none hover:shadow-none ${LEVEL_BADGE_STYLES[student.level] || 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-700'}`}
                                 >
                                   {student.level}
                                 </Badge>
@@ -1799,6 +2036,8 @@ export default function StudentsPage() {
                                     if (!open) {
                                       setSelectedStudent(null);
                                       setDetailsOpen(false);
+                                      setEditingSchedule(false);
+                                      setScheduleDraft([]);
                                     }
                                   }}
                                 >
@@ -1809,6 +2048,8 @@ export default function StudentsPage() {
                                       onClick={() => {
                                         setSelectedStudent(student);
                                         setDetailsOpen(false);
+                                        setEditingSchedule(false);
+                                        setScheduleDraft([]);
                                         fetchBehavioralData(student.lrn);
                                         fetchStudentSchedule(student.lrn);
                                       }}
@@ -1920,8 +2161,46 @@ export default function StudentsPage() {
                                               <div className="flex justify-center py-8">
                                                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
                                               </div>
-                                            ) : (studentSchedules[selectedStudent.lrn] || []).length > 0 ? (
-                                              <div className="border rounded-lg overflow-hidden">
+                                            ) : (editingSchedule || (studentSchedules[selectedStudent.lrn] || []).length > 0) ? (
+                                              <div className="space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                  <p className="text-sm text-muted-foreground">Manage this student's schedule and notify parents when updated.</p>
+                                                  {!editingSchedule ? (
+                                                    <Button variant="outline" size="sm" onClick={startEditingSchedule}>
+                                                      Edit Schedule
+                                                    </Button>
+                                                  ) : (
+                                                    <div className="flex items-center gap-2">
+                                                      <Button variant="outline" size="sm" onClick={addScheduleDraftRow}>
+                                                        Add Row
+                                                      </Button>
+                                                      <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                          setEditingSchedule(false);
+                                                          setScheduleDraft((studentSchedules[selectedStudent.lrn] || []).map((row) => ({
+                                                            id: row.id,
+                                                            day_of_week: row.day_of_week,
+                                                            day_number: row.day_number,
+                                                            subject: row.subject,
+                                                            start_time: row.start_time?.slice(0, 5) || '08:00',
+                                                            end_time: row.end_time?.slice(0, 5) || '09:00',
+                                                            room: row.room || '',
+                                                            teacher_name: row.teacher_name || '',
+                                                          })));
+                                                        }}
+                                                      >
+                                                        Cancel
+                                                      </Button>
+                                                      <Button size="sm" onClick={handleSaveScheduleChanges} disabled={savingScheduleChanges}>
+                                                        {savingScheduleChanges ? 'Saving...' : 'Save Changes'}
+                                                      </Button>
+                                                    </div>
+                                                  )}
+                                                </div>
+
+                                                <div className="border rounded-lg overflow-hidden">
                                                 <Table>
                                                   <TableHeader>
                                                     <TableRow>
@@ -1930,25 +2209,114 @@ export default function StudentsPage() {
                                                       <TableHead>Time</TableHead>
                                                       <TableHead>Room</TableHead>
                                                       <TableHead>Teacher</TableHead>
+                                                      {editingSchedule && <TableHead className="text-right">Action</TableHead>}
                                                     </TableRow>
                                                   </TableHeader>
                                                   <TableBody>
-                                                    {(studentSchedules[selectedStudent.lrn] || []).map((schedule) => (
+                                                    {(editingSchedule ? scheduleDraft : (studentSchedules[selectedStudent.lrn] || [])).map((schedule) => (
                                                       <TableRow key={schedule.id}>
-                                                        <TableCell className="font-medium">{schedule.day_of_week}</TableCell>
-                                                        <TableCell>{schedule.subject}</TableCell>
-                                                        <TableCell>{schedule.start_time} - {schedule.end_time}</TableCell>
-                                                        <TableCell>{schedule.room || '—'}</TableCell>
-                                                        <TableCell>{schedule.teacher_name || '—'}</TableCell>
+                                                        <TableCell className="font-medium">
+                                                          {editingSchedule ? (
+                                                            <Select
+                                                              value={schedule.day_of_week}
+                                                              onValueChange={(value) => updateScheduleDraftRow(schedule.id, 'day_of_week', value)}
+                                                            >
+                                                              <SelectTrigger className="w-[140px]">
+                                                                <SelectValue placeholder="Day" />
+                                                              </SelectTrigger>
+                                                              <SelectContent>
+                                                                {WEEKDAY_OPTIONS.map((day) => (
+                                                                  <SelectItem key={day.label} value={day.label}>{day.label}</SelectItem>
+                                                                ))}
+                                                              </SelectContent>
+                                                            </Select>
+                                                          ) : (
+                                                            schedule.day_of_week
+                                                          )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                          {editingSchedule ? (
+                                                            <Input
+                                                              value={schedule.subject}
+                                                              onChange={(e) => updateScheduleDraftRow(schedule.id, 'subject', e.target.value)}
+                                                              className="min-w-[160px]"
+                                                            />
+                                                          ) : (
+                                                            schedule.subject
+                                                          )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                          {editingSchedule ? (
+                                                            <div className="flex items-center gap-2">
+                                                              <Input
+                                                                type="time"
+                                                                value={schedule.start_time?.slice(0, 5)}
+                                                                onChange={(e) => updateScheduleDraftRow(schedule.id, 'start_time', e.target.value)}
+                                                                className="w-[120px]"
+                                                              />
+                                                              <span>-</span>
+                                                              <Input
+                                                                type="time"
+                                                                value={schedule.end_time?.slice(0, 5)}
+                                                                onChange={(e) => updateScheduleDraftRow(schedule.id, 'end_time', e.target.value)}
+                                                                className="w-[120px]"
+                                                              />
+                                                            </div>
+                                                          ) : (
+                                                            `${schedule.start_time} - ${schedule.end_time}`
+                                                          )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                          {editingSchedule ? (
+                                                            <Input
+                                                              value={schedule.room || ''}
+                                                              onChange={(e) => updateScheduleDraftRow(schedule.id, 'room', e.target.value)}
+                                                              className="min-w-[140px]"
+                                                              placeholder="Room"
+                                                            />
+                                                          ) : (
+                                                            schedule.room || '—'
+                                                          )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                          {editingSchedule ? (
+                                                            <Input
+                                                              value={schedule.teacher_name || ''}
+                                                              onChange={(e) => updateScheduleDraftRow(schedule.id, 'teacher_name', e.target.value)}
+                                                              className="min-w-[160px]"
+                                                              placeholder="Teacher"
+                                                            />
+                                                          ) : (
+                                                            schedule.teacher_name || '—'
+                                                          )}
+                                                        </TableCell>
+                                                        {editingSchedule && (
+                                                          <TableCell className="text-right">
+                                                            <Button
+                                                              variant="ghost"
+                                                              size="sm"
+                                                              onClick={() => removeScheduleDraftRow(schedule.id)}
+                                                              disabled={scheduleDraft.length <= 1}
+                                                            >
+                                                              Remove
+                                                            </Button>
+                                                          </TableCell>
+                                                        )}
                                                       </TableRow>
                                                     ))}
                                                   </TableBody>
                                                 </Table>
                                               </div>
+                                              </div>
                                             ) : (
-                                              <div className="text-center py-8 text-muted-foreground">
+                                              <div className="space-y-3 text-center py-8 text-muted-foreground">
                                                 <CalendarDays className="w-12 h-12 mx-auto mb-2 opacity-50" />
                                                 <p>No schedule available for this student</p>
+                                                <div>
+                                                  <Button variant="outline" size="sm" onClick={startEditingSchedule}>
+                                                    Add Schedule
+                                                  </Button>
+                                                </div>
                                               </div>
                                             )}
                                           </TabsContent>
