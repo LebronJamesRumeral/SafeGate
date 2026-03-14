@@ -20,6 +20,10 @@ export interface Student {
   level: string;
   parent_name: string;
   parent_contact: string;
+  parent_email?: string | null;
+  parentName: string;
+  parentContact: string;
+  parentEmail?: string | null;
   status: string;
   created_at?: string;
   updated_at?: string;

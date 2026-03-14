@@ -74,7 +74,7 @@ export async function getHighRiskStudents() {
       risk_level,
       next_likely_absent_date,
       next_absent_confidence,
-      students!inner(name, parent_contact)
+      students!inner(name, parent_contact, parent_email)
     `)
     .in('risk_level', ['high', 'critical'])
     .order('current_attendance_rate', { ascending: true });
@@ -87,7 +87,8 @@ export async function getHighRiskStudents() {
   return data.map((student) => ({
     lrn: student.student_lrn,
     name: student.students.name,
-    parentContact: student.students.parent_contact,
+    parentContact: student.students.parent_contact || student.students.parent_email,
+    parentEmail: student.students.parent_email || null,
     attendanceRate: student.current_attendance_rate,
     riskLevel: student.risk_level,
     nextAbsentDate: student.next_likely_absent_date,
@@ -108,6 +109,7 @@ export async function getAllStudentsWithRiskScores() {
         name,
         level,
         parent_contact,
+        parent_email,
         student_attendance_summary(
           current_attendance_rate,
           risk_level,
@@ -129,7 +131,8 @@ export async function getAllStudentsWithRiskScores() {
         lrn: student.lrn,
         name: student.name,
         level: student.level,
-        parentContact: student.parent_contact,
+        parentContact: student.parent_contact || student.parent_email,
+        parentEmail: student.parent_email || null,
         attendanceRate: summary?.current_attendance_rate || 0,
         riskLevel: summary?.risk_level || 'low',
         trend: summary?.attendance_trend || 'stable',

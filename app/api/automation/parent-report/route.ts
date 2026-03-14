@@ -190,7 +190,7 @@ export async function POST(request: Request) {
 
     const { data: student, error: studentError } = await supabase
       .from('students')
-      .select('lrn, name, level, parent_name, parent_contact')
+      .select('lrn, name, level, parent_name, parent_contact, parent_email')
       .eq('lrn', studentLrn)
       .single();
 
@@ -278,7 +278,7 @@ export async function POST(request: Request) {
     }, {});
 
     const parentContact = student.parent_contact || '';
-    const parentEmail = parentContact.includes('@') ? parentContact : null;
+    const parentEmail = student.parent_email || (parentContact.includes('@') ? parentContact : null);
 
     const recentMajorOrCriticalEvents = behaviorLogs.filter(
       (log) => log.severity === 'major' || log.severity === 'critical'

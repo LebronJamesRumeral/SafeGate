@@ -283,6 +283,7 @@ export default function StudentsPage() {
         ...student,
         parentName: student.parent_name,
         parentContact: student.parent_contact,
+        parentEmail: student.parent_email,
       }));
       
       // Sort by level order
@@ -627,7 +628,7 @@ export default function StudentsPage() {
   }, [students, riskScores, attendanceByLrn]);
 
   const exportToCSV = () => {
-    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Parent Name', 'Parent Contact', 'Address', 'Status'];
+    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Parent Name', 'Parent Contact', 'Parent Email', 'Address', 'Status'];
     const csvData = filteredStudents.map(student => {
       const age = shouldShowAge(student.level) ? calculateAgeWithDecimal(student.birthday) : 'N/A';
       const riskLevel = riskScores[student.lrn]?.risk_level || 'Unknown';
@@ -641,6 +642,7 @@ export default function StudentsPage() {
         riskLevel.toUpperCase(),
         student.parentName,
         student.parentContact,
+        student.parentEmail || '',
         student.address || '',
         student.status || 'active'
       ];
@@ -1181,6 +1183,12 @@ export default function StudentsPage() {
                                     <Phone className="h-3 w-3 text-muted-foreground" />
                                     <span className="text-xs">{student.parentContact}</span>
                                   </div>
+                                  {student.parentEmail && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <Mail className="h-3 w-3 text-muted-foreground" />
+                                      <span className="text-xs">{student.parentEmail}</span>
+                                    </div>
+                                  )}
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -1314,6 +1322,12 @@ export default function StudentsPage() {
                                                     <Phone className="w-4 h-4 text-muted-foreground" />
                                                     <span className="text-sm">{selectedStudent.parentContact}</span>
                                                   </div>
+                                                  {selectedStudent.parentEmail && (
+                                                    <div className="flex items-center gap-2">
+                                                      <Mail className="w-4 h-4 text-muted-foreground" />
+                                                      <span className="text-sm">{selectedStudent.parentEmail}</span>
+                                                    </div>
+                                                  )}
                                                 </div>
                                               </div>
                                             </div>

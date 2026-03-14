@@ -85,6 +85,7 @@ export default function ScanPage() {
           ...data,
           parentName: data.parent_name,
           parentContact: data.parent_contact,
+          parentEmail: data.parent_email,
         };
       }
       

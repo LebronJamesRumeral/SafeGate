@@ -17,6 +17,7 @@ export namespace ML {
     level: string;
     parent_name: string;
     parent_contact: string;
+    parent_email?: string | null;
     status: 'active' | 'inactive' | 'graduated';
     created_at: string; // ISO timestamp
     updated_at: string; // ISO timestamp

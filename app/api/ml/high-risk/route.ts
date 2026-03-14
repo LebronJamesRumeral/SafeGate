@@ -28,7 +28,7 @@ export async function GET(request: Request) {
         risk_level,
         next_likely_absent_date,
         next_absent_confidence,
-        students(name, parent_contact)
+        students(name, parent_contact, parent_email)
       `)
       .in('risk_level', ['high', 'critical'])
       .order('current_attendance_rate', { ascending: true });
@@ -50,6 +50,7 @@ export async function GET(request: Request) {
       lrn: student.student_lrn,
       name: student.students?.name || 'Unknown',
       parentContact: student.students?.parent_contact || 'N/A',
+      parentEmail: student.students?.parent_email || null,
       attendanceRate: student.current_attendance_rate,
       riskLevel: student.risk_level,
       nextAbsentDate: student.next_likely_absent_date,

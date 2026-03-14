@@ -65,6 +65,7 @@ export default function MasterlistPage() {
         ...student,
         parentName: student.parent_name,
         parentContact: student.parent_contact,
+        parentEmail: student.parent_email,
         // Default status to 'active' for all students
         status: student.status || 'active',
       }));
@@ -280,6 +281,12 @@ export default function MasterlistPage() {
                               <Phone className="h-3.5 w-3.5 text-primary" />
                               {student.parentContact}
                             </div>
+                            {student.parentEmail && (
+                              <div className="flex items-center gap-2 text-xs font-medium hover:text-foreground transition-colors">
+                                <Mail className="h-3.5 w-3.5 text-primary" />
+                                <span className="truncate">{student.parentEmail}</span>
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
@@ -330,6 +337,9 @@ export default function MasterlistPage() {
                                       <p className="text-xs text-muted-foreground font-medium">Parent/Guardian</p>
                                       <p className="text-sm text-foreground">{selectedStudent?.parentName}</p>
                                       <p className="text-xs text-muted-foreground">{selectedStudent?.parentContact}</p>
+                                      {selectedStudent?.parentEmail && (
+                                        <p className="text-xs text-muted-foreground">{selectedStudent?.parentEmail}</p>
+                                      )}
                                     </div>
                                   </div>
                                 </div>

@@ -114,6 +114,7 @@ interface StudentRecord {
   status: string;
   parent_name: string | null;
   parent_contact: string | null;
+  parent_email: string | null;
 }
 
 const SEVERITY_COLORS = {
@@ -279,7 +280,7 @@ export default function BehavioralEventsPage() {
       // Fetch students for dropdown
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
-        .select('lrn, name, level, status, parent_name, parent_contact')
+        .select('lrn, name, level, status, parent_name, parent_contact, parent_email')
         .eq('status', 'active')
         .order('name');
 
@@ -767,6 +768,9 @@ export default function BehavioralEventsPage() {
                           </p>
                           <p className="text-slate-600 dark:text-slate-300">
                             Contact: {selectedStudent.parent_contact || 'Not set'}
+                          </p>
+                          <p className="text-slate-600 dark:text-slate-300">
+                            Email: {selectedStudent.parent_email || 'Not set'}
                           </p>
                         </div>
                       )}
