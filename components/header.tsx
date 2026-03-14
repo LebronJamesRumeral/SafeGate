@@ -1,18 +1,36 @@
 "use client"
 
-import { Sun, Moon, Bell, Lock, User as UserIcon, LogOut, Settings, Calendar } from "lucide-react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { Sun, Moon, Bell, Lock, User as UserIcon, LogOut, Settings, Calendar, AlertTriangle, BarChart3 } from "lucide-react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
+import { cn } from "@/lib/utils"
+
+const mobilePrimaryHrefs = ["/", "/scan", "/attendance", "/masterlist", "/students"]
+
+const headerNavItems = [
+  { label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin"], icon: AlertTriangle },
+  { label: "Analytics", href: "/analytics", roles: ["admin"], icon: BarChart3 },
+  { label: "Settings", href: "/settings", roles: ["admin"], icon: Settings },
+]
 
 export function Header() {
+  const pathname = usePathname()
   const { theme, setTheme, resolvedTheme } = useTheme()
   const { user, logout } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [dateTime, setDateTime] = useState<string>("")
+
+  const mobileOverflowItems = user
+    ? headerNavItems.filter(
+        (item) => item.roles.includes(user.role) && !mobilePrimaryHrefs.includes(item.href)
+      )
+    : []
 
   useEffect(() => {
     setMounted(true)
@@ -130,20 +148,47 @@ export function Header() {
                   <UserIcon className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 rounded-lg shadow-lg border border-orange-200/30 dark:border-slate-800 bg-white dark:bg-slate-900">
-                <div className="px-3 py-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <DropdownMenuContent align="end" className="w-64 overflow-hidden rounded-2xl border border-slate-300/70 bg-white p-0 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                <div className="bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                   {user?.full_name || user?.username}
                 </div>
-                <div className="px-3 pb-2 text-xs text-gray-600 dark:text-slate-400">
+                <div className="bg-slate-100 px-4 pb-3 text-xs text-gray-600 dark:bg-slate-800 dark:text-slate-400">
                   {user?.role === 'admin' ? 'Administrator' : 'User'}
                 </div>
-                <DropdownMenuSeparator className="dark:bg-slate-800" />
-                <DropdownMenuItem className="cursor-pointer transition-all duration-150 hover:bg-orange-100 dark:hover:bg-slate-800">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
+                {mobileOverflowItems.length > 0 && (
+                  <div className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:hidden">
+                    More
+                  </div>
+                )}
+                {mobileOverflowItems.map((item) => {
+                  const Icon = item.icon
+                  const isActive = pathname === item.href
+
+                  return (
+                    <DropdownMenuItem
+                      key={item.href}
+                      asChild
+                      className={cn(
+                        "mx-2 mb-1 cursor-pointer rounded-xl px-3 py-2 transition-all duration-150 hover:bg-orange-100 dark:hover:bg-slate-800 sm:hidden",
+                        isActive ? "bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-300" : ""
+                      )}
+                    >
+                      <Link href={item.href}>
+                        <Icon className="mr-2 h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  )
+                })}
+                {mobileOverflowItems.length > 0 && <DropdownMenuSeparator className="my-1 sm:hidden dark:bg-slate-800" />}
+                <DropdownMenuItem asChild className="mx-2 hidden cursor-pointer rounded-xl px-3 py-2 transition-all duration-150 hover:bg-orange-100 dark:hover:bg-slate-800 sm:flex">
+                  <Link href="/settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator className="dark:bg-slate-800" />
-                <DropdownMenuItem className="cursor-pointer text-red-600 dark:text-red-400 transition-all duration-150 hover:bg-red-100 dark:hover:bg-slate-800" onClick={logout}>
+                <DropdownMenuSeparator className="my-1 dark:bg-slate-800" />
+                <DropdownMenuItem className="mx-2 mb-2 cursor-pointer rounded-xl px-3 py-2 text-red-600 transition-all duration-150 hover:bg-red-100 dark:text-red-400 dark:hover:bg-slate-800" onClick={logout}>
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </DropdownMenuItem>

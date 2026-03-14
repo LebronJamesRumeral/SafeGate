@@ -34,6 +34,8 @@ const allNavItems = [
   { icon: Settings, label: "Settings", href: "/settings", roles: ["admin"] },
 ]
 
+const mobilePrimaryHrefs = ["/", "/scan", "/attendance", "/masterlist", "/students"]
+
 export function Sidebar() {
   const pathname = usePathname()
   // SidebarContext provides collapsed state for consistent sidebar behavior
@@ -43,6 +45,15 @@ export function Sidebar() {
 
   // Filter nav items based on user role
   const navItems = user ? allNavItems.filter(item => item.roles.includes(user.role)) : []
+  const mobilePrimaryNavItems = navItems
+    .filter((item) => mobilePrimaryHrefs.includes(item.href))
+    .sort((a, b) => mobilePrimaryHrefs.indexOf(a.href) - mobilePrimaryHrefs.indexOf(b.href))
+
+  const getMobileLabel = (href: string, label: string) => {
+    if (href === "/scan") return "Scan"
+    if (href === "/masterlist") return "Masterlist"
+    return label
+  }
 
   return (
     <>
@@ -149,10 +160,10 @@ export function Sidebar() {
         </div>
 
         {/* Mobile bottom nav */}
-        {isMobile && navItems.length > 0 && (
+        {isMobile && mobilePrimaryNavItems.length > 0 && (
           <nav className="fixed inset-x-2 bottom-2 z-40 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-xl lg:hidden">
-            <div className="flex items-center gap-1 overflow-x-auto px-2 py-2">
-              {navItems.map((item) => {
+            <div className="grid grid-cols-5 items-center gap-1 px-2 py-2">
+              {mobilePrimaryNavItems.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href
                 return (
@@ -160,14 +171,14 @@ export function Sidebar() {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex min-w-[82px] flex-col items-center justify-center rounded-xl px-3 py-2 text-[11px] font-medium transition-all duration-200",
+                      "flex min-w-0 flex-col items-center justify-center rounded-xl px-1 py-2 text-[10px] font-medium transition-all duration-200",
                       isActive
                         ? "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"
                         : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                     )}
                   >
                     <Icon className={cn("mb-1 h-4 w-4", isActive ? "scale-110" : "")} />
-                    <span className="max-w-[74px] truncate">{item.label}</span>
+                    <span className="w-full truncate text-center">{getMobileLabel(item.href, item.label)}</span>
                   </Link>
                 )
               })}
