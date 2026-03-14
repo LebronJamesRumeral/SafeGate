@@ -107,6 +107,15 @@ interface EventCategory {
   notify_parent: boolean;
 }
 
+interface StudentRecord {
+  lrn: string;
+  name: string;
+  level: string;
+  status: string;
+  parent_name: string | null;
+  parent_contact: string | null;
+}
+
 const SEVERITY_COLORS = {
   positive: { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle, gradient: 'from-emerald-500 to-emerald-400' },
   neutral: { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-200', icon: Minus, gradient: 'from-gray-500 to-gray-400' },
@@ -117,6 +126,17 @@ const SEVERITY_COLORS = {
 
 const CHART_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899'];
 
+const EVENT_TYPE_SUGGESTIONS = [
+  'Late Arrival',
+  'Absence Without Notice',
+  'Disruptive Behavior',
+  'Bullying Incident',
+  'Respectful Conduct',
+  'Outstanding Participation',
+  'Academic Improvement',
+  'Safety Concern',
+];
+
 // Enforce consistent layout structure for behavioral events
 export default function BehavioralEventsPage() {
   const router = useRouter();
@@ -126,7 +146,7 @@ export default function BehavioralEventsPage() {
   const [events, setEvents] = useState<BehavioralEvent[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<BehavioralEvent[]>([]);
   const [categories, setCategories] = useState<EventCategory[]>([]);
-  const [students, setStudents] = useState<any[]>([]);
+  const [students, setStudents] = useState<StudentRecord[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -150,7 +170,6 @@ export default function BehavioralEventsPage() {
     witness_names: '',
     action_taken: '',
     follow_up_required: false,
-    parent_notified: false,
     notes: ''
   });
 
@@ -174,6 +193,16 @@ export default function BehavioralEventsPage() {
   useEffect(() => {
     filterEvents();
   }, [events, searchQuery, severityFilter, categoryFilter, dateFilter, sortConfig]);
+
+  const selectedStudent = useMemo(
+    () => students.find((student) => student.lrn === formData.student_lrn) || null,
+    [students, formData.student_lrn]
+  );
+
+  const eventTypeSuggestions = useMemo(() => {
+    const categoryBased = categories.map((category) => category.name);
+    return Array.from(new Set([...EVENT_TYPE_SUGGESTIONS, ...categoryBased])).sort();
+  }, [categories]);
 
   const fetchData = async () => {
     if (!supabase) {
@@ -211,12 +240,6 @@ export default function BehavioralEventsPage() {
         .order('event_date', { ascending: false });
 
       if (eventsError) {
-              } else {
-                toast({
-                  title: 'Events Loaded',
-                  description: 'Behavioral events loaded successfully.',
-                  variant: 'default',
-                });
         console.error('Events error:', eventsError);
         toast({
           title: 'Failed to fetch events',
@@ -225,7 +248,15 @@ export default function BehavioralEventsPage() {
         });
         throw new Error(eventsError.message || 'Failed to fetch events');
       }
-      setEvents(eventsData || []);
+      const normalizedEvents: BehavioralEvent[] = (eventsData || []).map((event: any) => ({
+        ...event,
+        students: Array.isArray(event.students) ? event.students[0] : event.students,
+        event_categories: Array.isArray(event.event_categories)
+          ? event.event_categories[0]
+          : event.event_categories,
+      }));
+
+      setEvents(normalizedEvents);
 
       // Fetch categories
       const { data: categoriesData, error: categoriesError } = await supabase
@@ -248,7 +279,7 @@ export default function BehavioralEventsPage() {
       // Fetch students for dropdown
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
-        .select('lrn, name, level, status')
+        .select('lrn, name, level, status, parent_name, parent_contact')
         .eq('status', 'active')
         .order('name');
 
@@ -366,7 +397,37 @@ export default function BehavioralEventsPage() {
     }));
   };
 
+  const triggerParentAutomation = async (params: {
+    eventId: number;
+    studentLrn: string;
+    triggerSource: 'behavior_event_logged' | 'manual_recheck';
+  }) => {
+    const response = await fetch('/api/automation/parent-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+
+    const payload = await response.json();
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.detail || payload.error || 'Failed to trigger parent automation');
+    }
+
+    return payload;
+  };
+
   const handleAddEvent = async () => {
+    if (!supabase) {
+      toast({
+        title: 'Configuration Error',
+        description: 'Supabase is not configured in this environment.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (!formData.student_lrn || !formData.event_type || !formData.description) {
       toast({
         title: "Validation Error",
@@ -376,39 +437,92 @@ export default function BehavioralEventsPage() {
       return;
     }
 
+    if (!selectedStudent) {
+      toast({
+        title: 'Student Not Found',
+        description: 'Please select a valid student from records.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       const today = new Date();
       const eventDate = today.toISOString().split('T')[0];
       const eventTime = today.toTimeString().split(' ')[0];
 
+      const notesWithWitnesses = formData.witness_names.trim()
+        ? `${formData.notes?.trim() ? `${formData.notes.trim()}\n\n` : ''}Witnesses: ${formData.witness_names.trim()}`
+        : formData.notes;
+
+      const insertPayload = {
+        student_lrn: formData.student_lrn,
+        category_id: formData.category_id ? Number(formData.category_id) : null,
+        event_type: formData.event_type,
+        severity: formData.severity,
+        description: formData.description,
+        location: formData.location || null,
+        action_taken: formData.action_taken || null,
+        follow_up_required: formData.follow_up_required,
+        parent_notified: false,
+        notes: notesWithWitnesses || null,
+        event_date: eventDate,
+        event_time: eventTime,
+        reported_by: currentUser?.full_name || currentUser?.username || 'Admin',
+      };
+
       const { data, error } = await supabase
         .from('behavioral_events')
-        .insert([{
-          ...formData,
-          event_date: eventDate,
-          event_time: eventTime,
-          reported_by: currentUser?.full_name || currentUser?.username || 'Admin',
-          reported_by_id: currentUser?.id || null,
-          category_id: formData.category_id || null
-        }])
-        .select();
+        .insert([insertPayload])
+        .select('id')
+        .single();
 
       if (error) throw error;
 
+      let notificationMessage = ' ML evaluation complete. No parent email required.';
+
+      if (data?.id) {
+        try {
+          const automationResult = await triggerParentAutomation({
+            eventId: data.id,
+            studentLrn: formData.student_lrn,
+            triggerSource: 'behavior_event_logged',
+          });
+
+          if (automationResult?.queued) {
+            const { error: notifyUpdateError } = await supabase
+              .from('behavioral_events')
+              .update({ parent_notified: true })
+              .eq('id', data.id);
+
+            if (notifyUpdateError) {
+              console.error('Unable to set parent_notified flag:', notifyUpdateError);
+            }
+
+            notificationMessage = ` ML triggered parent email: ${automationResult?.decision?.reason || 'risk threshold reached'}.`;
+          } else {
+            notificationMessage = ` ML evaluated event: ${automationResult?.decision?.reason || 'no email needed at this time'}.`;
+          }
+        } catch (notifyError: any) {
+          console.error('Parent automation error:', notifyError);
+          notificationMessage = ' Event logged, but ML notification evaluation failed.';
+        }
+      }
+
       toast({
         title: "Success",
-        description: "Behavioral event logged successfully"
+        description: `Behavioral event logged for ${selectedStudent.name}.${notificationMessage}`
       });
 
       setIsAddDialogOpen(false);
       resetForm();
-      fetchData();
+      await fetchData();
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding event:', error);
       toast({
         title: "Error",
-        description: "Failed to log behavioral event",
+        description: error?.message || 'Failed to log behavioral event',
         variant: "destructive"
       });
     }
@@ -425,41 +539,16 @@ export default function BehavioralEventsPage() {
       witness_names: '',
       action_taken: '',
       follow_up_required: false,
-      parent_notified: false,
       notes: ''
     });
   };
 
-  const handleNotifyParent = async (event: BehavioralEvent) => {
-    try {
-      // Here you would integrate with your notification system
-      toast({
-        title: "Parent Notification",
-        description: `Notification sent to parent of ${event.students?.name}`
-      });
-
-      // Update the event to mark parent as notified
-      const { error } = await supabase
-        .from('behavioral_events')
-        .update({ parent_notified: true })
-        .eq('id', event.id);
-
-      if (error) throw error;
-
-      // Refresh data
-      fetchData();
-
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to send notification",
-        variant: "destructive"
-      });
-    }
-  };
-
   const handleFollowUp = async (event: BehavioralEvent) => {
     try {
+      if (!supabase) {
+        throw new Error('Supabase is not configured in this environment.');
+      }
+
       const { error } = await supabase
         .from('behavioral_events')
         .update({ follow_up_required: false })
@@ -671,6 +760,16 @@ export default function BehavioralEventsPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {selectedStudent && (
+                        <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2 text-xs space-y-1">
+                          <p className="font-medium text-slate-700 dark:text-slate-200">
+                            Parent: {selectedStudent.parent_name || 'Not set'}
+                          </p>
+                          <p className="text-slate-600 dark:text-slate-300">
+                            Contact: {selectedStudent.parent_contact || 'Not set'}
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
@@ -709,8 +808,14 @@ export default function BehavioralEventsPage() {
                         id="event_type"
                         value={formData.event_type}
                         onChange={(e) => setFormData({...formData, event_type: e.target.value})}
+                        list="event-type-suggestions"
                         placeholder="e.g., Late Arrival, Excellent Work"
                       />
+                      <datalist id="event-type-suggestions">
+                        {eventTypeSuggestions.map((suggestion) => (
+                          <option key={suggestion} value={suggestion} />
+                        ))}
+                      </datalist>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="severity" className="flex items-center gap-1">
@@ -799,16 +904,10 @@ export default function BehavioralEventsPage() {
                       />
                       <span className="text-sm">Requires Follow-up</span>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.parent_notified}
-                        onChange={(e) => setFormData({...formData, parent_notified: e.target.checked})}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm">Parent Notified</span>
-                    </label>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Parent email is ML-driven. The system compiles attendance + behavior + risk data first, then decides automatically.
+                  </p>
 
                   <div className="space-y-2">
                     <Label htmlFor="notes">Additional Notes</Label>
@@ -981,12 +1080,11 @@ export default function BehavioralEventsPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Categories</SelectItem>
-                          <SelectItem value="Academic">Academic</SelectItem>
-                          <SelectItem value="Disciplinary">Disciplinary</SelectItem>
-                          <SelectItem value="Social">Social</SelectItem>
-                          <SelectItem value="Participation">Participation</SelectItem>
-                          <SelectItem value="Safety">Safety</SelectItem>
-                          <SelectItem value="Achievement">Achievement</SelectItem>
+                          {Array.from(new Set(categories.map((category) => category.category_type))).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1426,17 +1524,6 @@ export default function BehavioralEventsPage() {
                   </div>
 
                   <div className="flex gap-4 pt-2">
-                    {!selectedEvent.parent_notified && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => handleNotifyParent(selectedEvent)}
-                        className="gap-2"
-                      >
-                        <Bell className="w-4 h-4" />
-                        Notify Parent
-                      </Button>
-                    )}
                     {selectedEvent.follow_up_required && (
                       <Button 
                         variant="outline" 

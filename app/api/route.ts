@@ -5,7 +5,10 @@
 
 export async function GET() {
   try {
-    const response = await fetch('http://localhost:8000/health', {
+    const rawBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://safegate-pg3g.onrender.com';
+    const backendUrl = rawBackendUrl.replace(/\/api\/?$/, '');
+
+    const response = await fetch(`${backendUrl}/health`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

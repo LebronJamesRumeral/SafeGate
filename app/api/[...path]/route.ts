@@ -1,7 +1,7 @@
 /**
  * Proxy Route Handler
  * 
- * Forwards all requests to http://localhost:8000/api/[...path]
+ * Forwards all requests to the configured backend /api/[...path]
  * Acts as middleware between React frontend and FastAPI backend
  * 
  * Flow:
@@ -10,7 +10,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+const RAW_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://safegate-pg3g.onrender.com';
+const BACKEND_URL = RAW_BACKEND_URL.replace(/\/api\/?$/, '');
 const API_BASE = `${BACKEND_URL}/api`;
 
 /**

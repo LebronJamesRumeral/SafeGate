@@ -3,7 +3,8 @@
  * Proxies to FastAPI backend for student attendance summary
  */
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+const RAW_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://safegate-pg3g.onrender.com';
+const BACKEND_URL = RAW_BACKEND_URL.replace(/\/api\/?$/, '');
 
 export async function GET(request: Request) {
   try {

@@ -11,11 +11,13 @@ Usage:
 
 import requests
 import json
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
-BASE_URL = "http://localhost:8000/api"
-HEALTH_URL = "http://localhost:8000"
+BACKEND_URL = os.getenv("BACKEND_URL", "https://safegate-pg3g.onrender.com").rstrip("/")
+BASE_URL = f"{BACKEND_URL}/api"
+HEALTH_URL = BACKEND_URL
 
 class Colors:
     """ANSI color codes for terminal output"""
@@ -50,7 +52,7 @@ def test_health_check() -> bool:
             print_error(f"Health check failed with status {response.status_code}")
             return False
     except requests.exceptions.ConnectionError:
-        print_error("Cannot connect to backend. Is it running on port 8000?")
+        print_error(f"Cannot connect to backend at {HEALTH_URL}")
         return False
     except Exception as e:
         print_error(f"Health check error: {e}")
@@ -244,7 +246,7 @@ def main():
     print_success("All tests completed!")
     print("="*60 + "\n")
     print("Next steps:")
-    print("1. Check API documentation: http://localhost:8000/api/docs")
+    print(f"1. Check API documentation: {BACKEND_URL}/api/docs")
     print("2. Start frontend: npm run dev")
     print("3. Test API cluster integration from frontend")
 
