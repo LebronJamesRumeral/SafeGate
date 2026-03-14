@@ -10,15 +10,13 @@ import {
   ScanLine, 
   BarChart3, 
   Settings, 
-  Menu, 
-  X,
   School,
   AlertTriangle,
   CalendarDays,
   ChevronLeft,
   ChevronRight
 } from "lucide-react"
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useIsMobile } from "@/hooks/use-mobile"
 
@@ -41,39 +39,18 @@ export function Sidebar() {
   // SidebarContext provides collapsed state for consistent sidebar behavior
   const { collapsed, setCollapsed } = useContext(SidebarContext)
   const { user } = useAuth()
-  const [open, setOpen] = useState(false)
   const isMobile = useIsMobile()
-
-  useEffect(() => {
-    if (!isMobile) {
-      setOpen(false)
-    }
-  }, [isMobile])
-
-  useEffect(() => {
-    setOpen(false)
-  }, [pathname])
 
   // Filter nav items based on user role
   const navItems = user ? allNavItems.filter(item => item.roles.includes(user.role)) : []
 
   return (
     <>
-        {/* Mobile toggle */}
-        <button
-          onClick={() => setOpen(!open)}
-          className="fixed top-4 left-4 z-40 lg:hidden bg-gradient-to-r from-blue-700 to-blue-600 text-white p-2.5 rounded-lg shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 transition-all duration-300"
-          aria-label="Toggle menu"
-        >
-          {open ? <X size={20} /> : <Menu size={20} />}
-        </button>
-
-        {/* Sidebar */}
+        {/* Desktop sidebar */}
         <div
           className={cn(
-            "fixed left-0 top-0 h-screen border-r transition-all duration-300 ease-out lg:translate-x-0 z-30 shadow-2xl flex flex-col bg-gradient-to-b from-[#1e3a8a] via-[#1e3a8a] to-[#2563eb] dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 border-white/20 dark:border-slate-800/60",
-            isMobile ? "w-72 max-w-[85vw]" : collapsed ? "w-20 lg:w-20" : "w-64 lg:w-64",
-            open ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+            "hidden lg:flex fixed left-0 top-0 h-screen border-r transition-all duration-300 ease-out z-30 shadow-2xl flex-col bg-gradient-to-b from-[#1e3a8a] via-[#1e3a8a] to-[#2563eb] dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 border-white/20 dark:border-slate-800/60",
+            collapsed ? "w-20" : "w-64",
           )}
         >
           {/* Logo */}
@@ -128,7 +105,6 @@ export function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  onClick={() => setOpen(false)}
                   title={collapsed ? item.label : undefined}
                   className={cn(
                     "flex items-center gap-3 px-3 py-3 rounded-lg font-medium text-sm transition-all duration-200 group relative overflow-hidden",
@@ -172,12 +148,31 @@ export function Sidebar() {
           </div>
         </div>
 
-        {/* Mobile overlay */}
-        {open && (
-          <div
-            className="fixed inset-0 z-20 bg-black/50 lg:hidden"
-            onClick={() => setOpen(false)}
-          />
+        {/* Mobile bottom nav */}
+        {isMobile && navItems.length > 0 && (
+          <nav className="fixed inset-x-2 bottom-2 z-40 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-xl lg:hidden">
+            <div className="flex items-center gap-1 overflow-x-auto px-2 py-2">
+              {navItems.map((item) => {
+                const Icon = item.icon
+                const isActive = pathname === item.href
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex min-w-[82px] flex-col items-center justify-center rounded-xl px-3 py-2 text-[11px] font-medium transition-all duration-200",
+                      isActive
+                        ? "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"
+                        : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                    )}
+                  >
+                    <Icon className={cn("mb-1 h-4 w-4", isActive ? "scale-110" : "")} />
+                    <span className="max-w-[74px] truncate">{item.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          </nav>
         )}
       </>
   )
