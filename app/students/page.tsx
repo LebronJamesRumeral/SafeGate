@@ -1223,16 +1223,14 @@ export default function StudentsPage() {
                   Add Student
                 </Button>
               </DialogTrigger>
-              <DialogContent
-                className="w-auto max-w-none !sm:max-w-none max-h-[92vh] overflow-y-auto p-6 md:p-8"
-                style={{ width: 'min(98vw, 1280px)' }}
-              >
-                <DialogHeader>
-                  <DialogTitle className="text-xl font-bold">Add New Student</DialogTitle>
-                  <DialogDescription>Fill out the required details to register a student.</DialogDescription>
-                </DialogHeader>
+              <DialogContent className="w-[96vw] max-w-5xl lg:max-w-6xl h-[92vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
+                <div className="h-full overflow-y-auto p-6 md:p-8 space-y-4">
+                  <DialogHeader>
+                    <DialogTitle className="text-xl font-bold">Add New Student</DialogTitle>
+                    <DialogDescription>Fill out the required details to register a student.</DialogDescription>
+                  </DialogHeader>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">LRN *</label>
                     <Input
@@ -1411,22 +1409,23 @@ export default function StudentsPage() {
                       placeholder="parent@example.com"
                     />
                   </div>
-                </div>
+                  </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setAddStudentOpen(false)}
-                    disabled={addingStudent}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleAddStudent}
-                    disabled={addingStudent}
-                  >
-                    {addingStudent ? 'Saving...' : 'Save Student'}
-                  </Button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setAddStudentOpen(false)}
+                      disabled={addingStudent}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleAddStudent}
+                      disabled={addingStudent}
+                    >
+                      {addingStudent ? 'Saving...' : 'Save Student'}
+                    </Button>
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
