@@ -122,6 +122,14 @@ const YEAR_LEVEL_OPTIONS = [
   'Grade 7',
   'Grade 8',
 ];
+const EARLY_LEVEL_OPTIONS = ['Toddler & Nursery', 'Pre-K', 'Kinder 1', 'Kinder 2'];
+const WEEKDAY_OPTIONS = [
+  { label: 'Monday', dayNumber: 1 },
+  { label: 'Tuesday', dayNumber: 2 },
+  { label: 'Wednesday', dayNumber: 3 },
+  { label: 'Thursday', dayNumber: 4 },
+  { label: 'Friday', dayNumber: 5 },
+];
 
 // Enforce consistent layout structure for students page
 export default function StudentsPage() {
@@ -140,6 +148,9 @@ export default function StudentsPage() {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [addingStudent, setAddingStudent] = useState(false);
+  const [selectedScheduleDays, setSelectedScheduleDays] = useState<string[]>(WEEKDAY_OPTIONS.map((d) => d.label));
+  const [scheduleStartTime, setScheduleStartTime] = useState('08:00');
+  const [scheduleEndTime, setScheduleEndTime] = useState('11:30');
   const [newStudentForm, setNewStudentForm] = useState({
     lrn: '',
     name: '',
@@ -164,7 +175,7 @@ export default function StudentsPage() {
   const qrRef = useRef(null);
   const [behavioralData, setBehavioralData] = useState<any>(null);
   const [loadingBehavioral, setLoadingBehavioral] = useState(false);
-  const [attendanceByLrn, setAttendanceByLrn] = useState<Record<string, { checkInTime?: string; checkOutTime?: string; passedDayEnd?: boolean }>>({});
+  const [attendanceByLrn, setAttendanceByLrn] = useState<Record<string, { checkInTime?: string; checkOutTime?: string; passedDayEnd?: boolean; scheduledEndTime?: string }>>({});
   const [riskScores, setRiskScores] = useState<Record<string, RiskScore | null>>({});
   const [studentSchedules, setStudentSchedules] = useState<Record<string, Array<{
     id: number;
@@ -216,10 +227,10 @@ export default function StudentsPage() {
     }
   };
 
-  // Function to check if school day has ended based on year level
-  const isSchoolDayEnded = (studentLevel: string): boolean => {
+  // Function to check if school day has ended based on per-student schedule or year level fallback
+  const isSchoolDayEnded = (studentLevel: string, scheduledEndTime?: string): boolean => {
     const now = new Date();
-    const configuredTime = yearLevelTimes[studentLevel] || '16:00';
+    const configuredTime = (scheduledEndTime ? scheduledEndTime.slice(0, 5) : undefined) || yearLevelTimes[studentLevel] || '16:00';
     const [hours, minutes] = configuredTime.split(':').map(Number);
     
     const endTime = new Date();
@@ -280,6 +291,7 @@ export default function StudentsPage() {
       }
 
       const today = new Date().toISOString().split('T')[0];
+      const todayDayNumber = new Date().getDay();
       const { data: attendance, error: attendanceError } = await supabase
         .from('attendance_logs')
         .select('student_lrn, check_in_time, check_out_time')
@@ -294,6 +306,27 @@ export default function StudentsPage() {
         throw attendanceError;
       }
 
+      let scheduleEndByLrn: Record<string, string> = {};
+      if (todayDayNumber >= 1 && todayDayNumber <= 5) {
+        const { data: todaySchedules, error: scheduleError } = await supabase
+          .from('student_schedules')
+          .select('student_lrn, end_time')
+          .eq('is_active', true)
+          .eq('day_number', todayDayNumber)
+          .order('end_time', { ascending: true });
+
+        if (scheduleError) {
+          console.warn('Unable to load student schedule end times:', scheduleError);
+        } else if (todaySchedules) {
+          todaySchedules.forEach((entry) => {
+            const existingEnd = scheduleEndByLrn[entry.student_lrn];
+            if (!existingEnd || entry.end_time > existingEnd) {
+              scheduleEndByLrn[entry.student_lrn] = entry.end_time;
+            }
+          });
+        }
+      }
+
       // If school day has ended, reset all unchecked-out students to "not checked in"
       const attendanceMap: Record<string, any> = {};
       
@@ -301,7 +334,8 @@ export default function StudentsPage() {
         attendance.forEach((entry) => {
           const student = data.find((s: Student) => s.lrn === entry.student_lrn);
           if (student) {
-            const schoolDayEnded = isSchoolDayEnded(student.level);
+            const scheduledEndTime = scheduleEndByLrn[entry.student_lrn];
+            const schoolDayEnded = isSchoolDayEnded(student.level, scheduledEndTime);
             
             if (schoolDayEnded && !entry.check_out_time) {
               // School day ended and student hasn't checked out
@@ -309,11 +343,13 @@ export default function StudentsPage() {
                 checkInTime: entry.check_in_time,
                 checkOutTime: undefined,
                 passedDayEnd: true,
+                scheduledEndTime,
               };
             } else {
               attendanceMap[entry.student_lrn] = {
                 checkInTime: entry.check_in_time,
                 checkOutTime: entry.check_out_time || undefined,
+                scheduledEndTime,
               };
             }
           }
@@ -397,6 +433,15 @@ export default function StudentsPage() {
       parentEmail: '',
       status: 'active',
     });
+    setSelectedScheduleDays(WEEKDAY_OPTIONS.map((d) => d.label));
+    setScheduleStartTime('08:00');
+    setScheduleEndTime('11:30');
+  };
+
+  const toggleScheduleDay = (day: string) => {
+    setSelectedScheduleDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
   };
 
   const handleAddStudent = async () => {
@@ -413,6 +458,25 @@ export default function StudentsPage() {
       toast({
         title: 'Missing required fields',
         description: 'Please complete LRN, Name, Gender, Birthday, and Year Level.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const isEarlyLevel = EARLY_LEVEL_OPTIONS.includes(newStudentForm.level);
+    if (isEarlyLevel && selectedScheduleDays.length === 0) {
+      toast({
+        title: 'Schedule days required',
+        description: 'Please select at least one weekday for the student schedule.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (isEarlyLevel && scheduleStartTime >= scheduleEndTime) {
+      toast({
+        title: 'Invalid schedule time',
+        description: 'Schedule start time must be earlier than end time.',
         variant: 'destructive',
       });
       return;
@@ -439,6 +503,43 @@ export default function StudentsPage() {
 
       if (error) {
         throw error;
+      }
+
+      if (isEarlyLevel) {
+        const { data: currentSchoolYear } = await supabase
+          .from('school_years')
+          .select('id')
+          .eq('is_current', true)
+          .maybeSingle();
+
+        const scheduleRows = selectedScheduleDays.map((day) => {
+          const dayConfig = WEEKDAY_OPTIONS.find((item) => item.label === day);
+          return {
+            student_lrn: newStudentForm.lrn.trim(),
+            school_year_id: currentSchoolYear?.id ?? null,
+            day_of_week: day,
+            day_number: dayConfig?.dayNumber ?? 1,
+            subject: `${newStudentForm.level} Class`,
+            start_time: scheduleStartTime,
+            end_time: scheduleEndTime,
+            room: null,
+            teacher_name: null,
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          };
+        });
+
+        const { error: scheduleError } = await supabase
+          .from('student_schedules')
+          .insert(scheduleRows);
+
+        if (scheduleError) {
+          toast({
+            title: 'Student added, schedule failed',
+            description: scheduleError.message,
+            variant: 'destructive',
+          });
+        }
       }
 
       toast({
@@ -1143,6 +1244,52 @@ export default function StudentsPage() {
                     </Select>
                   </div>
 
+                  {EARLY_LEVEL_OPTIONS.includes(newStudentForm.level) && (
+                    <div className="md:col-span-2 rounded-lg border border-blue-200/70 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-950/20 p-4 space-y-4">
+                      <div>
+                        <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Early Level Weekly Schedule</p>
+                        <p className="text-xs text-blue-700/80 dark:text-blue-400/80 mt-1">
+                          Select weekdays (Monday to Friday). You can choose 3-4 days or fewer based on preference.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        {WEEKDAY_OPTIONS.map((day) => (
+                          <label
+                            key={day.label}
+                            className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-2 text-xs sm:text-sm"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedScheduleDays.includes(day.label)}
+                              onChange={() => toggleScheduleDay(day.label)}
+                            />
+                            <span>{day.label}</span>
+                          </label>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Start Time</label>
+                          <Input
+                            type="time"
+                            value={scheduleStartTime}
+                            onChange={(e) => setScheduleStartTime(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">End Time</label>
+                          <Input
+                            type="time"
+                            value={scheduleEndTime}
+                            onChange={(e) => setScheduleEndTime(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Status</label>
                     <Select
@@ -1565,6 +1712,11 @@ export default function StudentsPage() {
                                     <span className="text-[10px] text-muted-foreground">
                                       {new Date(attendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
+                                    {attendance.scheduledEndTime && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        Until {attendance.scheduledEndTime.slice(0, 5)}
+                                      </span>
+                                    )}
                                   </div>
                                 ) : (
                                   <Badge variant="outline" className="border-border/60 text-muted-foreground text-xs">
