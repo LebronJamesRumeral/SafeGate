@@ -122,6 +122,19 @@ interface StudentRecord {
   parent_email: string | null;
 }
 
+interface TeacherOption {
+  id: string;
+  name: string;
+  email: string;
+}
+
+interface CategoryTemplate {
+  id: string;
+  name: string;
+  categoryType: string;
+  severity: 'positive' | 'neutral' | 'minor' | 'major' | 'critical';
+}
+
 const SEVERITY_COLORS = {
   positive: { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle, gradient: 'from-emerald-500 to-emerald-400' },
   neutral: { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-200', icon: Minus, gradient: 'from-gray-500 to-gray-400' },
@@ -143,6 +156,17 @@ const EVENT_TYPE_SUGGESTIONS = [
   'Safety Concern',
 ];
 
+const CATEGORY_TEMPLATES: CategoryTemplate[] = [
+  { id: 'classroom-disruption', name: 'Classroom Disruption', categoryType: 'Behavior', severity: 'major' },
+  { id: 'academic-dishonesty', name: 'Academic Dishonesty', categoryType: 'Academic', severity: 'major' },
+  { id: 'peer-conflict', name: 'Peer Conflict', categoryType: 'Social', severity: 'minor' },
+  { id: 'bullying-report', name: 'Bullying Report', categoryType: 'Safety', severity: 'critical' },
+  { id: 'property-damage', name: 'Property Damage', categoryType: 'Discipline', severity: 'major' },
+  { id: 'respectful-conduct', name: 'Respectful Conduct', categoryType: 'Positive Behavior', severity: 'positive' },
+  { id: 'leadership-initiative', name: 'Leadership Initiative', categoryType: 'Positive Behavior', severity: 'positive' },
+  { id: 'counseling-referral', name: 'Counseling Referral', categoryType: 'Intervention', severity: 'minor' },
+];
+
 // Enforce consistent layout structure for behavioral events
 export default function BehavioralEventsPage() {
   const router = useRouter();
@@ -153,6 +177,8 @@ export default function BehavioralEventsPage() {
   const [filteredEvents, setFilteredEvents] = useState<BehavioralEvent[]>([]);
   const [categories, setCategories] = useState<EventCategory[]>([]);
   const [students, setStudents] = useState<StudentRecord[]>([]);
+  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -241,10 +267,47 @@ export default function BehavioralEventsPage() {
     [students, formData.student_lrn]
   );
 
+  const dbCategoryTemplates = useMemo<CategoryTemplate[]>(
+    () =>
+      categories.map((category) => ({
+        id: `db-${category.id}`,
+        name: category.name,
+        categoryType: category.category_type,
+        severity: (category.severity_level || 'minor') as CategoryTemplate['severity'],
+      })),
+    [categories]
+  );
+
+  const availableCategoryTemplates = useMemo(() => {
+    const seen = new Set(dbCategoryTemplates.map((template) => template.name.toLowerCase()));
+    const extras = CATEGORY_TEMPLATES.filter((template) => !seen.has(template.name.toLowerCase()));
+    return [...dbCategoryTemplates, ...extras];
+  }, [dbCategoryTemplates]);
+
   const eventTypeSuggestions = useMemo(() => {
     const categoryBased = categories.map((category) => category.name);
-    return Array.from(new Set([...EVENT_TYPE_SUGGESTIONS, ...categoryBased])).sort();
+    const templates = CATEGORY_TEMPLATES.map((template) => template.name);
+    return Array.from(new Set([...EVENT_TYPE_SUGGESTIONS, ...categoryBased, ...templates])).sort();
   }, [categories]);
+
+  const fetchTeacherAccounts = async () => {
+    try {
+      setLoadingTeachers(true);
+      const response = await fetch('/api/auth/teachers');
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || 'Failed to load teacher accounts');
+      }
+
+      setTeachers(payload.data || []);
+    } catch (error) {
+      console.error('Error fetching teacher accounts:', error);
+      setTeachers([]);
+    } finally {
+      setLoadingTeachers(false);
+    }
+  };
 
   const fetchData = async () => {
     if (!supabase) {
@@ -335,6 +398,8 @@ export default function BehavioralEventsPage() {
         throw new Error(studentsError.message || 'Failed to fetch students');
       }
       setStudents(studentsData || []);
+
+      await fetchTeacherAccounts();
 
     } catch (error: any) {
       console.error('Error fetching data:', error?.message || error);
@@ -899,9 +964,9 @@ export default function BehavioralEventsPage() {
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle className="text-2xl">Log Behavioral Event</DialogTitle>
+                  <DialogTitle className="text-2xl">Log Student Behavior Incident</DialogTitle>
                   <DialogDescription>
-                    Record a new behavioral event for a student. All fields marked with * are required.
+                    Use accurate details for compliance and parent-notification scoring. Fields marked with * are required.
                   </DialogDescription>
                 </DialogHeader>
                 
@@ -942,7 +1007,46 @@ export default function BehavioralEventsPage() {
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="category">Category</Label>
+                      <Label htmlFor="category_template">Category Template</Label>
+                      <Select
+                        value=""
+                        onValueChange={(value) => {
+                          const template = availableCategoryTemplates.find((item) => item.id === value);
+                          if (!template) return;
+
+                          const dbCategory = categories.find(
+                            (category) => category.name.toLowerCase() === template.name.toLowerCase()
+                          );
+
+                          setFormData({
+                            ...formData,
+                            category_id: dbCategory ? dbCategory.id.toString() : '',
+                            event_type: template.name,
+                            severity: template.severity,
+                          });
+                        }}
+                      >
+                        <SelectTrigger id="category_template">
+                          <SelectValue placeholder="Select from event templates" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableCategoryTemplates.map((template) => (
+                            <SelectItem key={template.id} value={template.id}>
+                              <div className="flex items-center gap-2">
+                                {getSeverityIcon(template.severity)}
+                                <span>{template.name}</span>
+                                <span className="text-xs text-muted-foreground">({template.categoryType})</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="category">Database Category (Optional)</Label>
                       <Select value={formData.category_id} onValueChange={(value) => {
                         const category = categories.find(c => c.id.toString() === value);
                         setFormData({
@@ -1011,13 +1115,13 @@ export default function BehavioralEventsPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="description" className="flex items-center gap-1">
-                      Description <span className="text-red-500">*</span>
+                      Incident Description <span className="text-red-500">*</span>
                     </Label>
                     <Textarea
                       id="description"
                       value={formData.description}
                       onChange={(e) => setFormData({...formData, description: e.target.value})}
-                      placeholder="Detailed description of the event..."
+                      placeholder="State what happened, who was involved, and immediate context."
                       rows={3}
                       className="resize-none"
                     />
@@ -1038,17 +1142,34 @@ export default function BehavioralEventsPage() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="witness_names">Witnesses</Label>
-                      <div className="relative">
-                        <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="witness_names"
-                          value={formData.witness_names}
-                          onChange={(e) => setFormData({...formData, witness_names: e.target.value})}
-                          placeholder="Names of witnesses"
-                          className="pl-9"
-                        />
-                      </div>
+                      <Label htmlFor="witness_names">Witness (Teacher Account)</Label>
+                      <Select
+                        value={formData.witness_names || '__none__'}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, witness_names: value === '__none__' ? '' : value })
+                        }
+                      >
+                        <SelectTrigger id="witness_names" className="w-full">
+                          <SelectValue placeholder={loadingTeachers ? 'Loading teacher accounts...' : 'Select teacher witness'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No witness selected</SelectItem>
+                          {teachers.map((teacher) => (
+                            <SelectItem key={teacher.id} value={`${teacher.name}${teacher.email ? ` (${teacher.email})` : ''}`}>
+                              <div className="flex items-center gap-2">
+                                <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                                <span>{teacher.name}</span>
+                                {teacher.email && (
+                                  <span className="text-xs text-muted-foreground">({teacher.email})</span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {!loadingTeachers && teachers.length === 0 && (
+                        <p className="text-xs text-amber-600">No teacher accounts found in auth users with role=teacher.</p>
+                      )}
                     </div>
                   </div>
 
