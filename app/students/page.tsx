@@ -1746,7 +1746,7 @@ export default function StudentsPage() {
                               <TableCell>
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-2 text-sm">
-                                    <Mail className="h-3 w-3 text-muted-foreground" />
+                                    <User className="h-3 w-3 text-muted-foreground" />
                                     <span className="text-xs">{student.parentName}</span>
                                   </div>
                                   <div className="flex items-center gap-2 text-sm">
@@ -1818,7 +1818,10 @@ export default function StudentsPage() {
                                       View
                                     </Button>
                                   </DialogTrigger>
-                                  <DialogContent className="w-[95vw] max-w-6xl max-h-[92vh] overflow-y-auto p-6 md:p-8">
+                                  <DialogContent
+                                    className="w-auto max-w-none !sm:max-w-none max-h-[92vh] overflow-y-auto p-6 md:p-8"
+                                    style={{ width: 'min(96vw, 1200px)' }}
+                                  >
                                     {selectedStudent && (
                                       <>
                                         <DialogHeader>
