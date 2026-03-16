@@ -183,6 +183,7 @@ export default function StudentsPage() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentSchoolYearLabel, setCurrentSchoolYearLabel] = useState('S.Y. 2025-2026');
   const [showFilters, setShowFilters] = useState(true);
   const [activeTab, setActiveTab] = useState('list');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
@@ -327,6 +328,22 @@ export default function StudentsPage() {
         .from('students')
         .select('*')
         .order('created_at', { ascending: false });
+
+      const { data: currentSchoolYear } = await supabase
+        .from('school_years')
+        .select('label, start_date, end_date')
+        .eq('is_current', true)
+        .maybeSingle();
+
+      if (currentSchoolYear?.label) {
+        setCurrentSchoolYearLabel(currentSchoolYear.label);
+      } else if (currentSchoolYear?.start_date && currentSchoolYear?.end_date) {
+        const startYear = new Date(currentSchoolYear.start_date).getFullYear();
+        const endYear = new Date(currentSchoolYear.end_date).getFullYear();
+        if (!Number.isNaN(startYear) && !Number.isNaN(endYear)) {
+          setCurrentSchoolYearLabel(`S.Y. ${startYear}-${endYear}`);
+        }
+      }
 
       if (error) {
         toast({
@@ -1253,14 +1270,18 @@ export default function StudentsPage() {
       };
     });
 
-    const dateSuffix = new Date().toISOString().split('T')[0];
+    const sanitizedSchoolYear = currentSchoolYearLabel
+      .replace(/[\\/:*?"<>|]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const baseFileName = `SGCDC (${sanitizedSchoolYear || 'School Year'})`;
 
     try {
       const XLSX = await import('xlsx');
       const worksheet = XLSX.utils.json_to_sheet(exportRows, { header: headers });
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
-      XLSX.writeFile(workbook, `students-${dateSuffix}.xlsx`);
+      XLSX.writeFile(workbook, `${baseFileName}.xlsx`);
       return;
     } catch (excelError) {
       console.warn('XLSX export failed, falling back to CSV:', excelError);
@@ -1283,7 +1304,7 @@ export default function StudentsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `students-${dateSuffix}.csv`;
+    a.download = `${baseFileName}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1388,7 +1409,7 @@ export default function StudentsPage() {
               Current Students
             </h1>
             <p className="text-base text-gray-600 dark:text-gray-300 mt-2">
-              Active students enrolled in S.Y. 2025-2026 • {filteredStudents.length} students
+              Active students enrolled in {currentSchoolYearLabel} • {filteredStudents.length} students
             </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">

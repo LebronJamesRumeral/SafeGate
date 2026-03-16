@@ -115,6 +115,60 @@ export default function MasterlistPage() {
   const activeCount = students.filter(s => (s.status || 'active') === 'active').length;
   const graduatedCount = students.filter(s => (s.status || 'active') === 'graduated').length;
 
+  const exportMasterlist = async () => {
+    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Status', 'Parent Name', 'Parent Contact', 'Parent Email', 'Address'];
+    const exportRows = filteredStudents.map((student) => {
+      const age = shouldShowAge(student.level) ? calculateAgeWithDecimal(student.birthday) : 'N/A';
+      return {
+        LRN: student.lrn || '',
+        Name: student.name || '',
+        Gender: student.gender || '',
+        Birthday: student.birthday || '',
+        Age: age,
+        Level: student.level || '',
+        Status: student.status || 'active',
+        'Parent Name': student.parentName || '',
+        'Parent Contact': student.parentContact || '',
+        'Parent Email': student.parentEmail || '',
+        Address: student.address || '',
+      };
+    });
+
+    const baseFileName = 'masterlist of SGCDC';
+
+    try {
+      const XLSX = await import('xlsx');
+      const worksheet = XLSX.utils.json_to_sheet(exportRows, { header: headers });
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Masterlist');
+      XLSX.writeFile(workbook, `${baseFileName}.xlsx`);
+      return;
+    } catch (excelError) {
+      console.warn('XLSX export failed, falling back to CSV:', excelError);
+    }
+
+    const csvContent = [
+      headers.join(','),
+      ...exportRows.map((row) =>
+        headers
+          .map((header) => {
+            const rawValue = String(row[header as keyof typeof row] ?? '');
+            const escaped = rawValue.replace(/"/g, '""');
+            return `"${escaped}"`;
+          })
+          .join(','),
+      ),
+    ].join('\n');
+
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${baseFileName}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleImportStudents = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -228,7 +282,7 @@ export default function MasterlistPage() {
               <Upload size={16} />
               {importingStudents ? 'Importing...' : 'Import'}
             </Button>
-            <Button variant="secondary" className="gap-2">
+            <Button variant="secondary" className="gap-2" onClick={exportMasterlist}>
               <Download size={16} />
               Export
             </Button>
