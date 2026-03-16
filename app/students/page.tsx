@@ -2345,8 +2345,8 @@ export default function StudentsPage() {
                                                   )}
                                                 </div>
 
-                                                <div className="overflow-x-auto rounded-lg border">
-                                                <Table className="min-w-[780px]">
+                                                <div className="rounded-lg border overflow-hidden">
+                                                <Table className="w-full table-fixed">
                                                   <TableHeader>
                                                     <TableRow>
                                                       <TableHead>Day</TableHead>
@@ -2366,7 +2366,7 @@ export default function StudentsPage() {
                                                               value={schedule.day_of_week}
                                                               onValueChange={(value) => updateScheduleDraftRow(schedule.id, 'day_of_week', value)}
                                                             >
-                                                              <SelectTrigger className="w-[140px]">
+                                                              <SelectTrigger className="w-full min-w-0">
                                                                 <SelectValue placeholder="Day" />
                                                               </SelectTrigger>
                                                               <SelectContent>
@@ -2384,7 +2384,7 @@ export default function StudentsPage() {
                                                             <Input
                                                               value={schedule.subject}
                                                               onChange={(e) => updateScheduleDraftRow(schedule.id, 'subject', e.target.value)}
-                                                              className="min-w-[160px]"
+                                                              className="w-full min-w-0"
                                                             />
                                                           ) : (
                                                             schedule.subject
@@ -2392,19 +2392,19 @@ export default function StudentsPage() {
                                                         </TableCell>
                                                         <TableCell>
                                                           {editingSchedule ? (
-                                                            <div className="flex items-center gap-2">
+                                                            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 min-w-0">
                                                               <Input
                                                                 type="time"
                                                                 value={schedule.start_time?.slice(0, 5)}
                                                                 onChange={(e) => updateScheduleDraftRow(schedule.id, 'start_time', e.target.value)}
-                                                                className="w-[120px]"
+                                                                className="w-full min-w-0"
                                                               />
                                                               <span>-</span>
                                                               <Input
                                                                 type="time"
                                                                 value={schedule.end_time?.slice(0, 5)}
                                                                 onChange={(e) => updateScheduleDraftRow(schedule.id, 'end_time', e.target.value)}
-                                                                className="w-[120px]"
+                                                                className="w-full min-w-0"
                                                               />
                                                             </div>
                                                           ) : (
@@ -2416,7 +2416,7 @@ export default function StudentsPage() {
                                                             <Input
                                                               value={schedule.room || ''}
                                                               onChange={(e) => updateScheduleDraftRow(schedule.id, 'room', e.target.value)}
-                                                              className="min-w-[140px]"
+                                                              className="w-full min-w-0"
                                                               placeholder="Room"
                                                             />
                                                           ) : (
@@ -2428,7 +2428,7 @@ export default function StudentsPage() {
                                                             <Input
                                                               value={schedule.teacher_name || ''}
                                                               onChange={(e) => updateScheduleDraftRow(schedule.id, 'teacher_name', e.target.value)}
-                                                              className="min-w-[160px]"
+                                                              className="w-full min-w-0"
                                                               placeholder="Teacher"
                                                             />
                                                           ) : (
