@@ -2346,15 +2346,15 @@ export default function StudentsPage() {
                                                 </div>
 
                                                 <div className="rounded-lg border overflow-hidden">
-                                                <Table className="w-full table-fixed">
+                                                <Table className="w-full">
                                                   <TableHeader>
                                                     <TableRow>
-                                                      <TableHead>Day</TableHead>
-                                                      <TableHead>Subject</TableHead>
-                                                      <TableHead>Time</TableHead>
-                                                      <TableHead>Room</TableHead>
-                                                      <TableHead>Teacher</TableHead>
-                                                      {editingSchedule && <TableHead className="text-right">Action</TableHead>}
+                                                      <TableHead className="w-[16%]">Day</TableHead>
+                                                      <TableHead className="w-[18%]">Subject</TableHead>
+                                                      <TableHead className="w-[30%]">Time</TableHead>
+                                                      <TableHead className="w-[14%]">Room</TableHead>
+                                                      <TableHead className="w-[14%]">Teacher</TableHead>
+                                                      {editingSchedule && <TableHead className="w-[8%] text-right">Action</TableHead>}
                                                     </TableRow>
                                                   </TableHeader>
                                                   <TableBody>
@@ -2392,7 +2392,7 @@ export default function StudentsPage() {
                                                         </TableCell>
                                                         <TableCell>
                                                           {editingSchedule ? (
-                                                            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 min-w-0">
+                                                            <div className="grid grid-cols-[minmax(120px,1fr)_auto_minmax(120px,1fr)] items-center gap-2 min-w-0">
                                                               <Input
                                                                 type="time"
                                                                 value={schedule.start_time?.slice(0, 5)}
