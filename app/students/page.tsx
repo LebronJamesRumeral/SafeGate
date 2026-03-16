@@ -2205,8 +2205,9 @@ export default function StudentsPage() {
                                     </Button>
                                   </DialogTrigger>
                                   <DialogContent
-                                    className="max-h-[92vh] w-[min(96vw,1100px)] max-w-[min(96vw,1100px)] overflow-x-hidden overflow-y-auto p-4 sm:p-6 md:p-8"
+                                    className="w-[76vw] max-w-5xl lg:max-w-3xl h-[80vh] max-h-[92vh] overflow-hidden p-0 flex flex-col"
                                   >
+                                    <div className="h-full overflow-y-auto p-6 md:p-8">
                                     {selectedStudent && (
                                       <>
                                         <DialogHeader>
@@ -2613,6 +2614,7 @@ export default function StudentsPage() {
                                         </Tabs>
                                       </>
                                     )}
+                                    </div>
                                   </DialogContent>
                                 </Dialog>
                               </TableCell>
