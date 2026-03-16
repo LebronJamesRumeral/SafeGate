@@ -81,14 +81,34 @@ const QRCodeCanvas = dynamic(() => import('qrcode.react').then(mod => ({ default
 function getRiskLevelColor(riskLevel: string): { color: string; bg: string; border: string; icon: any } {
   switch (riskLevel) {
     case 'critical':
-      return { color: 'text-red-700', bg: 'bg-red-100', border: 'border-red-200', icon: XCircle };
+      return {
+        color: 'text-red-800 dark:text-red-100',
+        bg: 'bg-red-100/95 dark:bg-red-950/60',
+        border: 'border-red-200 dark:border-red-800/70',
+        icon: XCircle,
+      };
     case 'high':
-      return { color: 'text-orange-700', bg: 'bg-orange-100', border: 'border-orange-200', icon: AlertTriangle };
+      return {
+        color: 'text-orange-800 dark:text-orange-100',
+        bg: 'bg-orange-100/95 dark:bg-orange-950/60',
+        border: 'border-orange-200 dark:border-orange-800/70',
+        icon: AlertTriangle,
+      };
     case 'medium':
-      return { color: 'text-yellow-700', bg: 'bg-yellow-100', border: 'border-yellow-200', icon: Minus };
+      return {
+        color: 'text-amber-800 dark:text-amber-100',
+        bg: 'bg-amber-100/95 dark:bg-amber-950/60',
+        border: 'border-amber-200 dark:border-amber-800/70',
+        icon: Minus,
+      };
     case 'low':
     default:
-      return { color: 'text-green-700', bg: 'bg-green-100', border: 'border-green-200', icon: CheckCircle };
+      return {
+        color: 'text-emerald-800 dark:text-emerald-100',
+        bg: 'bg-emerald-100/95 dark:bg-emerald-950/60',
+        border: 'border-emerald-200 dark:border-emerald-800/70',
+        icon: CheckCircle,
+      };
   }
 }
 
@@ -2210,7 +2230,7 @@ export default function StudentsPage() {
                                     </Button>
                                   </DialogTrigger>
                                   <DialogContent
-                                    className="w-[96vw] max-w-5xl lg:max-w-4xl h-[80vh] max-h-[92vh] overflow-hidden p-0 flex flex-col"
+                                    className="w-[96vw] max-w-5xl lg:max-w-5xl h-[80vh] max-h-[92vh] overflow-hidden p-0 flex flex-col"
                                   >
                                     <div className="h-full overflow-y-auto p-6 md:p-8">
                                     {selectedStudent && (
@@ -2248,7 +2268,7 @@ export default function StudentsPage() {
                                                   <RiskIcon className="w-6 h-6" />
                                                   <div>
                                                     <p className="font-semibold text-lg">Risk Level: {riskLevel.toUpperCase()}</p>
-                                                    <p className="text-sm opacity-90">
+                                                    <p className="text-sm text-current/90">
                                                       Risk Score: {riskScore.risk_score.toFixed(1)}/100 • Confidence: {riskScore.confidence.toFixed(0)}%
                                                     </p>
                                                   </div>
