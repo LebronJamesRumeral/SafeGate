@@ -2350,113 +2350,117 @@ export default function StudentsPage() {
                                                   )}
                                                 </div>
 
-                                                <div className="overflow-x-auto rounded-lg border">
-                                                <Table className="min-w-[780px]">
-                                                  <TableHeader>
-                                                    <TableRow>
-                                                      <TableHead>Day</TableHead>
-                                                      <TableHead>Subject</TableHead>
-                                                      <TableHead>Time</TableHead>
-                                                      <TableHead>Room</TableHead>
-                                                      <TableHead>Teacher</TableHead>
-                                                      {editingSchedule && <TableHead className="text-right">Action</TableHead>}
-                                                    </TableRow>
-                                                  </TableHeader>
-                                                  <TableBody>
-                                                    {(editingSchedule ? scheduleDraft : (studentSchedules[selectedStudent.lrn] || [])).map((schedule) => (
-                                                      <TableRow key={schedule.id}>
-                                                        <TableCell className="font-medium">
-                                                          {editingSchedule ? (
-                                                            <Select
-                                                              value={schedule.day_of_week}
-                                                              onValueChange={(value) => updateScheduleDraftRow(schedule.id, 'day_of_week', value)}
-                                                            >
-                                                              <SelectTrigger className="w-[140px]">
-                                                                <SelectValue placeholder="Day" />
-                                                              </SelectTrigger>
-                                                              <SelectContent>
-                                                                {WEEKDAY_OPTIONS.map((day) => (
-                                                                  <SelectItem key={day.label} value={day.label}>{day.label}</SelectItem>
-                                                                ))}
-                                                              </SelectContent>
-                                                            </Select>
-                                                          ) : (
-                                                            schedule.day_of_week
-                                                          )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                          {editingSchedule ? (
-                                                            <Input
-                                                              value={schedule.subject}
-                                                              onChange={(e) => updateScheduleDraftRow(schedule.id, 'subject', e.target.value)}
-                                                              className="min-w-[160px]"
-                                                            />
-                                                          ) : (
-                                                            schedule.subject
-                                                          )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                          {editingSchedule ? (
-                                                            <div className="flex items-center gap-2">
+                                                <div className="space-y-3 rounded-xl border p-3 md:p-4">
+                                                  {(editingSchedule ? scheduleDraft : (studentSchedules[selectedStudent.lrn] || [])).map((schedule) => (
+                                                    <div
+                                                      key={schedule.id}
+                                                      className="rounded-2xl border bg-background/80 p-3 shadow-sm"
+                                                    >
+                                                      {editingSchedule ? (
+                                                        <div className="space-y-3">
+                                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[160px_minmax(0,1.2fr)_minmax(0,1fr)]">
+                                                            <div className="space-y-1.5">
+                                                              <label className="text-xs font-medium text-muted-foreground">Day</label>
+                                                              <Select
+                                                                value={schedule.day_of_week}
+                                                                onValueChange={(value) => updateScheduleDraftRow(schedule.id, 'day_of_week', value)}
+                                                              >
+                                                                <SelectTrigger className="h-11 rounded-xl">
+                                                                  <SelectValue placeholder="Day" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                  {WEEKDAY_OPTIONS.map((day) => (
+                                                                    <SelectItem key={day.label} value={day.label}>{day.label}</SelectItem>
+                                                                  ))}
+                                                                </SelectContent>
+                                                              </Select>
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                              <label className="text-xs font-medium text-muted-foreground">Subject</label>
                                                               <Input
-                                                                type="time"
-                                                                value={schedule.start_time?.slice(0, 5)}
-                                                                onChange={(e) => updateScheduleDraftRow(schedule.id, 'start_time', e.target.value)}
-                                                                className="w-[120px]"
-                                                              />
-                                                              <span>-</span>
-                                                              <Input
-                                                                type="time"
-                                                                value={schedule.end_time?.slice(0, 5)}
-                                                                onChange={(e) => updateScheduleDraftRow(schedule.id, 'end_time', e.target.value)}
-                                                                className="w-[120px]"
+                                                                value={schedule.subject}
+                                                                onChange={(e) => updateScheduleDraftRow(schedule.id, 'subject', e.target.value)}
+                                                                className="h-11 rounded-xl"
                                                               />
                                                             </div>
-                                                          ) : (
-                                                            `${schedule.start_time} - ${schedule.end_time}`
-                                                          )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                          {editingSchedule ? (
-                                                            <Input
-                                                              value={schedule.room || ''}
-                                                              onChange={(e) => updateScheduleDraftRow(schedule.id, 'room', e.target.value)}
-                                                              className="min-w-[140px]"
-                                                              placeholder="Room"
-                                                            />
-                                                          ) : (
-                                                            schedule.room || '—'
-                                                          )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                          {editingSchedule ? (
-                                                            <Input
-                                                              value={schedule.teacher_name || ''}
-                                                              onChange={(e) => updateScheduleDraftRow(schedule.id, 'teacher_name', e.target.value)}
-                                                              className="min-w-[160px]"
-                                                              placeholder="Teacher"
-                                                            />
-                                                          ) : (
-                                                            schedule.teacher_name || '—'
-                                                          )}
-                                                        </TableCell>
-                                                        {editingSchedule && (
-                                                          <TableCell className="text-right">
-                                                            <Button
-                                                              variant="ghost"
-                                                              size="sm"
-                                                              onClick={() => removeScheduleDraftRow(schedule.id)}
-                                                              disabled={scheduleDraft.length <= 1}
-                                                            >
-                                                              Remove
-                                                            </Button>
-                                                          </TableCell>
-                                                        )}
-                                                      </TableRow>
-                                                    ))}
-                                                  </TableBody>
-                                                </Table>
-                                              </div>
+                                                            <div className="space-y-1.5">
+                                                              <label className="text-xs font-medium text-muted-foreground">Time</label>
+                                                              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                                                                <Input
+                                                                  type="time"
+                                                                  value={schedule.start_time?.slice(0, 5)}
+                                                                  onChange={(e) => updateScheduleDraftRow(schedule.id, 'start_time', e.target.value)}
+                                                                  className="h-11 rounded-xl"
+                                                                />
+                                                                <span className="text-sm text-muted-foreground">-</span>
+                                                                <Input
+                                                                  type="time"
+                                                                  value={schedule.end_time?.slice(0, 5)}
+                                                                  onChange={(e) => updateScheduleDraftRow(schedule.id, 'end_time', e.target.value)}
+                                                                  className="h-11 rounded-xl"
+                                                                />
+                                                              </div>
+                                                            </div>
+                                                          </div>
+                                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                                                            <div className="space-y-1.5">
+                                                              <label className="text-xs font-medium text-muted-foreground">Room</label>
+                                                              <Input
+                                                                value={schedule.room || ''}
+                                                                onChange={(e) => updateScheduleDraftRow(schedule.id, 'room', e.target.value)}
+                                                                className="h-11 rounded-xl"
+                                                                placeholder="Room"
+                                                              />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                              <label className="text-xs font-medium text-muted-foreground">Teacher</label>
+                                                              <Input
+                                                                value={schedule.teacher_name || ''}
+                                                                onChange={(e) => updateScheduleDraftRow(schedule.id, 'teacher_name', e.target.value)}
+                                                                className="h-11 rounded-xl"
+                                                                placeholder="Teacher"
+                                                              />
+                                                            </div>
+                                                            <div className="flex items-end">
+                                                              <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => removeScheduleDraftRow(schedule.id)}
+                                                                disabled={scheduleDraft.length <= 1}
+                                                                className="h-11 rounded-xl px-4"
+                                                              >
+                                                                Remove
+                                                              </Button>
+                                                            </div>
+                                                          </div>
+                                                        </div>
+                                                      ) : (
+                                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                                                          <div>
+                                                            <p className="text-xs font-medium text-muted-foreground">Day</p>
+                                                            <p className="mt-1 font-medium">{schedule.day_of_week}</p>
+                                                          </div>
+                                                          <div>
+                                                            <p className="text-xs font-medium text-muted-foreground">Subject</p>
+                                                            <p className="mt-1 font-medium">{schedule.subject}</p>
+                                                          </div>
+                                                          <div>
+                                                            <p className="text-xs font-medium text-muted-foreground">Time</p>
+                                                            <p className="mt-1 font-medium">{`${schedule.start_time} - ${schedule.end_time}`}</p>
+                                                          </div>
+                                                          <div>
+                                                            <p className="text-xs font-medium text-muted-foreground">Room</p>
+                                                            <p className="mt-1 font-medium">{schedule.room || '—'}</p>
+                                                          </div>
+                                                          <div>
+                                                            <p className="text-xs font-medium text-muted-foreground">Teacher</p>
+                                                            <p className="mt-1 font-medium">{schedule.teacher_name || '—'}</p>
+                                                          </div>
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  ))}
+                                                </div>
                                               </div>
                                             ) : (
                                               <div className="space-y-3 text-center py-8 text-muted-foreground">
