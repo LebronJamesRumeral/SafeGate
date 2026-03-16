@@ -8,8 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Download, Search, Eye, Mail, Phone, Archive } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Download, Search, Eye, Mail, Phone, Archive, Upload } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
 import { supabase, type Student } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
@@ -17,6 +17,7 @@ import { sortByLevel } from '@/lib/level-order';
 import { MLDashboard } from '@/components/ml-dashboard';
 import { MasterlistSkeleton } from '@/components/loading-skeletons';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getStudentImportRequiredFieldsHint, parseStudentImportRows } from '@/lib/student-import';
 
 // Enforce consistent layout structure for masterlist page
 export default function MasterlistPage() {
@@ -28,6 +29,8 @@ export default function MasterlistPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(true);
+  const [importingStudents, setImportingStudents] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (isMobile) {
@@ -112,6 +115,83 @@ export default function MasterlistPage() {
   const activeCount = students.filter(s => (s.status || 'active') === 'active').length;
   const graduatedCount = students.filter(s => (s.status || 'active') === 'graduated').length;
 
+  const handleImportStudents = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!supabase) {
+      toast({
+        title: 'Database not connected',
+        description: 'Supabase client is not initialized.',
+        variant: 'destructive',
+      });
+      event.target.value = '';
+      return;
+    }
+
+    setImportingStudents(true);
+
+    try {
+      const XLSX = await import('xlsx');
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+
+      if (!firstSheetName) {
+        toast({
+          title: 'Import failed',
+          description: 'The selected file has no worksheet.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[firstSheetName], {
+        defval: '',
+      });
+
+      const parsed = parseStudentImportRows(rawRows);
+
+      if (parsed.rows.length === 0) {
+        toast({
+          title: 'No valid records to import',
+          description: `Required columns: ${getStudentImportRequiredFieldsHint()}. Skipped ${parsed.skippedMissingRequired} rows with missing required info.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const chunkSize = 200;
+      for (let i = 0; i < parsed.rows.length; i += chunkSize) {
+        const chunk = parsed.rows.slice(i, i + chunkSize);
+        const { error } = await supabase
+          .from('students')
+          .upsert(chunk, { onConflict: 'lrn' });
+
+        if (error) {
+          throw error;
+        }
+      }
+
+      await fetchAllStudents();
+
+      toast({
+        title: 'Import completed',
+        description: `Imported ${parsed.rows.length} student records. Skipped ${parsed.skippedMissingRequired} missing required and ${parsed.skippedEmpty} empty rows.`,
+      });
+    } catch (error) {
+      console.error('Error importing students:', error);
+      toast({
+        title: 'Import failed',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setImportingStudents(false);
+      event.target.value = '';
+    }
+  };
+
   return (
     <DashboardLayout>
       {loading ? (
@@ -128,9 +208,25 @@ export default function MasterlistPage() {
             <p className="text-muted-foreground font-medium">Complete archive of all recorded students from previous to current generations</p>
           </div>
           <div className="flex gap-2">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleImportStudents}
+              className="hidden"
+            />
             <Button variant="outline" className="gap-2" onClick={() => setShowFilters(!showFilters)}>
               <Search size={16} />
               {showFilters ? 'Hide Filters' : 'Show Filters'}
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => importInputRef.current?.click()}
+              disabled={importingStudents}
+            >
+              <Upload size={16} />
+              {importingStudents ? 'Importing...' : 'Import'}
             </Button>
             <Button variant="secondary" className="gap-2">
               <Download size={16} />
@@ -326,10 +422,10 @@ export default function MasterlistPage() {
                                 <div className="border-t border-border/40 pt-4">
                                   <h3 className="font-semibold text-foreground mb-3">Complete Details</h3>
                                   <div className="space-y-3">
-                                    {shouldShowAge(selectedStudent?.level) && (
+                                    {selectedStudent && shouldShowAge(selectedStudent.level) && (
                                       <div>
                                         <p className="text-xs text-muted-foreground font-medium">Age</p>
-                                        <p className="text-sm text-foreground font-semibold">{calculateAgeWithDecimal(selectedStudent?.birthday)} years old</p>
+                                        <p className="text-sm text-foreground font-semibold">{calculateAgeWithDecimal(selectedStudent.birthday)} years old</p>
                                       </div>
                                     )}
                                     <div>

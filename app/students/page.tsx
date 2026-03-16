@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { 
   UserPlus, 
   Download, 
+  Upload,
   Search, 
   Eye, 
   Mail, 
@@ -27,7 +28,6 @@ import {
   CheckCircle, 
   Loader2,
   Filter,
-  RefreshCw,
   ArrowUpDown,
   MapPin,
   Clock,
@@ -52,13 +52,13 @@ import dynamic from 'next/dynamic';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
 import { supabase, type Student } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
-import Link from 'next/link';
 import { sortByLevel } from '@/lib/level-order';
 import { calculateStudentRiskScore, getActionRecommendations, type RiskScore } from '@/lib/ml-risk-calculator';
 import { StudentRiskCard } from '@/components/ml-dashboard';
 import { TablePageSkeleton } from '@/components/loading-skeletons';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getStudentImportRequiredFieldsHint, parseStudentImportRows } from '@/lib/student-import';
 import { 
   AreaChart, 
   Area, 
@@ -138,6 +138,16 @@ const YEAR_LEVEL_OPTIONS = [
   'Grade 8',
 ];
 const EARLY_LEVEL_OPTIONS = ['Toddler & Nursery', 'Pre-K', 'Kinder 1', 'Kinder 2'];
+const GRADE_LEVEL_OPTIONS = [
+  'Grade 1',
+  'Grade 2',
+  'Grade 3',
+  'Grade 4',
+  'Grade 5',
+  'Grade 6',
+  'Grade 7',
+  'Grade 8',
+];
 const WEEKDAY_OPTIONS = [
   { label: 'Monday', dayNumber: 1 },
   { label: 'Tuesday', dayNumber: 2 },
@@ -173,7 +183,6 @@ export default function StudentsPage() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
   const [activeTab, setActiveTab] = useState('list');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
@@ -193,16 +202,21 @@ export default function StudentsPage() {
     parentEmail: '',
     status: 'active',
   });
+  const isEarlyLevelSelected = EARLY_LEVEL_OPTIONS.includes(newStudentForm.level);
+  const isGradeLevelSelected = GRADE_LEVEL_OPTIONS.includes(newStudentForm.level);
+  const shouldShowScheduleConfig = isEarlyLevelSelected || isGradeLevelSelected;
   
   const [newSchoolYearOpen, setNewSchoolYearOpen] = useState(false);
   const [schoolYearStartDate, setSchoolYearStartDate] = useState('');
   const [schoolYearEndDate, setSchoolYearEndDate] = useState('');
   const [processingStudents, setProcessingStudents] = useState<{ [key: string]: string }>({});
+  const [importingStudents, setImportingStudents] = useState(false);
   const [processedCount, setProcessedCount] = useState(0);
   const [previousStudentData, setPreviousStudentData] = useState<Student[]>([]);
   const [undoAvailable, setUndoAvailable] = useState(false);
   const [undoInProgress, setUndoInProgress] = useState(false);
   const qrRef = useRef(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const [behavioralData, setBehavioralData] = useState<any>(null);
   const [loadingBehavioral, setLoadingBehavioral] = useState(false);
   const [attendanceByLrn, setAttendanceByLrn] = useState<Record<string, { checkInTime?: string; checkOutTime?: string; passedDayEnd?: boolean; scheduledEndTime?: string }>>({});
@@ -439,7 +453,6 @@ export default function StudentsPage() {
       });
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
@@ -447,11 +460,6 @@ export default function StudentsPage() {
   useEffect(() => {
     fetchStudents();
   }, []);
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchStudents();
-  };
 
   const resetAddStudentForm = () => {
     setNewStudentForm({
@@ -514,16 +522,27 @@ export default function StudentsPage() {
       return;
     }
 
-    if (!newStudentForm.lrn.trim() || !newStudentForm.name.trim() || !newStudentForm.gender || !newStudentForm.birthday || !newStudentForm.level) {
+    if (
+      !newStudentForm.lrn.trim() ||
+      !newStudentForm.name.trim() ||
+      !newStudentForm.gender ||
+      !newStudentForm.birthday ||
+      !newStudentForm.level ||
+      !newStudentForm.parentName.trim() ||
+      !newStudentForm.parentContact.trim() ||
+      !newStudentForm.parentEmail.trim()
+    ) {
       toast({
         title: 'Missing required fields',
-        description: 'Please complete LRN, Name, Gender, Birthday, and Year Level.',
+        description: 'Please complete LRN, Name, Gender, Birthday, Year Level, Parent Name, Parent Contact, and Parent Email.',
         variant: 'destructive',
       });
       return;
     }
 
     const isEarlyLevel = EARLY_LEVEL_OPTIONS.includes(newStudentForm.level);
+    const isGradeLevel = GRADE_LEVEL_OPTIONS.includes(newStudentForm.level);
+    const shouldCreateSchedule = isEarlyLevel || isGradeLevel;
     if (isEarlyLevel && selectedScheduleDays.length === 0) {
       toast({
         title: 'Schedule days required',
@@ -533,7 +552,7 @@ export default function StudentsPage() {
       return;
     }
 
-    if (isEarlyLevel && scheduleTimeSlots.length === 0) {
+    if (shouldCreateSchedule && scheduleTimeSlots.length === 0) {
       toast({
         title: 'Schedule slots required',
         description: 'Please add at least one schedule time slot.',
@@ -542,7 +561,7 @@ export default function StudentsPage() {
       return;
     }
 
-    if (isEarlyLevel) {
+    if (shouldCreateSchedule) {
       const invalidSlot = scheduleTimeSlots.find((slot) => {
         return !slot.startTime || !slot.endTime || slot.startTime >= slot.endTime;
       });
@@ -569,9 +588,9 @@ export default function StudentsPage() {
           birthday: newStudentForm.birthday,
           level: newStudentForm.level,
           address: newStudentForm.address.trim() || null,
-          parent_name: newStudentForm.parentName.trim() || null,
-          parent_contact: newStudentForm.parentContact.trim() || null,
-          parent_email: newStudentForm.parentEmail.trim() || null,
+          parent_name: newStudentForm.parentName.trim(),
+          parent_contact: newStudentForm.parentContact.trim(),
+          parent_email: newStudentForm.parentEmail.trim(),
           status: newStudentForm.status,
           updated_at: new Date().toISOString(),
         });
@@ -580,14 +599,18 @@ export default function StudentsPage() {
         throw error;
       }
 
-      if (isEarlyLevel) {
+      if (shouldCreateSchedule) {
         const { data: currentSchoolYear } = await supabase
           .from('school_years')
           .select('id')
           .eq('is_current', true)
           .maybeSingle();
 
-        const scheduleRows = selectedScheduleDays.flatMap((day) => {
+        const scheduleDays = isEarlyLevel
+          ? selectedScheduleDays
+          : WEEKDAY_OPTIONS.map((day) => day.label);
+
+        const scheduleRows = scheduleDays.flatMap((day) => {
           const dayConfig = WEEKDAY_OPTIONS.find((item) => item.label === day);
           return scheduleTimeSlots.map((slot, slotIndex) => ({
             student_lrn: newStudentForm.lrn.trim(),
@@ -1209,39 +1232,137 @@ export default function StudentsPage() {
     };
   }, [students, riskScores, attendanceByLrn]);
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Parent Name', 'Parent Contact', 'Parent Email', 'Address', 'Status'];
-    const csvData = filteredStudents.map(student => {
+    const exportRows = filteredStudents.map((student) => {
       const age = shouldShowAge(student.level) ? calculateAgeWithDecimal(student.birthday) : 'N/A';
       const riskLevel = riskScores[student.lrn]?.risk_level || 'Unknown';
-      return [
-        student.lrn,
-        student.name,
-        student.gender,
-        student.birthday,
-        age,
-        student.level,
-        riskLevel.toUpperCase(),
-        student.parentName,
-        student.parentContact,
-        student.parentEmail || '',
-        student.address || '',
-        student.status || 'active'
-      ];
+      return {
+        LRN: student.lrn || '',
+        Name: student.name || '',
+        Gender: student.gender || '',
+        Birthday: student.birthday || '',
+        Age: age,
+        Level: student.level || '',
+        'Risk Level': String(riskLevel).toUpperCase(),
+        'Parent Name': student.parentName || '',
+        'Parent Contact': student.parentContact || '',
+        'Parent Email': student.parentEmail || '',
+        Address: student.address || '',
+        Status: student.status || 'active',
+      };
     });
+
+    const dateSuffix = new Date().toISOString().split('T')[0];
+
+    try {
+      const XLSX = await import('xlsx');
+      const worksheet = XLSX.utils.json_to_sheet(exportRows, { header: headers });
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
+      XLSX.writeFile(workbook, `students-${dateSuffix}.xlsx`);
+      return;
+    } catch (excelError) {
+      console.warn('XLSX export failed, falling back to CSV:', excelError);
+    }
 
     const csvContent = [
       headers.join(','),
-      ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))
+      ...exportRows.map((row) =>
+        headers
+          .map((header) => {
+            const rawValue = String(row[header as keyof typeof row] ?? '');
+            const escaped = rawValue.replace(/"/g, '""');
+            return `"${escaped}"`;
+          })
+          .join(','),
+      ),
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `students-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `students-${dateSuffix}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleImportStudents = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!supabase) {
+      toast({
+        title: 'Database not connected',
+        description: 'Supabase client is not initialized.',
+        variant: 'destructive',
+      });
+      event.target.value = '';
+      return;
+    }
+
+    setImportingStudents(true);
+
+    try {
+      const XLSX = await import('xlsx');
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+
+      if (!firstSheetName) {
+        toast({
+          title: 'Import failed',
+          description: 'The selected file has no worksheet.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[firstSheetName], {
+        defval: '',
+      });
+
+      const parsed = parseStudentImportRows(rawRows);
+
+      if (parsed.rows.length === 0) {
+        toast({
+          title: 'No valid records to import',
+          description: `Required columns: ${getStudentImportRequiredFieldsHint()}. Skipped ${parsed.skippedMissingRequired} rows with missing required info.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const chunkSize = 200;
+      for (let i = 0; i < parsed.rows.length; i += chunkSize) {
+        const chunk = parsed.rows.slice(i, i + chunkSize);
+        const { error } = await supabase
+          .from('students')
+          .upsert(chunk, { onConflict: 'lrn' });
+
+        if (error) {
+          throw error;
+        }
+      }
+
+      await fetchStudents();
+
+      toast({
+        title: 'Import completed',
+        description: `Imported ${parsed.rows.length} student records. Skipped ${parsed.skippedMissingRequired} missing required and ${parsed.skippedEmpty} empty rows. Masterlist is now updated.`,
+      });
+    } catch (error) {
+      console.error('Error importing students:', error);
+      toast({
+        title: 'Import failed',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setImportingStudents(false);
+      event.target.value = '';
+    }
   };
 
   if (loading) {
@@ -1270,18 +1391,14 @@ export default function StudentsPage() {
               Active students enrolled in S.Y. 2025-2026 • {filteredStudents.length} students
             </p>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="gap-2"
-            >
-              <Link href="/attendance">
-                <CalendarDays className="w-4 h-4" />
-                Attendance
-              </Link>
-            </Button>
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleImportStudents}
+              className="hidden"
+            />
             <Button
               variant="outline"
               size="sm"
@@ -1294,12 +1411,12 @@ export default function StudentsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleRefresh}
-              disabled={refreshing}
+              onClick={() => importInputRef.current?.click()}
+              disabled={importingStudents}
               className="gap-2"
             >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
+              <Upload className="w-4 h-4" />
+              {importingStudents ? 'Importing...' : 'Import'}
             </Button>
             <Button
               variant="outline"
@@ -1531,30 +1648,34 @@ export default function StudentsPage() {
                     </Select>
                   </div>
 
-                  {EARLY_LEVEL_OPTIONS.includes(newStudentForm.level) && (
+                  {shouldShowScheduleConfig && (
                     <div className="md:col-span-2 rounded-lg border border-blue-200/70 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-950/20 p-4 space-y-4">
                       <div>
-                        <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Early Level Weekly Schedule</p>
+                        <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Student Schedule Setup</p>
                         <p className="text-xs text-blue-700/80 dark:text-blue-400/80 mt-1">
-                          Select weekdays (Monday to Friday). You can choose 3-4 days or fewer, and add multiple daily schedule slots.
+                          {isEarlyLevelSelected
+                            ? 'Select weekdays (Monday to Friday). You can choose 3-4 days or fewer, and add multiple daily schedule slots.'
+                            : 'Weekdays are automatically set to Monday-Friday for Grades 1-8. Set the daily time slots below.'}
                         </p>
                       </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                        {WEEKDAY_OPTIONS.map((day) => (
-                          <label
-                            key={day.label}
-                            className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-2 text-xs sm:text-sm"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedScheduleDays.includes(day.label)}
-                              onChange={() => toggleScheduleDay(day.label)}
-                            />
-                            <span>{day.label}</span>
-                          </label>
-                        ))}
-                      </div>
+                      {isEarlyLevelSelected && (
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                          {WEEKDAY_OPTIONS.map((day) => (
+                            <label
+                              key={day.label}
+                              className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-2 text-xs sm:text-sm"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedScheduleDays.includes(day.label)}
+                                onChange={() => toggleScheduleDay(day.label)}
+                              />
+                              <span>{day.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
 
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
@@ -1623,8 +1744,9 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Parent/Guardian Name</label>
+                    <label className="text-sm font-medium">Parent/Guardian Name *</label>
                     <Input
+                      required
                       value={newStudentForm.parentName}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parentName: e.target.value }))}
                       placeholder="Parent/Guardian full name"
@@ -1632,8 +1754,9 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Parent Contact</label>
+                    <label className="text-sm font-medium">Parent Contact *</label>
                     <Input
+                      required
                       value={newStudentForm.parentContact}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parentContact: e.target.value }))}
                       placeholder="e.g., 0917-555-0116"
@@ -1641,8 +1764,9 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="md:col-span-2 space-y-2">
-                    <label className="text-sm font-medium">Parent Email</label>
+                    <label className="text-sm font-medium">Parent Email *</label>
                     <Input
+                      required
                       type="email"
                       value={newStudentForm.parentEmail}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parentEmail: e.target.value }))}
@@ -2060,8 +2184,7 @@ export default function StudentsPage() {
                                     </Button>
                                   </DialogTrigger>
                                   <DialogContent
-                                    className="w-auto max-w-none !sm:max-w-none max-h-[92vh] overflow-y-auto p-6 md:p-8"
-                                    style={{ width: 'min(96vw, 1200px)' }}
+                                    className="max-h-[92vh] w-[min(96vw,1100px)] max-w-[min(96vw,1100px)] overflow-x-hidden overflow-y-auto p-4 sm:p-6 md:p-8"
                                   >
                                     {selectedStudent && (
                                       <>
@@ -2082,7 +2205,7 @@ export default function StudentsPage() {
                                         </DialogHeader>
 
                                         <Tabs defaultValue="overview" className="mt-6 space-y-4">
-                                          <TabsList className="grid w-full grid-cols-5 gap-1 h-auto p-1">
+                                          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-5">
                                             <TabsTrigger value="overview">Overview</TabsTrigger>
                                             <TabsTrigger value="attendance">Attendance</TabsTrigger>
                                             <TabsTrigger value="schedule">Schedule</TabsTrigger>
@@ -2200,8 +2323,8 @@ export default function StudentsPage() {
                                                   )}
                                                 </div>
 
-                                                <div className="border rounded-lg overflow-hidden">
-                                                <Table>
+                                                <div className="overflow-x-auto rounded-lg border">
+                                                <Table className="min-w-[780px]">
                                                   <TableHeader>
                                                     <TableRow>
                                                       <TableHead>Day</TableHead>
