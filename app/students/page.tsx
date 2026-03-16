@@ -2210,7 +2210,7 @@ export default function StudentsPage() {
                                     </Button>
                                   </DialogTrigger>
                                   <DialogContent
-                                    className="w-[76vw] max-w-5xl lg:max-w-3xl h-[80vh] max-h-[92vh] overflow-hidden p-0 flex flex-col"
+                                    className="w-[88vw] max-w-7xl h-[84vh] max-h-[94vh] overflow-hidden p-0 flex flex-col"
                                   >
                                     <div className="h-full overflow-y-auto p-6 md:p-8">
                                     {selectedStudent && (
