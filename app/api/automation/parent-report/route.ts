@@ -84,73 +84,282 @@ function toSafeNumber(value: unknown, fallback = 0) {
   return fallback;
 }
 
+const FACTOR_LABELS: Record<string, string> = {
+  risk_level_critical: 'Student is currently at a critical risk level and requires immediate attention.',
+  risk_level_high: 'Student is at a high risk level and prompt action is recommended.',
+  event_severity_critical: 'The reported incident has been classified as a critical behavioral concern.',
+  event_severity_major: 'The reported incident has been classified as a major behavioral concern.',
+  attendance_below_85: "Student's attendance has fallen below the required 85% threshold.",
+  high_absence_prediction_confidence: 'Based on recent patterns, the system has detected a high likelihood of future absences.',
+  repeated_high_severity_behavior: 'Multiple high-severity behavioral incidents have been recorded within the past 30 days.',
+};
+
+const SEVERITY_LABELS: Record<string, { label: string; color: string }> = {
+  critical: { label: 'Critical', color: '#dc2626' },
+  major:    { label: 'Major',    color: '#ea580c' },
+  minor:    { label: 'Minor',    color: '#ca8a04' },
+  low:      { label: 'Low',      color: '#16a34a' },
+};
+
+const RISK_LABELS: Record<string, { label: string; color: string; description: string }> = {
+  critical: { label: 'Critical', color: '#dc2626', description: 'Immediate school intervention is underway.' },
+  high:     { label: 'High',     color: '#ea580c', description: 'Prompt follow-up from school staff is recommended.' },
+  medium:   { label: 'Medium',   color: '#ca8a04', description: 'Situation is being monitored closely.' },
+  low:      { label: 'Low',      color: '#16a34a', description: 'No immediate concern at this time.' },
+  unknown:  { label: 'Under Review', color: '#64748b', description: 'Assessment is currently in progress.' },
+};
+
+function formatDisplayDate(raw: string | null | undefined): string {
+  if (!raw) return 'N/A';
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function formatDisplayTime(raw: string | null | undefined): string {
+  if (!raw) return 'N/A';
+  // Handle "HH:MM:SS" or "HH.MM.SS" formats
+  const normalised = raw.replace(/\./g, ':');
+  const [h, m] = normalised.split(':').map(Number);
+  if (isNaN(h) || isNaN(m)) return raw;
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 || 12;
+  return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;
+}
+
 function buildParentEmailContent(reportPayload: any) {
   const schoolName = process.env.SCHOOL_NAME || 'SafeGate';
   const studentName = reportPayload.student?.name || reportPayload.student?.lrn || 'Student';
   const parentName = reportPayload.parent?.name || 'Parent/Guardian';
   const eventType = reportPayload.event?.type || 'Behavioral Event';
-  const severity = reportPayload.event?.severity || 'unknown';
+  const severity = (reportPayload.event?.severity || 'unknown').toLowerCase();
   const attendanceRate = toSafeNumber(reportPayload.attendanceSummary?.attendanceRate);
-  const riskLevel = reportPayload.mlSummary?.riskLevel || 'unknown';
-  const predictionConfidence = toSafeNumber(reportPayload.mlSummary?.predictionConfidence);
-  const eventDate = reportPayload.event?.eventDate || 'N/A';
-  const eventTime = reportPayload.event?.eventTime || 'N/A';
+  const riskLevel = (reportPayload.mlSummary?.riskLevel || 'unknown').toLowerCase();
+  const eventDate = formatDisplayDate(reportPayload.event?.eventDate);
+  const eventTime = formatDisplayTime(reportPayload.event?.eventTime);
   const eventLocation = reportPayload.event?.location || 'N/A';
-  const eventDescription = reportPayload.event?.description || 'No description provided.';
-  const factors = Array.isArray(reportPayload.decision?.factors)
-    ? reportPayload.decision.factors.join(', ')
-    : 'N/A';
+  const eventDescription = reportPayload.event?.description || 'No additional description provided.';
+  const followUpRequired = reportPayload.event?.followUpRequired ? 'Yes' : 'No';
+  const actionTaken = reportPayload.event?.actionTaken || 'Under review';
 
-  const subject = `[${schoolName}] Parent Alert: ${studentName} - ${eventType} (${severity.toUpperCase()})`;
+  const rawFactors: string[] = Array.isArray(reportPayload.decision?.factors)
+    ? reportPayload.decision.factors
+    : [];
+  const factorDescriptions = rawFactors
+    .map((f) => FACTOR_LABELS[f] ?? f)
+    .filter(Boolean);
 
+  const severityInfo = SEVERITY_LABELS[severity] ?? { label: severity.charAt(0).toUpperCase() + severity.slice(1), color: '#64748b' };
+  const riskInfo = RISK_LABELS[riskLevel] ?? RISK_LABELS.unknown;
+
+  const subject = `[${schoolName}] Important Notice: Behavioral Incident Report for ${studentName}`;
+
+  // ── Plain-text fallback ──────────────────────────────────────────────────
   const text = [
-    `Hello ${parentName},`,
+    `Dear ${parentName},`,
     '',
-    `This is an automated alert from ${schoolName}.`,
-    `A behavioral event has been logged for ${studentName}.`,
+    `We are writing to inform you of a behavioral incident involving your child, ${studentName},`,
+    `that was recorded in our system on ${eventDate}.`,
     '',
-    `Event: ${eventType}`,
-    `Severity: ${severity}`,
-    `Date: ${eventDate}`,
-    `Time: ${eventTime}`,
-    `Location: ${eventLocation}`,
-    `Description: ${eventDescription}`,
+    'INCIDENT DETAILS',
+    '─────────────────────────────────────',
+    `  Incident Type : ${eventType}`,
+    `  Severity      : ${severityInfo.label}`,
+    `  Date          : ${eventDate}`,
+    `  Time          : ${eventTime}`,
+    `  Location      : ${eventLocation}`,
+    `  Description   : ${eventDescription}`,
+    `  Action Taken  : ${actionTaken}`,
+    `  Follow-Up     : ${followUpRequired}`,
     '',
-    'ML Risk Summary',
-    `- Current attendance rate: ${attendanceRate}%`,
-    `- Risk level: ${riskLevel}`,
-    `- Prediction confidence: ${predictionConfidence}%`,
-    `- Decision factors: ${factors}`,
+    'STUDENT ACADEMIC STANDING (Last 30 Days)',
+    '─────────────────────────────────────',
+    `  Attendance Rate  : ${attendanceRate}%`,
+    `  Risk Assessment  : ${riskInfo.label} — ${riskInfo.description}`,
     '',
-    'Please coordinate with the school if follow-up support is needed.',
+    'REASONS FOR THIS NOTIFICATION',
+    '─────────────────────────────────────',
+    ...factorDescriptions.map((d) => `  • ${d}`),
     '',
-    `- ${schoolName}`,
+    'We kindly ask that you reach out to the school guidance office or your child\'s',
+    'adviser to discuss appropriate next steps. Your involvement is important in',
+    'helping your child succeed.',
+    '',
+    'Should you have questions or concerns, please do not hesitate to contact us.',
+    '',
+    `Respectfully,`,
+    `The ${schoolName} Administration`,
+    '',
+    '─────────────────────────────────────',
+    'This is an automated notification generated by the SafeGate Student Monitoring System.',
+    'Please do not reply directly to this email.',
   ].join('\n');
 
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:640px;margin:0 auto;">
-      <h2 style="margin-bottom:8px;">Parent Alert: Behavioral Event</h2>
-      <p>Hello ${parentName},</p>
-      <p>This is an automated alert from <strong>${schoolName}</strong>. A behavioral event has been logged for <strong>${studentName}</strong>.</p>
-      <table style="border-collapse:collapse;width:100%;margin:16px 0;">
-        <tr><td style="padding:8px;border:1px solid #e2e8f0;"><strong>Event</strong></td><td style="padding:8px;border:1px solid #e2e8f0;">${eventType}</td></tr>
-        <tr><td style="padding:8px;border:1px solid #e2e8f0;"><strong>Severity</strong></td><td style="padding:8px;border:1px solid #e2e8f0;">${severity}</td></tr>
-        <tr><td style="padding:8px;border:1px solid #e2e8f0;"><strong>Date</strong></td><td style="padding:8px;border:1px solid #e2e8f0;">${eventDate}</td></tr>
-        <tr><td style="padding:8px;border:1px solid #e2e8f0;"><strong>Time</strong></td><td style="padding:8px;border:1px solid #e2e8f0;">${eventTime}</td></tr>
-        <tr><td style="padding:8px;border:1px solid #e2e8f0;"><strong>Location</strong></td><td style="padding:8px;border:1px solid #e2e8f0;">${eventLocation}</td></tr>
-        <tr><td style="padding:8px;border:1px solid #e2e8f0;"><strong>Description</strong></td><td style="padding:8px;border:1px solid #e2e8f0;">${eventDescription}</td></tr>
-      </table>
-      <h3 style="margin-bottom:8px;">ML Risk Summary</h3>
-      <ul>
-        <li>Current attendance rate: <strong>${attendanceRate}%</strong></li>
-        <li>Risk level: <strong>${riskLevel}</strong></li>
-        <li>Prediction confidence: <strong>${predictionConfidence}%</strong></li>
-        <li>Decision factors: <strong>${factors}</strong></li>
-      </ul>
-      <p>Please coordinate with the school if follow-up support is needed.</p>
-      <p style="margin-top:24px;">- ${schoolName}</p>
-    </div>
-  `;
+  // ── HTML email ───────────────────────────────────────────────────────────
+  const factorListHtml = factorDescriptions.length > 0
+    ? factorDescriptions.map((d) => `
+        <tr>
+          <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:top;">
+            <span style="display:inline-block;width:8px;height:8px;background:${riskInfo.color};border-radius:50%;margin-right:10px;vertical-align:middle;"></span>
+            <span style="color:#374151;font-size:14px;">${d}</span>
+          </td>
+        </tr>`).join('')
+    : `<tr><td style="padding:10px 12px;color:#6b7280;font-size:14px;">No specific factors were identified.</td></tr>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="620" cellpadding="0" cellspacing="0" style="max-width:620px;width:100%;">
+
+          <!-- Header Banner -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 100%);border-radius:12px 12px 0 0;padding:32px 36px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td>
+                    <p style="margin:0;color:#93c5fd;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;">${schoolName} Student Monitoring System</p>
+                    <h1 style="margin:8px 0 0;color:#ffffff;font-size:22px;font-weight:700;line-height:1.3;">Behavioral Incident Notice</h1>
+                  </td>
+                  <td align="right" valign="top">
+                    <span style="display:inline-block;background:${severityInfo.color};color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:0.5px;text-transform:uppercase;">${severityInfo.label} Severity</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- White Card Body -->
+          <tr>
+            <td style="background:#ffffff;padding:36px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;">
+
+              <!-- Greeting -->
+              <p style="margin:0 0 8px;font-size:15px;color:#374151;">Dear <strong>${parentName}</strong>,</p>
+              <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.7;">
+                We are writing to inform you of a behavioral incident involving your child,
+                <strong>${studentName}</strong>, that was recorded in our monitoring system on
+                <strong>${eventDate}</strong>. We believe it is important to keep you informed
+                so that we can work together to support your child's well-being and academic progress.
+              </p>
+
+              <!-- Divider -->
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:0 0 24px;" />
+
+              <!-- Section: Incident Details -->
+              <h2 style="margin:0 0 14px;font-size:15px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.8px;">Incident Details</h2>
+              <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:28px;">
+                <tr style="background:#f8fafc;">
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;width:38%;"><span style="font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Incident Type</span></td>
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;"><span style="font-size:14px;color:#1e293b;font-weight:600;">${eventType}</span></td>
+                </tr>
+                <tr>
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;background:#f8fafc;"><span style="font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Severity</span></td>
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;"><span style="display:inline-block;background:${severityInfo.color}1a;color:${severityInfo.color};font-size:13px;font-weight:700;padding:2px 10px;border-radius:12px;">${severityInfo.label}</span></td>
+                </tr>
+                <tr style="background:#f8fafc;">
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;"><span style="font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Date</span></td>
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;"><span style="font-size:14px;color:#1e293b;">${eventDate}</span></td>
+                </tr>
+                <tr>
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;background:#f8fafc;"><span style="font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Time</span></td>
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;"><span style="font-size:14px;color:#1e293b;">${eventTime}</span></td>
+                </tr>
+                <tr style="background:#f8fafc;">
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;"><span style="font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Location</span></td>
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;"><span style="font-size:14px;color:#1e293b;">${eventLocation}</span></td>
+                </tr>
+                <tr>
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;background:#f8fafc;"><span style="font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Description</span></td>
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;"><span style="font-size:14px;color:#1e293b;">${eventDescription}</span></td>
+                </tr>
+                <tr style="background:#f8fafc;">
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;"><span style="font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Action Taken</span></td>
+                  <td style="padding:11px 16px;border-bottom:1px solid #e2e8f0;"><span style="font-size:14px;color:#1e293b;">${actionTaken}</span></td>
+                </tr>
+                <tr>
+                  <td style="padding:11px 16px;background:#f8fafc;"><span style="font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Follow-Up Required</span></td>
+                  <td style="padding:11px 16px;"><span style="font-size:14px;color:#1e293b;">${followUpRequired}</span></td>
+                </tr>
+              </table>
+
+              <!-- Section: Academic Standing -->
+              <h2 style="margin:0 0 14px;font-size:15px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.8px;">Student Academic Standing <span style="font-size:12px;color:#94a3b8;font-weight:400;text-transform:none;">(Last 30 Days)</span></h2>
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+                <tr>
+                  <td width="48%" style="vertical-align:top;padding-right:8px;">
+                    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px 20px;">
+                      <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#0369a1;text-transform:uppercase;letter-spacing:0.5px;">Attendance Rate</p>
+                      <p style="margin:0;font-size:28px;font-weight:700;color:#0c4a6e;">${attendanceRate}%</p>
+                      <p style="margin:4px 0 0;font-size:12px;color:#0369a1;">${attendanceRate >= 85 ? 'Within acceptable range' : 'Below the 85% required threshold'}</p>
+                    </div>
+                  </td>
+                  <td width="4%"></td>
+                  <td width="48%" style="vertical-align:top;padding-left:8px;">
+                    <div style="background:${riskInfo.color}0d;border:1px solid ${riskInfo.color}33;border-radius:8px;padding:16px 20px;">
+                      <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:${riskInfo.color};text-transform:uppercase;letter-spacing:0.5px;">Risk Assessment</p>
+                      <p style="margin:0;font-size:22px;font-weight:700;color:${riskInfo.color};">${riskInfo.label}</p>
+                      <p style="margin:4px 0 0;font-size:12px;color:${riskInfo.color}cc;">${riskInfo.description}</p>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Section: Reasons for Notification -->
+              <h2 style="margin:0 0 14px;font-size:15px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.8px;">Reasons for This Notification</h2>
+              <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.6;">
+                Our student monitoring system flagged the following concerns that prompted this notification:
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;margin-bottom:28px;">
+                ${factorListHtml}
+              </table>
+
+              <!-- Section: What To Do -->
+              <div style="background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:28px;">
+                <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#15803d;">Recommended Next Steps</p>
+                <ul style="margin:0;padding-left:20px;font-size:14px;color:#166534;line-height:1.8;">
+                  <li>Contact your child's class adviser or guidance counselor at the earliest convenience.</li>
+                  <li>Discuss this incident with your child and encourage open communication.</li>
+                  <li>Visit the school if a face-to-face consultation is necessary.</li>
+                </ul>
+              </div>
+
+              <!-- Closing -->
+              <p style="margin:0 0 6px;font-size:14px;color:#374151;line-height:1.7;">
+                We appreciate your partnership in supporting your child's growth and development.
+                Should you have any questions or require further clarification, please do not hesitate
+                to reach out to the school administration.
+              </p>
+              <p style="margin:24px 0 0;font-size:14px;color:#374151;">Respectfully,</p>
+              <p style="margin:4px 0 0;font-size:14px;font-weight:700;color:#1e293b;">The ${schoolName} Administration</p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#1e293b;border-radius:0 0 12px 12px;padding:20px 36px;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.6;">
+                This is an automated notification from the <strong style="color:#cbd5e1;">${schoolName}</strong> Student Monitoring System.<br />
+                Please do not reply directly to this email. Contact the school office for inquiries.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>`;
 
   return { subject, text, html };
 }
