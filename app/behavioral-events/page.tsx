@@ -648,7 +648,12 @@ export default function BehavioralEventsPage() {
         notes: notesWithWitnesses || null,
         event_date: eventDate,
         event_time: eventTime,
-        reported_by: currentUser?.full_name || currentUser?.username || 'Admin',
+        reported_by:
+          currentUser?.display_name ||
+          currentUser?.full_name ||
+          currentUser?.name ||
+          currentUser?.username ||
+          'Admin',
       };
 
       if (!navigator.onLine) {
@@ -741,7 +746,12 @@ export default function BehavioralEventsPage() {
           notes: fallbackNotes || null,
           event_date: today.toISOString().split('T')[0],
           event_time: today.toTimeString().split(' ')[0],
-          reported_by: currentUser?.full_name || currentUser?.username || 'Admin',
+          reported_by:
+            currentUser?.display_name ||
+            currentUser?.full_name ||
+            currentUser?.name ||
+            currentUser?.username ||
+            'Admin',
         };
 
         await queueBehaviorEvent(fallbackPayload);

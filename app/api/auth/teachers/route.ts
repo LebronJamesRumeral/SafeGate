@@ -6,6 +6,25 @@ interface TeacherAccount {
   email: string;
 }
 
+function getTeacherDisplayName(user: any): string {
+  const fromUserMetadata =
+    user.user_metadata?.display_name ||
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name;
+
+  const fromAppMetadata =
+    user.app_metadata?.display_name ||
+    user.app_metadata?.full_name ||
+    user.app_metadata?.name;
+
+  const candidate = (fromUserMetadata || fromAppMetadata || '').toString().trim();
+  if (candidate) {
+    return candidate;
+  }
+
+  return user.email?.split('@')[0] || 'Teacher';
+}
+
 export async function GET() {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -50,7 +69,7 @@ export async function GET() {
       })
       .map((user) => ({
         id: user.id,
-        name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Teacher',
+        name: getTeacherDisplayName(user),
         email: user.email || '',
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
