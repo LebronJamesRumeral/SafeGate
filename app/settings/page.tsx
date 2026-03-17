@@ -330,64 +330,6 @@ export default function SettingsPage() {
               </Card>
             )}
 
-            {/* Attendance Times */}
-            {activeCategory === 'attendance' && (
-              <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-green-50 to-green-100/50 dark:from-green-950/40 dark:to-green-900/30 border-b border-green-200/50 dark:border-green-700/40 p-5 sm:p-8">
-                  <div className="flex items-center justify-between gap-6">
-                    <div className="flex-1">
-                      <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Year Level Check-out Times</CardTitle>
-                      <CardDescription className="text-sm mt-2">Set the school day end time for each year level</CardDescription>
-                    </div>
-                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-green-400 to-green-600 dark:from-green-500 dark:to-green-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
-                      <Clock size={32} />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-6 pt-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {yearLevelTimes.map((item, index) => (
-                      <div key={item.level} className="bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/50 rounded-xl p-5 space-y-3 hover:shadow-md transition-shadow">
-                        <Label htmlFor={`level-${index}`} className="text-sm font-bold text-slate-700 dark:text-slate-300 block">
-                          {item.level}
-                        </Label>
-                        <div className="flex items-center gap-3">
-                          <Input
-                            id={`level-${index}`}
-                            type="time"
-                            value={item.time}
-                            onChange={(e) => handleYearLevelTimeChange(index, e.target.value)}
-                            className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-10 flex-1 focus:ring-2 focus:ring-green-400 dark:focus:ring-green-500"
-                          />
-                          <span className="text-sm font-bold text-green-600 dark:text-green-400 whitespace-nowrap min-w-fit">
-                            {(() => {
-                              const [hours, minutes] = item.time.split(':');
-                              const hour = parseInt(hours);
-                              const period = hour >= 12 ? 'PM' : 'AM';
-                              const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-                              return `${displayHour}:${minutes} ${period}`;
-                            })()}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-700/30 rounded-lg p-5 mt-6">
-                    <p className="text-sm text-blue-800 dark:text-blue-300">
-                      <span className="font-bold">💡 Tip:</span> These times determine when students should be marked as having incomplete attendance if they haven't checked out. The system will automatically flag students after their configured checkout time.
-                    </p>
-                  </div>
-                </CardContent>
-                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
-                  <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('attendance')}>Cancel</Button>
-                  <Button className="min-w-32 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
-                    <Save size={16} />
-                    Save Changes
-                  </Button>
-                </CardFooter>
-              </Card>
-            )}
-
             {/* System Settings */}
             {activeCategory === 'system' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
