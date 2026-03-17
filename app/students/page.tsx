@@ -2024,7 +2024,14 @@ export default function StudentsPage() {
                     </CardDescription>
                   </div>
                   <Badge variant="outline" className="bg-white dark:bg-slate-800">
-                    Sorted by {sortConfig.key} ({sortConfig.direction})
+                      {{
+                       lrn: 'LRN',
+                       name: 'Name',
+                       level: 'Grade Level',
+                       riskLevel: 'Risk Level',
+                      }[sortConfig.key] ?? sortConfig.key}
+                      {' \u2014 '}
+                      {sortConfig.direction === 'asc' ? 'A \u2192 Z' : 'Z \u2192 A'}
                   </Badge>
                 </div>
               </CardHeader>

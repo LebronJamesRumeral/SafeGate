@@ -137,11 +137,11 @@ interface CategoryTemplate {
 }
 
 const SEVERITY_COLORS = {
-  positive: { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle, gradient: 'from-emerald-500 to-emerald-400' },
-  neutral: { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-200', icon: Minus, gradient: 'from-gray-500 to-gray-400' },
-  minor: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-200', icon: Info, gradient: 'from-yellow-500 to-yellow-400' },
-  major: { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200', icon: AlertTriangle, gradient: 'from-orange-500 to-orange-400' },
-  critical: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200', icon: XCircle, gradient: 'from-red-500 to-red-400' }
+  positive: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-700', icon: CheckCircle, gradient: 'from-emerald-500 to-emerald-400' },
+  neutral: { bg: 'bg-gray-100 dark:bg-gray-700/50', text: 'text-gray-700 dark:text-gray-300', border: 'border-gray-200 dark:border-gray-600', icon: Minus, gradient: 'from-gray-500 to-gray-400' },
+  minor: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-400', border: 'border-yellow-200 dark:border-yellow-700', icon: Info, gradient: 'from-yellow-500 to-yellow-400' },
+  major: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-400', border: 'border-orange-200 dark:border-orange-700', icon: AlertTriangle, gradient: 'from-orange-500 to-orange-400' },
+  critical: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', border: 'border-red-200 dark:border-red-700', icon: XCircle, gradient: 'from-red-500 to-red-400' }
 };
 
 const CHART_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899'];
@@ -1379,7 +1379,16 @@ export default function BehavioralEventsPage() {
                     </CardDescription>
                   </div>
                   <Badge variant="outline" className="bg-white dark:bg-slate-800">
-                    Sorted by {sortConfig.key} ({sortConfig.direction})
+                      {{
+                       event_date: 'Date',
+                       event_time: 'Time',
+                       severity: 'Severity',
+                       event_type: 'Event Type',
+                       student_name: 'Student',
+                       level: 'Grade Level',
+                      }[sortConfig.key] ?? sortConfig.key}
+                      {' \u2014 '}
+                      {sortConfig.direction === 'asc' ? 'Oldest First' : 'Newest First'}
                   </Badge>
                 </div>
               </CardHeader>
@@ -1491,13 +1500,13 @@ export default function BehavioralEventsPage() {
                               
                               <div className="flex items-center gap-2 mt-2">
                                 {event.parent_notified && (
-                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
+                                  <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700 text-xs">
                                     <CheckCircle className="w-3 h-3 mr-1" />
                                     Parent Notified
                                   </Badge>
                                 )}
                                 {event.follow_up_required && (
-                                  <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 text-xs">
+                                  <Badge variant="outline" className="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-700 text-xs">
                                     <AlertTriangle className="w-3 h-3 mr-1" />
                                     Follow-up Required
                                   </Badge>
@@ -1781,13 +1790,13 @@ export default function BehavioralEventsPage() {
 
                   <div className="flex flex-wrap gap-2 pt-2">
                     {selectedEvent.parent_notified && (
-                      <Badge className="bg-green-100 text-green-800 border-0 gap-1">
+                      <Badge className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-0 gap-1">
                         <CheckCircle className="w-3 h-3" />
                         Parent Notified
                       </Badge>
                     )}
                     {selectedEvent.follow_up_required && (
-                      <Badge className="bg-orange-100 text-orange-800 border-0 gap-1">
+                      <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400 border-0 gap-1">
                         <AlertTriangle className="w-3 h-3" />
                         Follow-up Required
                       </Badge>
