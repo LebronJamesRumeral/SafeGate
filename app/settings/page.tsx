@@ -50,7 +50,6 @@ export default function SettingsPage() {
     { id: 'school', label: 'School Information', icon: <School size={20} />, color: 'blue' },
     { id: 'account', label: 'Account Settings', icon: <User size={20} />, color: 'purple' },
     { id: 'system', label: 'System Settings', icon: <Database size={20} />, color: 'emerald' },
-    { id: 'attendance', label: 'Attendance Times', icon: <Clock size={20} />, color: 'green' },
     { id: 'notifications', label: 'Notifications', icon: <Bell size={20} />, color: 'orange' },
     { id: 'security', label: 'Security', icon: <Lock size={20} />, color: 'red' },
     { id: 'ml', label: 'ML Settings', icon: <Brain size={20} />, color: 'violet' },
