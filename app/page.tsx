@@ -333,7 +333,7 @@ export default function Dashboard() {
         />
 
         {/* Metric Cards */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3 sm:gap-5">
+        <div className="grid grid-cols-3 gap-2 sm:gap-5">
           {/* Students Present Card */}
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
@@ -343,14 +343,14 @@ export default function Dashboard() {
             <Card className="border-0 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
               <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-              <CardContent className="p-4 sm:p-6 flex items-center justify-between relative z-10">
+              <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold mb-2 uppercase tracking-wider">Students Present</p>
-                  <div className="text-3xl sm:text-4xl font-bold text-blue-600 dark:text-blue-400">{stats.totalPresent}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">out of {stats.totalStudents} total</p>
+                  <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students Present</p>
+                  <div className="text-xl sm:text-4xl font-bold text-blue-600 dark:text-blue-400">{stats.totalPresent}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">out of {stats.totalStudents} total</p>
                 </div>
-                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                  <Users className="w-6 h-6 sm:w-8 sm:h-8" />
+                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <Users className="w-8 h-8" />
                 </div>
               </CardContent>
               <div className="h-1 w-full bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
@@ -366,14 +366,14 @@ export default function Dashboard() {
             <Card className="border-0 bg-gradient-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
               <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 dark:bg-red-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-              <CardContent className="p-4 sm:p-6 flex items-center justify-between relative z-10">
+              <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-xs text-red-600 dark:text-red-400 font-semibold mb-2 uppercase tracking-wider">Absent</p>
-                  <div className="text-3xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{stats.absent}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">no check-in recorded</p>
+                  <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Absent</p>
+                  <div className="text-xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{stats.absent}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">no check-in recorded</p>
                 </div>
-                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                  <AlertTriangle className="w-6 h-6 sm:w-8 sm:h-8" />
+                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <AlertTriangle className="w-8 h-8" />
                 </div>
               </CardContent>
               <div className="h-1 w-full bg-gradient-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
@@ -389,14 +389,14 @@ export default function Dashboard() {
             <Card className="border-0 bg-gradient-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
               <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-              <CardContent className="p-4 sm:p-6 flex items-center justify-between relative z-10">
+              <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-xs text-orange-600 dark:text-orange-400 font-semibold mb-2 uppercase tracking-wider">Late Arrivals</p>
-                  <div className="text-3xl sm:text-4xl font-bold text-orange-600 dark:text-orange-400">{stats.lateArrivals}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">after 8:00 AM</p>
+                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Late Arrivals</p>
+                  <div className="text-xl sm:text-4xl font-bold text-orange-600 dark:text-orange-400">{stats.lateArrivals}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">after 8:00 AM</p>
                 </div>
-                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                  <Clock className="w-6 h-6 sm:w-8 sm:h-8" />
+                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <Clock className="w-8 h-8" />
                 </div>
               </CardContent>
               <div className="h-1 w-full bg-gradient-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
