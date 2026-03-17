@@ -8,7 +8,6 @@
  */
 
 import { supabase } from './supabase';
-import { time } from 'console';
 
 export interface StudentSchedule {
   id: number;
@@ -50,7 +49,9 @@ export async function getStudentSchedule(studentLrn: string): Promise<StudentSch
       .select('*')
       .eq('student_lrn', studentLrn)
       .eq('is_active', true)
-      .single();
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
       console.error('Error fetching student schedule:', error);
@@ -73,7 +74,7 @@ export function isSchoolDay(
 ): boolean {
   if (!schedule) return false;
 
-  const dayName = date.toLocaleDateString('en-US', { weekday: 'lowercase' });
+  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
   const dayMap: { [key: string]: keyof typeof schedule.school_days } = {
     'sunday': 'sunday',
     'monday': 'monday',
@@ -100,7 +101,7 @@ function timeToMinutes(timeStr: string): number {
  * Get day name from date (e.g., 'monday', 'tuesday')
  */
 function getDayName(date: Date): string {
-  return date.toLocaleDateString('en-US', { weekday: 'lowercase' });
+  return date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 }
 
 /**

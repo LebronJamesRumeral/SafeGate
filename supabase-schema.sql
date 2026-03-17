@@ -217,12 +217,40 @@ INSERT INTO student_schedules (
   student_lrn, school_year_id, day_of_week, day_number, subject,
   start_time, end_time, room, teacher_name, is_active
 ) VALUES
+  -- Grade 4
   ('LRN-2026-0001', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Monday', 1, 'English', '08:00', '08:50', 'Room 401', 'Ms. Flores', true),
-  ('LRN-2026-0001', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Monday', 1, 'Mathematics', '09:00', '09:50', 'Room 401', 'Mr. Reyes', true),
-  ('LRN-2026-0001', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Tuesday', 2, 'Science', '08:00', '08:50', 'Lab 2', 'Mrs. Santos', true),
-  ('LRN-2026-0002', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Monday', 1, 'Filipino', '08:00', '08:50', 'Room 502', 'Ms. Dela Cruz', true),
-  ('LRN-2026-0002', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Wednesday', 3, 'Araling Panlipunan', '09:00', '09:50', 'Room 502', 'Mr. Lim', true),
-  ('LRN-2026-0012', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Friday', 5, 'MAPEH', '10:00', '10:50', 'Gym', 'Coach Rivera', true)
+  ('LRN-2026-0011', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Monday', 1, 'Mathematics', '09:00', '09:50', 'Room 402', 'Mr. Reyes', true),
+
+  -- Grade 5
+  ('LRN-2026-0002', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Tuesday', 2, 'Filipino', '08:00', '08:50', 'Room 501', 'Ms. Dela Cruz', true),
+  ('LRN-2026-0013', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Wednesday', 3, 'Science', '09:00', '09:50', 'Lab 1', 'Mrs. Santos', true),
+
+  -- Grade 6
+  ('LRN-2026-0005', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Thursday', 4, 'Araling Panlipunan', '10:00', '10:50', 'Room 601', 'Mr. Lim', true),
+
+  -- Grade 1
+  ('LRN-2026-0006', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Monday', 1, 'Reading', '08:00', '08:40', 'Room 101', 'Ms. Cruz', true),
+
+  -- Grade 2
+  ('LRN-2026-0003', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Tuesday', 2, 'Mathematics', '08:50', '09:30', 'Room 201', 'Mr. Lopez', true),
+  ('LRN-2026-0014', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Wednesday', 3, 'English', '09:40', '10:20', 'Room 202', 'Ms. Garcia', true),
+
+  -- Grade 3
+  ('LRN-2026-0004', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Thursday', 4, 'Science', '10:30', '11:10', 'Room 301', 'Mrs. Ramos', true),
+  ('LRN-2026-0012', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Friday', 5, 'MAPEH', '10:00', '10:50', 'Gym', 'Coach Rivera', true),
+
+  -- Kinder 1
+  ('LRN-2026-0007', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Monday', 1, 'Play-Based Learning', '08:30', '09:15', 'Kinder Room A', 'Ms. Diaz', true),
+  ('LRN-2026-0015', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Tuesday', 2, 'Story Time', '09:20', '10:00', 'Kinder Room B', 'Ms. Perez', true),
+
+  -- Kinder 2
+  ('LRN-2026-0008', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Wednesday', 3, 'Numbers and Shapes', '08:30', '09:15', 'Kinder Room C', 'Mr. Torres', true),
+
+  -- Pre-K
+  ('LRN-2026-0010', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Thursday', 4, 'Pre-Reading', '09:00', '09:45', 'Pre-K Room', 'Ms. Villanueva', true),
+
+  -- Toddler and Nursery
+  ('LRN-2026-0009', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Friday', 5, 'Early Motor Skills', '07:30', '08:10', 'Nursery Room', 'Ms. Santos', true)
 ON CONFLICT (student_lrn, day_number, start_time, end_time, subject) DO NOTHING;
 
 -- Insert sample attendance logs (last 20 school days) - Foundation for ML training
