@@ -55,6 +55,10 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
   check_out_time TIMESTAMP WITH TIME ZONE,
   date DATE NOT NULL,
   is_present BOOLEAN DEFAULT true,
+  -- Status based on scheduled attendance
+  attendance_status VARCHAR(30) DEFAULT 'present', -- 'present', 'late', 'absent', 'invalid_timeout'
+  is_late BOOLEAN DEFAULT false,
+  is_invalid_timeout BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(student_lrn, date)
 );
@@ -71,7 +75,33 @@ CREATE TABLE IF NOT EXISTS school_years (
   CONSTRAINT school_year_dates_valid CHECK (start_date <= end_date)
 );
 
--- Weekly schedule per student
+-- Student attendance schedules (entry/exit times and school days by year level)
+CREATE TABLE IF NOT EXISTS student_attendance_schedules (
+  id BIGSERIAL PRIMARY KEY,
+  student_lrn VARCHAR(50) NOT NULL REFERENCES students(lrn) ON DELETE CASCADE,
+  school_year_id BIGINT REFERENCES school_years(id) ON DELETE SET NULL,
+  year_level VARCHAR(50) NOT NULL, -- Grade level, e.g., 'Grade 4', 'Kinder 1', etc.
+  
+  -- Attendance times (e.g., 8:00 AM entry, 5:00 PM exit)
+  entry_time TIME NOT NULL, -- Scheduled entry time (before/on = present, after = late)
+  exit_time TIME NOT NULL, -- Scheduled exit time (after = invalid timeout)
+  
+  -- School days as JSON array (true for Monday-Friday attendance day)
+  school_days JSONB DEFAULT '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}',
+  
+  -- Grace period in minutes for late arrivals
+  grace_period_minutes SMALLINT DEFAULT 0,
+  
+  -- Status
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  CONSTRAINT entry_exit_time_valid CHECK (entry_time < exit_time),
+  CONSTRAINT unique_student_schedule UNIQUE (student_lrn, school_year_id)
+);
+
+-- Weekly schedule per student (class/subject schedule)
 CREATE TABLE IF NOT EXISTS student_schedules (
   id BIGSERIAL PRIMARY KEY,
   student_lrn VARCHAR(50) NOT NULL REFERENCES students(lrn) ON DELETE CASCADE,
@@ -98,6 +128,10 @@ CREATE INDEX IF NOT EXISTS idx_students_status ON students(status);
 CREATE INDEX IF NOT EXISTS idx_attendance_student_lrn ON attendance_logs(student_lrn);
 CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance_logs(date);
 CREATE INDEX IF NOT EXISTS idx_attendance_is_present ON attendance_logs(is_present);
+CREATE INDEX IF NOT EXISTS idx_attendance_status ON attendance_logs(attendance_status);
+CREATE INDEX IF NOT EXISTS idx_attendance_schedules_lrn ON student_attendance_schedules(student_lrn);
+CREATE INDEX IF NOT EXISTS idx_attendance_schedules_active ON student_attendance_schedules(is_active);
+CREATE INDEX IF NOT EXISTS idx_attendance_schedules_year_level ON student_attendance_schedules(year_level);
 CREATE INDEX IF NOT EXISTS idx_school_years_current ON school_years(is_current);
 CREATE INDEX IF NOT EXISTS idx_student_schedules_lrn ON student_schedules(student_lrn);
 CREATE INDEX IF NOT EXISTS idx_student_schedules_day_time ON student_schedules(day_number, start_time);
@@ -133,6 +167,50 @@ SET
   is_current = EXCLUDED.is_current,
   updated_at = NOW();
 
+-- Insert student attendance schedules by year level
+-- Grade levels (1-6): 8:00 AM - 5:00 PM
+INSERT INTO student_attendance_schedules (
+  student_lrn, school_year_id, year_level, entry_time, exit_time, school_days, grace_period_minutes, is_active
+) VALUES
+  -- Grade 4 students
+  ('LRN-2026-0001', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 4', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  ('LRN-2026-0011', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 4', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  
+  -- Grade 5 students
+  ('LRN-2026-0002', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 5', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  ('LRN-2026-0013', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 5', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  
+  -- Grade 6 students
+  ('LRN-2026-0005', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 6', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  
+  -- Grade 1 students
+  ('LRN-2026-0006', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 1', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  
+  -- Grade 2 students
+  ('LRN-2026-0003', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 2', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  ('LRN-2026-0014', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 2', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  
+  -- Grade 3 students
+  ('LRN-2026-0004', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 3', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  ('LRN-2026-0012', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 3', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  
+  -- Kindergarten: 8:30 AM - 3:30 PM
+  ('LRN-2026-0007', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Kinder 1', '08:30:00', '15:30:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  ('LRN-2026-0015', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Kinder 1', '08:30:00', '15:30:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  ('LRN-2026-0008', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Kinder 2', '08:30:00', '15:30:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  
+  -- Pre-K: 9:00 AM - 3:00 PM
+  ('LRN-2026-0010', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Pre-K', '09:00:00', '15:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
+  
+  -- Toddler & Nursery: 7:00 AM - 4:00 PM
+  ('LRN-2026-0009', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Toddler & Nursery', '07:00:00', '16:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true)
+ON CONFLICT (student_lrn, school_year_id) DO UPDATE
+SET
+  entry_time = EXCLUDED.entry_time,
+  exit_time = EXCLUDED.exit_time,
+  school_days = EXCLUDED.school_days,
+  updated_at = NOW();
+
 -- Insert sample student schedules
 INSERT INTO student_schedules (
   student_lrn, school_year_id, day_of_week, day_number, subject,
@@ -146,57 +224,234 @@ INSERT INTO student_schedules (
   ('LRN-2026-0012', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Friday', 5, 'MAPEH', '10:00', '10:50', 'Gym', 'Coach Rivera', true)
 ON CONFLICT (student_lrn, day_number, start_time, end_time, subject) DO NOTHING;
 
--- Insert sample attendance logs (last 90 days) - Foundation for ML training
-INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, is_present) VALUES
-  -- High attendance student (LRN-2026-0001: Sarah Johnson)
-  ('LRN-2026-0001', '2025-11-15 07:45:00+00', '2025-11-15 15:30:00+00', '2025-11-15', true),
-  ('LRN-2026-0001', '2025-11-16 07:48:00+00', '2025-11-16 15:28:00+00', '2025-11-16', true),
-  ('LRN-2026-0001', '2025-11-17 07:50:00+00', '2025-11-17 15:32:00+00', '2025-11-17', true),
-  ('LRN-2026-0001', '2025-11-18 07:45:00+00', '2025-11-18 15:30:00+00', '2025-11-18', true),
-  ('LRN-2026-0001', '2025-11-19 07:52:00+00', '2025-11-19 15:25:00+00', '2025-11-19', true),
-  ('LRN-2026-0001', '2025-11-22 07:48:00+00', '2025-11-22 15:30:00+00', '2025-11-22', true),
-  ('LRN-2026-0001', '2025-11-23 07:46:00+00', '2025-11-23 15:28:00+00', '2025-11-23', true),
-  ('LRN-2026-0001', '2025-11-24 07:50:00+00', '2025-11-24 15:32:00+00', '2025-11-24', true),
-  ('LRN-2026-0001', '2025-11-25 07:45:00+00', '2025-11-25 15:30:00+00', '2025-11-25', true),
-  ('LRN-2026-0001', '2025-11-26 07:48:00+00', '2025-11-26 15:28:00+00', '2025-11-26', true),
+-- Insert sample attendance logs (last 20 school days) - Foundation for ML training
+INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, is_present, attendance_status, is_late) VALUES
+  -- LRN-2026-0001: Sarah Johnson - EXCELLENT ATTENDANCE (95%)
+  ('LRN-2026-0001', '2026-02-26 07:45:00+00', '2026-02-26 15:30:00+00', '2026-02-26', true, 'present', false),
+  ('LRN-2026-0001', '2026-02-27 07:48:00+00', '2026-02-27 15:28:00+00', '2026-02-27', true, 'present', false),
+  ('LRN-2026-0001', '2026-03-02 07:50:00+00', '2026-03-02 15:32:00+00', '2026-03-02', true, 'present', false),
+  ('LRN-2026-0001', '2026-03-03 07:45:00+00', '2026-03-03 15:30:00+00', '2026-03-03', true, 'present', false),
+  ('LRN-2026-0001', '2026-03-04 07:52:00+00', '2026-03-04 15:25:00+00', '2026-03-04', true, 'present', false),
+  ('LRN-2026-0001', '2026-03-05 07:48:00+00', '2026-03-05 15:30:00+00', '2026-03-05', true, 'present', false),
+  ('LRN-2026-0001', '2026-03-06 07:46:00+00', '2026-03-06 15:28:00+00', '2026-03-06', true, 'present', false),
+  ('LRN-2026-0001', '2026-03-09 07:50:00+00', '2026-03-09 15:32:00+00', '2026-03-09', true, 'present', false),
+  ('LRN-2026-0001', '2026-03-10 07:45:00+00', '2026-03-10 15:30:00+00', '2026-03-10', true, 'present', false),
+  ('LRN-2026-0001', '2026-03-11 07:48:00+00', '2026-03-11 15:28:00+00', '2026-03-11', true, 'present', false),
+  ('LRN-2026-0001', '2026-03-12 07:55:00+00', '2026-03-12 15:35:00+00', '2026-03-12', true, 'present', false),
+  ('LRN-2026-0001', '2026-03-13 07:52:00+00', '2026-03-13 15:30:00+00', '2026-03-13', true, 'present', false),
+  ('LRN-2026-0001', '2026-03-16 07:48:00+00', '2026-03-16 15:28:00+00', '2026-03-16', true, 'present', false),
+  ('LRN-2026-0001', '2026-03-17 07:50:00+00', '2026-03-17 15:32:00+00', '2026-03-17', true, 'present', false),
   
-  -- Chronic absence Monday pattern (LRN-2026-0005: Jessica White)
-  ('LRN-2026-0005', '2025-11-18 07:55:00+00', '2025-11-18 15:30:00+00', '2025-11-18', true),
-  ('LRN-2026-0005', '2025-11-19 08:15:00+00', '2025-11-19 15:05:00+00', '2025-11-19', true),
-  ('LRN-2026-0005', '2025-11-21 08:10:00+00', '2025-11-21 15:15:00+00', '2025-11-21', true),
-  ('LRN-2026-0005', '2025-11-25 08:20:00+00', '2025-11-25 15:10:00+00', '2025-11-25', true),
-  ('LRN-2026-0005', '2025-11-26 08:05:00+00', '2025-11-26 15:20:00+00', '2025-11-26', true),
+  -- LRN-2026-0002: James Smith - CHRONIC LATE ARRIVALS (70%)
+  ('LRN-2026-0002', '2026-02-26 08:35:00+00', '2026-02-26 15:30:00+00', '2026-02-26', true, 'late', true),
+  ('LRN-2026-0002', '2026-02-27 08:40:00+00', '2026-02-27 15:28:00+00', '2026-02-27', true, 'late', true),
+  ('LRN-2026-0002', '2026-03-02 08:30:00+00', '2026-03-02 15:32:00+00', '2026-03-02', true, 'late', true),
+  ('LRN-2026-0002', '2026-03-03 08:45:00+00', '2026-03-03 15:30:00+00', '2026-03-03', true, 'late', true),
+  ('LRN-2026-0002', '2026-03-04 08:50:00+00', '2026-03-04 15:25:00+00', '2026-03-04', true, 'late', true),
+  ('LRN-2026-0002', '2026-03-05 08:35:00+00', '2026-03-05 15:30:00+00', '2026-03-05', true, 'late', true),
+  ('LRN-2026-0002', '2026-03-06 07:58:00+00', '2026-03-06 15:28:00+00', '2026-03-06', true, 'present', false),
+  ('LRN-2026-0002', '2026-03-09 08:40:00+00', '2026-03-09 15:32:00+00', '2026-03-09', true, 'late', true),
+  ('LRN-2026-0002', '2026-03-10 08:30:00+00', '2026-03-10 15:30:00+00', '2026-03-10', true, 'late', true),
+  ('LRN-2026-0002', '2026-03-11 08:45:00+00', '2026-03-11 15:28:00+00', '2026-03-11', true, 'late', true),
+  ('LRN-2026-0002', '2026-03-12 08:50:00+00', '2026-03-12 15:35:00+00', '2026-03-12', true, 'late', true),
+  ('LRN-2026-0002', '2026-03-13 07:55:00+00', '2026-03-13 15:30:00+00', '2026-03-13', true, 'present', false),
+  ('LRN-2026-0002', '2026-03-16 08:35:00+00', '2026-03-16 15:28:00+00', '2026-03-16', true, 'late', true),
+  ('LRN-2026-0002', '2026-03-17 08:40:00+00', '2026-03-17 15:32:00+00', '2026-03-17', true, 'late', true),
   
-  -- Late arrival pattern (LRN-2026-0002: James Smith)
-  ('LRN-2026-0002', '2025-11-15 08:35:00+00', '2025-11-15 15:30:00+00', '2025-11-15', true),
-  ('LRN-2026-0002', '2025-11-16 08:40:00+00', '2025-11-16 15:28:00+00', '2025-11-16', true),
-  ('LRN-2026-0002', '2025-11-17 08:30:00+00', '2025-11-17 15:32:00+00', '2025-11-17', true),
-  ('LRN-2026-0002', '2025-11-18 08:45:00+00', '2025-11-18 15:30:00+00', '2025-11-18', true),
-  ('LRN-2026-0002', '2025-11-19 08:50:00+00', '2025-11-19 15:25:00+00', '2025-11-19', true),
-  ('LRN-2026-0002', '2025-11-22 08:35:00+00', '2025-11-22 15:30:00+00', '2025-11-22', true),
-  ('LRN-2026-0002', '2025-11-24 08:40:00+00', '2025-11-24 15:32:00+00', '2025-11-24', true),
-  ('LRN-2026-0002', '2025-11-25 08:30:00+00', '2025-11-25 15:30:00+00', '2025-11-25', true),
+  -- LRN-2026-0003: Emily Davis - EXCELLENT ATTENDANCE (100%)
+  ('LRN-2026-0003', '2026-02-26 07:55:00+00', '2026-02-26 12:30:00+00', '2026-02-26', true, 'present', false),
+  ('LRN-2026-0003', '2026-02-27 07:58:00+00', '2026-02-27 12:28:00+00', '2026-02-27', true, 'present', false),
+  ('LRN-2026-0003', '2026-03-02 07:52:00+00', '2026-03-02 12:32:00+00', '2026-03-02', true, 'present', false),
+  ('LRN-2026-0003', '2026-03-03 07:55:00+00', '2026-03-03 12:30:00+00', '2026-03-03', true, 'present', false),
+  ('LRN-2026-0003', '2026-03-04 08:00:00+00', '2026-03-04 12:25:00+00', '2026-03-04', true, 'present', false),
+  ('LRN-2026-0003', '2026-03-05 07:58:00+00', '2026-03-05 12:30:00+00', '2026-03-05', true, 'present', false),
+  ('LRN-2026-0003', '2026-03-06 07:56:00+00', '2026-03-06 12:28:00+00', '2026-03-06', true, 'present', false),
+  ('LRN-2026-0003', '2026-03-09 07:52:00+00', '2026-03-09 12:32:00+00', '2026-03-09', true, 'present', false),
+  ('LRN-2026-0003', '2026-03-10 07:55:00+00', '2026-03-10 12:30:00+00', '2026-03-10', true, 'present', false),
+  ('LRN-2026-0003', '2026-03-11 07:58:00+00', '2026-03-11 12:28:00+00', '2026-03-11', true, 'present', false),
+  ('LRN-2026-0003', '2026-03-12 07:55:00+00', '2026-03-12 12:35:00+00', '2026-03-12', true, 'present', false),
+  ('LRN-2026-0003', '2026-03-13 07:52:00+00', '2026-03-13 12:30:00+00', '2026-03-13', true, 'present', false),
+  ('LRN-2026-0003', '2026-03-16 07:58:00+00', '2026-03-16 12:28:00+00', '2026-03-16', true, 'present', false),
+  ('LRN-2026-0003', '2026-03-17 07:52:00+00', '2026-03-17 12:32:00+00', '2026-03-17', true, 'present', false),
   
-  -- Inconsistent attendance (LRN-2026-0012: Olivia Hernandez)
-  ('LRN-2026-0012', '2025-11-15 07:58:00+00', '2025-11-15 15:22:00+00', '2025-11-15', true),
-  ('LRN-2026-0012', '2025-11-18 07:55:00+00', '2025-11-18 15:25:00+00', '2025-11-18', true),
-  ('LRN-2026-0012', '2025-11-24 08:10:00+00', '2025-11-24 15:15:00+00', '2025-11-24', true),
-  ('LRN-2026-0012', '2025-11-26 08:05:00+00', '2025-11-26 15:20:00+00', '2025-11-26', true),
+  -- LRN-2026-0004: Michael Brown - GOOD ATTENDANCE (85%)
+  ('LRN-2026-0004', '2026-02-26 07:58:00+00', '2026-02-26 13:30:00+00', '2026-02-26', true, 'present', false),
+  ('LRN-2026-0004', '2026-02-27 08:05:00+00', '2026-02-27 13:28:00+00', '2026-02-27', true, 'late', true),
+  ('LRN-2026-0004', '2026-03-02 07:52:00+00', '2026-03-02 13:32:00+00', '2026-03-02', true, 'present', false),
+  ('LRN-2026-0004', '2026-03-03 07:55:00+00', '2026-03-03 13:30:00+00', '2026-03-03', true, 'present', false),
+  ('LRN-2026-0004', '2026-03-04 08:00:00+00', '2026-03-04 13:25:00+00', '2026-03-04', true, 'present', false),
+  ('LRN-2026-0004', '2026-03-05 08:10:00+00', '2026-03-05 13:30:00+00', '2026-03-05', true, 'late', true),
+  ('LRN-2026-0004', '2026-03-06 07:56:00+00', '2026-03-06 13:28:00+00', '2026-03-06', true, 'present', false),
+  ('LRN-2026-0004', '2026-03-09 07:52:00+00', '2026-03-09 13:32:00+00', '2026-03-09', true, 'present', false),
+  ('LRN-2026-0004', '2026-03-10 07:55:00+00', '2026-03-10 13:30:00+00', '2026-03-10', true, 'present', false),
+  ('LRN-2026-0004', '2026-03-11 08:05:00+00', '2026-03-11 13:28:00+00', '2026-03-11', true, 'late', true),
+  ('LRN-2026-0004', '2026-03-12 07:55:00+00', '2026-03-12 13:35:00+00', '2026-03-12', true, 'present', false),
+  ('LRN-2026-0004', '2026-03-13 07:52:00+00', '2026-03-13 13:30:00+00', '2026-03-13', true, 'present', false),
+  ('LRN-2026-0004', '2026-03-16 07:58:00+00', '2026-03-16 13:28:00+00', '2026-03-16', true, 'present', false),
+  ('LRN-2026-0004', '2026-03-17 07:52:00+00', '2026-03-17 13:32:00+00', '2026-03-17', true, 'present', false),
   
-  -- Recent dates (current week - for forecasting)
-  ('LRN-2026-0001', '2026-02-02 07:48:00+00', '2026-02-02 15:30:00+00', '2026-02-02', true),
-  ('LRN-2026-0001', '2026-02-03 07:50:00+00', '2026-02-03 15:28:00+00', '2026-02-03', true),
-  ('LRN-2026-0001', '2026-02-04 07:45:00+00', '2026-02-04 15:32:00+00', '2026-02-04', true),
-  ('LRN-2026-0005', '2026-02-03 08:10:00+00', '2026-02-03 15:15:00+00', '2026-02-03', true),
-  ('LRN-2026-0005', '2026-02-04 08:15:00+00', '2026-02-04 15:10:00+00', '2026-02-04', true),
-  ('LRN-2026-0002', '2026-02-02 08:40:00+00', '2026-02-02 15:30:00+00', '2026-02-02', true),
-  ('LRN-2026-0002', '2026-02-03 08:35:00+00', '2026-02-03 15:28:00+00', '2026-02-03', true),
-  ('LRN-2026-0012', '2026-02-04 08:10:00+00', '2026-02-04 15:20:00+00', '2026-02-04', true)
+  -- LRN-2026-0005: Jessica White - POOR ATTENDANCE (45%)
+  ('LRN-2026-0005', '2026-03-02 08:20:00+00', '2026-03-02 16:30:00+00', '2026-03-02', true, 'late', true),
+  ('LRN-2026-0005', '2026-03-04 08:30:00+00', '2026-03-04 16:15:00+00', '2026-03-04', true, 'late', true),
+  ('LRN-2026-0005', '2026-03-06 08:15:00+00', '2026-03-06 16:20:00+00', '2026-03-06', true, 'late', true),
+  ('LRN-2026-0005', '2026-03-10 08:25:00+00', '2026-03-10 16:10:00+00', '2026-03-10', true, 'late', true),
+  ('LRN-2026-0005', '2026-03-12 08:35:00+00', '2026-03-12 16:20:00+00', '2026-03-12', true, 'late', true),
+  ('LRN-2026-0005', '2026-03-13 08:10:00+00', '2026-03-13 16:15:00+00', '2026-03-13', true, 'late', true),
+  ('LRN-2026-0005', '2026-03-17 08:20:00+00', '2026-03-17 16:10:00+00', '2026-03-17', true, 'late', true),
+  ('LRN-2026-0005', '2026-03-18 08:15:00+00', '2026-03-18 16:20:00+00', '2026-03-18', true, 'late', true),
+  ('LRN-2026-0005', '2026-03-19 08:25:00+00', '2026-03-19 16:15:00+00', '2026-03-19', true, 'late', true),
+  
+  -- LRN-2026-0006: David Wilson - EXCELLENT ATTENDANCE (95%)
+  ('LRN-2026-0006', '2026-02-26 07:55:00+00', '2026-02-26 16:00:00+00', '2026-02-26', true, 'present', false),
+  ('LRN-2026-0006', '2026-02-27 07:58:00+00', '2026-02-27 16:10:00+00', '2026-02-27', true, 'present', false),
+  ('LRN-2026-0006', '2026-03-02 07:52:00+00', '2026-03-02 16:05:00+00', '2026-03-02', true, 'present', false),
+  ('LRN-2026-0006', '2026-03-03 07:55:00+00', '2026-03-03 16:00:00+00', '2026-03-03', true, 'present', false),
+  ('LRN-2026-0006', '2026-03-04 07:50:00+00', '2026-03-04 15:55:00+00', '2026-03-04', true, 'present', false),
+  ('LRN-2026-0006', '2026-03-05 07:58:00+00', '2026-03-05 16:00:00+00', '2026-03-05', true, 'present', false),
+  ('LRN-2026-0006', '2026-03-06 07:56:00+00', '2026-03-06 16:10:00+00', '2026-03-06', true, 'present', false),
+  ('LRN-2026-0006', '2026-03-09 07:52:00+00', '2026-03-09 16:05:00+00', '2026-03-09', true, 'present', false),
+  ('LRN-2026-0006', '2026-03-10 07:55:00+00', '2026-03-10 16:00:00+00', '2026-03-10', true, 'present', false),
+  ('LRN-2026-0006', '2026-03-11 08:05:00+00', '2026-03-11 16:15:00+00', '2026-03-11', true, 'late', true),
+  ('LRN-2026-0006', '2026-03-12 07:55:00+00', '2026-03-12 16:10:00+00', '2026-03-12', true, 'present', false),
+  ('LRN-2026-0006', '2026-03-13 07:52:00+00', '2026-03-13 16:00:00+00', '2026-03-13', true, 'present', false),
+  ('LRN-2026-0006', '2026-03-16 07:58:00+00', '2026-03-16 16:10:00+00', '2026-03-16', true, 'present', false),
+  ('LRN-2026-0006', '2026-03-17 07:52:00+00', '2026-03-17 16:05:00+00', '2026-03-17', true, 'present', false),
+  
+  -- LRN-2026-0007: Lisa Anderson - GOOD ATTENDANCE (90%)
+  ('LRN-2026-0007', '2026-02-26 08:25:00+00', '2026-02-26 15:15:00+00', '2026-02-26', true, 'present', false),
+  ('LRN-2026-0007', '2026-02-27 08:28:00+00', '2026-02-27 15:18:00+00', '2026-02-27', true, 'present', false),
+  ('LRN-2026-0007', '2026-03-02 08:30:00+00', '2026-03-02 15:20:00+00', '2026-03-02', true, 'present', false),
+  ('LRN-2026-0007', '2026-03-03 08:25:00+00', '2026-03-03 15:15:00+00', '2026-03-03', true, 'present', false),
+  ('LRN-2026-0007', '2026-03-04 08:40:00+00', '2026-03-04 15:25:00+00', '2026-03-04', true, 'late', true),
+  ('LRN-2026-0007', '2026-03-05 08:28:00+00', '2026-03-05 15:15:00+00', '2026-03-05', true, 'present', false),
+  ('LRN-2026-0007', '2026-03-06 08:26:00+00', '2026-03-06 15:18:00+00', '2026-03-06', true, 'present', false),
+  ('LRN-2026-0007', '2026-03-09 08:30:00+00', '2026-03-09 15:20:00+00', '2026-03-09', true, 'present', false),
+  ('LRN-2026-0007', '2026-03-10 08:25:00+00', '2026-03-10 15:15:00+00', '2026-03-10', true, 'present', false),
+  ('LRN-2026-0007', '2026-03-11 08:35:00+00', '2026-03-11 15:28:00+00', '2026-03-11', true, 'late', true),
+  ('LRN-2026-0007', '2026-03-12 08:25:00+00', '2026-03-12 15:35:00+00', '2026-03-12', true, 'present', false),
+  ('LRN-2026-0007', '2026-03-13 08:22:00+00', '2026-03-13 15:30:00+00', '2026-03-13', true, 'present', false),
+  ('LRN-2026-0007', '2026-03-16 08:28:00+00', '2026-03-16 15:18:00+00', '2026-03-16', true, 'present', false),
+  ('LRN-2026-0007', '2026-03-17 08:30:00+00', '2026-03-17 15:20:00+00', '2026-03-17', true, 'present', false),
+  
+  -- LRN-2026-0008: Robert Taylor - EXCELLENT ATTENDANCE (100%)
+  ('LRN-2026-0008', '2026-02-26 08:28:00+00', '2026-02-26 15:15:00+00', '2026-02-26', true, 'present', false),
+  ('LRN-2026-0008', '2026-02-27 08:30:00+00', '2026-02-27 15:18:00+00', '2026-02-27', true, 'present', false),
+  ('LRN-2026-0008', '2026-03-02 08:25:00+00', '2026-03-02 15:20:00+00', '2026-03-02', true, 'present', false),
+  ('LRN-2026-0008', '2026-03-03 08:28:00+00', '2026-03-03 15:15:00+00', '2026-03-03', true, 'present', false),
+  ('LRN-2026-0008', '2026-03-04 08:30:00+00', '2026-03-04 15:25:00+00', '2026-03-04', true, 'present', false),
+  ('LRN-2026-0008', '2026-03-05 08:28:00+00', '2026-03-05 15:15:00+00', '2026-03-05', true, 'present', false),
+  ('LRN-2026-0008', '2026-03-06 08:26:00+00', '2026-03-06 15:18:00+00', '2026-03-06', true, 'present', false),
+  ('LRN-2026-0008', '2026-03-09 08:30:00+00', '2026-03-09 15:20:00+00', '2026-03-09', true, 'present', false),
+  ('LRN-2026-0008', '2026-03-10 08:25:00+00', '2026-03-10 15:15:00+00', '2026-03-10', true, 'present', false),
+  ('LRN-2026-0008', '2026-03-11 08:30:00+00', '2026-03-11 15:18:00+00', '2026-03-11', true, 'present', false),
+  ('LRN-2026-0008', '2026-03-12 08:28:00+00', '2026-03-12 15:35:00+00', '2026-03-12', true, 'present', false),
+  ('LRN-2026-0008', '2026-03-13 08:25:00+00', '2026-03-13 15:30:00+00', '2026-03-13', true, 'present', false),
+  ('LRN-2026-0008', '2026-03-16 08:30:00+00', '2026-03-16 15:18:00+00', '2026-03-16', true, 'present', false),
+  ('LRN-2026-0008', '2026-03-17 08:28:00+00', '2026-03-17 15:20:00+00', '2026-03-17', true, 'present', false),
+  
+  -- LRN-2026-0009: Mia Santos - VERY POOR ATTENDANCE (35%)
+  ('LRN-2026-0009', '2026-03-03 07:10:00+00', '2026-03-03 15:55:00+00', '2026-03-03', true, 'present', false),
+  ('LRN-2026-0009', '2026-03-05 07:20:00+00', '2026-03-05 16:00:00+00', '2026-03-05', true, 'present', false),
+  ('LRN-2026-0009', '2026-03-10 07:15:00+00', '2026-03-10 16:05:00+00', '2026-03-10', true, 'present', false),
+  ('LRN-2026-0009', '2026-03-12 07:25:00+00', '2026-03-12 16:10:00+00', '2026-03-12', true, 'present', false),
+  ('LRN-2026-0009', '2026-03-17 07:18:00+00', '2026-03-17 16:00:00+00', '2026-03-17', true, 'present', false),
+  
+  -- LRN-2026-0010: Sophia Garcia - GOOD ATTENDANCE (85%)
+  ('LRN-2026-0010', '2026-02-26 08:58:00+00', '2026-02-26 14:50:00+00', '2026-02-26', true, 'present', false),
+  ('LRN-2026-0010', '2026-02-27 09:05:00+00', '2026-02-27 14:58:00+00', '2026-02-27', true, 'late', true),
+  ('LRN-2026-0010', '2026-03-02 08:58:00+00', '2026-03-02 14:50:00+00', '2026-03-02', true, 'present', false),
+  ('LRN-2026-0010', '2026-03-03 08:55:00+00', '2026-03-03 14:55:00+00', '2026-03-03', true, 'present', false),
+  ('LRN-2026-0010', '2026-03-04 09:10:00+00', '2026-03-04 14:55:00+00', '2026-03-04', true, 'late', true),
+  ('LRN-2026-0010', '2026-03-05 08:58:00+00', '2026-03-05 14:50:00+00', '2026-03-05', true, 'present', false),
+  ('LRN-2026-0010', '2026-03-06 08:56:00+00', '2026-03-06 14:58:00+00', '2026-03-06', true, 'present', false),
+  ('LRN-2026-0010', '2026-03-09 08:58:00+00', '2026-03-09 14:50:00+00', '2026-03-09', true, 'present', false),
+  ('LRN-2026-0010', '2026-03-10 08:55:00+00', '2026-03-10 14:55:00+00', '2026-03-10', true, 'present', false),
+  ('LRN-2026-0010', '2026-03-11 09:05:00+00', '2026-03-11 14:58:00+00', '2026-03-11', true, 'late', true),
+  ('LRN-2026-0010', '2026-03-12 08:58:00+00', '2026-03-12 15:05:00+00', '2026-03-12', true, 'present', false),
+  ('LRN-2026-0010', '2026-03-13 08:55:00+00', '2026-03-13 15:00:00+00', '2026-03-13', true, 'present', false),
+  ('LRN-2026-0010', '2026-03-16 08:58:00+00', '2026-03-16 14:58:00+00', '2026-03-16', true, 'present', false),
+  ('LRN-2026-0010', '2026-03-17 08:58:00+00', '2026-03-17 14:50:00+00', '2026-03-17', true, 'present', false),
+  
+  -- LRN-2026-0011: Liam Martinez - EXCELLENT ATTENDANCE (95%)
+  ('LRN-2026-0011', '2026-02-26 07:48:00+00', '2026-02-26 15:30:00+00', '2026-02-26', true, 'present', false),
+  ('LRN-2026-0011', '2026-02-27 07:50:00+00', '2026-02-27 15:28:00+00', '2026-02-27', true, 'present', false),
+  ('LRN-2026-0011', '2026-03-02 07:52:00+00', '2026-03-02 15:32:00+00', '2026-03-02', true, 'present', false),
+  ('LRN-2026-0011', '2026-03-03 07:48:00+00', '2026-03-03 15:30:00+00', '2026-03-03', true, 'present', false),
+  ('LRN-2026-0011', '2026-03-04 07:55:00+00', '2026-03-04 15:25:00+00', '2026-03-04', true, 'present', false),
+  ('LRN-2026-0011', '2026-03-05 07:50:00+00', '2026-03-05 15:30:00+00', '2026-03-05', true, 'present', false),
+  ('LRN-2026-0011', '2026-03-06 07:48:00+00', '2026-03-06 15:28:00+00', '2026-03-06', true, 'present', false),
+  ('LRN-2026-0011', '2026-03-09 07:52:00+00', '2026-03-09 15:32:00+00', '2026-03-09', true, 'present', false),
+  ('LRN-2026-0011', '2026-03-10 07:48:00+00', '2026-03-10 15:30:00+00', '2026-03-10', true, 'present', false),
+  ('LRN-2026-0011', '2026-03-11 07:50:00+00', '2026-03-11 15:28:00+00', '2026-03-11', true, 'present', false),
+  ('LRN-2026-0011', '2026-03-12 07:58:00+00', '2026-03-12 15:35:00+00', '2026-03-12', true, 'late', true),
+  ('LRN-2026-0011', '2026-03-13 07:55:00+00', '2026-03-13 15:30:00+00', '2026-03-13', true, 'present', false),
+  ('LRN-2026-0011', '2026-03-16 07:50:00+00', '2026-03-16 15:28:00+00', '2026-03-16', true, 'present', false),
+  ('LRN-2026-0011', '2026-03-17 07:52:00+00', '2026-03-17 15:32:00+00', '2026-03-17', true, 'present', false),
+  
+  -- LRN-2026-0012: Olivia Hernandez - FAIR ATTENDANCE (65%)
+  ('LRN-2026-0012', '2026-02-26 08:00:00+00', '2026-02-26 13:30:00+00', '2026-02-26', true, 'present', false),
+  ('LRN-2026-0012', '2026-02-27 08:10:00+00', '2026-02-27 13:28:00+00', '2026-02-27', true, 'late', true),
+  ('LRN-2026-0012', '2026-03-02 08:05:00+00', '2026-03-02 13:32:00+00', '2026-03-02', true, 'present', false),
+  ('LRN-2026-0012', '2026-03-04 08:15:00+00', '2026-03-04 13:30:00+00', '2026-03-04', true, 'late', true),
+  ('LRN-2026-0012', '2026-03-06 07:58:00+00', '2026-03-06 13:28:00+00', '2026-03-06', true, 'present', false),
+  ('LRN-2026-0012', '2026-03-10 08:20:00+00', '2026-03-10 13:30:00+00', '2026-03-10', true, 'late', true),
+  ('LRN-2026-0012', '2026-03-12 08:10:00+00', '2026-03-12 13:35:00+00', '2026-03-12', true, 'late', true),
+  ('LRN-2026-0012', '2026-03-13 08:05:00+00', '2026-03-13 13:30:00+00', '2026-03-13', true, 'present', false),
+  ('LRN-2026-0012', '2026-03-17 08:15:00+00', '2026-03-17 13:32:00+00', '2026-03-17', true, 'late', true),
+  
+  -- LRN-2026-0013: Noah Lopez - EXCELLENT ATTENDANCE (100%)
+  ('LRN-2026-0013', '2026-02-26 07:50:00+00', '2026-02-26 15:30:00+00', '2026-02-26', true, 'present', false),
+  ('LRN-2026-0013', '2026-02-27 07:52:00+00', '2026-02-27 15:28:00+00', '2026-02-27', true, 'present', false),
+  ('LRN-2026-0013', '2026-03-02 07:48:00+00', '2026-03-02 15:32:00+00', '2026-03-02', true, 'present', false),
+  ('LRN-2026-0013', '2026-03-03 07:50:00+00', '2026-03-03 15:30:00+00', '2026-03-03', true, 'present', false),
+  ('LRN-2026-0013', '2026-03-04 07:55:00+00', '2026-03-04 15:25:00+00', '2026-03-04', true, 'present', false),
+  ('LRN-2026-0013', '2026-03-05 07:52:00+00', '2026-03-05 15:30:00+00', '2026-03-05', true, 'present', false),
+  ('LRN-2026-0013', '2026-03-06 07:50:00+00', '2026-03-06 15:28:00+00', '2026-03-06', true, 'present', false),
+  ('LRN-2026-0013', '2026-03-09 07:48:00+00', '2026-03-09 15:32:00+00', '2026-03-09', true, 'present', false),
+  ('LRN-2026-0013', '2026-03-10 07:50:00+00', '2026-03-10 15:30:00+00', '2026-03-10', true, 'present', false),
+  ('LRN-2026-0013', '2026-03-11 07:52:00+00', '2026-03-11 15:28:00+00', '2026-03-11', true, 'present', false),
+  ('LRN-2026-0013', '2026-03-12 07:55:00+00', '2026-03-12 15:35:00+00', '2026-03-12', true, 'present', false),
+  ('LRN-2026-0013', '2026-03-13 07:50:00+00', '2026-03-13 15:30:00+00', '2026-03-13', true, 'present', false),
+  ('LRN-2026-0013', '2026-03-16 07:52:00+00', '2026-03-16 15:28:00+00', '2026-03-16', true, 'present', false),
+  ('LRN-2026-0013', '2026-03-17 07:48:00+00', '2026-03-17 15:32:00+00', '2026-03-17', true, 'present', false),
+  
+  -- LRN-2026-0014: Emma Gonzalez - GOOD ATTENDANCE (85%)
+  ('LRN-2026-0014', '2026-02-26 07:58:00+00', '2026-02-26 12:30:00+00', '2026-02-26', true, 'present', false),
+  ('LRN-2026-0014', '2026-02-27 08:05:00+00', '2026-02-27 12:28:00+00', '2026-02-27', true, 'late', true),
+  ('LRN-2026-0014', '2026-03-02 07:52:00+00', '2026-03-02 12:32:00+00', '2026-03-02', true, 'present', false),
+  ('LRN-2026-0014', '2026-03-03 07:55:00+00', '2026-03-03 12:30:00+00', '2026-03-03', true, 'present', false),
+  ('LRN-2026-0014', '2026-03-04 08:00:00+00', '2026-03-04 12:25:00+00', '2026-03-04', true, 'present', false),
+  ('LRN-2026-0014', '2026-03-05 08:10:00+00', '2026-03-05 12:30:00+00', '2026-03-05', true, 'late', true),
+  ('LRN-2026-0014', '2026-03-06 07:56:00+00', '2026-03-06 12:28:00+00', '2026-03-06', true, 'present', false),
+  ('LRN-2026-0014', '2026-03-09 07:52:00+00', '2026-03-09 12:32:00+00', '2026-03-09', true, 'present', false),
+  ('LRN-2026-0014', '2026-03-10 07:55:00+00', '2026-03-10 12:30:00+00', '2026-03-10', true, 'present', false),
+  ('LRN-2026-0014', '2026-03-11 08:05:00+00', '2026-03-11 12:28:00+00', '2026-03-11', true, 'late', true),
+  ('LRN-2026-0014', '2026-03-12 07:55:00+00', '2026-03-12 12:35:00+00', '2026-03-12', true, 'present', false),
+  ('LRN-2026-0014', '2026-03-13 07:52:00+00', '2026-03-13 12:30:00+00', '2026-03-13', true, 'present', false),
+  ('LRN-2026-0014', '2026-03-16 07:58:00+00', '2026-03-16 12:28:00+00', '2026-03-16', true, 'present', false),
+  ('LRN-2026-0014', '2026-03-17 07:52:00+00', '2026-03-17 12:32:00+00', '2026-03-17', true, 'present', false),
+  
+  -- LRN-2026-0015: Ava Ramirez - EXCELLENT ATTENDANCE (100%)
+  ('LRN-2026-0015', '2026-02-26 08:28:00+00', '2026-02-26 15:15:00+00', '2026-02-26', true, 'present', false),
+  ('LRN-2026-0015', '2026-02-27 08:30:00+00', '2026-02-27 15:18:00+00', '2026-02-27', true, 'present', false),
+  ('LRN-2026-0015', '2026-03-02 08:25:00+00', '2026-03-02 15:20:00+00', '2026-03-02', true, 'present', false),
+  ('LRN-2026-0015', '2026-03-03 08:28:00+00', '2026-03-03 15:15:00+00', '2026-03-03', true, 'present', false),
+  ('LRN-2026-0015', '2026-03-04 08:30:00+00', '2026-03-04 15:25:00+00', '2026-03-04', true, 'present', false),
+  ('LRN-2026-0015', '2026-03-05 08:28:00+00', '2026-03-05 15:15:00+00', '2026-03-05', true, 'present', false),
+  ('LRN-2026-0015', '2026-03-06 08:26:00+00', '2026-03-06 15:18:00+00', '2026-03-06', true, 'present', false),
+  ('LRN-2026-0015', '2026-03-09 08:30:00+00', '2026-03-09 15:20:00+00', '2026-03-09', true, 'present', false),
+  ('LRN-2026-0015', '2026-03-10 08:25:00+00', '2026-03-10 15:15:00+00', '2026-03-10', true, 'present', false),
+  ('LRN-2026-0015', '2026-03-11 08:30:00+00', '2026-03-11 15:18:00+00', '2026-03-11', true, 'present', false),
+  ('LRN-2026-0015', '2026-03-12 08:28:00+00', '2026-03-12 15:35:00+00', '2026-03-12', true, 'present', false),
+  ('LRN-2026-0015', '2026-03-13 08:25:00+00', '2026-03-13 15:30:00+00', '2026-03-13', true, 'present', false),
+  ('LRN-2026-0015', '2026-03-16 08:30:00+00', '2026-03-16 15:18:00+00', '2026-03-16', true, 'present', false),
+  ('LRN-2026-0015', '2026-03-17 08:28:00+00', '2026-03-17 15:20:00+00', '2026-03-17', true, 'present', false)
 ON CONFLICT (student_lrn, date) DO NOTHING;
 
 -- Enable RLS on schedule tables
 ALTER TABLE school_years ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE student_attendance_schedules ENABLE ROW LEVEL SECURITY;
 
 -- Public access policies for schedule tables
 CREATE POLICY "Enable read for all on school years" ON school_years FOR SELECT USING (true);
@@ -207,6 +462,11 @@ CREATE POLICY "Enable read for all on student schedules" ON student_schedules FO
 CREATE POLICY "Enable insert for all on student schedules" ON student_schedules FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on student schedules" ON student_schedules FOR UPDATE USING (true);
 CREATE POLICY "Enable delete for all on student schedules" ON student_schedules FOR DELETE USING (true);
+
+CREATE POLICY "Enable read for all on student attendance schedules" ON student_attendance_schedules FOR SELECT USING (true);
+CREATE POLICY "Enable insert for all on student attendance schedules" ON student_attendance_schedules FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for all on student attendance schedules" ON student_attendance_schedules FOR UPDATE USING (true);
+CREATE POLICY "Enable delete for all on student attendance schedules" ON student_attendance_schedules FOR DELETE USING (true);
 
 -- ============================================================================
 -- ML CORE: Behavioral Analytics Based on Attendance Patterns

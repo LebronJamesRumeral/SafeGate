@@ -19,6 +19,11 @@ import { toast } from '@/components/ui/use-toast';
 import { motion } from 'framer-motion';
 import { getOfflineQueueCount } from '@/lib/offline-secure-queue';
 import { queueAttendanceScan, syncOfflineQueue } from '@/lib/offline-sync';
+import { 
+  getStudentSchedule, 
+  validateAttendanceStatus, 
+  getAttendanceStatusDisplay 
+} from '@/lib/attendance-schedule-validation';
 
 interface ScanResult {
   status: 'success' | 'error';
@@ -32,6 +37,8 @@ interface ScanResult {
   scannedText?: string;
   duration?: string;
   checkinTime?: string;
+  attendanceStatus?: 'present' | 'late' | 'invalid_timeout' | 'absent';
+  statusReason?: string;
 }
 
 export default function ScanPage() {
@@ -152,6 +159,9 @@ export default function ScanPage() {
     }
 
     if (!existing || existing.length === 0) {
+      // Get student's attendance schedule for validation
+      const schedule = await getStudentSchedule(studentLrn);
+      
       const { error } = await supabase
         .from('attendance_logs')
         .insert([
@@ -164,6 +174,23 @@ export default function ScanPage() {
 
       if (error) {
         throw error;
+      }
+
+      // Validate and update attendance status
+      if (schedule) {
+        const scanTime = new Date(scanIsoTime);
+        const validation = validateAttendanceStatus(schedule, scanTime);
+        
+        // Update the attendance record with validated status
+        await supabase
+          .from('attendance_logs')
+          .update({
+            attendance_status: validation.attendance_status,
+            is_late: validation.is_late,
+            is_invalid_timeout: validation.is_invalid_timeout,
+          })
+          .eq('student_lrn', studentLrn)
+          .eq('date', date);
       }
 
       return {
@@ -184,6 +211,25 @@ export default function ScanPage() {
 
     if (error) {
       throw error;
+    }
+
+    // Validate exit time and mark invalid timeout if needed
+    const schedule = await getStudentSchedule(studentLrn);
+    if (schedule) {
+      const checkInTime = new Date(existing[0].check_in_time);
+      const checkOutTime = new Date(scanIsoTime);
+      const validation = validateAttendanceStatus(schedule, checkInTime, checkOutTime);
+
+      // Update the attendance record with validated status if there's an invalid timeout
+      if (validation.is_invalid_timeout) {
+        await supabase
+          .from('attendance_logs')
+          .update({
+            attendance_status: validation.attendance_status,
+            is_invalid_timeout: validation.is_invalid_timeout,
+          })
+          .eq('id', existing[0].id);
+      }
     }
 
     return {
@@ -273,6 +319,25 @@ export default function ScanPage() {
       const result = await applyAttendanceOnline(student.lrn, nowIso);
 
       if (result.action === 'Checked In') {
+        // Fetch the attendance status from the database
+        const { data: attendanceRecord } = await supabase
+          .from('attendance_logs')
+          .select('attendance_status')
+          .eq('student_lrn', student.lrn)
+          .eq('date', date)
+          .order('check_in_time', { ascending: false })
+          .limit(1)
+          .single();
+
+        const attendanceStatus = attendanceRecord?.attendance_status || 'present';
+        const statusDisplay = getAttendanceStatusDisplay({
+          attendance_status: attendanceStatus as any,
+          is_late: attendanceStatus === 'late',
+          is_invalid_timeout: attendanceStatus === 'invalid_timeout',
+          minutes_early: 0,
+          minutes_overtime: 0,
+          status_reason: attendanceStatus === 'late' ? 'Late arrival' : 'On time'
+        });
 
         setLastScan({
           student: student.name,
@@ -282,7 +347,9 @@ export default function ScanPage() {
           time: now.toLocaleTimeString(),
           date: now.toLocaleDateString(),
           status: 'success',
-          action: 'Checked In'
+          action: 'Checked In',
+          attendanceStatus: attendanceStatus as any,
+          statusReason: statusDisplay.text
         });
 
         try {
@@ -310,6 +377,27 @@ export default function ScanPage() {
           ? calculateDuration(result.checkInTime, nowIso)
           : undefined;
         
+        // Fetch the checkout record to check if there's an invalid timeout
+        const { data: attendanceRecord } = await supabase
+          .from('attendance_logs')
+          .select('attendance_status, is_invalid_timeout')
+          .eq('student_lrn', student.lrn)
+          .eq('date', date)
+          .order('check_in_time', { ascending: false })
+          .limit(1)
+          .single();
+
+        const attendanceStatus = attendanceRecord?.attendance_status || 'present';
+        const isInvalidTimeout = attendanceRecord?.is_invalid_timeout || false;
+        const statusDisplay = getAttendanceStatusDisplay({
+          attendance_status: attendanceStatus as any,
+          is_late: false,
+          is_invalid_timeout: isInvalidTimeout,
+          minutes_early: 0,
+          minutes_overtime: 0,
+          status_reason: isInvalidTimeout ? 'Invalid timeout' : 'Checked out'
+        });
+
         setLastScan({
           student: student.name,
           studentId: student.lrn,
@@ -319,7 +407,9 @@ export default function ScanPage() {
           date: now.toLocaleDateString(),
           duration: duration,
           status: 'success',
-          action: 'Checked Out'
+          action: 'Checked Out',
+          attendanceStatus: attendanceStatus as any,
+          statusReason: statusDisplay.text
         });
       }
     } catch (error) {
@@ -726,6 +816,19 @@ export default function ScanPage() {
                         } px-3 py-1`}>
                           {lastScan.action}
                         </Badge>
+                        {lastScan.attendanceStatus && (
+                          <Badge className={`px-3 py-1 ${
+                            lastScan.attendanceStatus === 'present'
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                              : lastScan.attendanceStatus === 'late'
+                              ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                              : lastScan.attendanceStatus === 'invalid_timeout'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+                          }`}>
+                            {lastScan.statusReason}
+                          </Badge>
+                        )}
                         <span className="text-sm text-gray-500">{lastScan.date}</span>
                       </div>
                     </div>

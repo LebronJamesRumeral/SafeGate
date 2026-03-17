@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
-from datetime import datetime
-from typing import Optional, List
+from datetime import datetime, time as time_type
+from typing import Optional, List, Dict
 from enum import Enum
 
 
@@ -169,6 +169,77 @@ class SchoolYearResponse(SchoolYearBase):
     
     class Config:
         from_attributes = True
+
+
+# ==================== Attendance Schedule Schemas ====================
+
+class StudentAttendanceScheduleBase(BaseModel):
+    """Base schema for student attendance schedule."""
+    student_lrn: str = Field(..., min_length=1, max_length=50)
+    year_level: str = Field(..., min_length=1, max_length=50)
+    entry_time: time_type = Field(...)  # e.g., 08:00:00
+    exit_time: time_type = Field(...)   # e.g., 17:00:00
+    school_days: Dict[str, bool] = Field(
+        default_factory=lambda: {
+            "monday": True,
+            "tuesday": True,
+            "wednesday": True,
+            "thursday": True,
+            "friday": True,
+            "saturday": False,
+            "sunday": False,
+        }
+    )
+    grace_period_minutes: Optional[int] = Field(default=0, ge=0)
+
+
+class StudentAttendanceScheduleCreate(StudentAttendanceScheduleBase):
+    """Schema for creating attendance schedule."""
+    school_year_id: Optional[int] = None
+
+
+class StudentAttendanceScheduleUpdate(BaseModel):
+    """Schema for updating attendance schedule."""
+    entry_time: Optional[time_type] = None
+    exit_time: Optional[time_type] = None
+    school_days: Optional[Dict[str, bool]] = None
+    grace_period_minutes: Optional[int] = Field(None, ge=0)
+    is_active: Optional[bool] = None
+
+
+class StudentAttendanceScheduleResponse(StudentAttendanceScheduleBase):
+    """Schema for attendance schedule response."""
+    id: int
+    school_year_id: Optional[int] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# ==================== Attendance Status Validation Schema ====================
+
+class AttendanceStatusValidation(BaseModel):
+    """Schema for attendance status validation result."""
+    attendance_status: str  # 'present', 'late', 'invalid_timeout', 'absent'
+    is_late: bool
+    is_invalid_timeout: bool
+    minutes_early: int  # negative if late
+    minutes_overtime: int  # negative if before exit
+    status_reason: str
+
+
+# ==================== Attendance Summary Schema ====================
+
+class AttendanceSummaryByStatus(BaseModel):
+    """Schema for attendance summary by status."""
+    total_days: int
+    present: int
+    late: int
+    absent: int
+    invalid_timeout: int
 
 
 # ==================== Batch Operations Schemas ====================

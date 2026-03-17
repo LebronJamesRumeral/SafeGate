@@ -46,6 +46,7 @@ export default function Dashboard() {
   });
   const [topStudents, setTopStudents] = useState<any[]>([]);
   const [topGrades, setTopGrades] = useState<any[]>([]);
+  const [userRole, setUserRole] = useState<string>('admin');
 
   // Weather data (mock)
   const weather = {
@@ -56,10 +57,16 @@ export default function Dashboard() {
 
   // Check authentication on mount
   useEffect(() => {
-    const user = localStorage.getItem('safegate_user');
-    if (!user) {
+    const userStr = localStorage.getItem('safegate_user');
+    if (!userStr) {
       router.push('/login');
       return;
+    }
+    try {
+      const user = JSON.parse(userStr);
+      setUserRole(user.role || 'admin');
+    } catch (e) {
+      setUserRole('admin');
     }
     setIsAuthenticated(true);
     setAuthLoading(false);
@@ -299,7 +306,7 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
-              Admin Dashboard
+              {userRole === 'teacher' ? 'Teacher Dashboard' : 'Admin Dashboard'}
             </h1>
             <p className="text-base text-slate-600 dark:text-slate-400 mt-2">
               Monitor students, attendance, and behavioral insights across any date range.

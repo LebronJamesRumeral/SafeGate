@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text, Enum
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text, Enum, Time, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
@@ -100,6 +100,32 @@ class SchoolYear(Base):
     start_date = Column(DateTime)
     end_date = Column(DateTime)
     is_active = Column(Boolean, default=False)
+    
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class StudentAttendanceSchedule(Base):
+    """Student attendance schedule model for entry/exit times and school days."""
+    __tablename__ = "student_attendance_schedules"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    student_lrn = Column(String(50), ForeignKey("students.lrn"), index=True)
+    school_year_id = Column(Integer, nullable=True)  # Reference to school year
+    year_level = Column(String(50))  # e.g., 'Grade 4', 'Kinder 1'
+    entry_time = Column(Time)  # e.g., 08:00:00
+    exit_time = Column(Time)   # e.g., 17:00:00
+    school_days = Column(JSON, default={
+        "monday": True,
+        "tuesday": True,
+        "wednesday": True,
+        "thursday": True,
+        "friday": True,
+        "saturday": False,
+        "sunday": False,
+    })
+    grace_period_minutes = Column(Integer, default=0)  # Grace period for late arrivals
+    is_active = Column(Boolean, default=True, index=True)
     
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
