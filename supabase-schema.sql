@@ -12,6 +12,7 @@ DROP TABLE IF EXISTS absence_predictions CASCADE;
 DROP TABLE IF EXISTS attendance_patterns CASCADE;
 DROP TABLE IF EXISTS attendance_logs CASCADE;
 DROP TABLE IF EXISTS student_schedules CASCADE;
+DROP TABLE IF EXISTS student_attendance_schedules CASCADE;
 DROP TABLE IF EXISTS school_years CASCADE;
 DROP TABLE IF EXISTS students CASCADE;
 
@@ -661,7 +662,14 @@ BEGIN
     SELECT CURRENT_DATE - INTERVAL '1 day' * p_days_back AS start_date,
            CURRENT_DATE AS end_date
   ),
-  school_days_calc AS (
+  observed_school_days AS (
+    SELECT COUNT(DISTINCT al.date) AS total_school_days
+    FROM attendance_logs al
+    WHERE al.date >= (SELECT start_date FROM date_range)
+      AND al.date <= (SELECT end_date FROM date_range)
+      AND EXTRACT(DOW FROM al.date) BETWEEN 1 AND 5
+  ),
+  generated_school_days AS (
     SELECT COUNT(DISTINCT DATE(d)) as total_school_days
     FROM generate_series(
       (SELECT start_date FROM date_range),
@@ -669,6 +677,13 @@ BEGIN
       '1 day'::interval
     ) AS d
     WHERE EXTRACT(DOW FROM d) BETWEEN 1 AND 5
+  ),
+  school_days_calc AS (
+    SELECT CASE
+      WHEN (SELECT total_school_days FROM observed_school_days) > 0
+        THEN (SELECT total_school_days FROM observed_school_days)
+      ELSE (SELECT total_school_days FROM generated_school_days)
+    END AS total_school_days
   ),
   student_days AS (
     SELECT COUNT(DISTINCT date) as present_days
@@ -744,35 +759,37 @@ BEGIN
   -- Determine Monday/Friday absence rates
   SELECT COALESCE(
     (COUNT(*) FILTER (WHERE NOT EXISTS (
-      SELECT 1 FROM attendance_logs al 
-      WHERE al.student_lrn = p_student_lrn 
-      AND al.date = DATE(d)
+      SELECT 1 FROM attendance_logs al
+      WHERE al.student_lrn = p_student_lrn
+      AND al.date = om.date
     ))::DECIMAL / NULLIF(COUNT(*), 0) * 100),
     0
   )
   INTO v_monday_rate
-  FROM generate_series(
-    CURRENT_DATE - INTERVAL '60 day',
-    CURRENT_DATE,
-    '1 day'::interval
-  ) AS d
-  WHERE EXTRACT(DOW FROM d) = 1;
+  FROM (
+    SELECT DISTINCT date
+    FROM attendance_logs
+    WHERE date >= CURRENT_DATE - INTERVAL '60 day'
+      AND date <= CURRENT_DATE
+      AND EXTRACT(DOW FROM date) = 1
+  ) om;
 
   SELECT COALESCE(
     (COUNT(*) FILTER (WHERE NOT EXISTS (
-      SELECT 1 FROM attendance_logs al 
-      WHERE al.student_lrn = p_student_lrn 
-      AND al.date = DATE(d)
+      SELECT 1 FROM attendance_logs al
+      WHERE al.student_lrn = p_student_lrn
+      AND al.date = ofr.date
     ))::DECIMAL / NULLIF(COUNT(*), 0) * 100),
     0
   )
   INTO v_friday_rate
-  FROM generate_series(
-    CURRENT_DATE - INTERVAL '60 day',
-    CURRENT_DATE,
-    '1 day'::interval
-  ) AS d
-  WHERE EXTRACT(DOW FROM d) = 5;
+  FROM (
+    SELECT DISTINCT date
+    FROM attendance_logs
+    WHERE date >= CURRENT_DATE - INTERVAL '60 day'
+      AND date <= CURRENT_DATE
+      AND EXTRACT(DOW FROM date) = 5
+  ) ofr;
 
   -- Pattern Detection Logic
   IF v_attendance_rate < 60 THEN
@@ -1341,35 +1358,37 @@ BEGIN
   -- Calculate Monday/Friday absence rates
   SELECT COALESCE(
     (COUNT(*) FILTER (WHERE NOT EXISTS (
-      SELECT 1 FROM attendance_logs al 
-      WHERE al.student_lrn = p_student_lrn 
-      AND al.date = DATE(d)
+      SELECT 1 FROM attendance_logs al
+      WHERE al.student_lrn = p_student_lrn
+      AND al.date = om.date
     ))::DECIMAL / NULLIF(COUNT(*), 0) * 100),
     0
   )
   INTO v_monday_rate
-  FROM generate_series(
-    CURRENT_DATE - INTERVAL '60 day',
-    CURRENT_DATE,
-    '1 day'::interval
-  ) AS d
-  WHERE EXTRACT(DOW FROM d) = 1;
+  FROM (
+    SELECT DISTINCT date
+    FROM attendance_logs
+    WHERE date >= CURRENT_DATE - INTERVAL '60 day'
+      AND date <= CURRENT_DATE
+      AND EXTRACT(DOW FROM date) = 1
+  ) om;
 
   SELECT COALESCE(
     (COUNT(*) FILTER (WHERE NOT EXISTS (
-      SELECT 1 FROM attendance_logs al 
-      WHERE al.student_lrn = p_student_lrn 
-      AND al.date = DATE(d)
+      SELECT 1 FROM attendance_logs al
+      WHERE al.student_lrn = p_student_lrn
+      AND al.date = ofr.date
     ))::DECIMAL / NULLIF(COUNT(*), 0) * 100),
     0
   )
   INTO v_friday_rate
-  FROM generate_series(
-    CURRENT_DATE - INTERVAL '60 day',
-    CURRENT_DATE,
-    '1 day'::interval
-  ) AS d
-  WHERE EXTRACT(DOW FROM d) = 5;
+  FROM (
+    SELECT DISTINCT date
+    FROM attendance_logs
+    WHERE date >= CURRENT_DATE - INTERVAL '60 day'
+      AND date <= CURRENT_DATE
+      AND EXTRACT(DOW FROM date) = 5
+  ) ofr;
 
   -- Determine pattern type
   IF v_attendance_rate < 60 THEN
