@@ -25,3 +25,18 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python virtual environments
+venv/
+backend/venv/
+.venv/
+
+# python cache and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# local databases and runtime artifacts
+*.db
+*.sqlite
+*.sqlite3
