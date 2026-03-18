@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 
-type TriggerSource = 'behavior_event_logged' | 'manual_recheck';
+type TriggerSource = 'behavior_event_logged' | 'manual_recheck' | 'guidance_approved';
 
 interface ParentAutomationRequest {
   eventId: number;
@@ -425,6 +425,10 @@ export async function POST(request: Request) {
         event_date,
         event_time,
         follow_up_required,
+        guidance_status,
+        guidance_reviewed_by,
+        guidance_reviewed_at,
+        guidance_intervention_notes,
         action_taken,
         notes,
         event_categories(name, category_type, notify_parent)
@@ -441,6 +445,23 @@ export async function POST(request: Request) {
         },
         { status: 404 }
       );
+    }
+
+    const guidanceStatus = (eventData as any).guidance_status || 'pending_guidance';
+    const isApprovedByGuidance = guidanceStatus === 'approved_for_ml';
+
+    if (!isApprovedByGuidance && triggerSource !== 'guidance_approved') {
+      return Response.json({
+        success: true,
+        queued: false,
+        requiresGuidanceReview: true,
+        message: 'Guidance review is required before ML scoring and parent notification.',
+        decision: {
+          shouldNotifyParent: false,
+          reason: 'Pending guidance review',
+          factors: ['awaiting_guidance_review'],
+        },
+      });
     }
 
     const rangeStart = toIsoDateDaysAgo(30);
@@ -533,6 +554,10 @@ export async function POST(request: Request) {
         followUpRequired: eventData.follow_up_required,
         actionTaken: eventData.action_taken,
         notes: eventData.notes,
+        guidanceStatus,
+        guidanceReviewedBy: (eventData as any).guidance_reviewed_by || null,
+        guidanceReviewedAt: (eventData as any).guidance_reviewed_at || null,
+        guidanceInterventionNotes: (eventData as any).guidance_intervention_notes || null,
         categoryName: eventCategory?.name || null,
         categoryType: eventCategory?.category_type || null,
       },

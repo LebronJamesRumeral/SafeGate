@@ -18,7 +18,7 @@ export interface AbsencePattern {
 
 export interface RiskScore {
   risk_score: number;
-  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  risk_level: 'low' | 'medium' | 'high' | 'critical' | 'monitoring';
   attendance_component: number;
   behavior_component: number;
   pattern_component: number;
@@ -290,6 +290,196 @@ export async function getStudentMLProfile(studentLrn: string) {
 }
 
 /**
+ * Compiles multiple behavioral and attendance issues into a single comprehensive term
+ * Combines patterns like "Chronic Absent + Aggressive Behavior" into one descriptive issue
+ * Uses data from the entire history (90+ days) to capture complete picture
+ */
+export async function compileStudentIssues(
+  studentLrn: string
+): Promise<{ compiledIssue: string; componentIssues: string[]; compiledDate: string }> {
+  try {
+    const [riskScore, behavioralEvents] = await Promise.all([
+      calculateStudentRiskScore(studentLrn),
+      supabase
+        .from('behavioral_events')
+        .select('event_type, severity, event_date')
+        .eq('student_lrn', studentLrn)
+        .gte('event_date', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+        .order('event_date', { ascending: false }),
+    ]);
+
+    const attendanceIssues: string[] = [];
+    const behaviorIssues: string[] = [];
+
+    // Add attendance-based issues
+    if (riskScore?.breakdown) {
+      const { attendance_rate, negative_events } = riskScore.breakdown;
+      
+      if (attendance_rate < 70) {
+        // Determine attendance issue type based on rate
+        if (attendance_rate < 50) {
+          attendanceIssues.push('Chronic Absent');
+        } else if (attendance_rate < 70) {
+          attendanceIssues.push('Sporadic Absent');
+        }
+      }
+      
+      // Add behavioral issues based on event count (respond even for a single concern)
+      if (negative_events && negative_events > 5) {
+        behaviorIssues.push('Multiple Behavioral Concerns');
+      } else if (negative_events && negative_events > 2) {
+        behaviorIssues.push('Behavioral Issues');
+      } else if (negative_events && negative_events >= 1) {
+        behaviorIssues.push('Behavioral Concern');
+      }
+    }
+
+    // Add specific behavioral event types detected in recent data
+    if (behavioralEvents.data && behavioralEvents.data.length > 0) {
+      const eventTypes = new Set<string>();
+      const recentIncidentWindow = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      let hasRecentIncident = false;
+
+      behavioralEvents.data.forEach((event: any) => {
+        const eventType = String(event.event_type || '').toLowerCase();
+        const severity = String(event.severity || '').toLowerCase();
+
+        if (event.event_date && new Date(event.event_date) >= recentIncidentWindow && severity !== 'positive') {
+          hasRecentIncident = true;
+        }
+
+        if (event.event_type && !eventTypes.has(event.event_type)) {
+          eventTypes.add(event.event_type);
+          // Map event types to friendly compilations
+          if (eventType.includes('aggressive')) {
+            behaviorIssues.push('Aggressive Behavior');
+          } else if (eventType.includes('bully')) {
+            behaviorIssues.push('Bullying Behavior');
+          } else if (eventType.includes('disruptive')) {
+            behaviorIssues.push('Disruptive Conduct');
+          } else if (eventType.includes('insubordination')) {
+            behaviorIssues.push('Insubordination');
+          } else if (eventType.includes('cheating')) {
+            behaviorIssues.push('Academic Dishonesty');
+          } else if (severity !== 'positive') {
+            // Keep the ML output responsive for custom incident names not in the mapping list
+            behaviorIssues.push(String(event.event_type));
+          }
+        }
+      });
+
+      if (hasRecentIncident) {
+        behaviorIssues.push('Recent Incident');
+      }
+    }
+
+    // Deduplicate and compile with behavior first so output reflects general behavior context.
+    const uniqueBehaviorIssues = Array.from(new Set(behaviorIssues));
+    const uniqueAttendanceIssues = Array.from(new Set(attendanceIssues));
+    const uniqueIssues = [...uniqueBehaviorIssues, ...uniqueAttendanceIssues];
+
+    let compiledIssue = 'No Issues Detected';
+    if (uniqueBehaviorIssues.length > 0 && uniqueAttendanceIssues.length > 0) {
+      const behaviorPrimary = uniqueBehaviorIssues[0];
+      const attendancePrimary = uniqueAttendanceIssues[0];
+      const additionalCount = Math.max(uniqueIssues.length - 2, 0);
+      compiledIssue = additionalCount > 0
+        ? `${behaviorPrimary} + ${attendancePrimary} + ${additionalCount} Other Issue${additionalCount > 1 ? 's' : ''}`
+        : `${behaviorPrimary} + ${attendancePrimary}`;
+    } else if (uniqueIssues.length === 0) {
+      compiledIssue = 'No Issues Detected';
+    } else if (uniqueIssues.length === 1) {
+      compiledIssue = uniqueIssues[0];
+    } else if (uniqueIssues.length === 2) {
+      compiledIssue = `${uniqueIssues[0]} + ${uniqueIssues[1]}`;
+    } else {
+      // For 3+ issues, use a summary term
+      const primaryIssue = uniqueIssues[0];
+      const otherCount = uniqueIssues.length - 1;
+      compiledIssue = `${primaryIssue} + ${otherCount} Other Issue${otherCount > 1 ? 's' : ''}`;
+    }
+
+    return {
+      compiledIssue,
+      componentIssues: uniqueIssues,
+      compiledDate: new Date().toISOString().split('T')[0],
+    };
+  } catch (error) {
+    // console.error('Error compiling student issues:', error);
+    return {
+      compiledIssue: 'Unable to Compile Issues',
+      componentIssues: [],
+      compiledDate: new Date().toISOString().split('T')[0],
+    };
+  }
+}
+
+/**
+ * Applies risk downgrade logic based on positive events and behavioral/attendance improvements
+ * Students with many positive events + good attendance can be downgraded through risk tiers
+ * Returns adjusted risk level considering improvement patterns
+ */
+export function applyRiskDowngrade(
+  currentRiskLevel: 'low' | 'medium' | 'high' | 'critical' | 'monitoring',
+  breakdown: {
+    attendance_rate: number;
+    negative_events: number;
+    positive_events: number;
+    late_percentage: number;
+  }
+): 'low' | 'medium' | 'high' | 'critical' | 'monitoring' {
+  const { positive_events = 0, negative_events = 0, attendance_rate = 0, late_percentage = 0 } = breakdown;
+  
+  // Calculate positive ratio: if they have lots of positive logs relative to negative, downgrade
+  const totalBehavioralEvents = positive_events + negative_events;
+  const positiveRatio = totalBehavioralEvents > 0 ? positive_events / totalBehavioralEvents : 0;
+  
+  // Thresholds for downgrading
+  const hasStrongPositiveRatio = positiveRatio >= 0.60; // 60% positive or more
+  const hasModeratePositiveRatio = positiveRatio >= 0.40; // 40-60% positive
+  const hasGoodAttendance = attendance_rate >= 85;
+  const hasStableAttendance = attendance_rate >= 75;
+  const hasLowLateRate = late_percentage < 15;
+  
+  // Determine attendance change impact: if attendance is good/stable and positive events exist, favor downgrade
+  const attendanceIsImproving = hasGoodAttendance || (hasStableAttendance && hasLowLateRate);
+  const hasBehaviorImprovement = positive_events >= 5; // At least 5 positive events for significant improvement
+  
+  // Apply tiered downgrade logic
+  if (currentRiskLevel === 'critical') {
+    if (hasStrongPositiveRatio && hasBehaviorImprovement) {
+      // Strong positive trajectory: critical → high
+      return 'high';
+    }
+  } else if (currentRiskLevel === 'high') {
+    if (hasStrongPositiveRatio && hasBehaviorImprovement && attendanceIsImproving) {
+      // Consistent improvement across behavior + attendance: high → medium
+      return 'medium';
+    } else if (hasModeratePositiveRatio && hasBehaviorImprovement && hasStableAttendance) {
+      // Moderate improvement with stable attendance: high → medium
+      return 'medium';
+    }
+  } else if (currentRiskLevel === 'medium') {
+    if (hasStrongPositiveRatio && positive_events >= 3 && attendanceIsImproving) {
+      // Strong positive behavior + good attendance: medium → low
+      return 'low';
+    } else if (hasModeratePositiveRatio && positive_events >= 7 && hasStableAttendance) {
+      // Sustained positive behavior with stable attendance: medium → low
+      return 'low';
+    }
+  } else if (currentRiskLevel === 'low') {
+    // From low, can move to monitoring if behavior is improving but attendance hasn't deteriorated
+    if (hasStrongPositiveRatio && positive_events >= 5 && hasStableAttendance) {
+      // Sustained positive behavior with maintained attendance: low → monitoring
+      return 'monitoring';
+    }
+  }
+  
+  // No downgrade recommended
+  return currentRiskLevel;
+}
+
+/**
  * Determines risk badge color based on risk level
  */
 export function getRiskColor(riskLevel: string): string {
@@ -300,6 +490,8 @@ export function getRiskColor(riskLevel: string): string {
       return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-700/50';
     case 'medium':
       return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700/50';
+    case 'monitoring':
+      return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700/50';
     case 'low':
     default:
       return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700/50';
@@ -317,6 +509,8 @@ export function getRiskIcon(riskLevel: string): string {
       return '⚠️';
     case 'medium':
       return '⚡';
+    case 'monitoring':
+      return '👁️';
     case 'low':
     default:
       return '✅';

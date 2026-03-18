@@ -1,7 +1,7 @@
 {
-  "name": "SGCDC SafeGate - Subic Gateway Child Development Center Attendance System",
+  "name": "SGCDC SafeGate - IoT-Enabled Behavioral Event Tracking and Intervention PWA",
   "short_name": "SGCDC SafeGate",
-  "description": "Subic Gateway Child Development Center - Student entry, exit, and attendance monitoring system",
+  "description": "SafeGate IoT-enabled smart infrastructure PWA using ESP32 and RFID for behavioral event tracking, intervention workflows, and attendance support at Subic Gateway Child Development Center, Inc.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
@@ -45,10 +45,10 @@
   ],
   "shortcuts": [
     {
-      "name": "Scan QR Code",
-      "short_name": "Scan",
-      "description": "Quickly scan student QR codes for attendance",
-      "url": "/scan",
+      "name": "Log Behavioral Event",
+      "short_name": "Behavior",
+      "description": "Quickly record behavioral events and intervention notes",
+      "url": "/behavioral-events",
       "icons": [
         {
           "src": "/logo.png",
@@ -60,7 +60,7 @@
     {
       "name": "View Students",
       "short_name": "Students",
-      "description": "View student profiles and attendance",
+      "description": "View student profiles, behavior history, and intervention context",
       "url": "/students",
       "icons": [
         {

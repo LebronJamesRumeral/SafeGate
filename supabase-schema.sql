@@ -626,6 +626,10 @@ CREATE TABLE IF NOT EXISTS behavioral_events (
   event_time TIME NOT NULL,
   parent_notified BOOLEAN DEFAULT false,
   follow_up_required BOOLEAN DEFAULT false,
+  guidance_status VARCHAR(30) DEFAULT 'pending_guidance',
+  guidance_reviewed_by VARCHAR(255),
+  guidance_reviewed_at TIMESTAMP WITH TIME ZONE,
+  guidance_intervention_notes TEXT,
   action_taken TEXT,
   notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -633,11 +637,17 @@ CREATE TABLE IF NOT EXISTS behavioral_events (
   UNIQUE(student_lrn, event_date, event_time, event_type)
 );
 
+ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_status VARCHAR(30) DEFAULT 'pending_guidance';
+ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_reviewed_by VARCHAR(255);
+ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_reviewed_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_intervention_notes TEXT;
+
 -- Create indices for behavioral events
 CREATE INDEX IF NOT EXISTS idx_behavioral_events_student ON behavioral_events(student_lrn);
 CREATE INDEX IF NOT EXISTS idx_behavioral_events_date ON behavioral_events(event_date);
 CREATE INDEX IF NOT EXISTS idx_behavioral_events_severity ON behavioral_events(severity);
 CREATE INDEX IF NOT EXISTS idx_behavioral_events_category ON behavioral_events(category_id);
+CREATE INDEX IF NOT EXISTS idx_behavioral_events_guidance_status ON behavioral_events(guidance_status);
 
 -- Insert attendance-based event categories
 INSERT INTO event_categories (name, category_type, severity_level, color_code, description, notify_parent) VALUES

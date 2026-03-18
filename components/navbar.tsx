@@ -26,9 +26,10 @@ export function Navbar() {
 
   // All menu items
   const allNavItems = [
-    { href: '/', label: 'Dashboard', roles: ['admin'] },
-    { href: '/scan', label: 'QR Scan', roles: ['teacher', 'admin'] },
-    { href: '/attendance', label: 'Attendance', roles: ['teacher', 'admin'] },
+    { href: '/', label: 'Dashboard', roles: ['admin', 'guidance'] },
+    { href: '/behavioral-events', label: 'Behavioral Events', roles: ['teacher', 'admin', 'guidance'] },
+    { href: '/scan', label: 'Attendance / QR Scan', roles: ['teacher', 'admin'] },
+    { href: '/attendance', label: 'Attendance Logs', roles: ['teacher', 'admin'] },
     { href: '/students', label: 'Current Students', roles: ['teacher', 'admin'] },
     { href: '/masterlist', label: 'Masterlist', roles: ['admin'] },
     { href: '/analytics', label: 'Analytics', roles: ['admin'] },
@@ -55,7 +56,7 @@ export function Navbar() {
             </div>
             <div className="hidden sm:block">
               <span className="font-bold text-lg text-slate-900 dark:text-slate-100 leading-tight">SGCDC</span>
-              <p className="text-xs text-gray-600 dark:text-gray-400 leading-none">SafeGate System</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400 leading-none">SafeGate Behavior and Intervention System</p>
             </div>
           </Link>
 

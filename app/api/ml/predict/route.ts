@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { compileStudentIssues } from '@/lib/ml-risk-calculator';
 
 export async function POST(request: Request) {
   try {
@@ -53,10 +54,14 @@ export async function POST(request: Request) {
       });
     }
 
+    // Compile multiple issues into comprehensive term based on all historical data
+    const issueCompilation = await compileStudentIssues(studentLrn);
+    const compiledPatternType = issueCompilation.compiledIssue;
+
     return Response.json({
       success: true,
       data: {
-        patternType: data[0].pattern_type || 'Unknown',
+        patternType: compiledPatternType || data[0].pattern_type || 'Unknown',
         patternConfidence: data[0].pattern_confidence || 0,
         predictedAbsentDate: data[0].predicted_absent_date || null,
         predictionConfidence: data[0].prediction_confidence || 0,

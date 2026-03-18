@@ -20,8 +20,8 @@ const _geistMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'SGCDC SafeGate - Student Attendance System',
-  description: 'Subic Gateway Child Development Center - Modern student entry, exit, and attendance monitoring system',
+  title: 'SGCDC SafeGate - Behavioral Event Tracking and Intervention Platform',
+  description: 'IoT-enabled SafeGate platform using ESP32 and RFID for behavioral event tracking, intervention planning, and attendance support at Subic Gateway Child Development Center, Inc.',
   generator: 'v0.app',
   manifest: '/manifest.json',
   appleWebApp: {
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#6B21A8',
+  themeColor: '#1E3A8A',
 }
 
 export default function RootLayout({

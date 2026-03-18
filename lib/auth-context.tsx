@@ -9,7 +9,7 @@ interface User {
   id: string;
   username: string;
   full_name: string | null;
-  role: 'admin' | 'teacher' | string;
+  role: 'admin' | 'teacher' | 'guidance' | string;
 }
 
 interface AuthContextType {

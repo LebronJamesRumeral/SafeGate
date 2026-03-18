@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Users, UserCheck } from 'lucide-react';
+import { Users, UserCheck, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@supabase/supabase-js';
 
@@ -34,10 +34,7 @@ const fadeInOut = `
   }
 `;
 
-type AccountType = 'teacher' | 'admin';
-
 export default function LoginPage() {
-  const [accountType, setAccountType] = useState<AccountType>('teacher');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -70,13 +67,14 @@ export default function LoginPage() {
 
     // Fetch the latest user from Supabase after login
     const { data, error } = await supabase.auth.getUser();
-    const role = data?.user?.user_metadata?.role || 'user';
-    if (role !== accountType) {
+    const role = (data?.user?.user_metadata?.role || '').toLowerCase();
+    const allowedRoles = ['teacher', 'admin', 'guidance'];
+    if (!allowedRoles.includes(role)) {
       await logout();
-      setError(`You do not have ${accountType} access. Please use the correct login role.`);
+      setError('Your account role is not allowed in this system. Please contact an administrator.');
       toast({
         title: 'Access Denied',
-        description: `You do not have ${accountType} access. Please use the correct login role.`,
+        description: 'Your account role is not allowed in this system. Please contact an administrator.',
         variant: 'destructive',
       });
       setLoading(false);
@@ -95,7 +93,7 @@ export default function LoginPage() {
       {/* Left Side - Navy Background */}
       <div className="hidden lg:flex flex-col justify-between bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 dark:from-blue-950 dark:via-blue-900 dark:to-slate-950 p-12 text-white">
         <div>
-          <p className="text-xs uppercase tracking-widest text-blue-300 font-semibold mb-8">Teacher Login</p>
+          <p className="text-xs uppercase tracking-widest text-blue-300 font-semibold mb-8">SafeGate Access</p>
           
           <div className="flex items-center gap-4 mb-12">
             <div className="h-16 w-16 rounded-full bg-white/10 backdrop-blur flex items-center justify-center border border-white/20">
@@ -110,12 +108,12 @@ export default function LoginPage() {
             </div>
             <div>
               <p className="text-lg font-bold text-white">SafeGate</p>
-              <p className="text-xs text-blue-200">Student Attendance Dashboard</p>
+              <p className="text-xs text-blue-200">Behavior Tracking and Intervention Dashboard</p>
             </div>
           </div>
 
-          <h1 className="text-5xl font-bold leading-tight mb-6 text-white">A Smarter Approach to Attendance Management</h1>
-          <p className="text-blue-100 text-lg leading-relaxed mb-12 text-white">SafeGate provides real-time attendance monitoring, structured workflows, and compliance support in a single dashboard. Built for educational institutions requiring accuracy, efficiency, and automated parent notifications.</p>
+          <h1 className="text-5xl font-bold leading-tight mb-6 text-white">A Smarter Approach to Behavioral Tracking and Intervention</h1>
+          <p className="text-blue-100 text-lg leading-relaxed mb-12">SafeGate provides real-time behavioral event tracking, intervention workflows, and risk visibility in one connected platform. Attendance and QR scanning remain supporting features for daily operations and context.</p>
 
           {/* Role Cards */}
           <div className="space-y-4">
@@ -125,7 +123,7 @@ export default function LoginPage() {
               </div>
               <div>
                 <p className="font-bold text-white">TEACHERS</p>
-                <p className="text-sm text-blue-200">QR Scan + Check-in</p>
+                <p className="text-sm text-blue-200">Behavior Logging + Intervention Notes</p>
               </div>
             </div>
 
@@ -135,7 +133,17 @@ export default function LoginPage() {
               </div>
               <div>
                 <p className="font-bold text-white">ADMIN</p>
-                <p className="text-sm text-blue-200">Analytics + Reports</p>
+                <p className="text-sm text-blue-200">Intervention Analytics + Reports</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 bg-white/5 backdrop-blur border border-white/10 rounded-lg p-5 hover:bg-white/10 transition-colors">
+              <div className="h-12 w-12 rounded-lg bg-emerald-400/20 flex items-center justify-center flex-shrink-0">
+                <ShieldCheck className="w-6 h-6 text-emerald-300" />
+              </div>
+              <div>
+                <p className="font-bold text-white">GUIDANCE</p>
+                <p className="text-sm text-blue-200">Review + Intervention + Approval Workflow</p>
               </div>
             </div>
           </div>
@@ -172,52 +180,21 @@ export default function LoginPage() {
           <div className="mb-8">
             <style>{fadeInOut}</style>
             <div
-              key={`header-${accountType}`}
+              key="header-login"
               style={{
                 animation: 'fadeInSlide 0.5s ease-out forwards',
               }}
             >
               <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
-                {accountType === 'teacher' ? 'Teacher Login' : 'Admin Login'}
+                Sign In
               </h2>
-              <p className="text-slate-600 dark:text-slate-300 text-sm">Choose your role, then sign in to continue</p>
-            </div>
-          </div>
-
-          {/* Role Tabs */}
-          <div className="mb-8">
-            <div className="flex gap-0 border-b-2 border-gray-300 dark:border-slate-700">
-              {[
-                { label: 'TEACHER', value: 'teacher' },
-                { label: 'ADMIN', value: 'admin' }
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setAccountType(option.value as AccountType)}
-                  className={`flex-1 py-3 px-4 cursor-pointer font-bold text-center text-sm transition-all duration-300 relative ${
-                    accountType === option.value
-                      ? 'text-orange-600 dark:text-orange-400'
-                      : 'text-yellow-500 dark:text-yellow-400 hover:opacity-75'
-                  }`}
-                >
-                  {option.label}
-                  {accountType === option.value && (
-                    <div 
-                      className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-600 to-orange-500 dark:from-orange-400 dark:to-orange-300"
-                      style={{
-                        animation: 'fadeInSlide 0.3s ease-out forwards',
-                      }}
-                    ></div>
-                  )}
-                </button>
-              ))}
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Your role is detected automatically after login</p>
             </div>
           </div>
 
           {/* Login Form */}
           <form 
-            key={`form-${accountType}`}
+            key="form-login"
             onSubmit={handleSubmit} 
             className="space-y-5"
             style={{
@@ -229,7 +206,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder={accountType === 'admin' ? 'admin@safegate.com' : 'teacher@safegate.com'}
+                placeholder="name@safegate.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

@@ -306,10 +306,10 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
-              {userRole === 'teacher' ? 'Teacher Dashboard' : 'Admin Dashboard'}
+              {userRole === 'teacher' ? 'Teacher Dashboard' : userRole === 'guidance' ? 'Guidance Dashboard' : 'Admin Dashboard'}
             </h1>
             <p className="text-base text-slate-600 dark:text-slate-400 mt-2">
-              Monitor students, attendance, and behavioral insights across any date range.
+              Track behavioral events and intervention risk first, with attendance and QR data as supporting context.
             </p>
           </div>
           
@@ -341,30 +341,30 @@ export default function Dashboard() {
 
         {/* Metric Cards */}
         <div className="grid grid-cols-3 gap-2 sm:gap-5">
-          {/* Students Present Card */}
+          {/* Positive Behavior Events Card */}
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+            <Card className="border-0 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students Present</p>
-                  <div className="text-xl sm:text-4xl font-bold text-blue-600 dark:text-blue-400">{stats.totalPresent}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">out of {stats.totalStudents} total</p>
+                  <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Positive Behavior Events</p>
+                  <div className="text-xl sm:text-4xl font-bold text-emerald-600 dark:text-emerald-400">{behavioralStats.positiveEvents}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">reinforcing student progress</p>
                 </div>
-                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                  <Users className="w-8 h-8" />
+                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <CheckCircle className="w-8 h-8" />
                 </div>
               </CardContent>
-              <div className="h-1 w-full bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
+              <div className="h-1 w-full bg-gradient-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
             </Card>
           </motion.div>
 
-          {/* Absent Card */}
+          {/* Students At Risk Card */}
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -375,9 +375,9 @@ export default function Dashboard() {
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Absent</p>
-                  <div className="text-xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{stats.absent}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">no check-in recorded</p>
+                  <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students Needing Intervention</p>
+                  <div className="text-xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{behavioralStats.studentsAtRisk}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">high or critical risk level</p>
                 </div>
                 <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                   <AlertTriangle className="w-8 h-8" />
@@ -387,7 +387,7 @@ export default function Dashboard() {
             </Card>
           </motion.div>
 
-          {/* Late Arrivals Card */}
+          {/* Major/Critical Incidents Card */}
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -398,12 +398,12 @@ export default function Dashboard() {
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Late Arrivals</p>
-                  <div className="text-xl sm:text-4xl font-bold text-orange-600 dark:text-orange-400">{stats.lateArrivals}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">after 8:00 AM</p>
+                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Major/Critical Incidents</p>
+                  <div className="text-xl sm:text-4xl font-bold text-orange-600 dark:text-orange-400">{behavioralStats.negativeEvents}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">major and critical incidents</p>
                 </div>
                 <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                  <Clock className="w-8 h-8" />
+                  <XCircle className="w-8 h-8" />
                 </div>
               </CardContent>
               <div className="h-1 w-full bg-gradient-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
@@ -411,9 +411,13 @@ export default function Dashboard() {
           </motion.div>
         </div>
 
+        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+          Attendance and QR scanning remain available as secondary operational features.
+        </p>
+
         {/* Tables Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Top Students by Check-In Events */}
+          {/* Attendance Snapshot: Top Students by Check-In Events */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -427,7 +431,7 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <CardTitle className="text-xl text-slate-900 dark:text-white">Top Students</CardTitle>
-                    <CardDescription className="text-slate-600 dark:text-slate-400">by check-in events</CardDescription>
+                    <CardDescription className="text-slate-600 dark:text-slate-400">attendance snapshot by check-in events</CardDescription>
                   </div>
                 </div>
               </CardHeader>

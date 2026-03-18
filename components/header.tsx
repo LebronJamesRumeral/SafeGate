@@ -11,13 +11,19 @@ import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
 
-const mobilePrimaryHrefs = ["/", "/scan", "/attendance", "/masterlist", "/students"]
+const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
 
 const headerNavItems = [
-  { label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin"], icon: AlertTriangle },
+  { label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin", "guidance"], icon: AlertTriangle },
   { label: "Analytics", href: "/analytics", roles: ["admin"], icon: BarChart3 },
   { label: "Settings", href: "/settings", roles: ["admin"], icon: Settings },
 ]
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Administrator',
+  teacher: 'Teacher',
+  guidance: 'Guidance Counselor',
+}
 
 export function Header() {
   const pathname = usePathname()
@@ -143,7 +149,7 @@ export function Header() {
                   {user?.full_name || user?.username}
                 </div>
                 <div className="bg-slate-100 px-4 pb-3 text-xs text-gray-600 dark:bg-slate-800 dark:text-slate-400">
-                  {user?.role === 'admin' ? 'Administrator' : 'User'}
+                  {ROLE_LABELS[(user?.role || '').toLowerCase()] || 'User'}
                 </div>
                 {mobileOverflowItems.length > 0 && (
                   <div className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:hidden">

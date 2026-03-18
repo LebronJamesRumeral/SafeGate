@@ -23,18 +23,18 @@ import { useIsMobile } from "@/hooks/use-mobile"
 export const SidebarContext = createContext<{ collapsed: boolean; setCollapsed: (v: boolean) => void }>({ collapsed: false, setCollapsed: () => {} })
 
 const allNavItems = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/", roles: ["admin", "teacher"] },
+  { icon: LayoutDashboard, label: "Dashboard", href: "/", roles: ["admin", "teacher", "guidance"] },
+  { icon: AlertTriangle, label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin", "guidance"] },
   { icon: School, label: "Masterlist", href: "/masterlist", roles: ["admin"] },
-  { icon: ScanLine, label: "Scan Attendance", href: "/scan", roles: ["teacher", "admin"] },
-  { icon: CalendarDays, label: "Attendance", href: "/attendance", roles: ["teacher", "admin"] },
+  { icon: ScanLine, label: "Attendance / QR Scan", href: "/scan", roles: ["teacher", "admin"] },
+  { icon: CalendarDays, label: "Attendance Logs", href: "/attendance", roles: ["teacher", "admin"] },
   { icon: Users, label: "Students", href: "/students", roles: ["teacher", "admin"] },
-  { icon: AlertTriangle, label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin"] },
   // Only admin sees Analytics and Settings
   { icon: BarChart3, label: "Analytics", href: "/analytics", roles: ["admin"] },
   { icon: Settings, label: "Settings", href: "/settings", roles: ["admin"] },
 ]
 
-const mobilePrimaryHrefs = ["/", "/scan", "/attendance", "/masterlist", "/students"]
+const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -51,6 +51,7 @@ export function Sidebar() {
 
   const getMobileLabel = (href: string, label: string) => {
     if (href === "/scan") return "Scan"
+    if (href === "/behavioral-events") return "Behavior"
     if (href === "/masterlist") return "Masterlist"
     return label
   }
@@ -149,7 +150,7 @@ export function Sidebar() {
               {!collapsed && (
                 <>
                   <p className="text-xs font-semibold text-white drop-shadow-sm">SafeGate v1.1</p>
-                  <p className="text-xs text-[#fcd34d] dark:text-orange-400 mt-1">SGCDC Attendance</p>
+                  <p className="text-xs text-[#fcd34d] dark:text-orange-400 mt-1">SGCDC Behavior and Intervention</p>
                 </>
               )}
               {collapsed && (

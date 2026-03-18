@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,6 +79,8 @@ import {
   ResponsiveContainer 
 } from 'recharts';
 
+type GuidanceStatus = 'pending_guidance' | 'approved_for_ml' | 'denied_by_guidance';
+
 interface BehavioralEvent {
   id: number;
   student_lrn: string;
@@ -91,6 +93,10 @@ interface BehavioralEvent {
   event_time: string;
   parent_notified: boolean;
   follow_up_required: boolean;
+  guidance_status?: GuidanceStatus;
+  guidance_reviewed_by?: string | null;
+  guidance_reviewed_at?: string | null;
+  guidance_intervention_notes?: string | null;
   action_taken?: string;
   notes?: string;
   students?: {
@@ -161,6 +167,7 @@ const CATEGORY_TEMPLATES: CategoryTemplate[] = [
 export default function BehavioralEventsPage() {
     const isMobile = useIsMobile();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -184,6 +191,8 @@ export default function BehavioralEventsPage() {
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [syncing, setSyncing] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [guidanceReviewNote, setGuidanceReviewNote] = useState('');
+  const [guidanceSubmitting, setGuidanceSubmitting] = useState(false);
   useEffect(() => {
     if (isMobile) {
       setShowFilters(false);
@@ -220,6 +229,14 @@ export default function BehavioralEventsPage() {
       fetchData();
     }
   }, [authLoading]);
+
+  useEffect(() => {
+    const studentLrn = searchParams.get('studentLrn');
+    if (studentLrn) {
+      setSearchQuery(studentLrn);
+      setActiveTab('list');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     void refreshPendingSyncCount();
@@ -262,6 +279,9 @@ export default function BehavioralEventsPage() {
     () => students.find((student) => student.lrn === formData.student_lrn) || null,
     [students, formData.student_lrn]
   );
+
+  const normalizedRole = (currentUser?.role || '').toString().toLowerCase();
+  const isGuidanceUser = normalizedRole === 'guidance' || normalizedRole === 'admin';
 
   const dbCategoryTemplates = useMemo<CategoryTemplate[]>(
     () =>
@@ -342,6 +362,10 @@ export default function BehavioralEventsPage() {
           event_time,
           parent_notified,
           follow_up_required,
+          guidance_status,
+          guidance_reviewed_by,
+          guidance_reviewed_at,
+          guidance_intervention_notes,
           action_taken,
           notes,
           created_at,
@@ -514,7 +538,7 @@ export default function BehavioralEventsPage() {
   const triggerParentAutomation = async (params: {
     eventId: number;
     studentLrn: string;
-    triggerSource: 'behavior_event_logged' | 'manual_recheck';
+    triggerSource: 'behavior_event_logged' | 'manual_recheck' | 'guidance_approved';
   }) => {
     const response = await fetch('/api/automation/parent-report', {
       method: 'POST',
@@ -550,30 +574,7 @@ export default function BehavioralEventsPage() {
 
     setSyncing(true);
     try {
-      const result = await syncOfflineQueue(client, {
-        onBehaviorEventInserted: async (record) => {
-          try {
-            const automationResult = await triggerParentAutomation({
-              eventId: record.id,
-              studentLrn: record.student_lrn,
-              triggerSource: 'behavior_event_logged',
-            });
-
-            if (automationResult?.queued) {
-              const { error: notifyUpdateError } = await client
-                .from('behavioral_events')
-                .update({ parent_notified: true })
-                .eq('id', record.id);
-
-              if (notifyUpdateError) {
-                console.error('Unable to set parent_notified flag:', notifyUpdateError);
-              }
-            }
-          } catch (error) {
-            console.error('Parent automation after sync failed:', error);
-          }
-        },
-      });
+      const result = await syncOfflineQueue(client);
 
       await refreshPendingSyncCount();
 
@@ -645,6 +646,10 @@ export default function BehavioralEventsPage() {
         action_taken: formData.action_taken || null,
         follow_up_required: formData.follow_up_required,
         parent_notified: false,
+        guidance_status: 'pending_guidance',
+        guidance_reviewed_by: null,
+        guidance_reviewed_at: null,
+        guidance_intervention_notes: null,
         notes: notesWithWitnesses || null,
         event_date: eventDate,
         event_time: eventTime,
@@ -675,48 +680,30 @@ export default function BehavioralEventsPage() {
         throw new Error('Supabase is not configured in this environment.');
       }
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('behavioral_events')
         .insert([insertPayload])
-        .select('id')
-        .single();
+        .select('id');
 
       if (error) throw error;
 
-      let notificationMessage = ' ML evaluation complete. No parent email required.';
-
-      if (data?.id) {
-        try {
-          const automationResult = await triggerParentAutomation({
-            eventId: data.id,
-            studentLrn: formData.student_lrn,
-            triggerSource: 'behavior_event_logged',
-          });
-
-          if (automationResult?.queued) {
-            const { error: notifyUpdateError } = await supabase
-              .from('behavioral_events')
-              .update({ parent_notified: true })
-              .eq('id', data.id);
-
-            if (notifyUpdateError) {
-              console.error('Unable to set parent_notified flag:', notifyUpdateError);
-            }
-
-            notificationMessage = ` ML triggered parent email: ${automationResult?.decision?.reason || 'risk threshold reached'}.`;
-          } else {
-            notificationMessage = ` ML evaluated event: ${automationResult?.decision?.reason || 'no email needed at this time'}.`;
-          }
-        } catch (notifyError: any) {
-          console.error('Parent automation error:', notifyError);
-          notificationMessage = ' Event logged, but ML notification evaluation failed.';
-        }
-      }
-
       toast({
         title: "Success",
-        description: `Behavioral event logged for ${selectedStudent.name}.${notificationMessage}`
+        description: `Behavioral event logged for ${selectedStudent.name}. Sent to Guidance for intervention and review.`
       });
+
+      // Broadcast ML refresh so dashboards update instantly without page refresh.
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('ml-risk-refresh', {
+            detail: { studentLrn: formData.student_lrn, source: 'behavioral-events-log' },
+          })
+        );
+        localStorage.setItem(
+          'ml-risk-refresh',
+          JSON.stringify({ studentLrn: formData.student_lrn, ts: Date.now(), source: 'behavioral-events-log' })
+        );
+      }
 
       setIsAddDialogOpen(false);
       resetForm();
@@ -743,6 +730,10 @@ export default function BehavioralEventsPage() {
           action_taken: formData.action_taken || null,
           follow_up_required: formData.follow_up_required,
           parent_notified: false,
+          guidance_status: 'pending_guidance',
+          guidance_reviewed_by: null,
+          guidance_reviewed_at: null,
+          guidance_intervention_notes: null,
           notes: fallbackNotes || null,
           event_date: today.toISOString().split('T')[0],
           event_time: today.toTimeString().split(' ')[0],
@@ -816,6 +807,107 @@ export default function BehavioralEventsPage() {
         description: "Failed to update follow-up status",
         variant: "destructive"
       });
+    }
+  };
+
+  const getGuidanceStatusBadge = (status?: GuidanceStatus) => {
+    const normalized = status || 'pending_guidance';
+    if (normalized === 'approved_for_ml') {
+      return (
+        <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700 text-xs">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Guidance Approved
+        </Badge>
+      );
+    }
+    if (normalized === 'denied_by_guidance') {
+      return (
+        <Badge variant="outline" className="bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-700 text-xs">
+          <XCircle className="w-3 h-3 mr-1" />
+          Guidance Denied
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-700 text-xs">
+        <Clock className="w-3 h-3 mr-1" />
+        Pending Guidance Review
+      </Badge>
+    );
+  };
+
+  const handleGuidanceDecision = async (decision: 'approved_for_ml' | 'denied_by_guidance') => {
+    if (!selectedEvent || !supabase || !isGuidanceUser || guidanceSubmitting) {
+      return;
+    }
+
+    const reviewerName =
+      currentUser?.display_name ||
+      currentUser?.full_name ||
+      currentUser?.name ||
+      currentUser?.username ||
+      'Guidance';
+
+    setGuidanceSubmitting(true);
+    try {
+      const { error: updateError } = await supabase
+        .from('behavioral_events')
+        .update({
+          guidance_status: decision,
+          guidance_reviewed_by: reviewerName,
+          guidance_reviewed_at: new Date().toISOString(),
+          guidance_intervention_notes: guidanceReviewNote.trim() || null,
+        })
+        .eq('id', selectedEvent.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      if (decision === 'approved_for_ml') {
+        const automationResult = await triggerParentAutomation({
+          eventId: selectedEvent.id,
+          studentLrn: selectedEvent.student_lrn,
+          triggerSource: 'guidance_approved',
+        });
+
+        if (automationResult?.queued) {
+          const { error: notifyUpdateError } = await supabase
+            .from('behavioral_events')
+            .update({ parent_notified: true })
+            .eq('id', selectedEvent.id);
+
+          if (notifyUpdateError) {
+            console.error('Unable to set parent_notified flag:', notifyUpdateError);
+          }
+        }
+
+        toast({
+          title: 'Guidance Approved',
+          description: automationResult?.queued
+            ? 'Guidance approved. ML scoring completed and parent email was sent.'
+            : 'Guidance approved. ML scoring completed with no parent email required.',
+        });
+      } else {
+        toast({
+          title: 'Guidance Denied',
+          description: 'Guidance intervention recorded. Parent notification was stopped.',
+        });
+      }
+
+      setGuidanceReviewNote('');
+      setIsDialogOpen(false);
+      await fetchData();
+    } catch (error: any) {
+      console.error('Guidance review workflow failed:', error);
+      toast({
+        title: 'Guidance Review Failed',
+        description: error?.message || 'Unable to complete guidance review action.',
+        variant: 'destructive',
+      });
+    } finally {
+      setGuidanceSubmitting(false);
     }
   };
 
@@ -1157,7 +1249,7 @@ export default function BehavioralEventsPage() {
 
                   <div className="rounded-md border border-blue-200 bg-blue-50/70 px-3 py-2 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200 space-y-1">
                     <p>Follow-up is automatically enabled for behavior entries to support timely intervention and parent communication.</p>
-                    <p>Parent email is ML-driven. The system compiles attendance + behavior + risk data first, then decides automatically.</p>
+                    <p>Workflow: Logs -&gt; Guidance review and intervention -&gt; ML scoring -&gt; parent email (only when approved and needed).</p>
                   </div>
 
                   <div className="space-y-2">
@@ -1453,6 +1545,7 @@ export default function BehavioralEventsPage() {
                         className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
                         onClick={() => {
                           setSelectedEvent(event);
+                          setGuidanceReviewNote(event.guidance_intervention_notes || '');
                           setIsDialogOpen(true);
                         }}
                       >
@@ -1509,6 +1602,7 @@ export default function BehavioralEventsPage() {
                               </div>
                               
                               <div className="flex items-center gap-2 mt-2">
+                                {getGuidanceStatusBadge(event.guidance_status)}
                                 {event.parent_notified && (
                                   <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700 text-xs">
                                     <CheckCircle className="w-3 h-3 mr-1" />
@@ -1784,21 +1878,66 @@ export default function BehavioralEventsPage() {
                     </p>
                   </div>
 
-                  <div className="flex gap-4 pt-2">
-                    {selectedEvent.follow_up_required && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => handleFollowUp(selectedEvent)}
-                        className="gap-2 bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        Mark Follow-up Complete
-                      </Button>
+                  <div className="space-y-3 pt-2">
+                    {isGuidanceUser && (
+                      <div className="space-y-2">
+                        <Label htmlFor="guidance-note" className="text-xs text-muted-foreground">
+                          Guidance Intervention Notes
+                        </Label>
+                        <Textarea
+                          id="guidance-note"
+                          value={guidanceReviewNote}
+                          onChange={(e) => setGuidanceReviewNote(e.target.value)}
+                          placeholder="Record intervention details, counseling notes, and recommendation."
+                          rows={3}
+                          className="resize-none"
+                        />
+                      </div>
                     )}
+
+                    <div className="flex flex-wrap gap-2">
+                      {selectedEvent.follow_up_required && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleFollowUp(selectedEvent)}
+                          className="gap-2 bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Mark Follow-up Complete
+                        </Button>
+                      )}
+
+                      {isGuidanceUser && selectedEvent.guidance_status !== 'approved_for_ml' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={guidanceSubmitting}
+                          onClick={() => void handleGuidanceDecision('approved_for_ml')}
+                          className="gap-2 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          {guidanceSubmitting ? 'Submitting...' : 'Approve and Run ML'}
+                        </Button>
+                      )}
+
+                      {isGuidanceUser && selectedEvent.guidance_status !== 'denied_by_guidance' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={guidanceSubmitting}
+                          onClick={() => void handleGuidanceDecision('denied_by_guidance')}
+                          className="gap-2 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          {guidanceSubmitting ? 'Submitting...' : 'Deny Escalation'}
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap gap-2 pt-2">
+                    {getGuidanceStatusBadge(selectedEvent.guidance_status)}
                     {selectedEvent.parent_notified && (
                       <Badge className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-0 gap-1">
                         <CheckCircle className="w-3 h-3" />
@@ -1809,6 +1948,12 @@ export default function BehavioralEventsPage() {
                       <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400 border-0 gap-1">
                         <AlertTriangle className="w-3 h-3" />
                         Follow-up Required
+                      </Badge>
+                    )}
+                    {selectedEvent.guidance_reviewed_by && (
+                      <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-0 gap-1">
+                        <User className="w-3 h-3" />
+                        Reviewed by {selectedEvent.guidance_reviewed_by}
                       </Badge>
                     )}
                   </div>

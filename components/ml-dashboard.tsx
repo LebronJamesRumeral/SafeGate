@@ -3,27 +3,339 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertTriangle, TrendingDown, TrendingUp, AlertCircle, Target, AlertOctagon, Phone, Calendar, Activity, Brain, Shield, Clock, Zap, Sparkles, BarChart3, Users, ChevronRight, Info } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { createClient } from '@supabase/supabase-js';
 
 interface StudentRisk {
   lrn: string;
   name: string;
   parentContact: string;
-  attendanceRate: number;
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  behaviorStatus: 'stable' | 'watch' | 'concerning' | 'critical';
+  concerningEvents: number;
+  positiveEvents: number;
+  patternType: string;
+  attendanceSignal: string;
   nextAbsentDate: string | null;
   predictionConfidence: number;
 }
 
 interface StudentSummary {
-  attendanceRate: number;
   trend: 'improving' | 'stable' | 'declining';
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  behaviorStatus: 'stable' | 'watch' | 'concerning' | 'critical';
+  concerningEvents: number;
+  positiveEvents: number;
+  patternType: string;
+  attendanceSignal: string;
   nextLikelyAbsentDate: string | null;
   predictionConfidence: number;
-  daysUntilCritical: number | null;
+}
+
+interface StudentIncident {
+  id: number;
+  event_type: string;
+  severity: string;
+  description: string;
+  location: string | null;
+  reported_by: string;
+  event_date: string;
+  event_time: string;
+  parent_notified: boolean;
+  follow_up_required: boolean;
+  action_taken?: string | null;
+  notes?: string | null;
+  event_categories?: {
+    name?: string;
+    category_type?: string;
+  } | null;
+}
+
+function getSeverityStyle(severity: string): { 
+  badge: string; 
+  border: string; 
+  bg: string;
+  textColor: string;
+  iconColor: string;
+} {
+  const normalizedSeverity = severity?.toLowerCase() || 'major';
+  
+  switch (normalizedSeverity) {
+    case 'critical':
+      return {
+        badge: 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg shadow-red-500/25',
+        border: 'border-red-200 dark:border-red-700/60 bg-red-50/50 dark:bg-red-950/40',
+        bg: 'border-l-4 border-l-red-600 bg-gradient-to-br from-red-50/80 via-white to-red-50/40 dark:from-red-950/30 dark:via-slate-800/50 dark:to-red-900/20',
+        textColor: 'text-red-600 dark:text-red-400',
+        iconColor: 'text-red-600 dark:text-red-400',
+      };
+    case 'major':
+      return {
+        badge: 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25',
+        border: 'border-amber-200 dark:border-amber-700/60 bg-amber-50/50 dark:bg-amber-950/40',
+        bg: 'border-l-4 border-l-amber-600 bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 dark:from-amber-950/30 dark:via-slate-800/50 dark:to-amber-900/20',
+        textColor: 'text-amber-600 dark:text-amber-400',
+        iconColor: 'text-amber-600 dark:text-amber-400',
+      };
+    case 'moderate':
+      return {
+        badge: 'bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white shadow-lg shadow-yellow-500/25',
+        border: 'border-yellow-200 dark:border-yellow-700/60 bg-yellow-50/50 dark:bg-yellow-950/40',
+        bg: 'border-l-4 border-l-yellow-500 bg-gradient-to-br from-yellow-50/80 via-white to-yellow-50/40 dark:from-yellow-950/30 dark:via-slate-800/50 dark:to-yellow-900/20',
+        textColor: 'text-yellow-600 dark:text-yellow-400',
+        iconColor: 'text-yellow-600 dark:text-yellow-400',
+      };
+    default:
+      return {
+        badge: 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg shadow-blue-500/25',
+        border: 'border-blue-200 dark:border-blue-700/60 bg-blue-50/50 dark:bg-blue-950/40',
+        bg: 'border-l-4 border-l-blue-600 bg-gradient-to-br from-blue-50/80 via-white to-blue-50/40 dark:from-blue-950/30 dark:via-slate-800/50 dark:to-blue-900/20',
+        textColor: 'text-blue-600 dark:text-blue-400',
+        iconColor: 'text-blue-600 dark:text-blue-400',
+      };
+  }
+}
+
+function getSeverityIcon(severity: string) {
+  const normalizedSeverity = severity?.toLowerCase() || 'major';
+  
+  switch (normalizedSeverity) {
+    case 'critical':
+      return <AlertOctagon className="w-5 h-5" />;
+    case 'major':
+      return <AlertTriangle className="w-5 h-5" />;
+    case 'moderate':
+      return <AlertCircle className="w-5 h-5" />;
+    default:
+      return <Info className="w-5 h-5" />;
+  }
+}
+
+function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: string; studentName: string }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [incidents, setIncidents] = useState<StudentIncident[]>([]);
+  const [supabase] = useState(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) return null;
+    return createClient(url, key);
+  });
+
+  useEffect(() => {
+    const loadIncidents = async () => {
+      if (!open) return;
+      if (!supabase) {
+        setError('Supabase is not configured in this environment.');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        const { data, error: queryError } = await supabase
+          .from('behavioral_events')
+          .select(`
+            id,
+            event_type,
+            severity,
+            description,
+            location,
+            reported_by,
+            event_date,
+            event_time,
+            parent_notified,
+            follow_up_required,
+            action_taken,
+            notes,
+            event_categories(name, category_type)
+          `)
+          .eq('student_lrn', studentLrn)
+          .order('event_date', { ascending: false })
+          .order('event_time', { ascending: false });
+
+        if (queryError) {
+          setError(queryError.message || 'Failed to load incidents.');
+          return;
+        }
+
+        setIncidents((data || []) as StudentIncident[]);
+      } catch {
+        setError('Failed to load incidents.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadIncidents();
+  }, [open, studentLrn, supabase]);
+
+  const severityStyle = incidents.length > 0 ? getSeverityStyle(incidents[0]?.severity) : getSeverityStyle('');
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="w-full border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+          View All Incidents
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                <DialogTitle className="text-xl font-bold">Incident History</DialogTitle>
+              </div>
+              <DialogDescription className="mt-2 text-sm">
+                Complete behavioral incident record for <span className="font-semibold text-slate-900 dark:text-white">{studentName}</span> ({studentLrn})
+              </DialogDescription>
+            </div>
+            {incidents.length > 0 && (
+              <Badge className={`${severityStyle.badge} text-xs font-semibold px-3 py-1 whitespace-nowrap mr-8`}>
+                {incidents.length} Incident{incidents.length !== 1 ? 's' : ''}
+              </Badge>
+            )}
+          </div>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto pr-4 space-y-3">
+          {loading && (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-slate-300 dark:border-slate-600 mb-3"></div>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Loading incidents...</p>
+              </div>
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className="rounded-lg border border-red-200 dark:border-red-700/50 bg-red-50 dark:bg-red-950/40 p-4">
+              <p className="text-sm text-red-700 dark:text-red-300 font-medium">{error}</p>
+            </div>
+          )}
+
+          {!loading && !error && incidents.length === 0 && (
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-8 text-center">
+              <Shield className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+              <p className="text-sm text-slate-600 dark:text-slate-400">No incidents found for this student.</p>
+            </div>
+          )}
+
+          {!loading && !error && incidents.length > 0 && incidents.map((incident, index) => {
+            const style = getSeverityStyle(incident.severity);
+            return (
+              <motion.div
+                key={incident.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+                className={`rounded-lg border ${style.border} ${style.bg} p-4 hover:shadow-md transition-shadow`}
+              >
+                <div className="space-y-3">
+                  {/* Header Row */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className={`${style.iconColor}`}>
+                          {getSeverityIcon(incident.severity)}
+                        </div>
+                        <p className={`font-bold text-sm ${style.textColor}`}>{incident.event_type}</p>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        <Calendar className="w-3 h-3 inline mr-1" />
+                        {new Date(incident.event_date).toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })}{' '}
+                        at {incident.event_time}
+                      </p>
+                    </div>
+                    <Badge className={`${style.badge} font-semibold text-xs px-2.5 py-1 uppercase tracking-wider`}>
+                      {incident.severity}
+                    </Badge>
+                  </div>
+
+                  {/* Description */}
+                  <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">{incident.description}</p>
+
+                  {/* Metadata Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                      <span>
+                        <span className="font-semibold">Reported:</span> {incident.reported_by}
+                      </span>
+                    </div>
+
+                    {incident.location && (
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                        <span>
+                          <span className="font-semibold">Location:</span> {incident.location}
+                        </span>
+                      </div>
+                    )}
+
+                    {incident.event_categories?.category_type && (
+                      <div className="flex items-center gap-2">
+                        <Target className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                        <span>
+                          <span className="font-semibold">Category:</span> {incident.event_categories.category_type}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                      <span>
+                        <span className="font-semibold">Parent Notified:</span> {incident.parent_notified ? '✓ Yes' : '✗ No'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                      <span>
+                        <span className="font-semibold">Follow-up:</span> {incident.follow_up_required ? 'Required' : 'Completed'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Action Taken & Notes */}
+                  <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-700">
+                    {incident.action_taken && (
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        <span className="font-semibold">Action Taken:</span> {incident.action_taken}
+                      </p>
+                    )}
+                    {incident.notes && (
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        <span className="font-semibold">Notes:</span> {incident.notes}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function formatBehaviorStatus(status: StudentRisk['behaviorStatus'] | StudentSummary['behaviorStatus']) {
+  if (status === 'critical') return 'Critical';
+  if (status === 'concerning') return 'Concerning';
+  if (status === 'watch') return 'Watch';
+  return 'Stable';
 }
 
 function getRiskColor(riskLevel: string): { 
@@ -113,41 +425,100 @@ export function MLDashboard() {
   const [highRiskStudents, setHighRiskStudents] = useState<StudentRisk[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [supabase] = useState(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) return null;
+    return createClient(url, key);
+  });
 
   useEffect(() => {
-    fetchHighRiskStudents();
+    void fetchHighRiskStudents(false);
   }, []);
 
-  const fetchHighRiskStudents = async () => {
+  useEffect(() => {
+    const handleRefresh = () => {
+      void fetchHighRiskStudents(true);
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'ml-risk-refresh') {
+        void fetchHighRiskStudents(true);
+      }
+    };
+
+    window.addEventListener('ml-risk-refresh', handleRefresh as EventListener);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('ml-risk-refresh', handleRefresh as EventListener);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  // Real-time subscription to behavioral_events changes
+  useEffect(() => {
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel('behavioral_events_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'behavioral_events' },
+        () => {
+          // Update in background without resetting the visible card state.
+          void fetchHighRiskStudents(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase]);
+
+  const fetchHighRiskStudents = async (silent = false) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (!silent || !hasLoadedOnce) {
+        setLoading(true);
+      }
+      if (!silent) {
+        setError(null);
+      }
       
-      const response = await fetch('/api/ml/high-risk');
+      const response = await fetch('/api/ml/high-risk', { cache: 'no-store' });
       const result = await response.json().catch(() => null);
 
       if (!result) {
         console.warn('No valid response from ML API');
-        setHighRiskStudents([]);
-        setLoading(false);
+        if (!silent) {
+          setHighRiskStudents([]);
+        }
         return;
       }
 
       if (result.success === false || (result.error && !result.data)) {
         setError(result.error || result.message || 'Unable to load data');
-        setHighRiskStudents([]);
-        setLoading(false);
+        if (!silent) {
+          setHighRiskStudents([]);
+        }
         return;
       }
 
       const students = result.data || [];
       setHighRiskStudents(Array.isArray(students) ? students : []);
+      setHasLoadedOnce(true);
     } catch (err) {
       console.error('Error fetching high-risk students:', err);
-      setHighRiskStudents([]);
-      setError('Unable to load data. Please try again.');
+      if (!silent) {
+        setHighRiskStudents([]);
+        setError('Unable to load data. Please try again.');
+      }
     } finally {
-      setLoading(false);
+      if (!silent || !hasLoadedOnce) {
+        setLoading(false);
+      }
     }
   };
 
@@ -168,21 +539,21 @@ export function MLDashboard() {
           {[1, 2, 3].map((i) => (
             <div 
               key={i} 
-              className="h-96 bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl animate-pulse border border-slate-200 dark:border-slate-700 shadow-lg"
+              className="bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl animate-pulse border border-slate-200 dark:border-slate-700 shadow-lg"
               style={{ animationDelay: `${i * 100}ms` }}
             >
               <div className="h-1.5 bg-slate-300 dark:bg-slate-600 rounded-t-2xl" />
-              <div className="p-6 space-y-4">
+              <div className="p-5 space-y-3">
                 <div className="flex justify-between">
                   <div className="space-y-2 flex-1">
-                    <div className="h-6 bg-slate-300 dark:bg-slate-600 rounded w-3/4" />
-                    <div className="h-4 bg-slate-300 dark:bg-slate-600 rounded w-1/2" />
+                    <div className="h-5 bg-slate-300 dark:bg-slate-600 rounded w-3/4" />
+                    <div className="h-3 bg-slate-300 dark:bg-slate-600 rounded w-1/2" />
                   </div>
-                  <div className="h-8 bg-slate-300 dark:bg-slate-600 rounded-full w-20" />
+                  <div className="h-6 bg-slate-300 dark:bg-slate-600 rounded-full w-16" />
                 </div>
-                <div className="h-24 bg-slate-200 dark:bg-slate-700 rounded-xl" />
-                <div className="h-20 bg-slate-200 dark:bg-slate-700 rounded-xl" />
-                <div className="h-16 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+                <div className="h-16 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+                <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+                <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded-lg" />
               </div>
             </div>
           ))}
@@ -205,10 +576,10 @@ export function MLDashboard() {
         </div>
         <div className="flex-1">
           <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-900 to-blue-700 bg-clip-text text-transparent mb-2">
-            ML Risk Predictions
+            ML Behavior Risk Insights
           </h2>
           <p className="text-base text-slate-600 dark:text-slate-400">
-            AI-powered analysis identifying students at risk of absence
+            AI-powered analysis identifying concerning behavior patterns with attendance as a supporting signal
           </p>
         </div>
       </div>
@@ -273,7 +644,9 @@ export function MLDashboard() {
                 <p className="font-semibold text-lg text-red-700 dark:text-red-300 mb-1">Unable to load predictions</p>
                 <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
                 <Button 
-                  onClick={fetchHighRiskStudents}
+                  onClick={() => {
+                    void fetchHighRiskStudents(false);
+                  }}
                   variant="outline"
                   size="sm"
                   className="mt-3 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30"
@@ -299,7 +672,7 @@ export function MLDashboard() {
                 All Clear!
               </h3>
               <p className="text-base text-slate-600 dark:text-slate-400 max-w-md mx-auto">
-                No students are currently identified as high-risk. Continue monitoring attendance patterns.
+                No students are currently flagged with concerning behavior patterns.
               </p>
             </div>
           </CardContent>
@@ -324,92 +697,93 @@ export function MLDashboard() {
                     <div className="absolute inset-0 bg-white/30 animate-shimmer" />
                   </div>
                   
-                  <CardContent className="p-6 space-y-5">
+                  <CardContent className="p-5 space-y-4">
                     {/* Header with Name and Badge */}
                     <div className="flex justify-between items-start gap-3">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1 truncate group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-slate-900 group-hover:to-slate-600 dark:group-hover:from-white dark:group-hover:to-slate-300 transition-all">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 truncate group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-slate-900 group-hover:to-slate-600 dark:group-hover:from-white dark:group-hover:to-slate-300 transition-all">
                           {student.name}
                         </h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 font-mono flex items-center gap-1">
-                          <span className="w-1 h-1 rounded-full bg-slate-400" />
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                           {student.lrn}
                         </p>
                       </div>
-                      <Badge className={`${colors.badge} font-bold uppercase text-xs px-3 py-1.5 flex items-center gap-1.5`}>
-                        <Zap className="w-3.5 h-3.5" />
+                      <Badge className={`${colors.badge} font-bold uppercase text-xs px-2.5 py-1 flex items-center gap-1`}>
+                        <Zap className="w-3 h-3" />
                         {student.riskLevel}
                       </Badge>
                     </div>
 
-                    {/* Attendance Rate Section */}
-                    <div className="space-y-3 p-4 rounded-xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                          <BarChart3 className="w-4 h-4" />
-                          Attendance Rate
-                        </p>
-                        <span className="text-3xl font-bold text-slate-900 dark:text-white">
-                          {student.attendanceRate}%
-                        </span>
+                    {/* Combined Risk Summary - Compiled Key Issues */}
+                    <div className="p-3.5 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
+                      <p className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                        Key Issues
+                      </p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                        {student.patternType}
+                      </p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                        {student.attendanceSignal}
+                      </p>
+                    </div>
+
+                    {/* Behavior Metrics - Compact */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="rounded-lg bg-red-50 dark:bg-red-950/30 p-2.5 border border-red-100 dark:border-red-900/40">
+                        <p className="text-[10px] text-red-700 dark:text-red-300 font-semibold uppercase">Concerning</p>
+                        <p className="text-lg font-bold text-red-700 dark:text-red-300">{student.concerningEvents}</p>
                       </div>
-                      
-                      {/* Progress Bar */}
-                      <div className="relative w-full h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${Math.min(student.attendanceRate, 100)}%` }}
-                          transition={{ duration: 1, delay: index * 0.1 }}
-                          className={`absolute inset-y-0 left-0 bg-gradient-to-r ${colors.gradient} rounded-full`}
-                        />
+                      <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2.5 border border-emerald-100 dark:border-emerald-900/40">
+                        <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold uppercase">Positive</p>
+                        <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{student.positiveEvents}</p>
                       </div>
                     </div>
 
-                    {/* Predicted Absence */}
-                    {student.nextAbsentDate && (
-                      <div className="p-4 rounded-xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Calendar className="w-4 h-4 text-blue-900 dark:text-blue-300" />
-                          <p className="text-xs font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wider">
-                            AI Prediction
-                          </p>
-                        </div>
-                        <p className="text-lg font-bold text-slate-900 dark:text-white mb-3">
-                          {student.nextAbsentDate}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                            <motion.div 
-                              initial={{ width: 0 }}
-                              animate={{ width: `${student.predictionConfidence}%` }}
-                              transition={{ duration: 1, delay: index * 0.1 + 0.3 }}
-                              className="h-full bg-gradient-to-r from-blue-600 to-blue-500 rounded-full"
-                            />
-                          </div>
-                          <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 min-w-[45px] text-right">
-                            {Math.round(student.predictionConfidence)}%
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                    <StudentIncidentsDialog studentLrn={student.lrn} studentName={student.name} />
 
-                    {/* Parent Contact */}
-                    {student.parentContact && (
-                      <div className="flex items-center gap-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-                        <div className="p-2 rounded-lg bg-gradient-to-br from-blue-100 to-sky-100 dark:from-blue-900/40 dark:to-sky-900/40">
-                          <Phone className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-0.5">
-                            Parent Contact
+                    {/* Forecast and Parent Contact Combined Row */}
+                    <div className="flex items-center gap-2 pt-1">
+                      {student.nextAbsentDate && (
+                        <div className="flex-1 p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-blue-900 dark:text-blue-300" />
+                            <p className="text-[10px] font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wide">
+                              Forecast
+                            </p>
+                          </div>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white mb-1">
+                            {student.nextAbsentDate}
                           </p>
-                          <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 truncate">
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${student.predictionConfidence}%` }}
+                                transition={{ duration: 1, delay: index * 0.1 + 0.3 }}
+                                className="h-full bg-gradient-to-r from-blue-600 to-blue-500 rounded-full"
+                              />
+                            </div>
+                            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 min-w-[32px] text-right">
+                              {Math.round(student.predictionConfidence)}%
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {student.parentContact && (
+                        <div className="flex-1 p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <Phone className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                            <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide">
+                              Contact
+                            </p>
+                          </div>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
                             {student.parentContact}
                           </p>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -428,21 +802,79 @@ export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
   const [summary, setSummary] = useState<StudentSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [supabase] = useState(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) return null;
+    return createClient(url, key);
+  });
 
   useEffect(() => {
-    fetchStudentSummary();
+    void fetchStudentSummary(false);
   }, [studentLrn]);
 
-  const fetchStudentSummary = async () => {
+  useEffect(() => {
+    const handleRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ studentLrn?: string }>).detail;
+      if (!detail?.studentLrn || detail.studentLrn === studentLrn) {
+        void fetchStudentSummary(true);
+      }
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== 'ml-risk-refresh' || !event.newValue) return;
+      try {
+        const parsed = JSON.parse(event.newValue) as { studentLrn?: string };
+        if (!parsed.studentLrn || parsed.studentLrn === studentLrn) {
+          void fetchStudentSummary(true);
+        }
+      } catch {
+        void fetchStudentSummary(true);
+      }
+    };
+
+    window.addEventListener('ml-risk-refresh', handleRefresh as EventListener);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('ml-risk-refresh', handleRefresh as EventListener);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [studentLrn]);
+
+  // Real-time subscription to behavioral events for this student
+  useEffect(() => {
+    if (!supabase || !studentLrn) return;
+
+    const channel = supabase
+      .channel(`student_${studentLrn}_events`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'behavioral_events', filter: `student_lrn=eq.${studentLrn}` },
+        () => {
+          // Silent refresh to avoid card flicker.
+          void fetchStudentSummary(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, studentLrn]);
+
+  const fetchStudentSummary = async (silent = false) => {
     try {
-      setLoading(true);
-      const response = await fetch(`/api/ml/summary?studentLrn=${studentLrn}`);
+      if (!silent || !hasLoadedOnce) {
+        setLoading(true);
+      }
+      const response = await fetch(`/api/ml/summary?studentLrn=${studentLrn}`, { cache: 'no-store' });
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Failed to fetch data' }));
         setError(errorData.error || `Error: ${response.status}`);
         console.error('Fetch error:', errorData);
-        setLoading(false);
         return;
       }
 
@@ -450,33 +882,38 @@ export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
 
       if (!result.success) {
         setError(result.error || 'Failed to fetch student data');
-        setLoading(false);
         return;
       }
 
       setSummary(result.data);
-      setLoading(false);
+      setHasLoadedOnce(true);
     } catch (err) {
       console.error('Error fetching summary:', err);
-      setError('Unable to load data');
-      setLoading(false);
+      if (!silent) {
+        setError('Unable to load data');
+      }
+    } finally {
+      if (!silent || !hasLoadedOnce) {
+        setLoading(false);
+      }
     }
   };
 
   if (loading) {
     return (
-      <div className="h-64 bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl animate-pulse border border-slate-200 dark:border-slate-700 shadow-lg overflow-hidden">
+      <div className="bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl animate-pulse border border-slate-200 dark:border-slate-700 shadow-lg overflow-hidden">
         <div className="h-1.5 bg-slate-300 dark:bg-slate-600" />
-        <div className="p-6 space-y-4">
+        <div className="p-4 space-y-3">
           <div className="flex justify-between">
             <div className="space-y-2 flex-1">
-              <div className="h-6 bg-slate-300 dark:bg-slate-600 rounded w-3/4" />
-              <div className="h-4 bg-slate-300 dark:bg-slate-600 rounded w-1/2" />
+              <div className="h-5 bg-slate-300 dark:bg-slate-600 rounded w-3/4" />
+              <div className="h-3 bg-slate-300 dark:bg-slate-600 rounded w-1/2" />
             </div>
-            <div className="h-8 bg-slate-300 dark:bg-slate-600 rounded-full w-20" />
+            <div className="h-6 bg-slate-300 dark:bg-slate-600 rounded-full w-16" />
           </div>
-          <div className="h-20 bg-slate-200 dark:bg-slate-700 rounded-xl" />
-          <div className="h-16 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+          <div className="h-14 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+          <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+          <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded-lg" />
         </div>
       </div>
     );
@@ -522,66 +959,66 @@ export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
         </div>
         
         <CardHeader className="pb-2">
-          <div className="flex justify-between items-center">
-            <CardTitle className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40">
-                <Brain className="w-4 h-4 text-blue-900 dark:text-blue-300" />
+          <div className="flex justify-between items-center gap-2">
+            <CardTitle className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <div className="p-1 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40">
+                <Brain className="w-3.5 h-3.5 text-blue-900 dark:text-blue-300" />
               </div>
-              ML Risk Assessment
+              ML Assessment
             </CardTitle>
-            <Badge className={colors.badge}>
-              <Sparkles className="w-3.5 h-3.5 mr-1" />
+            <Badge className={`${colors.badge} text-xs`}>
+              <Sparkles className="w-3 h-3 mr-0.5" />
               {summary.riskLevel.toUpperCase()}
             </Badge>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-5">
-          {/* Attendance Rate & Trend */}
-          <div className="p-4 rounded-xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1">
-                  <BarChart3 className="w-4 h-4" />
-                  Attendance Rate
-                </p>
-                <p className="text-4xl font-bold text-slate-900 dark:text-white">
-                  {summary.attendanceRate}%
-                </p>
-              </div>
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${getTrendColor(summary.trend)}`}>
-                {getTrendIcon(summary.trend)}
-                <span className="text-sm font-semibold capitalize">{summary.trend}</span>
-              </div>
-            </div>
+        <CardContent className="space-y-3">
+          {/* Combined Risk Summary */}
+          <div className="p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
+            <p className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+              Key Issues
+            </p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white mb-1">
+              {summary.patternType}
+            </p>
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              {summary.attendanceSignal}
+            </p>
+          </div>
 
-            {/* Progress Bar */}
-            <div className="relative w-full h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(summary.attendanceRate, 100)}%` }}
-                transition={{ duration: 1 }}
-                className={`absolute inset-y-0 left-0 bg-gradient-to-r ${summary.attendanceRate >= 95 ? 'from-green-600 to-emerald-600' : summary.attendanceRate >= 85 ? 'from-yellow-500 to-amber-500' : 'from-red-600 to-red-700'} rounded-full`}
-              />
+          {/* Behavior Trend and Behavior Status - Compact */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="rounded-lg bg-red-50 dark:bg-red-950/30 p-2.5 border border-red-100 dark:border-red-900/40">
+              <p className="text-[10px] text-red-700 dark:text-red-300 font-semibold uppercase">Concerning</p>
+              <p className="text-lg font-bold text-red-700 dark:text-red-300">{summary.concerningEvents}</p>
+            </div>
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2.5 border border-emerald-100 dark:border-emerald-900/40">
+              <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold uppercase">Positive</p>
+              <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{summary.positiveEvents}</p>
             </div>
           </div>
 
-          {/* Prediction Info */}
+          {/* Trend Badge */}
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${getTrendColor(summary.trend)}`}>
+            {getTrendIcon(summary.trend)}
+            <span className="text-xs font-semibold capitalize">{summary.trend}</span>
+          </div>
+
+          {/* Prediction Info - Compact */}
           {summary.nextLikelyAbsentDate && (
-            <div className="p-4 rounded-xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-1 rounded-md bg-blue-100 dark:bg-blue-900/40">
-                  <Calendar className="w-3.5 h-3.5 text-blue-900 dark:text-blue-300" />
-                </div>
-                <p className="text-xs font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wider">
-                  AI Prediction
+            <div className="p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Calendar className="w-3.5 h-3.5 text-blue-900 dark:text-blue-300" />
+                <p className="text-[10px] font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wider">
+                  Forecast
                 </p>
               </div>
-              <p className="text-lg font-bold text-slate-900 dark:text-white mb-3">
+              <p className="text-sm font-bold text-slate-900 dark:text-white mb-1">
                 {summary.nextLikelyAbsentDate}
               </p>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div className="flex items-center gap-1.5">
+                <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                   <motion.div 
                     initial={{ width: 0 }}
                     animate={{ width: `${summary.predictionConfidence}%` }}
@@ -589,31 +1026,33 @@ export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
                     className="h-full bg-gradient-to-r from-blue-600 to-blue-500 rounded-full"
                   />
                 </div>
-                <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 min-w-[45px] text-right">
+                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 min-w-[32px] text-right">
                   {Math.round(summary.predictionConfidence)}%
                 </span>
               </div>
             </div>
           )}
 
-          {/* Critical Threshold Warning */}
-          {summary.daysUntilCritical && summary.daysUntilCritical > 0 && (
-            <div className="p-4 rounded-xl bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/50 dark:to-yellow-950/40 border-2 border-amber-300 dark:border-amber-600/50">
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-800/50">
-                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+          {/* Concerning Pattern Alert - Only if needed */}
+          {summary.concerningEvents > 0 && (
+            <div className="p-3 rounded-lg bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/50 dark:to-yellow-950/40 border border-amber-300 dark:border-amber-600/50">
+              <div className="flex items-start gap-2">
+                <div className="p-1 rounded-lg bg-amber-100 dark:bg-amber-800/50 flex-shrink-0">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div>
-                  <p className="font-semibold text-amber-700 dark:text-amber-300 mb-1">
-                    Approaching Critical Threshold
+                  <p className="text-xs font-bold text-amber-700 dark:text-amber-300 mb-0.5">
+                    Action Needed
                   </p>
-                  <p className="text-sm text-amber-600 dark:text-amber-400">
-                    <span className="font-bold text-lg">{summary.daysUntilCritical}</span> days until 70% attendance threshold
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    <span className="font-bold">{summary.concerningEvents}</span> concerning log(s) detected
                   </p>
                 </div>
               </div>
             </div>
           )}
+
+          <StudentIncidentsDialog studentLrn={studentLrn} studentName="Student" />
         </CardContent>
       </Card>
     </motion.div>
