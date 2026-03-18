@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { DashboardLayout } from '@/components/dashboard-layout';
@@ -165,7 +165,15 @@ const CATEGORY_TEMPLATES: CategoryTemplate[] = [
 
 // Enforce consistent layout structure for behavioral events
 export default function BehavioralEventsPage() {
-    const isMobile = useIsMobile();
+  return (
+    <Suspense fallback={<TablePageSkeleton />}>
+      <BehavioralEventsPageContent />
+    </Suspense>
+  );
+}
+
+function BehavioralEventsPageContent() {
+  const isMobile = useIsMobile();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [authLoading, setAuthLoading] = useState(true);

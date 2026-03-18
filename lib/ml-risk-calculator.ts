@@ -310,6 +310,9 @@ export async function compileStudentIssues(
 
     const attendanceIssues: string[] = [];
     const behaviorIssues: string[] = [];
+    const behavioralEventsData = behavioralEvents.data || [];
+    const nonPositiveEvents = behavioralEventsData.filter((event: any) => String(event.severity || '').toLowerCase() !== 'positive');
+    const nonPositiveEventCount = nonPositiveEvents.length;
 
     // Add attendance-based issues
     if (riskScore?.breakdown) {
@@ -324,29 +327,26 @@ export async function compileStudentIssues(
         }
       }
       
-      // Add behavioral issues based on event count (respond even for a single concern)
-      if (negative_events && negative_events > 5) {
-        behaviorIssues.push('Multiple Behavioral Concerns');
-      } else if (negative_events && negative_events > 2) {
-        behaviorIssues.push('Behavioral Issues');
-      } else if (negative_events && negative_events >= 1) {
-        behaviorIssues.push('Behavioral Concern');
+      // Only add synthetic behavioral rollups when there are no concrete incident labels yet.
+      // This avoids showing multiple "Key Issues" when only one incident is logged.
+      if (nonPositiveEventCount === 0) {
+        if (negative_events && negative_events > 5) {
+          behaviorIssues.push('Multiple Behavioral Concerns');
+        } else if (negative_events && negative_events > 2) {
+          behaviorIssues.push('Behavioral Issues');
+        } else if (negative_events && negative_events >= 1) {
+          behaviorIssues.push('Behavioral Concern');
+        }
       }
     }
 
     // Add specific behavioral event types detected in recent data
-    if (behavioralEvents.data && behavioralEvents.data.length > 0) {
+    if (behavioralEventsData.length > 0) {
       const eventTypes = new Set<string>();
-      const recentIncidentWindow = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      let hasRecentIncident = false;
 
-      behavioralEvents.data.forEach((event: any) => {
+      behavioralEventsData.forEach((event: any) => {
         const eventType = String(event.event_type || '').toLowerCase();
         const severity = String(event.severity || '').toLowerCase();
-
-        if (event.event_date && new Date(event.event_date) >= recentIncidentWindow && severity !== 'positive') {
-          hasRecentIncident = true;
-        }
 
         if (event.event_type && !eventTypes.has(event.event_type)) {
           eventTypes.add(event.event_type);
@@ -367,29 +367,33 @@ export async function compileStudentIssues(
           }
         }
       });
-
-      if (hasRecentIncident) {
-        behaviorIssues.push('Recent Incident');
-      }
     }
 
     // Deduplicate and compile with behavior first so output reflects general behavior context.
     const uniqueBehaviorIssues = Array.from(new Set(behaviorIssues));
     const uniqueAttendanceIssues = Array.from(new Set(attendanceIssues));
-    const uniqueIssues = [...uniqueBehaviorIssues, ...uniqueAttendanceIssues];
+    const includeAttendanceWithBehavior = nonPositiveEventCount >= 2;
+    const uniqueIssues = includeAttendanceWithBehavior
+      ? [...uniqueBehaviorIssues, ...uniqueAttendanceIssues]
+      : [...uniqueBehaviorIssues];
+
+    const fallbackIssues = uniqueAttendanceIssues;
 
     let compiledIssue = 'No Issues Detected';
-    if (uniqueBehaviorIssues.length > 0 && uniqueAttendanceIssues.length > 0) {
+    if (uniqueIssues.length === 1) {
+      compiledIssue = uniqueIssues[0];
+    } else if (uniqueBehaviorIssues.length > 0 && includeAttendanceWithBehavior && uniqueAttendanceIssues.length > 0) {
       const behaviorPrimary = uniqueBehaviorIssues[0];
       const attendancePrimary = uniqueAttendanceIssues[0];
       const additionalCount = Math.max(uniqueIssues.length - 2, 0);
       compiledIssue = additionalCount > 0
         ? `${behaviorPrimary} + ${attendancePrimary} + ${additionalCount} Other Issue${additionalCount > 1 ? 's' : ''}`
         : `${behaviorPrimary} + ${attendancePrimary}`;
+    } else if (uniqueIssues.length === 0 && fallbackIssues.length > 0) {
+      // If there are no concrete behavioral issues, fall back to attendance-only insight.
+      compiledIssue = fallbackIssues[0];
     } else if (uniqueIssues.length === 0) {
       compiledIssue = 'No Issues Detected';
-    } else if (uniqueIssues.length === 1) {
-      compiledIssue = uniqueIssues[0];
     } else if (uniqueIssues.length === 2) {
       compiledIssue = `${uniqueIssues[0]} + ${uniqueIssues[1]}`;
     } else {
@@ -401,7 +405,7 @@ export async function compileStudentIssues(
 
     return {
       compiledIssue,
-      componentIssues: uniqueIssues,
+      componentIssues: uniqueIssues.length > 0 ? uniqueIssues : fallbackIssues,
       compiledDate: new Date().toISOString().split('T')[0],
     };
   } catch (error) {
