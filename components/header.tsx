@@ -2,19 +2,21 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Sun, Moon, Bell, Lock, User as UserIcon, LogOut, Settings, Calendar, AlertTriangle, BarChart3 } from "lucide-react"
+import { Sun, Moon, Bell, Lock, User as UserIcon, LogOut, Settings, Calendar, AlertTriangle, BarChart3, ClipboardCheck } from "lucide-react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { useTheme } from "next-themes"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
+import { fetchRoleNotifications, getUnreadCount, markRoleNotificationsAsRead, RoleNotification } from "@/lib/role-notifications"
 
 const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
 
 const headerNavItems = [
   { label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin", "guidance"], icon: AlertTriangle },
+  { label: "Guidance Review", href: "/guidance-review", roles: ["admin", "guidance"], icon: ClipboardCheck },
   { label: "Analytics", href: "/analytics", roles: ["admin"], icon: BarChart3 },
   { label: "Settings", href: "/settings", roles: ["admin"], icon: Settings },
 ]
@@ -31,6 +33,98 @@ export function Header() {
   const { user, logout } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [dateTime, setDateTime] = useState<string>("")
+  const [roleNotifications, setRoleNotifications] = useState<RoleNotification[]>([])
+  const [notificationMenuOpen, setNotificationMenuOpen] = useState(false)
+
+  const normalizedRole = (user?.role || '').toLowerCase()
+  const unreadNotificationCount = getUnreadCount(normalizedRole, roleNotifications)
+
+  const requestNotificationPermission = useCallback(async () => {
+    if (typeof window === 'undefined' || !("Notification" in window)) {
+      return
+    }
+
+    if (Notification.permission === 'default') {
+      try {
+        await Notification.requestPermission()
+      } catch (error) {
+        console.error('Notification permission request failed:', error)
+      }
+    }
+  }, [])
+
+  const showPushNotification = useCallback(async (notification: RoleNotification) => {
+    if (typeof window === 'undefined' || !("Notification" in window)) {
+      return
+    }
+
+    if (Notification.permission !== 'granted') {
+      return
+    }
+
+    const href = typeof notification.meta?.href === 'string' ? notification.meta.href : '/'
+    const preventionNote = typeof notification.meta?.prevention_note === 'string' ? notification.meta.prevention_note : ''
+    const notificationBody = preventionNote
+      ? `${notification.message}\nEarly prevention: ${preventionNote}`
+      : notification.message
+
+    try {
+      const registration = await navigator.serviceWorker?.getRegistration()
+      if (registration) {
+        await registration.showNotification(notification.title, {
+          body: notificationBody,
+          icon: '/logo.png',
+          badge: '/logo.png',
+          data: { href },
+        })
+      } else {
+        const browserNotification = new Notification(notification.title, {
+          body: notificationBody,
+          icon: '/logo.png',
+        })
+        browserNotification.onclick = () => {
+          window.focus()
+          window.location.href = href
+          browserNotification.close()
+        }
+      }
+    } catch (error) {
+      console.error('Failed to show push notification:', error)
+    }
+  }, [])
+
+  const loadRoleNotifications = useCallback(async () => {
+    if (!normalizedRole || !['teacher', 'admin', 'guidance'].includes(normalizedRole)) {
+      setRoleNotifications([])
+      return
+    }
+
+    const loadedNotifications = await fetchRoleNotifications(normalizedRole, 20)
+    setRoleNotifications(loadedNotifications)
+
+    if (loadedNotifications.length > 0) {
+      const localStorageKey = `safegate_last_notified_role_notification_${normalizedRole}`
+      const lastNotifiedId = Number(localStorage.getItem(localStorageKey) || '0')
+      const newestUnread = loadedNotifications.find((item) => {
+        const alreadyRead = (item.read_by_roles || []).includes(normalizedRole)
+        return !alreadyRead && item.id > lastNotifiedId
+      })
+
+      if (newestUnread) {
+        await showPushNotification(newestUnread)
+        localStorage.setItem(localStorageKey, String(newestUnread.id))
+      }
+    }
+  }, [normalizedRole, showPushNotification])
+
+  const markAllRoleNotificationsAsRead = useCallback(async () => {
+    if (!normalizedRole || roleNotifications.length === 0) {
+      return
+    }
+
+    await markRoleNotificationsAsRead(normalizedRole, roleNotifications)
+    await loadRoleNotifications()
+  }, [loadRoleNotifications, normalizedRole, roleNotifications])
 
   const mobileOverflowItems = user
     ? headerNavItems.filter(
@@ -63,6 +157,27 @@ export function Header() {
     return () => clearInterval(interval)
   }, [])
 
+  useEffect(() => {
+    if (!mounted || !normalizedRole) {
+      return
+    }
+
+    void loadRoleNotifications()
+    const interval = setInterval(() => {
+      void loadRoleNotifications()
+    }, 15000)
+
+    return () => clearInterval(interval)
+  }, [loadRoleNotifications, mounted, normalizedRole])
+
+  useEffect(() => {
+    if (!notificationMenuOpen) {
+      return
+    }
+
+    void markAllRoleNotificationsAsRead()
+  }, [markAllRoleNotificationsAsRead, notificationMenuOpen])
+
   const getOrdinal = (num: number) => {
     const j = num % 10
     const k = num % 100
@@ -77,7 +192,7 @@ export function Header() {
   return (
     <>
       {/* Blue top bar */}
-      <div className="h-2 bg-gradient-to-r from-[#1e3a8a] to-[#2563eb] dark:from-slate-900 dark:to-slate-800" />
+      <div className="h-2 bg-linear-to-r from-[#1e3a8a] to-[#2563eb] dark:from-slate-900 dark:to-slate-800" />
       
       <header className="sticky top-2 z-20 backdrop-blur-lg px-4 py-3 sm:px-6 sm:py-4 shadow-md bg-white/97 dark:bg-slate-950/97 border-b border-orange-200/30 dark:border-slate-800/60 transition-all duration-300 ease-out">
         <div className="flex items-center justify-between">
@@ -122,15 +237,84 @@ export function Header() {
             </Button>
 
             {/* Notifications */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-lg text-[#2563eb] dark:text-orange-400 hover:bg-[#2563eb]/10 dark:hover:bg-orange-500/10 hover:text-[#1e3a8a] dark:hover:text-orange-300 transition-all duration-200 active:scale-95 relative h-9 w-9 sm:h-10 sm:w-10"
-              title="Notifications"
+            <DropdownMenu
+              open={notificationMenuOpen}
+              onOpenChange={(open) => {
+                setNotificationMenuOpen(open)
+                if (open) {
+                  void requestNotificationPermission()
+                }
+              }}
             >
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full shadow-md" />
-            </Button>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-lg text-[#2563eb] dark:text-orange-400 hover:bg-[#2563eb]/10 dark:hover:bg-orange-500/10 hover:text-[#1e3a8a] dark:hover:text-orange-300 transition-all duration-200 active:scale-95 relative h-9 w-9 sm:h-10 sm:w-10"
+                  title="Notifications"
+                >
+                  <Bell className="h-5 w-5" />
+                  {unreadNotificationCount > 0 && (
+                    <span className="absolute top-1 right-1 min-w-5 h-5 px-1 bg-red-500 text-white text-[10px] leading-5 text-center rounded-full shadow-md">
+                      {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 rounded-2xl border border-slate-300/70 bg-white p-0 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {unreadNotificationCount > 0
+                      ? `${unreadNotificationCount} unread update${unreadNotificationCount === 1 ? '' : 's'}`
+                      : 'All caught up'}
+                  </p>
+                </div>
+                <div className="max-h-80 overflow-y-auto py-1">
+                  {roleNotifications.length === 0 && (
+                    <div className="px-4 py-5 text-center text-xs text-slate-500 dark:text-slate-400">
+                      No notifications yet for your role.
+                    </div>
+                  )}
+                  {roleNotifications.map((item) => {
+                    const isUnread = !(item.read_by_roles || []).includes(normalizedRole)
+                    const href = typeof item.meta?.href === 'string' ? item.meta.href : '/'
+                    const preventionNote = typeof item.meta?.prevention_note === 'string' ? item.meta.prevention_note : null
+
+                    return (
+                      <DropdownMenuItem
+                        key={item.id}
+                        asChild
+                        className={cn(
+                          "mx-2 mb-1 cursor-pointer rounded-xl px-3 py-2.5 transition-all duration-150 hover:bg-orange-100 dark:hover:bg-slate-800",
+                          isUnread ? "bg-blue-50/70 dark:bg-blue-500/10" : ""
+                        )}
+                      >
+                        <Link href={href}>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-start gap-2">
+                              <span className={cn("mt-1 h-2 w-2 rounded-full", isUnread ? "bg-blue-500" : "bg-transparent")} />
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">{item.title}</p>
+                                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-normal">{item.message}</p>
+                                {preventionNote && (
+                                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300 leading-relaxed whitespace-normal mt-1">
+                                    Early prevention: {preventionNote}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <p className="pl-4 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              {new Date(item.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                        </Link>
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* User Menu */}
             <DropdownMenu>

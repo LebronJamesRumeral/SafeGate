@@ -5,14 +5,14 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { compileStudentIssues } from '@/lib/ml-risk-calculator';
+import { applyRiskDowngrade, compileStudentIssues } from '@/lib/ml-risk-calculator';
 
-type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
+type RiskLevel = 'low' | 'medium' | 'high' | 'critical' | 'monitoring';
 
 function deriveBehaviorStatus(riskLevel: RiskLevel, concerningEvents: number): 'stable' | 'watch' | 'concerning' | 'critical' {
   if (riskLevel === 'critical') return 'critical';
   if (riskLevel === 'high' || concerningEvents >= 3) return 'concerning';
-  if (riskLevel === 'medium' || concerningEvents >= 1) return 'watch';
+  if (riskLevel === 'medium' || riskLevel === 'monitoring' || concerningEvents >= 1) return 'watch';
   return 'stable';
 }
 
@@ -82,7 +82,13 @@ export async function GET(request: Request) {
     const positiveEvents = Number(breakdown.positive_events || 0);
     const attendanceRate = Number(breakdown.attendance_rate || 0);
     const latePercentage = Number(breakdown.late_percentage || 0);
-    const riskLevel = String(risk.risk_level || 'low') as RiskLevel;
+    let riskLevel = String(risk.risk_level || 'low') as RiskLevel;
+    riskLevel = applyRiskDowngrade(riskLevel, {
+      attendance_rate: attendanceRate,
+      negative_events: concerningEvents,
+      positive_events: positiveEvents,
+      late_percentage: latePercentage,
+    });
     const behaviorStatus = deriveBehaviorStatus(riskLevel, concerningEvents);
     const attendanceSignal = buildAttendanceSignal(attendanceRate, Number(risk.attendance_component || 0), latePercentage);
     const trend = Array.isArray(trendRows) && trendRows.length > 0

@@ -131,12 +131,12 @@ export async function GET(request: Request) {
 
     const highRiskStudents = calculated
       .filter((student): student is NonNullable<typeof student> => Boolean(student))
-      .filter(
-        (student) =>
-          student.riskLevel !== 'low' && student.riskLevel !== 'monitoring' ||
-          student.concerningEvents > 0 ||
-          student.patternType !== 'No Issues Detected'
-      )
+      .filter((student) => {
+        const levelNeedsAttention = student.riskLevel === 'critical' || student.riskLevel === 'high' || student.riskLevel === 'medium';
+        const behaviorNeedsAttention = student.concerningEvents > student.positiveEvents;
+        const issueNeedsAttention = student.patternType !== 'No Issues Detected' && student.concerningEvents > 0;
+        return levelNeedsAttention || behaviorNeedsAttention || issueNeedsAttention;
+      })
       .sort((a, b) => {
         const riskDiff = riskPriority(b.riskLevel) - riskPriority(a.riskLevel);
         if (riskDiff !== 0) return riskDiff;

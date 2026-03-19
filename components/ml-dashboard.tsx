@@ -114,6 +114,21 @@ function getSeverityIcon(severity: string) {
   }
 }
 
+function formatKeyIssues(patternType?: string, visibleCount = 2) {
+  if (!patternType) return 'No major issues identified';
+
+  const issues = patternType
+    .split(' + ')
+    .map(issue => issue.trim())
+    .filter(Boolean);
+
+  if (issues.length === 0) return 'No major issues identified';
+  if (issues.length <= visibleCount) return issues.join(' + ');
+
+  const hiddenCount = issues.length - visibleCount;
+  return `${issues.slice(0, visibleCount).join(' + ')} +${hiddenCount} more`;
+}
+
 function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: string; studentName: string }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -720,7 +735,7 @@ export function MLDashboard() {
                         Key Issues
                       </p>
                       <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                        {student.patternType}
+                        {formatKeyIssues(student.patternType)}
                       </p>
                       <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
                         {student.attendanceSignal}
@@ -980,7 +995,7 @@ export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
               Key Issues
             </p>
             <p className="text-sm font-semibold text-slate-900 dark:text-white mb-1">
-              {summary.patternType}
+              {formatKeyIssues(summary.patternType)}
             </p>
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
               {summary.attendanceSignal}

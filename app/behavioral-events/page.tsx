@@ -56,6 +56,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
+import { createRoleNotification } from '@/lib/role-notifications';
+import { buildEarlyPreventionNote } from '@/lib/prevention-notes';
 import { MLDashboard } from '@/components/ml-dashboard';
 import { TablePageSkeleton } from '@/components/loading-skeletons';
 import { getOfflineQueueCount } from '@/lib/offline-secure-queue';
@@ -99,6 +101,8 @@ interface BehavioralEvent {
   guidance_intervention_notes?: string | null;
   action_taken?: string;
   notes?: string;
+  created_at?: string;
+  updated_at?: string;
   students?: {
     name: string;
     level: string;
@@ -195,7 +199,8 @@ function BehavioralEventsPageContent() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('list');
   const [showFilters, setShowFilters] = useState(true);
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'event_date', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'created_at', direction: 'desc' });
+  const [showEventLog, setShowEventLog] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [syncing, setSyncing] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
@@ -381,7 +386,7 @@ function BehavioralEventsPageContent() {
           students(name, level),
           event_categories(name, category_type, color_code)
         `)
-        .order('event_date', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (eventsError) {
         console.error('Events error:', eventsError);
@@ -582,7 +587,28 @@ function BehavioralEventsPageContent() {
 
     setSyncing(true);
     try {
-      const result = await syncOfflineQueue(client);
+      const result = await syncOfflineQueue(client, {
+        onBehaviorEventInserted: async (record) => {
+          const studentName =
+            students.find((student) => student.lrn === record.student_lrn)?.name ||
+            record.student_lrn;
+
+          await createRoleNotification({
+            title: 'New Log For Guidance Review',
+            message: `${studentName} has a new behavioral log pending review.`,
+            targetRoles: ['guidance', 'admin'],
+            relatedEventId: record.id,
+            meta: {
+              href: '/guidance-review',
+              student_lrn: record.student_lrn,
+              source: 'offline-sync',
+              prevention_note: buildEarlyPreventionNote({
+                guidanceStatus: 'pending_guidance',
+              }),
+            },
+          });
+        },
+      });
 
       await refreshPendingSyncCount();
 
@@ -688,12 +714,32 @@ function BehavioralEventsPageContent() {
         throw new Error('Supabase is not configured in this environment.');
       }
 
-      const { error } = await supabase
+      const { data: insertedRows, error } = await supabase
         .from('behavioral_events')
         .insert([insertPayload])
         .select('id');
 
       if (error) throw error;
+
+      const insertedEventId = insertedRows?.[0]?.id ? Number(insertedRows[0].id) : null;
+
+      await createRoleNotification({
+        title: 'New Log For Guidance Review',
+        message: `${selectedStudent.name} has a new ${formData.severity} behavioral log pending review.`,
+        targetRoles: ['guidance', 'admin'],
+        createdBy: insertPayload.reported_by,
+        relatedEventId: insertedEventId,
+        meta: {
+          href: '/guidance-review',
+          student_lrn: formData.student_lrn,
+          event_type: formData.event_type,
+          prevention_note: buildEarlyPreventionNote({
+            eventType: formData.event_type,
+            severity: formData.severity,
+            guidanceStatus: 'pending_guidance',
+          }),
+        },
+      });
 
       toast({
         title: "Success",
@@ -897,10 +943,46 @@ function BehavioralEventsPageContent() {
             ? 'Guidance approved. ML scoring completed and parent email was sent.'
             : 'Guidance approved. ML scoring completed with no parent email required.',
         });
+
+        await createRoleNotification({
+          title: 'Log Reviewed By Guidance',
+          message: `${selectedEvent.students?.name || selectedEvent.student_lrn} (${selectedEvent.event_type}) was approved by guidance.`,
+          targetRoles: ['teacher', 'admin'],
+          createdBy: reviewerName,
+          relatedEventId: selectedEvent.id,
+          meta: {
+            href: '/behavioral-events',
+            student_lrn: selectedEvent.student_lrn,
+            guidance_status: 'approved_for_ml',
+            prevention_note: buildEarlyPreventionNote({
+              eventType: selectedEvent.event_type,
+              severity: selectedEvent.severity,
+              guidanceStatus: 'approved_for_ml',
+            }),
+          },
+        });
       } else {
         toast({
           title: 'Guidance Denied',
           description: 'Guidance intervention recorded. Parent notification was stopped.',
+        });
+
+        await createRoleNotification({
+          title: 'Log Reviewed By Guidance',
+          message: `${selectedEvent.students?.name || selectedEvent.student_lrn} (${selectedEvent.event_type}) was denied by guidance.`,
+          targetRoles: ['teacher', 'admin'],
+          createdBy: reviewerName,
+          relatedEventId: selectedEvent.id,
+          meta: {
+            href: '/behavioral-events',
+            student_lrn: selectedEvent.student_lrn,
+            guidance_status: 'denied_by_guidance',
+            prevention_note: buildEarlyPreventionNote({
+              eventType: selectedEvent.event_type,
+              severity: selectedEvent.severity,
+              guidanceStatus: 'denied_by_guidance',
+            }),
+          },
         });
       }
 
@@ -1490,6 +1572,7 @@ function BehavioralEventsPageContent() {
                   </div>
                   <Badge variant="outline" className="bg-white dark:bg-slate-800">
                       {{
+                       created_at: 'Logged Time',
                        event_date: 'Date',
                        event_time: 'Time',
                        severity: 'Severity',
@@ -1501,8 +1584,34 @@ function BehavioralEventsPageContent() {
                       {sortConfig.direction === 'asc' ? 'Oldest First' : 'Newest First'}
                   </Badge>
                 </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={showEventLog ? 'outline' : 'default'}
+                    onClick={() => setShowEventLog(current => !current)}
+                    className="gap-2"
+                  >
+                    {showEventLog ? (
+                      <>
+                        <Eye className="w-4 h-4" />
+                        Hide Event Log
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-4 h-4" />
+                        Show Event Log
+                      </>
+                    )}
+                  </Button>
+                  {showEventLog && (
+                    <Button size="sm" variant="ghost" onClick={() => setShowEventLog(false)}>
+                      Close Log
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
-              <CardContent className="p-0">
+              {showEventLog && (
+                <CardContent className="p-0">
                 {loading ? (
                   <div className="p-6 space-y-3">
                     {[...Array(4)].map((_, i) => (
@@ -1634,7 +1743,8 @@ function BehavioralEventsPageContent() {
                     ))}
                   </div>
                 )}
-              </CardContent>
+                </CardContent>
+              )}
             </Card>
           </TabsContent>
 

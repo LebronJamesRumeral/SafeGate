@@ -378,34 +378,20 @@ export async function compileStudentIssues(
       : [...uniqueBehaviorIssues];
 
     const fallbackIssues = uniqueAttendanceIssues;
+    const displayCap = nonPositiveEventCount > 0 ? nonPositiveEventCount : 1;
+    const prioritizedIssues = uniqueIssues.length > 0 ? uniqueIssues : fallbackIssues;
+    const visibleIssues = prioritizedIssues.slice(0, Math.max(displayCap, 1));
 
     let compiledIssue = 'No Issues Detected';
-    if (uniqueIssues.length === 1) {
-      compiledIssue = uniqueIssues[0];
-    } else if (uniqueBehaviorIssues.length > 0 && includeAttendanceWithBehavior && uniqueAttendanceIssues.length > 0) {
-      const behaviorPrimary = uniqueBehaviorIssues[0];
-      const attendancePrimary = uniqueAttendanceIssues[0];
-      const additionalCount = Math.max(uniqueIssues.length - 2, 0);
-      compiledIssue = additionalCount > 0
-        ? `${behaviorPrimary} + ${attendancePrimary} + ${additionalCount} Other Issue${additionalCount > 1 ? 's' : ''}`
-        : `${behaviorPrimary} + ${attendancePrimary}`;
-    } else if (uniqueIssues.length === 0 && fallbackIssues.length > 0) {
-      // If there are no concrete behavioral issues, fall back to attendance-only insight.
-      compiledIssue = fallbackIssues[0];
+    if (visibleIssues.length > 0) {
+      compiledIssue = visibleIssues.join(' + ');
     } else if (uniqueIssues.length === 0) {
       compiledIssue = 'No Issues Detected';
-    } else if (uniqueIssues.length === 2) {
-      compiledIssue = `${uniqueIssues[0]} + ${uniqueIssues[1]}`;
-    } else {
-      // For 3+ issues, use a summary term
-      const primaryIssue = uniqueIssues[0];
-      const otherCount = uniqueIssues.length - 1;
-      compiledIssue = `${primaryIssue} + ${otherCount} Other Issue${otherCount > 1 ? 's' : ''}`;
     }
 
     return {
       compiledIssue,
-      componentIssues: uniqueIssues.length > 0 ? uniqueIssues : fallbackIssues,
+      componentIssues: visibleIssues,
       compiledDate: new Date().toISOString().split('T')[0],
     };
   } catch (error) {
@@ -434,47 +420,38 @@ export function applyRiskDowngrade(
 ): 'low' | 'medium' | 'high' | 'critical' | 'monitoring' {
   const { positive_events = 0, negative_events = 0, attendance_rate = 0, late_percentage = 0 } = breakdown;
   
-  // Calculate positive ratio: if they have lots of positive logs relative to negative, downgrade
+  // Calculate positive ratio so risk can move down progressively as positive behavior grows.
   const totalBehavioralEvents = positive_events + negative_events;
   const positiveRatio = totalBehavioralEvents > 0 ? positive_events / totalBehavioralEvents : 0;
   
-  // Thresholds for downgrading
-  const hasStrongPositiveRatio = positiveRatio >= 0.60; // 60% positive or more
-  const hasModeratePositiveRatio = positiveRatio >= 0.40; // 40-60% positive
+  const hasAnyPositive = positive_events >= 1;
+  const hasEarlyPositiveMomentum = positive_events >= 2 || positiveRatio >= 0.30;
+  const hasStrongPositiveMomentum = positive_events >= 3 || positiveRatio >= 0.50;
   const hasGoodAttendance = attendance_rate >= 85;
   const hasStableAttendance = attendance_rate >= 75;
+  const hasManageableLateRate = late_percentage < 25;
   const hasLowLateRate = late_percentage < 15;
-  
-  // Determine attendance change impact: if attendance is good/stable and positive events exist, favor downgrade
-  const attendanceIsImproving = hasGoodAttendance || (hasStableAttendance && hasLowLateRate);
-  const hasBehaviorImprovement = positive_events >= 5; // At least 5 positive events for significant improvement
+  const behaviorNotEscalating = negative_events <= 6;
   
   // Apply tiered downgrade logic
   if (currentRiskLevel === 'critical') {
-    if (hasStrongPositiveRatio && hasBehaviorImprovement) {
-      // Strong positive trajectory: critical → high
+    if ((hasAnyPositive && positiveRatio >= 0.20) || (positive_events >= 2 && behaviorNotEscalating) || (hasAnyPositive && behaviorNotEscalating && (hasStableAttendance || hasManageableLateRate))) {
+      // Early sustained recovery: critical -> high
       return 'high';
     }
   } else if (currentRiskLevel === 'high') {
-    if (hasStrongPositiveRatio && hasBehaviorImprovement && attendanceIsImproving) {
-      // Consistent improvement across behavior + attendance: high → medium
-      return 'medium';
-    } else if (hasModeratePositiveRatio && hasBehaviorImprovement && hasStableAttendance) {
-      // Moderate improvement with stable attendance: high → medium
+    if (hasEarlyPositiveMomentum && behaviorNotEscalating && (hasStableAttendance || hasManageableLateRate)) {
+      // Continued recovery: high -> medium
       return 'medium';
     }
   } else if (currentRiskLevel === 'medium') {
-    if (hasStrongPositiveRatio && positive_events >= 3 && attendanceIsImproving) {
-      // Strong positive behavior + good attendance: medium → low
-      return 'low';
-    } else if (hasModeratePositiveRatio && positive_events >= 7 && hasStableAttendance) {
-      // Sustained positive behavior with stable attendance: medium → low
+    if (hasStrongPositiveMomentum && hasStableAttendance && hasManageableLateRate) {
+      // Consistent improvement: medium -> low
       return 'low';
     }
   } else if (currentRiskLevel === 'low') {
-    // From low, can move to monitoring if behavior is improving but attendance hasn't deteriorated
-    if (hasStrongPositiveRatio && positive_events >= 5 && hasStableAttendance) {
-      // Sustained positive behavior with maintained attendance: low → monitoring
+    // Final step to near-zero risk state.
+    if (positive_events >= 4 && negative_events <= 1 && hasGoodAttendance && hasLowLateRate) {
       return 'monitoring';
     }
   }

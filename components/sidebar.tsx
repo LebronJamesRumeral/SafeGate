@@ -13,6 +13,7 @@ import {
   School,
   AlertTriangle,
   CalendarDays,
+  ClipboardCheck,
   ChevronLeft,
   ChevronRight
 } from "lucide-react"
@@ -25,10 +26,11 @@ export const SidebarContext = createContext<{ collapsed: boolean; setCollapsed: 
 const allNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/", roles: ["admin", "teacher", "guidance"] },
   { icon: AlertTriangle, label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin", "guidance"] },
-  { icon: School, label: "Masterlist", href: "/masterlist", roles: ["admin"] },
+  { icon: ClipboardCheck, label: "Guidance Review", href: "/guidance-review", roles: ["admin", "guidance"] },
+  { icon: School, label: "Masterlist", href: "/masterlist", roles: ["admin", "guidance"] },
   { icon: ScanLine, label: "Attendance / QR Scan", href: "/scan", roles: ["teacher", "admin"] },
   { icon: CalendarDays, label: "Attendance Logs", href: "/attendance", roles: ["teacher", "admin"] },
-  { icon: Users, label: "Students", href: "/students", roles: ["teacher", "admin"] },
+  { icon: Users, label: "Students", href: "/students", roles: ["teacher", "admin", "guidance"] },
   // Only admin sees Analytics and Settings
   { icon: BarChart3, label: "Analytics", href: "/analytics", roles: ["admin"] },
   { icon: Settings, label: "Settings", href: "/settings", roles: ["admin"] },
@@ -149,7 +151,7 @@ export function Sidebar() {
             <div className="bg-gradient-to-r from-[#fbbf24]/20 to-[#ff8a00]/20 dark:from-orange-500/20 dark:to-orange-600/20 hover:from-[#fbbf24]/30 hover:to-[#ff8a00]/30 dark:hover:from-orange-500/30 dark:hover:to-orange-600/30 rounded-lg p-3 text-center transition-all duration-300 backdrop-blur-sm">
               {!collapsed && (
                 <>
-                  <p className="text-xs font-semibold text-white drop-shadow-sm">SafeGate v1.1</p>
+                  <p className="text-xs font-semibold text-white drop-shadow-sm">SafeGate v2.0</p>
                   <p className="text-xs text-[#fcd34d] dark:text-orange-400 mt-1">SGCDC Behavior and Intervention</p>
                 </>
               )}

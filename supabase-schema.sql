@@ -1,6 +1,7 @@
 -- ============================================================================
 
 DROP TABLE IF EXISTS student_behavioral_summary CASCADE;
+DROP TABLE IF EXISTS role_notifications CASCADE;
 DROP TABLE IF EXISTS parent_notifications CASCADE;
 DROP TABLE IF EXISTS interventions CASCADE;
 DROP TABLE IF EXISTS behavioral_patterns CASCADE;
@@ -672,6 +673,29 @@ CREATE POLICY "Enable read for all on behavioral events" ON behavioral_events FO
 CREATE POLICY "Enable insert for all on behavioral events" ON behavioral_events FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on behavioral events" ON behavioral_events FOR UPDATE USING (true);
 CREATE POLICY "Enable delete for all on behavioral events" ON behavioral_events FOR DELETE USING (true);
+
+-- Role-based in-app and push notifications
+CREATE TABLE IF NOT EXISTS role_notifications (
+  id BIGSERIAL PRIMARY KEY,
+  title VARCHAR(160) NOT NULL,
+  message TEXT NOT NULL,
+  target_roles TEXT[] NOT NULL,
+  read_by_roles TEXT[] NOT NULL DEFAULT '{}',
+  created_by VARCHAR(255),
+  related_event_id BIGINT REFERENCES behavioral_events(id) ON DELETE SET NULL,
+  meta JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_role_notifications_created_at ON role_notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_role_notifications_target_roles ON role_notifications USING GIN(target_roles);
+CREATE INDEX IF NOT EXISTS idx_role_notifications_read_by_roles ON role_notifications USING GIN(read_by_roles);
+
+ALTER TABLE role_notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable read for all on role notifications" ON role_notifications FOR SELECT USING (true);
+CREATE POLICY "Enable insert for all on role notifications" ON role_notifications FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for all on role notifications" ON role_notifications FOR UPDATE USING (true);
 
 -- ============================================================================
 -- ML PREDICTION FUNCTIONS: Core Absence Forecasting Engine
