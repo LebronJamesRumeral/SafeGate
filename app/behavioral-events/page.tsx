@@ -4,14 +4,18 @@ import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { DashboardLayout } from '@/components/dashboard-layout';
+import { useHeatmapZones } from '@/lib/heatmap-zones-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   AlertTriangle, 
@@ -55,7 +59,7 @@ import {
   CloudUpload
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { buildEarlyPreventionNote } from '@/lib/prevention-notes';
 import { MLDashboard } from '@/components/ml-dashboard';
@@ -112,6 +116,9 @@ interface BehavioralEvent {
     category_type: string;
     color_code: string;
   };
+  report_group_id?: string | null;
+  report_student_count?: number;
+  report_student_names?: string[];
 }
 
 interface EventCategory {
@@ -144,7 +151,36 @@ interface CategoryTemplate {
   name: string;
   categoryType: string;
   severity: 'positive' | 'neutral' | 'minor' | 'major' | 'critical';
+  levelScopes?: Array<'early' | 'grade' | 'all'>;
 }
+
+const REPORT_GROUP_ID_PREFIX = '[GROUP_REPORT_ID:';
+const REPORT_GROUP_COUNT_PREFIX = '[GROUP_REPORT_COUNT:';
+const EARLY_LEVEL_KEYWORDS = ['kinder', 'pre-k', 'prek', 'nursery', 'toddler'];
+
+const getStudentLevelScope = (level?: string | null): 'early' | 'grade' => {
+  const normalized = (level || '').toLowerCase();
+  return EARLY_LEVEL_KEYWORDS.some((keyword) => normalized.includes(keyword)) ? 'early' : 'grade';
+};
+
+const extractReportGroupId = (notes?: string | null): string | null => {
+  if (!notes) return null;
+  const match = notes.match(/\[GROUP_REPORT_ID:([^\]]+)\]/i);
+  return match?.[1]?.trim() || null;
+};
+
+const removeReportMetadataFromNotes = (notes?: string | null): string => {
+  if (!notes) return '';
+  return notes
+    .split('\n')
+    .filter(
+      (line) =>
+        !line.trim().toUpperCase().startsWith(REPORT_GROUP_ID_PREFIX) &&
+        !line.trim().toUpperCase().startsWith(REPORT_GROUP_COUNT_PREFIX)
+    )
+    .join('\n')
+    .trim();
+};
 
 const SEVERITY_COLORS = {
   positive: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-700', icon: CheckCircle, gradient: 'from-emerald-500 to-emerald-400' },
@@ -156,23 +192,137 @@ const SEVERITY_COLORS = {
 
 const CHART_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899'];
 
+const LOCATION_OPTIONS = [
+  'Kinder Room',
+  'Grade 1 Room',
+  'Grade 2 Room',
+  'Grade 3 Room',
+  'Grade 4 Room',
+  'Grade 5 Room',
+  'Grade 6 Room',
+  'Grade 7 Room',
+  'Grade 8 Room',
+  'Gym Area',
+  'Cafeteria',
+  'Sensory Room',
+  'Dance Room',
+  'Library',
+  'Science Laboratory',
+  'Music Room',
+  'Entrance / Gate',
+];
+
 const CATEGORY_TEMPLATES: CategoryTemplate[] = [
-  { id: 'classroom-disruption', name: 'Classroom Disruption', categoryType: 'Behavior', severity: 'major' },
-  { id: 'academic-dishonesty', name: 'Academic Dishonesty', categoryType: 'Academic', severity: 'major' },
-  { id: 'peer-conflict', name: 'Peer Conflict', categoryType: 'Social', severity: 'minor' },
-  { id: 'bullying-report', name: 'Bullying Report', categoryType: 'Safety', severity: 'critical' },
-  { id: 'property-damage', name: 'Property Damage', categoryType: 'Discipline', severity: 'major' },
-  { id: 'respectful-conduct', name: 'Respectful Conduct', categoryType: 'Positive Behavior', severity: 'positive' },
-  { id: 'leadership-initiative', name: 'Leadership Initiative', categoryType: 'Positive Behavior', severity: 'positive' },
-  { id: 'counseling-referral', name: 'Counseling Referral', categoryType: 'Intervention', severity: 'minor' },
+  // =========================
+  // GRADE SCHOOL (CORE)
+  // =========================
+  { id: 'classroom-disruption', name: 'Classroom Disruption', categoryType: 'Behavior', severity: 'major', levelScopes: ['grade'] },
+  { id: 'off-task-behavior', name: 'Off-Task Behavior', categoryType: 'Behavior', severity: 'minor', levelScopes: ['grade'] },
+  { id: 'insubordination', name: 'Insubordination', categoryType: 'Discipline', severity: 'major', levelScopes: ['grade'] },
+  { id: 'unauthorized-leaving', name: 'Leaving Class Without Permission', categoryType: 'Discipline', severity: 'major', levelScopes: ['grade'] },
+
+  // =========================
+  // ACADEMIC
+  // =========================
+  { id: 'academic-dishonesty', name: 'Academic Dishonesty', categoryType: 'Academic', severity: 'major', levelScopes: ['grade'] },
+  { id: 'plagiarism', name: 'Plagiarism', categoryType: 'Academic', severity: 'major', levelScopes: ['grade'] },
+  { id: 'cheating-exam', name: 'Cheating During Exam', categoryType: 'Academic', severity: 'major', levelScopes: ['grade'] },
+  { id: 'incomplete-homework', name: 'Incomplete Homework', categoryType: 'Academic', severity: 'minor', levelScopes: ['grade'] },
+  { id: 'late-submission', name: 'Late Submission', categoryType: 'Academic', severity: 'minor', levelScopes: ['grade'] },
+  { id: 'lack-of-participation', name: 'Lack of Participation', categoryType: 'Academic', severity: 'minor', levelScopes: ['grade'] },
+
+  // =========================
+  // SOCIAL / PEER
+  // =========================
+  { id: 'peer-conflict', name: 'Peer Conflict', categoryType: 'Social', severity: 'minor', levelScopes: ['all'] },
+  { id: 'bullying-report', name: 'Bullying Report', categoryType: 'Safety', severity: 'critical', levelScopes: ['grade'] },
+  { id: 'cyberbullying', name: 'Cyberbullying', categoryType: 'Safety', severity: 'critical', levelScopes: ['grade'] },
+  { id: 'verbal-abuse', name: 'Verbal Abuse', categoryType: 'Safety', severity: 'major', levelScopes: ['grade'] },
+  { id: 'physical-aggression', name: 'Physical Aggression', categoryType: 'Safety', severity: 'critical', levelScopes: ['grade'] },
+  { id: 'exclusion-behavior', name: 'Exclusion / Social Isolation Behavior', categoryType: 'Social', severity: 'minor', levelScopes: ['grade'] },
+
+  // =========================
+  // DISCIPLINE / RULES
+  // =========================
+  { id: 'uniform-violation', name: 'Uniform Violation', categoryType: 'Discipline', severity: 'minor', levelScopes: ['grade'] },
+  { id: 'tardiness', name: 'Tardiness', categoryType: 'Discipline', severity: 'minor', levelScopes: ['all'] },
+  { id: 'unauthorized-absence', name: 'Unauthorized Absence', categoryType: 'Discipline', severity: 'major', levelScopes: ['all'] },
+  { id: 'device-misuse', name: 'Improper Use of Device', categoryType: 'Discipline', severity: 'minor', levelScopes: ['grade'] },
+  { id: 'property-damage', name: 'Property Damage', categoryType: 'Discipline', severity: 'major', levelScopes: ['all'] },
+  { id: 'theft', name: 'Theft', categoryType: 'Discipline', severity: 'critical', levelScopes: ['all'] },
+
+  // =========================
+  // SAFETY / CRITICAL
+  // =========================
+  { id: 'substance-use', name: 'Substance Use', categoryType: 'Safety', severity: 'critical', levelScopes: ['grade'] },
+  { id: 'weapon-possession', name: 'Weapon Possession', categoryType: 'Safety', severity: 'critical', levelScopes: ['grade'] },
+
+  // =========================
+  // POSITIVE BEHAVIOR
+  // =========================
+  { id: 'respectful-conduct', name: 'Respectful Conduct', categoryType: 'Positive Behavior', severity: 'positive', levelScopes: ['all'] },
+  { id: 'leadership-initiative', name: 'Leadership Initiative', categoryType: 'Positive Behavior', severity: 'positive', levelScopes: ['grade'] },
+  { id: 'teamwork-excellence', name: 'Teamwork Excellence', categoryType: 'Positive Behavior', severity: 'positive', levelScopes: ['grade'] },
+  { id: 'helping-others', name: 'Helping Others', categoryType: 'Positive Behavior', severity: 'positive', levelScopes: ['all'] },
+  { id: 'active-participation', name: 'Active Participation', categoryType: 'Positive Behavior', severity: 'positive', levelScopes: ['grade'] },
+  { id: 'responsibility', name: 'Responsibility and Accountability', categoryType: 'Positive Behavior', severity: 'positive', levelScopes: ['all'] },
+  { id: 'kindness', name: 'Kindness / Empathy', categoryType: 'Positive Behavior', severity: 'positive', levelScopes: ['all'] },
+
+  // =========================
+  // INTERVENTION / SUPPORT
+  // =========================
+  { id: 'counseling-referral', name: 'Counseling Referral', categoryType: 'Intervention', severity: 'minor', levelScopes: ['all'] },
+  { id: 'parent-conference', name: 'Parent Conference Required', categoryType: 'Intervention', severity: 'minor', levelScopes: ['all'] },
+  { id: 'behavioral-contract', name: 'Behavioral Contract', categoryType: 'Intervention', severity: 'minor', levelScopes: ['grade'] },
+  { id: 'guidance-session', name: 'Guidance Session', categoryType: 'Intervention', severity: 'minor', levelScopes: ['all'] },
+
+  // =========================
+  // EARLY LEARNERS
+  // =========================
+  { id: 'playground-redirection', name: 'Playground Redirection', categoryType: 'Behavior', severity: 'minor', levelScopes: ['early'] },
+  { id: 'tantrum-episode', name: 'Tantrum Episode', categoryType: 'Behavior', severity: 'major', levelScopes: ['early'] },
+  { id: 'sharing-difficulty', name: 'Sharing Difficulty', categoryType: 'Social', severity: 'minor', levelScopes: ['early'] },
+  { id: 'separation-anxiety', name: 'Separation Anxiety', categoryType: 'Behavior', severity: 'minor', levelScopes: ['early'] },
+  { id: 'attention-difficulty', name: 'Attention Difficulty', categoryType: 'Behavior', severity: 'minor', levelScopes: ['early'] },
+  { id: 'sensory-overload', name: 'Sensory Overload', categoryType: 'Behavior', severity: 'minor', levelScopes: ['early'] },
+  { id: 'transition-support', name: 'Transition Support Needed', categoryType: 'Intervention', severity: 'minor', levelScopes: ['early'] },
+  { id: 'toilet-training-support', name: 'Toilet Training Support Needed', categoryType: 'Intervention', severity: 'minor', levelScopes: ['early'] },
+
+  // Positive (Early)
+  { id: 'routine-following', name: 'Routine Following', categoryType: 'Positive Behavior', severity: 'positive', levelScopes: ['early'] },
+  { id: 'circle-time-participation', name: 'Circle Time Participation', categoryType: 'Positive Behavior', severity: 'positive', levelScopes: ['early'] },
+  { id: 'positive-sharing', name: 'Positive Sharing', categoryType: 'Positive Behavior', severity: 'positive', levelScopes: ['early'] },
+
+  // =========================
+  // GENERAL / OTHER
+  // =========================
+  { id: 'health-concern', name: 'Health Concern Observed', categoryType: 'Other', severity: 'minor', levelScopes: ['all'] },
+  { id: 'transportation-delay', name: 'Transportation Delay Incident', categoryType: 'Other', severity: 'neutral', levelScopes: ['all'] },
+  { id: 'visitor-related-incident', name: 'Visitor Related Incident', categoryType: 'Other', severity: 'minor', levelScopes: ['all'] },
+  { id: 'unclassified-incident', name: 'Unclassified / Other Incident', categoryType: 'Other', severity: 'minor', levelScopes: ['all'] },
 ];
 
 // Enforce consistent layout structure for behavioral events
+import { HeatmapZonesProvider } from '@/lib/heatmap-zones-context';
+
 export default function BehavioralEventsPage() {
+  const [zones, setZones] = useState([]);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem('sgcdc-school-heatmap-zones-v3');
+      try {
+        setZones(stored ? JSON.parse(stored) : []);
+      } catch {
+        setZones([]);
+      }
+    }
+  }, []);
   return (
-    <Suspense fallback={<TablePageSkeleton />}>
-      <BehavioralEventsPageContent />
-    </Suspense>
+    <HeatmapZonesProvider initialZones={zones}>
+      <Suspense fallback={<TablePageSkeleton />}>
+        <BehavioralEventsPageContent />
+      </Suspense>
+    </HeatmapZonesProvider>
   );
 }
 
@@ -206,6 +356,10 @@ function BehavioralEventsPageContent() {
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [guidanceReviewNote, setGuidanceReviewNote] = useState('');
   const [guidanceSubmitting, setGuidanceSubmitting] = useState(false);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [studentPickerOpen, setStudentPickerOpen] = useState(false);
+  const [eventTypePickerOpen, setEventTypePickerOpen] = useState(false);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
   useEffect(() => {
     if (isMobile) {
       setShowFilters(false);
@@ -214,7 +368,9 @@ function BehavioralEventsPageContent() {
 
   // Form state for adding new event
   const [formData, setFormData] = useState({
+    report_mode: 'single' as 'single' | 'group',
     student_lrn: '',
+    student_lrns: [] as string[],
     category_id: '',
     event_type: '',
     severity: 'minor',
@@ -225,6 +381,10 @@ function BehavioralEventsPageContent() {
     follow_up_required: true,
     notes: ''
   });
+
+  // Get live zone names for location select
+  const { zones, loading: zonesLoading, error: zonesError, addDataPoint } = useHeatmapZones();
+  const zoneNames: string[] = Array.isArray(zones) ? zones.map((z: { name: string }) => z.name) : [];
 
   useEffect(() => {
     const user = localStorage.getItem('safegate_user');
@@ -293,6 +453,11 @@ function BehavioralEventsPageContent() {
     [students, formData.student_lrn]
   );
 
+  const selectedStudents = useMemo(
+    () => students.filter((student) => formData.student_lrns.includes(student.lrn)),
+    [students, formData.student_lrns]
+  );
+
   const normalizedRole = (currentUser?.role || '').toString().toLowerCase();
   const isGuidanceUser = normalizedRole === 'guidance' || normalizedRole === 'admin';
 
@@ -303,6 +468,7 @@ function BehavioralEventsPageContent() {
         name: category.name,
         categoryType: category.category_type,
         severity: (category.severity_level || 'minor') as CategoryTemplate['severity'],
+        levelScopes: ['all'],
       })),
     [categories]
   );
@@ -329,6 +495,175 @@ function BehavioralEventsPageContent() {
       return a.name.localeCompare(b.name);
     });
   }, [availableCategoryTemplates]);
+
+  const activeStudentLevelScopes = useMemo<Array<'early' | 'grade'>>(() => {
+    if (formData.report_mode === 'group') {
+      return Array.from(new Set(selectedStudents.map((student) => getStudentLevelScope(student.level))));
+    }
+
+    if (!selectedStudent) {
+      return [];
+    }
+
+    return [getStudentLevelScope(selectedStudent.level)];
+  }, [formData.report_mode, selectedStudents, selectedStudent]);
+
+  const suggestedStudentLevels = useMemo(() => {
+    if (formData.report_mode === 'group') {
+      return Array.from(new Set(selectedStudents.map((student) => student.level))).sort((a, b) =>
+        a.localeCompare(b)
+      );
+    }
+
+    if (!selectedStudent?.level) {
+      return [];
+    }
+
+    return [selectedStudent.level];
+  }, [formData.report_mode, selectedStudents, selectedStudent]);
+
+  const levelSuggestionText = useMemo(() => {
+    if (suggestedStudentLevels.length === 0) {
+      return 'Select student(s) first to get level suggestions.';
+    }
+
+    if (suggestedStudentLevels.length === 1) {
+      return `Suggested level: ${suggestedStudentLevels[0]}`;
+    }
+
+    return `Suggested levels: ${suggestedStudentLevels.join(', ')}`;
+  }, [suggestedStudentLevels]);
+
+  const levelAwareEventTypeOptions = useMemo(() => {
+    if (activeStudentLevelScopes.length === 0) {
+      return eventTypeOptions;
+    }
+
+    return eventTypeOptions.filter((option) => {
+      const scopes = option.levelScopes?.length ? option.levelScopes : ['all'];
+      if (scopes.includes('all')) {
+        return true;
+      }
+      return activeStudentLevelScopes.some((scope) => scopes.includes(scope));
+    });
+  }, [activeStudentLevelScopes, eventTypeOptions]);
+
+  const groupedEventTypeOptions = useMemo(() => {
+    if (suggestedStudentLevels.length === 0) {
+      const earlyLearner = levelAwareEventTypeOptions.filter((option) => {
+        const scopes = option.levelScopes?.length ? option.levelScopes : ['all'];
+        return scopes.includes('early') && !scopes.includes('all') && option.categoryType.toLowerCase() !== 'other';
+      });
+      const gradeSchool = levelAwareEventTypeOptions.filter((option) => {
+        const scopes = option.levelScopes?.length ? option.levelScopes : ['all'];
+        return scopes.includes('grade') && !scopes.includes('all') && option.categoryType.toLowerCase() !== 'other';
+      });
+      const otherGeneral = levelAwareEventTypeOptions.filter((option) => {
+        const scopes = option.levelScopes?.length ? option.levelScopes : ['all'];
+        return scopes.includes('all') || option.categoryType.toLowerCase() === 'other';
+      });
+
+      return [
+        { key: 'early', label: 'Early Learners', options: earlyLearner },
+        { key: 'grade', label: 'Grade School', options: gradeSchool },
+        { key: 'other', label: 'Other / General', options: otherGeneral },
+      ].filter((group) => group.options.length > 0);
+    }
+
+    const levelSpecificGroups = suggestedStudentLevels.map((level) => {
+      const levelScope = getStudentLevelScope(level);
+      const options = levelAwareEventTypeOptions.filter((option) => {
+        const scopes = option.levelScopes?.length ? option.levelScopes : ['all'];
+        const isOtherCategory = option.categoryType.toLowerCase() === 'other';
+        return scopes.includes(levelScope) && !scopes.includes('all') && !isOtherCategory;
+      });
+
+      return {
+        key: `level-${level.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        label: level,
+        options,
+      };
+    }).filter((group) => group.options.length > 0);
+
+    const sharedOtherGeneral = levelAwareEventTypeOptions.filter((option) => {
+      const scopes = option.levelScopes?.length ? option.levelScopes : ['all'];
+      return scopes.includes('all') || option.categoryType.toLowerCase() === 'other';
+    });
+
+    return [
+      ...levelSpecificGroups,
+      { key: 'other', label: 'Other / General', options: sharedOtherGeneral },
+    ].filter((group) => group.options.length > 0);
+  }, [levelAwareEventTypeOptions, suggestedStudentLevels]);
+
+  const groupedLogEvents = useMemo(() => {
+    const groupedByReport = new Map<string, BehavioralEvent[]>();
+    const standaloneEvents: BehavioralEvent[] = [];
+
+    filteredEvents.forEach((event) => {
+      const groupId = extractReportGroupId(event.notes);
+      if (groupId) {
+        if (!groupedByReport.has(groupId)) {
+          groupedByReport.set(groupId, []);
+        }
+        groupedByReport.get(groupId)?.push(event);
+      } else {
+        standaloneEvents.push(event);
+      }
+    });
+
+    const groupedReports: BehavioralEvent[] = [];
+    groupedByReport.forEach((eventsInGroup, groupId) => {
+      const sorted = [...eventsInGroup].sort((a, b) => {
+        const aDate = new Date(a.created_at || `${a.event_date}T${a.event_time}`).getTime();
+        const bDate = new Date(b.created_at || `${b.event_date}T${b.event_time}`).getTime();
+        return bDate - aDate;
+      });
+      const primaryEvent = sorted[0];
+      const studentNames = Array.from(
+        new Set(sorted.map((event) => event.students?.name || event.student_lrn).filter(Boolean))
+      );
+
+      groupedReports.push({
+        ...primaryEvent,
+        report_group_id: groupId,
+        report_student_count: sorted.length,
+        report_student_names: studentNames,
+      });
+    });
+
+    return [...standaloneEvents, ...groupedReports].sort((a, b) => {
+      const aDate = new Date(a.created_at || `${a.event_date}T${a.event_time}`).getTime();
+      const bDate = new Date(b.created_at || `${b.event_date}T${b.event_time}`).getTime();
+      return bDate - aDate;
+    });
+  }, [filteredEvents]);
+
+  const filteredStudentOptions = useMemo(() => {
+    const query = studentSearchQuery.trim().toLowerCase();
+    if (!query) {
+      return students;
+    }
+
+    return students.filter((student) => {
+      return (
+        student.name.toLowerCase().includes(query) ||
+        student.lrn.toLowerCase().includes(query) ||
+        student.level.toLowerCase().includes(query)
+      );
+    });
+  }, [students, studentSearchQuery]);
+
+  useEffect(() => {
+    if (!formData.event_type) {
+      return;
+    }
+
+    const stillValid = levelAwareEventTypeOptions.some((option) => option.name === formData.event_type);
+    if (!stillValid) {
+      setFormData((prev) => ({ ...prev, event_type: '', category_id: '' }));
+    }
+  }, [formData.event_type, levelAwareEventTypeOptions]);
 
   const fetchTeacherAccounts = async () => {
     try {
@@ -596,7 +931,7 @@ function BehavioralEventsPageContent() {
           await createRoleNotification({
             title: 'New Log For Guidance Review',
             message: `${studentName} has a new behavioral log pending review.`,
-            targetRoles: ['guidance', 'admin'],
+            targetRoles: ['guidance'],
             relatedEventId: record.id,
             meta: {
               href: '/guidance-review',
@@ -639,43 +974,104 @@ function BehavioralEventsPageContent() {
   };
 
   const handleAddEvent = async () => {
-    if (!formData.student_lrn || !formData.event_type || !formData.description) {
+    if (reportSubmitting) {
       toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive"
+        title: 'Please wait',
+        description: 'Your report is already being submitted.',
       });
       return;
     }
 
-    if (!selectedStudent) {
+    const targetStudentLrns =
+      formData.report_mode === 'group'
+        ? Array.from(new Set(formData.student_lrns))
+        : formData.student_lrn
+        ? [formData.student_lrn]
+        : [];
+    const trimmedDescription = formData.description.trim();
+    const missingInputs: string[] = [];
+
+    if (formData.report_mode === 'group' && targetStudentLrns.length < 2) {
+      missingInputs.push('At least 2 students for General Report');
+    } else if (formData.report_mode === 'single' && targetStudentLrns.length < 1) {
+      missingInputs.push('Student');
+    }
+
+    if (!formData.event_type) {
+      missingInputs.push('Event Type');
+    }
+
+    if (!trimmedDescription) {
+      missingInputs.push('Incident Description');
+    }
+
+    if (missingInputs.length > 0) {
       toast({
-        title: 'Student Not Found',
-        description: 'Please select a valid student from records.',
+        title: 'Required Inputs Missing',
+        description: `Please complete: ${missingInputs.join(', ')}`,
         variant: 'destructive',
       });
       return;
     }
 
+    if (!levelAwareEventTypeOptions.some((option) => option.name === formData.event_type)) {
+      toast({
+        title: 'Event Type Mismatch',
+        description: 'The selected event type does not match the selected student level(s). Please reselect event type.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const targetStudents = students.filter((student) => targetStudentLrns.includes(student.lrn));
+    if (targetStudents.length !== targetStudentLrns.length) {
+      toast({
+        title: 'Student Not Found',
+        description: 'Please select valid students from records.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setReportSubmitting(true);
     try {
       const today = new Date();
       const eventDate = today.toISOString().split('T')[0];
       const eventTime = today.toTimeString().split(' ')[0];
+      const groupReportId = formData.report_mode === 'group' && targetStudentLrns.length > 1
+        ? `report-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        : null;
 
-      const notesWithWitnesses = formData.witness_names.trim()
-        ? `${formData.notes?.trim() ? `${formData.notes.trim()}\n\n` : ''}Witnesses: ${formData.witness_names.trim()}`
-        : formData.notes;
+      const notesLines: string[] = [];
+      if (groupReportId) {
+        notesLines.push(`${REPORT_GROUP_ID_PREFIX}${groupReportId}]`);
+        notesLines.push(`${REPORT_GROUP_COUNT_PREFIX}${targetStudentLrns.length}]`);
+      }
+      if (formData.witness_names.trim()) {
+        notesLines.push(`Witnesses: ${formData.witness_names.trim()}`);
+      }
+      if (formData.notes?.trim()) {
+        notesLines.push(formData.notes.trim());
+      }
+      const notesWithWitnesses = notesLines.join('\n\n') || null;
 
       const matchedCategory = categories.find(
         (category) => category.name.toLowerCase() === formData.event_type.toLowerCase()
       );
 
-      const insertPayload = {
-        student_lrn: formData.student_lrn,
+      const reporterName =
+        currentUser?.display_name ||
+        currentUser?.full_name ||
+        currentUser?.name ||
+        currentUser?.username ||
+        'Admin';
+
+      const insertPayloads = targetStudentLrns.map((studentLrn) => ({
+        student_lrn: studentLrn,
         category_id: matchedCategory ? Number(matchedCategory.id) : null,
         event_type: formData.event_type,
         severity: formData.severity,
-        description: formData.description,
+        description: trimmedDescription,
         location: formData.location || null,
         action_taken: formData.action_taken || null,
         follow_up_required: formData.follow_up_required,
@@ -684,24 +1080,24 @@ function BehavioralEventsPageContent() {
         guidance_reviewed_by: null,
         guidance_reviewed_at: null,
         guidance_intervention_notes: null,
-        notes: notesWithWitnesses || null,
+        notes: notesWithWitnesses,
         event_date: eventDate,
         event_time: eventTime,
-        reported_by:
-          currentUser?.display_name ||
-          currentUser?.full_name ||
-          currentUser?.name ||
-          currentUser?.username ||
-          'Admin',
-      };
+        reported_by: reporterName,
+      }));
 
       if (!navigator.onLine) {
-        await queueBehaviorEvent(insertPayload);
+        for (const payload of insertPayloads) {
+          await queueBehaviorEvent(payload);
+        }
         await refreshPendingSyncCount();
 
         toast({
           title: 'Saved Offline',
-          description: `Behavioral event for ${selectedStudent.name} was encrypted locally and queued for sync.`,
+          description:
+            targetStudents.length > 1
+              ? `General report saved offline for ${targetStudents.length} students and queued for sync.`
+              : `Behavioral event for ${targetStudents[0].name} was encrypted locally and queued for sync.`,
           variant: 'default',
         });
 
@@ -716,47 +1112,94 @@ function BehavioralEventsPageContent() {
 
       const { data: insertedRows, error } = await supabase
         .from('behavioral_events')
-        .insert([insertPayload])
-        .select('id');
+        .insert(insertPayloads)
+        .select('id, student_lrn');
 
       if (error) throw error;
 
-      const insertedEventId = insertedRows?.[0]?.id ? Number(insertedRows[0].id) : null;
+      const eventIdByStudentLrn = new Map(
+        (insertedRows || []).map((row: { id: number; student_lrn: string }) => [row.student_lrn, Number(row.id)])
+      );
 
-      await createRoleNotification({
-        title: 'New Log For Guidance Review',
-        message: `${selectedStudent.name} has a new ${formData.severity} behavioral log pending review.`,
-        targetRoles: ['guidance', 'admin'],
-        createdBy: insertPayload.reported_by,
-        relatedEventId: insertedEventId,
-        meta: {
-          href: '/guidance-review',
-          student_lrn: formData.student_lrn,
-          event_type: formData.event_type,
-          prevention_note: buildEarlyPreventionNote({
-            eventType: formData.event_type,
-            severity: formData.severity,
-            guidanceStatus: 'pending_guidance',
-          }),
-        },
-      });
+      // Create heatmap data points for each behavioral event
+      await Promise.all(
+        targetStudents.map(async (student) => {
+          const eventId = eventIdByStudentLrn.get(student.lrn);
+          if (eventId && formData.location) {
+            try {
+              // Find matching zone by name
+              const matchingZone = zones.find(zone => zone.name === formData.location);
+              if (matchingZone) {
+                await addDataPoint({
+                  zone_id: matchingZone.id,
+                  event_type: 'behavioral',
+                  event_id: eventId,
+                  student_lrn: student.lrn,
+                  intensity_value: formData.severity === 'critical' ? 3.0 : formData.severity === 'major' ? 2.5 : formData.severity === 'minor' ? 1.5 : 1.0,
+                  metadata: {
+                    event_type: formData.event_type,
+                    severity: formData.severity,
+                    description: trimmedDescription,
+                    reported_by: reporterName
+                  },
+                  severity: formData.severity
+                });
+              }
+            } catch (heatmapError) {
+              console.error('Failed to create heatmap data point:', heatmapError);
+              // Don't fail the whole operation if heatmap creation fails
+            }
+          }
+        })
+      );
+
+      await Promise.all(
+        targetStudents.map(async (student) => {
+          const eventId = eventIdByStudentLrn.get(student.lrn);
+          if (eventId) {
+            await createRoleNotification({
+              title: 'New Log For Guidance Review',
+              message: `${student.name} has a new behavioral log pending review.`,
+              targetRoles: ['guidance'],
+              createdBy: reporterName,
+              relatedEventId: eventIdByStudentLrn.get(student.lrn) || null,
+              meta: {
+                href: '/guidance-review',
+                student_lrn: student.lrn,
+                event_type: formData.event_type,
+                report_group_id: groupReportId,
+                prevention_note: buildEarlyPreventionNote({
+                  eventType: formData.event_type,
+                  severity: formData.severity,
+                  guidanceStatus: 'pending_guidance',
+                }),
+              },
+            });
+          }
+        })
+      );
 
       toast({
         title: "Success",
-        description: `Behavioral event logged for ${selectedStudent.name}. Sent to Guidance for intervention and review.`
+        description:
+          targetStudents.length > 1
+            ? `General report logged for ${targetStudents.length} students. Recorded individually and sent to Guidance.`
+            : `Behavioral event logged for ${targetStudents[0].name}. Sent to Guidance for intervention and review.`
       });
 
       // Broadcast ML refresh so dashboards update instantly without page refresh.
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('ml-risk-refresh', {
-            detail: { studentLrn: formData.student_lrn, source: 'behavioral-events-log' },
-          })
-        );
-        localStorage.setItem(
-          'ml-risk-refresh',
-          JSON.stringify({ studentLrn: formData.student_lrn, ts: Date.now(), source: 'behavioral-events-log' })
-        );
+        targetStudentLrns.forEach((studentLrn) => {
+          window.dispatchEvent(
+            new CustomEvent('ml-risk-refresh', {
+              detail: { studentLrn, source: 'behavioral-events-log' },
+            })
+          );
+          localStorage.setItem(
+            'ml-risk-refresh',
+            JSON.stringify({ studentLrn, ts: Date.now(), source: 'behavioral-events-log' })
+          );
+        });
       }
 
       setIsAddDialogOpen(false);
@@ -768,18 +1211,35 @@ function BehavioralEventsPageContent() {
 
       try {
         const today = new Date();
-        const fallbackNotes = formData.witness_names.trim()
-          ? `${formData.notes?.trim() ? `${formData.notes.trim()}\n\n` : ''}Witnesses: ${formData.witness_names.trim()}`
-          : formData.notes;
+        const fallbackTargetStudentLrns =
+          formData.report_mode === 'group'
+            ? Array.from(new Set(formData.student_lrns))
+            : formData.student_lrn
+            ? [formData.student_lrn]
+            : [];
+        const fallbackGroupReportId = formData.report_mode === 'group' && fallbackTargetStudentLrns.length > 1
+          ? `report-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+          : null;
+        const fallbackNotesLines: string[] = [];
+        if (fallbackGroupReportId) {
+          fallbackNotesLines.push(`${REPORT_GROUP_ID_PREFIX}${fallbackGroupReportId}]`);
+          fallbackNotesLines.push(`${REPORT_GROUP_COUNT_PREFIX}${fallbackTargetStudentLrns.length}]`);
+        }
+        if (formData.witness_names.trim()) {
+          fallbackNotesLines.push(`Witnesses: ${formData.witness_names.trim()}`);
+        }
+        if (formData.notes?.trim()) {
+          fallbackNotesLines.push(formData.notes.trim());
+        }
         const fallbackCategory = categories.find(
           (category) => category.name.toLowerCase() === formData.event_type.toLowerCase()
         );
-        const fallbackPayload = {
-          student_lrn: formData.student_lrn,
+        const fallbackPayloads = fallbackTargetStudentLrns.map((studentLrn) => ({
+          student_lrn: studentLrn,
           category_id: fallbackCategory ? Number(fallbackCategory.id) : null,
           event_type: formData.event_type,
           severity: formData.severity,
-          description: formData.description,
+          description: trimmedDescription,
           location: formData.location || null,
           action_taken: formData.action_taken || null,
           follow_up_required: formData.follow_up_required,
@@ -788,7 +1248,7 @@ function BehavioralEventsPageContent() {
           guidance_reviewed_by: null,
           guidance_reviewed_at: null,
           guidance_intervention_notes: null,
-          notes: fallbackNotes || null,
+          notes: fallbackNotesLines.join('\n\n') || null,
           event_date: today.toISOString().split('T')[0],
           event_time: today.toTimeString().split(' ')[0],
           reported_by:
@@ -797,9 +1257,11 @@ function BehavioralEventsPageContent() {
             currentUser?.name ||
             currentUser?.username ||
             'Admin',
-        };
+        }));
 
-        await queueBehaviorEvent(fallbackPayload);
+        for (const payload of fallbackPayloads) {
+          await queueBehaviorEvent(payload);
+        }
         await refreshPendingSyncCount();
 
         toast({
@@ -817,12 +1279,16 @@ function BehavioralEventsPageContent() {
           variant: "destructive"
         });
       }
+    } finally {
+      setReportSubmitting(false);
     }
   };
 
   const resetForm = () => {
     setFormData({
+      report_mode: 'single',
       student_lrn: '',
+      student_lrns: [],
       category_id: '',
       event_type: '',
       severity: 'minor',
@@ -833,6 +1299,8 @@ function BehavioralEventsPageContent() {
       follow_up_required: true,
       notes: ''
     });
+    setEventTypePickerOpen(false);
+    setStudentSearchQuery('');
   };
 
   const handleFollowUp = async (event: BehavioralEvent) => {
@@ -954,6 +1422,8 @@ function BehavioralEventsPageContent() {
             href: '/behavioral-events',
             student_lrn: selectedEvent.student_lrn,
             guidance_status: 'approved_for_ml',
+            report_owner_name: selectedEvent.reported_by || null,
+            report_owner_username: selectedEvent.reported_by || null,
             prevention_note: buildEarlyPreventionNote({
               eventType: selectedEvent.event_type,
               severity: selectedEvent.severity,
@@ -977,6 +1447,8 @@ function BehavioralEventsPageContent() {
             href: '/behavioral-events',
             student_lrn: selectedEvent.student_lrn,
             guidance_status: 'denied_by_guidance',
+            report_owner_name: selectedEvent.reported_by || null,
+            report_owner_username: selectedEvent.reported_by || null,
             prevention_note: buildEarlyPreventionNote({
               eventType: selectedEvent.event_type,
               severity: selectedEvent.severity,
@@ -1017,11 +1489,11 @@ function BehavioralEventsPageContent() {
   };
 
   const exportToCSV = () => {
-    const headers = ['Date', 'Time', 'Student', 'Level', 'Event Type', 'Severity', 'Description', 'Location', 'Reported By', 'Parent Notified', 'Follow-up Required'];
-    const csvData = filteredEvents.map(event => [
+    const headers = ['Date', 'Time', 'Student(s)', 'Level', 'Event Type', 'Severity', 'Description', 'Location', 'Reported By', 'Parent Notified', 'Follow-up Required', 'Report Mode'];
+    const csvData = groupedLogEvents.map(event => [
       event.event_date,
       event.event_time,
-      event.students?.name || event.student_lrn,
+      event.report_student_names?.join('; ') || event.students?.name || event.student_lrn,
       event.students?.level || '',
       event.event_type,
       event.severity,
@@ -1029,7 +1501,8 @@ function BehavioralEventsPageContent() {
       event.location || '',
       event.reported_by,
       event.parent_notified ? 'Yes' : 'No',
-      event.follow_up_required ? 'Yes' : 'No'
+      event.follow_up_required ? 'Yes' : 'No',
+      event.report_group_id ? `General (${event.report_student_count || 1} students)` : 'Single'
     ]);
 
     const csvContent = [
@@ -1145,16 +1618,6 @@ function BehavioralEventsPageContent() {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="gap-2"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={exportToCSV}
               className="gap-2"
             >
@@ -1183,22 +1646,130 @@ function BehavioralEventsPageContent() {
                 >
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="student" className="flex items-center gap-1">
-                        Student <span className="text-red-500">*</span>
+                      <Label htmlFor="report_mode" className="flex items-center gap-1">
+                        Report Type <span className="text-red-500">*</span>
                       </Label>
-                      <Select value={formData.student_lrn} onValueChange={(value) => setFormData({...formData, student_lrn: value})}>
-                        <SelectTrigger id="student" className="w-full">
-                          <SelectValue placeholder="Select student" />
+                      <Select
+                        value={formData.report_mode}
+                        onValueChange={(value) => {
+                          const mode = value === 'group' ? 'group' : 'single';
+                          setFormData((current) => ({
+                            ...current,
+                            report_mode: mode,
+                            student_lrn: mode === 'single' ? current.student_lrn : '',
+                            student_lrns: mode === 'group' ? current.student_lrns : [],
+                          }));
+                          setStudentSearchQuery('');
+                        }}
+                      >
+                        <SelectTrigger id="report_mode" className="w-full">
+                          <SelectValue placeholder="Select report mode" />
                         </SelectTrigger>
                         <SelectContent>
-                          {students.map(student => (
-                            <SelectItem key={student.lrn} value={student.lrn}>
-                              {student.name} ({student.level})
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="single">Single Student Report</SelectItem>
+                          <SelectItem value="group">General Report (Multiple Students)</SelectItem>
                         </SelectContent>
                       </Select>
-                      {selectedStudent && (
+                      <p className="text-xs text-muted-foreground">
+                        {formData.report_mode === 'group'
+                          ? 'One report appears in logs while still recording separate entries per student for scoring.'
+                          : 'Use single-student mode for individual incidents.'}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="student_picker" className="flex items-center gap-1">
+                        {formData.report_mode === 'group' ? 'Students' : 'Student'} <span className="text-red-500">*</span>
+                      </Label>
+                      <Popover open={studentPickerOpen} onOpenChange={setStudentPickerOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            id="student_picker"
+                            variant="outline"
+                            role="combobox"
+                            className="w-full justify-between font-normal"
+                          >
+                            {formData.report_mode === 'group'
+                              ? formData.student_lrns.length > 0
+                                ? `${formData.student_lrns.length} student${formData.student_lrns.length > 1 ? 's' : ''} selected`
+                                : 'Search and select students'
+                              : selectedStudent
+                              ? `${selectedStudent.name} (${selectedStudent.level})`
+                              : 'Search student by name or LRN'}
+                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-(--radix-popover-trigger-width) p-0">
+                          <Command shouldFilter={false}>
+                            <CommandInput
+                              placeholder="Type student name, LRN, or level"
+                              value={studentSearchQuery}
+                              onValueChange={setStudentSearchQuery}
+                            />
+                            <CommandList>
+                              <CommandEmpty>No student found. Try another name.</CommandEmpty>
+                              <CommandGroup>
+                                {filteredStudentOptions.map((student) => {
+                                  const isSelected =
+                                    formData.report_mode === 'group'
+                                      ? formData.student_lrns.includes(student.lrn)
+                                      : formData.student_lrn === student.lrn;
+                                  return (
+                                    <CommandItem
+                                      key={student.lrn}
+                                      value={`${student.name} ${student.lrn} ${student.level}`}
+                                      onSelect={() => {
+                                        if (formData.report_mode === 'group') {
+                                            setFormData((current) => {
+                                              const selected = current.student_lrns.includes(student.lrn)
+                                                ? current.student_lrns.filter((lrn) => lrn !== student.lrn)
+                                                : [...current.student_lrns, student.lrn];
+                                              return { ...current, student_lrns: selected };
+                                            });
+                                            return;
+                                        }
+
+                                        setFormData((current) => ({ ...current, student_lrn: student.lrn }));
+                                        setStudentPickerOpen(false);
+                                      }}
+                                    >
+                                      <Checkbox checked={isSelected} className="pointer-events-none" />
+                                      <div className="flex flex-col">
+                                        <span className="font-medium">{student.name}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {student.lrn} • {student.level}
+                                        </span>
+                                      </div>
+                                    </CommandItem>
+                                  );
+                                })}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      {formData.report_mode === 'group' && selectedStudents.length > 0 && (
+                        <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 p-2">
+                          {selectedStudents.map((student) => (
+                            <Badge key={student.lrn} variant="secondary" className="gap-1 pr-1">
+                              {student.name}
+                              <button
+                                type="button"
+                                className="text-xs opacity-70 hover:opacity-100"
+                                onClick={() =>
+                                  setFormData((current) => ({
+                                    ...current,
+                                    student_lrns: current.student_lrns.filter((lrn) => lrn !== student.lrn),
+                                  }))
+                                }
+                              >
+                                ×
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      {formData.report_mode === 'single' && selectedStudent && (
                         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 p-3 text-xs space-y-1">
                           <p className="font-medium text-slate-700 dark:text-slate-200">
                             Parent: {selectedStudent.parent_name || 'Not set'}
@@ -1211,44 +1782,99 @@ function BehavioralEventsPageContent() {
                           </p>
                         </div>
                       )}
+                      <div className="rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 px-3 py-2">
+                        <p className="text-xs font-medium text-emerald-800 dark:text-emerald-200">Level Suggestion</p>
+                        <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">{levelSuggestionText}</p>
+                        {suggestedStudentLevels.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {suggestedStudentLevels.map((level) => (
+                              <Badge key={level} variant="outline" className="text-[11px] border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300">
+                                {level}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="space-y-2">
+
+                    <div className="space-y-2 md:col-span-1">
                       <Label htmlFor="event_type" className="flex items-center gap-1">
                         Event Type <span className="text-red-500">*</span>
                       </Label>
-                      <Select
-                        value={formData.event_type}
-                        onValueChange={(value) => {
-                          const selected = eventTypeOptions.find((option) => option.name === value);
-                          setFormData({
-                            ...formData,
-                            event_type: value,
-                            severity: selected?.severity || formData.severity,
-                          });
-                        }}
-                      >
-                        <SelectTrigger id="event_type">
-                          <SelectValue placeholder="Select event type (positive to critical)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {eventTypeOptions.map((option) => (
-                            <SelectItem key={option.id} value={option.name}>
-                              <div className="flex items-center gap-2">
-                                {getSeverityIcon(option.severity)}
-                                <span>{option.name}</span>
-                                <span className="text-xs text-muted-foreground">({option.categoryType})</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={eventTypePickerOpen} onOpenChange={setEventTypePickerOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            id="event_type"
+                            variant="outline"
+                            role="combobox"
+                            className="w-full justify-between font-normal"
+                          >
+                            {formData.event_type ? (
+                              <span className="truncate text-left">{formData.event_type}</span>
+                            ) : (
+                              <span className="truncate text-left text-muted-foreground">
+                                Select event type based on selected level
+                              </span>
+                            )}
+                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-(--radix-popover-trigger-width) p-0">
+                          <Command>
+                            <CommandInput placeholder="Search event type, category, or severity..." />
+                            <CommandList>
+                              <CommandEmpty>No event type found.</CommandEmpty>
+                              {groupedEventTypeOptions.map((group) => (
+                                <CommandGroup key={group.key} heading={group.label}>
+                                  {group.options.map((option) => (
+                                    <CommandItem
+                                      key={option.id}
+                                      value={`${option.name} ${option.categoryType} ${option.severity}`}
+                                      onSelect={() => {
+                                        setFormData((current) => ({
+                                          ...current,
+                                          event_type: option.name,
+                                          severity: option.severity,
+                                        }));
+                                        setEventTypePickerOpen(false);
+                                      }}
+                                    >
+                                      <div className="flex min-w-0 items-center gap-2">
+                                        {getSeverityIcon(option.severity)}
+                                        <span className="truncate">{option.name}</span>
+                                        <span className="whitespace-nowrap text-xs text-muted-foreground">({option.categoryType})</span>
+                                      </div>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              ))}
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      {activeStudentLevelScopes.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Showing events for level group:
+                          {' '}
+                          {activeStudentLevelScopes.includes('early') && activeStudentLevelScopes.includes('grade')
+                            ? 'Early Learners + Grade School'
+                            : activeStudentLevelScopes.includes('early')
+                            ? 'Early Learners'
+                            : 'Grade School'}
+                        </p>
+                      )}
+                      {suggestedStudentLevels.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Suggested by selected student level{suggestedStudentLevels.length > 1 ? 's' : ''}: {suggestedStudentLevels.join(', ')}
+                        </p>
+                      )}
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:max-w-xs">
                       <Label htmlFor="severity" className="flex items-center gap-1">
                         Severity <span className="text-red-500">*</span>
                       </Label>
                       <Select value={formData.severity} onValueChange={(value) => setFormData({...formData, severity: value})}>
-                        <SelectTrigger id="severity">
+                        <SelectTrigger id="severity" className="w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1282,16 +1908,34 @@ function BehavioralEventsPageContent() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="location">Location</Label>
-                      <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="location"
-                          value={formData.location}
-                          onChange={(e) => setFormData({...formData, location: e.target.value})}
-                          placeholder="e.g., Classroom 101"
-                          className="pl-9"
-                        />
-                      </div>
+                      <Select
+                        value={formData.location || '__none__'}
+                        onValueChange={(value) => setFormData({ ...formData, location: value === '__none__' ? '' : value })}
+                      >
+                        <SelectTrigger id="location" className="w-full">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-muted-foreground" />
+                            <SelectValue placeholder="Select room or area" />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No location selected</SelectItem>
+                          {zoneNames.length > 0
+                            ? zoneNames.map((location) => (
+                                <SelectItem key={location} value={location}>
+                                  {location}
+                                </SelectItem>
+                              ))
+                            : LOCATION_OPTIONS.map((location) => (
+                                <SelectItem key={location} value={location}>
+                                  {location}
+                                </SelectItem>
+                              ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Select the exact year-level room (Kinder, Grade 1, Grade 2, and so on) for cleaner heatmap tracking.
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="witness_names">Witness (Teacher Account)</Label>
@@ -1360,12 +2004,12 @@ function BehavioralEventsPageContent() {
                   <Button variant="outline" onClick={() => {
                     setIsAddDialogOpen(false);
                     resetForm();
-                  }}>
-                    Cancel
+                  }} disabled={reportSubmitting}>
+                    {reportSubmitting ? 'Saving...' : 'Cancel'}
                   </Button>
-                  <Button variant="default" onClick={handleAddEvent} className="gap-2">
-                    <Plus className="w-4 h-4" />
-                    Log Event
+                  <Button variant="default" onClick={handleAddEvent} className="gap-2" disabled={reportSubmitting}>
+                    {reportSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    {reportSubmitting ? 'Submitting Report...' : 'Log Event'}
                   </Button>
                 </div>
               </DialogContent>
@@ -1567,7 +2211,7 @@ function BehavioralEventsPageContent() {
                       Events Log
                     </CardTitle>
                     <CardDescription>
-                      Showing {filteredEvents.length} of {events.length} events
+                      Showing {groupedLogEvents.length} report entries from {filteredEvents.length} student records
                     </CardDescription>
                   </div>
                   <Badge variant="outline" className="bg-white dark:bg-slate-800">
@@ -1626,7 +2270,7 @@ function BehavioralEventsPageContent() {
                       </div>
                     ))}
                   </div>
-                ) : filteredEvents.length === 0 ? (
+                ) : groupedLogEvents.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="flex flex-col items-center gap-2">
                       <div className="p-3 rounded-full bg-slate-100 dark:bg-slate-800">
@@ -1653,9 +2297,9 @@ function BehavioralEventsPageContent() {
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {filteredEvents.map((event, index) => (
+                    {groupedLogEvents.map((event, index) => (
                       <motion.div
-                        key={event.id}
+                        key={event.report_group_id ? `group-${event.report_group_id}` : event.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.03 }}
@@ -1674,10 +2318,14 @@ function BehavioralEventsPageContent() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="font-semibold text-slate-900 dark:text-white">
-                                  {event.students?.name || event.student_lrn}
+                                  {event.report_group_id
+                                    ? `General Report • ${event.report_student_count || 1} students`
+                                    : event.students?.name || event.student_lrn}
                                 </h3>
                                 <Badge variant="outline" className="border-slate-200 dark:border-slate-700">
-                                  {event.students?.level}
+                                  {event.report_group_id
+                                    ? 'Multiple Levels'
+                                    : event.students?.level}
                                 </Badge>
                                 {getSeverityBadge(event.severity)}
                                 {event.event_categories && (
@@ -1692,6 +2340,12 @@ function BehavioralEventsPageContent() {
                                   </Badge>
                                 )}
                               </div>
+
+                              {event.report_group_id && event.report_student_names && (
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                  Students: {event.report_student_names.join(', ')}
+                                </p>
+                              )}
                               
                               <p className="font-medium text-sm mt-1 text-slate-800 dark:text-slate-200">
                                 {event.event_type}
@@ -1920,7 +2574,9 @@ function BehavioralEventsPageContent() {
                     <DialogTitle className="text-xl">{selectedEvent.event_type}</DialogTitle>
                   </div>
                   <DialogDescription>
-                    Event details for {selectedEvent.students?.name || selectedEvent.student_lrn}
+                    {selectedEvent.report_group_id
+                      ? `General report details for ${selectedEvent.report_student_count || 1} students`
+                      : `Event details for ${selectedEvent.students?.name || selectedEvent.student_lrn}`}
                   </DialogDescription>
                 </DialogHeader>
                 
@@ -1931,13 +2587,23 @@ function BehavioralEventsPageContent() {
                 >
                   <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
                     <div>
-                      <Label className="text-xs text-muted-foreground">Student</Label>
-                      <p className="font-medium text-lg">{selectedEvent.students?.name}</p>
-                      <p className="text-sm text-muted-foreground">{selectedEvent.student_lrn}</p>
+                      <Label className="text-xs text-muted-foreground">
+                        {selectedEvent.report_group_id ? 'Students Included' : 'Student'}
+                      </Label>
+                      {selectedEvent.report_group_id ? (
+                        <p className="font-medium text-sm mt-1">
+                          {selectedEvent.report_student_names?.join(', ') || selectedEvent.students?.name || selectedEvent.student_lrn}
+                        </p>
+                      ) : (
+                        <>
+                          <p className="font-medium text-lg">{selectedEvent.students?.name}</p>
+                          <p className="text-sm text-muted-foreground">{selectedEvent.student_lrn}</p>
+                        </>
+                      )}
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Level</Label>
-                      <p className="font-medium">{selectedEvent.students?.level}</p>
+                      <p className="font-medium">{selectedEvent.report_group_id ? 'Multiple Levels' : selectedEvent.students?.level}</p>
                     </div>
                   </div>
 
@@ -1981,10 +2647,10 @@ function BehavioralEventsPageContent() {
                     </div>
                   )}
 
-                  {selectedEvent.notes && (
+                  {removeReportMetadataFromNotes(selectedEvent.notes) && (
                     <div>
                       <Label className="text-xs text-muted-foreground">Additional Notes</Label>
-                      <p className="mt-1 text-sm">{selectedEvent.notes}</p>
+                      <p className="mt-1 text-sm whitespace-pre-wrap">{removeReportMetadataFromNotes(selectedEvent.notes)}</p>
                     </div>
                   )}
 

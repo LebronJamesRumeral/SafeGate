@@ -442,6 +442,8 @@ export default function GuidanceReviewPage() {
             href: '/behavioral-events',
             student_lrn: reviewEvent.student_lrn,
             guidance_status: 'approved_for_ml',
+            report_owner_name: reviewEvent.reported_by || null,
+            report_owner_username: reviewEvent.reported_by || null,
             prevention_note: buildEarlyPreventionNote({
               eventType: reviewEvent.event_type,
               severity: reviewEvent.severity,
@@ -465,6 +467,8 @@ export default function GuidanceReviewPage() {
             href: '/behavioral-events',
             student_lrn: reviewEvent.student_lrn,
             guidance_status: 'denied_by_guidance',
+            report_owner_name: reviewEvent.reported_by || null,
+            report_owner_username: reviewEvent.reported_by || null,
             prevention_note: buildEarlyPreventionNote({
               eventType: reviewEvent.event_type,
               severity: reviewEvent.severity,

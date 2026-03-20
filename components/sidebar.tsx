@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   CalendarDays,
   ClipboardCheck,
+  MapPinned,
   ChevronLeft,
   ChevronRight
 } from "lucide-react"
@@ -26,13 +27,14 @@ export const SidebarContext = createContext<{ collapsed: boolean; setCollapsed: 
 const allNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/", roles: ["admin", "teacher", "guidance"] },
   { icon: AlertTriangle, label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin", "guidance"] },
-  { icon: ClipboardCheck, label: "Guidance Review", href: "/guidance-review", roles: ["admin", "guidance"] },
+  { icon: ClipboardCheck, label: "Guidance Review", href: "/guidance-review", roles: ["guidance"] },
   { icon: School, label: "Masterlist", href: "/masterlist", roles: ["admin", "guidance"] },
   { icon: ScanLine, label: "Attendance / QR Scan", href: "/scan", roles: ["teacher", "admin"] },
   { icon: CalendarDays, label: "Attendance Logs", href: "/attendance", roles: ["teacher", "admin"] },
   { icon: Users, label: "Students", href: "/students", roles: ["teacher", "admin", "guidance"] },
-  // Only admin sees Analytics and Settings
-  { icon: BarChart3, label: "Analytics", href: "/analytics", roles: ["admin"] },
+  { icon: MapPinned, label: "School Heatmap", href: "/school-heatmap", roles: ["teacher", "admin", "guidance"] },
+  { icon: BarChart3, label: "Analytics", href: "/analytics", roles: ["admin", "guidance"] },
+  
   { icon: Settings, label: "Settings", href: "/settings", roles: ["admin"] },
 ]
 

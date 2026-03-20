@@ -1,5 +1,4 @@
 -- ============================================================================
-
 DROP TABLE IF EXISTS student_behavioral_summary CASCADE;
 DROP TABLE IF EXISTS role_notifications CASCADE;
 DROP TABLE IF EXISTS parent_notifications CASCADE;
@@ -16,9 +15,7 @@ DROP TABLE IF EXISTS student_schedules CASCADE;
 DROP TABLE IF EXISTS student_attendance_schedules CASCADE;
 DROP TABLE IF EXISTS school_years CASCADE;
 DROP TABLE IF EXISTS students CASCADE;
-
 -- ============================================================================
-
 -- Supabase Auth Profile Table (linked to auth.users)
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -27,8 +24,6 @@ CREATE TABLE IF NOT EXISTS profiles (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
-
 -- Create students table
 CREATE TABLE IF NOT EXISTS students (
   id BIGSERIAL PRIMARY KEY,
@@ -45,10 +40,8 @@ CREATE TABLE IF NOT EXISTS students (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Backward-compatible migration for existing databases
 ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_email VARCHAR(255);
-
 -- Create attendance_logs table (Core ML Data Source)
 CREATE TABLE IF NOT EXISTS attendance_logs (
   id BIGSERIAL PRIMARY KEY,
@@ -64,7 +57,6 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(student_lrn, date)
 );
-
 -- School years for enrollment and advancement tracking
 CREATE TABLE IF NOT EXISTS school_years (
   id BIGSERIAL PRIMARY KEY,
@@ -76,33 +68,26 @@ CREATE TABLE IF NOT EXISTS school_years (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT school_year_dates_valid CHECK (start_date <= end_date)
 );
-
 -- Student attendance schedules (entry/exit times and school days by year level)
 CREATE TABLE IF NOT EXISTS student_attendance_schedules (
   id BIGSERIAL PRIMARY KEY,
   student_lrn VARCHAR(50) NOT NULL REFERENCES students(lrn) ON DELETE CASCADE,
   school_year_id BIGINT REFERENCES school_years(id) ON DELETE SET NULL,
   year_level VARCHAR(50) NOT NULL, -- Grade level, e.g., 'Grade 4', 'Kinder 1', etc.
-  
   -- Attendance times (e.g., 8:00 AM entry, 5:00 PM exit)
   entry_time TIME NOT NULL, -- Scheduled entry time (before/on = present, after = late)
   exit_time TIME NOT NULL, -- Scheduled exit time (after = invalid timeout)
-  
   -- School days as JSON array (true for Monday-Friday attendance day)
   school_days JSONB DEFAULT '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}',
-  
   -- Grace period in minutes for late arrivals
   grace_period_minutes SMALLINT DEFAULT 0,
-  
   -- Status
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  
   CONSTRAINT entry_exit_time_valid CHECK (entry_time < exit_time),
   CONSTRAINT unique_student_schedule UNIQUE (student_lrn, school_year_id)
 );
-
 -- Weekly schedule per student (class/subject schedule)
 CREATE TABLE IF NOT EXISTS student_schedules (
   id BIGSERIAL PRIMARY KEY,
@@ -122,7 +107,6 @@ CREATE TABLE IF NOT EXISTS student_schedules (
   CONSTRAINT student_schedule_day_valid CHECK (day_number BETWEEN 1 AND 7),
   CONSTRAINT student_schedule_unique UNIQUE (student_lrn, day_number, start_time, end_time, subject)
 );
-
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_students_lrn ON students(lrn);
 CREATE INDEX IF NOT EXISTS idx_students_level ON students(level);
@@ -138,7 +122,6 @@ CREATE INDEX IF NOT EXISTS idx_school_years_current ON school_years(is_current);
 CREATE INDEX IF NOT EXISTS idx_student_schedules_lrn ON student_schedules(student_lrn);
 CREATE INDEX IF NOT EXISTS idx_student_schedules_day_time ON student_schedules(day_number, start_time);
 CREATE INDEX IF NOT EXISTS idx_student_schedules_active ON student_schedules(is_active);
-
 -- Insert sample students
 INSERT INTO students (lrn, name, gender, birthday, address, level, parent_name, parent_contact, parent_email, status) VALUES
   ('LRN-2026-0001', 'Sarah Johnson', 'Female', '2014-05-12', '12 Lakeview St, City', 'Grade 4', 'Maria Johnson', '0917-555-0101', 'maria.johnson@example.com', 'active'),
@@ -157,7 +140,6 @@ INSERT INTO students (lrn, name, gender, birthday, address, level, parent_name, 
   ('LRN-2026-0014', 'Emma Gonzalez', 'Female', '2016-06-14', '36 Elm St, City', 'Grade 2', 'Miguel Gonzalez', '0917-555-0114', 'miguel.gonzalez@example.com', 'active'),
   ('LRN-2026-0015', 'Ava Ramirez', 'Female', '2023-07-22', '58 Spruce Dr, City', 'Kinder 1', 'Isabel Ramirez', '0917-555-0115', 'isabel.ramirez@example.com', 'active')
 ON CONFLICT (lrn) DO NOTHING;
-
 -- Insert school year records
 INSERT INTO school_years (label, start_date, end_date, is_current) VALUES
   ('S.Y. 2025-2026', '2025-06-10', '2026-03-31', false),
@@ -168,7 +150,6 @@ SET
   end_date = EXCLUDED.end_date,
   is_current = EXCLUDED.is_current,
   updated_at = NOW();
-
 -- Insert student attendance schedules by year level
 -- Grade levels (1-6): 8:00 AM - 5:00 PM
 INSERT INTO student_attendance_schedules (
@@ -177,33 +158,25 @@ INSERT INTO student_attendance_schedules (
   -- Grade 4 students
   ('LRN-2026-0001', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 4', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
   ('LRN-2026-0011', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 4', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
-  
   -- Grade 5 students
   ('LRN-2026-0002', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 5', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
   ('LRN-2026-0013', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 5', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
-  
   -- Grade 6 students
   ('LRN-2026-0005', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 6', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
-  
   -- Grade 1 students
   ('LRN-2026-0006', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 1', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
-  
   -- Grade 2 students
   ('LRN-2026-0003', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 2', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
   ('LRN-2026-0014', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 2', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
-  
   -- Grade 3 students
   ('LRN-2026-0004', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 3', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
   ('LRN-2026-0012', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Grade 3', '08:00:00', '17:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
-  
   -- Kindergarten: 8:30 AM - 3:30 PM
   ('LRN-2026-0007', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Kinder 1', '08:30:00', '15:30:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
   ('LRN-2026-0015', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Kinder 1', '08:30:00', '15:30:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
   ('LRN-2026-0008', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Kinder 2', '08:30:00', '15:30:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
-  
   -- Pre-K: 9:00 AM - 3:00 PM
   ('LRN-2026-0010', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Pre-K', '09:00:00', '15:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true),
-  
   -- Toddler & Nursery: 7:00 AM - 4:00 PM
   ('LRN-2026-0009', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Toddler & Nursery', '07:00:00', '16:00:00', '{"monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true, "saturday": false, "sunday": false}', 0, true)
 ON CONFLICT (student_lrn, school_year_id) DO UPDATE
@@ -212,7 +185,6 @@ SET
   exit_time = EXCLUDED.exit_time,
   school_days = EXCLUDED.school_days,
   updated_at = NOW();
-
 -- Insert sample student schedules
 INSERT INTO student_schedules (
   student_lrn, school_year_id, day_of_week, day_number, subject,
@@ -221,39 +193,29 @@ INSERT INTO student_schedules (
   -- Grade 4
   ('LRN-2026-0001', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Monday', 1, 'English', '08:00', '08:50', 'Room 401', 'Ms. Flores', true),
   ('LRN-2026-0011', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Monday', 1, 'Mathematics', '09:00', '09:50', 'Room 402', 'Mr. Reyes', true),
-
   -- Grade 5
   ('LRN-2026-0002', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Tuesday', 2, 'Filipino', '08:00', '08:50', 'Room 501', 'Ms. Dela Cruz', true),
   ('LRN-2026-0013', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Wednesday', 3, 'Science', '09:00', '09:50', 'Lab 1', 'Mrs. Santos', true),
-
   -- Grade 6
   ('LRN-2026-0005', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Thursday', 4, 'Araling Panlipunan', '10:00', '10:50', 'Room 601', 'Mr. Lim', true),
-
   -- Grade 1
   ('LRN-2026-0006', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Monday', 1, 'Reading', '08:00', '08:40', 'Room 101', 'Ms. Cruz', true),
-
   -- Grade 2
   ('LRN-2026-0003', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Tuesday', 2, 'Mathematics', '08:50', '09:30', 'Room 201', 'Mr. Lopez', true),
   ('LRN-2026-0014', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Wednesday', 3, 'English', '09:40', '10:20', 'Room 202', 'Ms. Garcia', true),
-
   -- Grade 3
   ('LRN-2026-0004', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Thursday', 4, 'Science', '10:30', '11:10', 'Room 301', 'Mrs. Ramos', true),
   ('LRN-2026-0012', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Friday', 5, 'MAPEH', '10:00', '10:50', 'Gym', 'Coach Rivera', true),
-
   -- Kinder 1
   ('LRN-2026-0007', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Monday', 1, 'Play-Based Learning', '08:30', '09:15', 'Kinder Room A', 'Ms. Diaz', true),
   ('LRN-2026-0015', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Tuesday', 2, 'Story Time', '09:20', '10:00', 'Kinder Room B', 'Ms. Perez', true),
-
   -- Kinder 2
   ('LRN-2026-0008', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Wednesday', 3, 'Numbers and Shapes', '08:30', '09:15', 'Kinder Room C', 'Mr. Torres', true),
-
   -- Pre-K
   ('LRN-2026-0010', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Thursday', 4, 'Pre-Reading', '09:00', '09:45', 'Pre-K Room', 'Ms. Villanueva', true),
-
   -- Toddler and Nursery
   ('LRN-2026-0009', (SELECT id FROM school_years WHERE label = 'S.Y. 2026-2027' LIMIT 1), 'Friday', 5, 'Early Motor Skills', '07:30', '08:10', 'Nursery Room', 'Ms. Santos', true)
 ON CONFLICT (student_lrn, day_number, start_time, end_time, subject) DO NOTHING;
-
 -- Insert sample attendance logs (last 20 school days) - Foundation for ML training
 INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, is_present, attendance_status, is_late) VALUES
   -- LRN-2026-0001: Sarah Johnson - EXCELLENT ATTENDANCE (95%)
@@ -271,7 +233,6 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0001', '2026-03-13 07:52:00+00', '2026-03-13 15:30:00+00', '2026-03-13', true, 'present', false),
   ('LRN-2026-0001', '2026-03-16 07:48:00+00', '2026-03-16 15:28:00+00', '2026-03-16', true, 'present', false),
   ('LRN-2026-0001', '2026-03-17 07:50:00+00', '2026-03-17 15:32:00+00', '2026-03-17', true, 'present', false),
-  
   -- LRN-2026-0002: James Smith - CHRONIC LATE ARRIVALS (70%)
   ('LRN-2026-0002', '2026-02-26 08:35:00+00', '2026-02-26 15:30:00+00', '2026-02-26', true, 'late', true),
   ('LRN-2026-0002', '2026-02-27 08:40:00+00', '2026-02-27 15:28:00+00', '2026-02-27', true, 'late', true),
@@ -287,7 +248,6 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0002', '2026-03-13 07:55:00+00', '2026-03-13 15:30:00+00', '2026-03-13', true, 'present', false),
   ('LRN-2026-0002', '2026-03-16 08:35:00+00', '2026-03-16 15:28:00+00', '2026-03-16', true, 'late', true),
   ('LRN-2026-0002', '2026-03-17 08:40:00+00', '2026-03-17 15:32:00+00', '2026-03-17', true, 'late', true),
-  
   -- LRN-2026-0003: Emily Davis - EXCELLENT ATTENDANCE (100%)
   ('LRN-2026-0003', '2026-02-26 07:55:00+00', '2026-02-26 12:30:00+00', '2026-02-26', true, 'present', false),
   ('LRN-2026-0003', '2026-02-27 07:58:00+00', '2026-02-27 12:28:00+00', '2026-02-27', true, 'present', false),
@@ -303,7 +263,6 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0003', '2026-03-13 07:52:00+00', '2026-03-13 12:30:00+00', '2026-03-13', true, 'present', false),
   ('LRN-2026-0003', '2026-03-16 07:58:00+00', '2026-03-16 12:28:00+00', '2026-03-16', true, 'present', false),
   ('LRN-2026-0003', '2026-03-17 07:52:00+00', '2026-03-17 12:32:00+00', '2026-03-17', true, 'present', false),
-  
   -- LRN-2026-0004: Michael Brown - GOOD ATTENDANCE (85%)
   ('LRN-2026-0004', '2026-02-26 07:58:00+00', '2026-02-26 13:30:00+00', '2026-02-26', true, 'present', false),
   ('LRN-2026-0004', '2026-02-27 08:05:00+00', '2026-02-27 13:28:00+00', '2026-02-27', true, 'late', true),
@@ -319,7 +278,6 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0004', '2026-03-13 07:52:00+00', '2026-03-13 13:30:00+00', '2026-03-13', true, 'present', false),
   ('LRN-2026-0004', '2026-03-16 07:58:00+00', '2026-03-16 13:28:00+00', '2026-03-16', true, 'present', false),
   ('LRN-2026-0004', '2026-03-17 07:52:00+00', '2026-03-17 13:32:00+00', '2026-03-17', true, 'present', false),
-  
   -- LRN-2026-0005: Jessica White - POOR ATTENDANCE (45%)
   ('LRN-2026-0005', '2026-03-02 08:20:00+00', '2026-03-02 16:30:00+00', '2026-03-02', true, 'late', true),
   ('LRN-2026-0005', '2026-03-04 08:30:00+00', '2026-03-04 16:15:00+00', '2026-03-04', true, 'late', true),
@@ -330,7 +288,6 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0005', '2026-03-17 08:20:00+00', '2026-03-17 16:10:00+00', '2026-03-17', true, 'late', true),
   ('LRN-2026-0005', '2026-03-18 08:15:00+00', '2026-03-18 16:20:00+00', '2026-03-18', true, 'late', true),
   ('LRN-2026-0005', '2026-03-19 08:25:00+00', '2026-03-19 16:15:00+00', '2026-03-19', true, 'late', true),
-  
   -- LRN-2026-0006: David Wilson - EXCELLENT ATTENDANCE (95%)
   ('LRN-2026-0006', '2026-02-26 07:55:00+00', '2026-02-26 16:00:00+00', '2026-02-26', true, 'present', false),
   ('LRN-2026-0006', '2026-02-27 07:58:00+00', '2026-02-27 16:10:00+00', '2026-02-27', true, 'present', false),
@@ -346,7 +303,6 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0006', '2026-03-13 07:52:00+00', '2026-03-13 16:00:00+00', '2026-03-13', true, 'present', false),
   ('LRN-2026-0006', '2026-03-16 07:58:00+00', '2026-03-16 16:10:00+00', '2026-03-16', true, 'present', false),
   ('LRN-2026-0006', '2026-03-17 07:52:00+00', '2026-03-17 16:05:00+00', '2026-03-17', true, 'present', false),
-  
   -- LRN-2026-0007: Lisa Anderson - GOOD ATTENDANCE (90%)
   ('LRN-2026-0007', '2026-02-26 08:25:00+00', '2026-02-26 15:15:00+00', '2026-02-26', true, 'present', false),
   ('LRN-2026-0007', '2026-02-27 08:28:00+00', '2026-02-27 15:18:00+00', '2026-02-27', true, 'present', false),
@@ -362,7 +318,6 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0007', '2026-03-13 08:22:00+00', '2026-03-13 15:30:00+00', '2026-03-13', true, 'present', false),
   ('LRN-2026-0007', '2026-03-16 08:28:00+00', '2026-03-16 15:18:00+00', '2026-03-16', true, 'present', false),
   ('LRN-2026-0007', '2026-03-17 08:30:00+00', '2026-03-17 15:20:00+00', '2026-03-17', true, 'present', false),
-  
   -- LRN-2026-0008: Robert Taylor - EXCELLENT ATTENDANCE (100%)
   ('LRN-2026-0008', '2026-02-26 08:28:00+00', '2026-02-26 15:15:00+00', '2026-02-26', true, 'present', false),
   ('LRN-2026-0008', '2026-02-27 08:30:00+00', '2026-02-27 15:18:00+00', '2026-02-27', true, 'present', false),
@@ -378,14 +333,12 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0008', '2026-03-13 08:25:00+00', '2026-03-13 15:30:00+00', '2026-03-13', true, 'present', false),
   ('LRN-2026-0008', '2026-03-16 08:30:00+00', '2026-03-16 15:18:00+00', '2026-03-16', true, 'present', false),
   ('LRN-2026-0008', '2026-03-17 08:28:00+00', '2026-03-17 15:20:00+00', '2026-03-17', true, 'present', false),
-  
   -- LRN-2026-0009: Mia Santos - VERY POOR ATTENDANCE (35%)
   ('LRN-2026-0009', '2026-03-03 07:10:00+00', '2026-03-03 15:55:00+00', '2026-03-03', true, 'present', false),
   ('LRN-2026-0009', '2026-03-05 07:20:00+00', '2026-03-05 16:00:00+00', '2026-03-05', true, 'present', false),
   ('LRN-2026-0009', '2026-03-10 07:15:00+00', '2026-03-10 16:05:00+00', '2026-03-10', true, 'present', false),
   ('LRN-2026-0009', '2026-03-12 07:25:00+00', '2026-03-12 16:10:00+00', '2026-03-12', true, 'present', false),
   ('LRN-2026-0009', '2026-03-17 07:18:00+00', '2026-03-17 16:00:00+00', '2026-03-17', true, 'present', false),
-  
   -- LRN-2026-0010: Sophia Garcia - GOOD ATTENDANCE (85%)
   ('LRN-2026-0010', '2026-02-26 08:58:00+00', '2026-02-26 14:50:00+00', '2026-02-26', true, 'present', false),
   ('LRN-2026-0010', '2026-02-27 09:05:00+00', '2026-02-27 14:58:00+00', '2026-02-27', true, 'late', true),
@@ -401,7 +354,6 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0010', '2026-03-13 08:55:00+00', '2026-03-13 15:00:00+00', '2026-03-13', true, 'present', false),
   ('LRN-2026-0010', '2026-03-16 08:58:00+00', '2026-03-16 14:58:00+00', '2026-03-16', true, 'present', false),
   ('LRN-2026-0010', '2026-03-17 08:58:00+00', '2026-03-17 14:50:00+00', '2026-03-17', true, 'present', false),
-  
   -- LRN-2026-0011: Liam Martinez - EXCELLENT ATTENDANCE (95%)
   ('LRN-2026-0011', '2026-02-26 07:48:00+00', '2026-02-26 15:30:00+00', '2026-02-26', true, 'present', false),
   ('LRN-2026-0011', '2026-02-27 07:50:00+00', '2026-02-27 15:28:00+00', '2026-02-27', true, 'present', false),
@@ -417,7 +369,6 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0011', '2026-03-13 07:55:00+00', '2026-03-13 15:30:00+00', '2026-03-13', true, 'present', false),
   ('LRN-2026-0011', '2026-03-16 07:50:00+00', '2026-03-16 15:28:00+00', '2026-03-16', true, 'present', false),
   ('LRN-2026-0011', '2026-03-17 07:52:00+00', '2026-03-17 15:32:00+00', '2026-03-17', true, 'present', false),
-  
   -- LRN-2026-0012: Olivia Hernandez - FAIR ATTENDANCE (65%)
   ('LRN-2026-0012', '2026-02-26 08:00:00+00', '2026-02-26 13:30:00+00', '2026-02-26', true, 'present', false),
   ('LRN-2026-0012', '2026-02-27 08:10:00+00', '2026-02-27 13:28:00+00', '2026-02-27', true, 'late', true),
@@ -428,7 +379,6 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0012', '2026-03-12 08:10:00+00', '2026-03-12 13:35:00+00', '2026-03-12', true, 'late', true),
   ('LRN-2026-0012', '2026-03-13 08:05:00+00', '2026-03-13 13:30:00+00', '2026-03-13', true, 'present', false),
   ('LRN-2026-0012', '2026-03-17 08:15:00+00', '2026-03-17 13:32:00+00', '2026-03-17', true, 'late', true),
-  
   -- LRN-2026-0013: Noah Lopez - EXCELLENT ATTENDANCE (100%)
   ('LRN-2026-0013', '2026-02-26 07:50:00+00', '2026-02-26 15:30:00+00', '2026-02-26', true, 'present', false),
   ('LRN-2026-0013', '2026-02-27 07:52:00+00', '2026-02-27 15:28:00+00', '2026-02-27', true, 'present', false),
@@ -444,7 +394,6 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0013', '2026-03-13 07:50:00+00', '2026-03-13 15:30:00+00', '2026-03-13', true, 'present', false),
   ('LRN-2026-0013', '2026-03-16 07:52:00+00', '2026-03-16 15:28:00+00', '2026-03-16', true, 'present', false),
   ('LRN-2026-0013', '2026-03-17 07:48:00+00', '2026-03-17 15:32:00+00', '2026-03-17', true, 'present', false),
-  
   -- LRN-2026-0014: Emma Gonzalez - GOOD ATTENDANCE (85%)
   ('LRN-2026-0014', '2026-02-26 07:58:00+00', '2026-02-26 12:30:00+00', '2026-02-26', true, 'present', false),
   ('LRN-2026-0014', '2026-02-27 08:05:00+00', '2026-02-27 12:28:00+00', '2026-02-27', true, 'late', true),
@@ -460,7 +409,6 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0014', '2026-03-13 07:52:00+00', '2026-03-13 12:30:00+00', '2026-03-13', true, 'present', false),
   ('LRN-2026-0014', '2026-03-16 07:58:00+00', '2026-03-16 12:28:00+00', '2026-03-16', true, 'present', false),
   ('LRN-2026-0014', '2026-03-17 07:52:00+00', '2026-03-17 12:32:00+00', '2026-03-17', true, 'present', false),
-  
   -- LRN-2026-0015: Ava Ramirez - EXCELLENT ATTENDANCE (100%)
   ('LRN-2026-0015', '2026-02-26 08:28:00+00', '2026-02-26 15:15:00+00', '2026-02-26', true, 'present', false),
   ('LRN-2026-0015', '2026-02-27 08:30:00+00', '2026-02-27 15:18:00+00', '2026-02-27', true, 'present', false),
@@ -477,118 +425,94 @@ INSERT INTO attendance_logs (student_lrn, check_in_time, check_out_time, date, i
   ('LRN-2026-0015', '2026-03-16 08:30:00+00', '2026-03-16 15:18:00+00', '2026-03-16', true, 'present', false),
   ('LRN-2026-0015', '2026-03-17 08:28:00+00', '2026-03-17 15:20:00+00', '2026-03-17', true, 'present', false)
 ON CONFLICT (student_lrn, date) DO NOTHING;
-
 -- Enable RLS on schedule tables
 ALTER TABLE school_years ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_attendance_schedules ENABLE ROW LEVEL SECURITY;
-
 -- Public access policies for schedule tables
 CREATE POLICY "Enable read for all on school years" ON school_years FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on school years" ON school_years FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on school years" ON school_years FOR UPDATE USING (true);
-
 CREATE POLICY "Enable read for all on student schedules" ON student_schedules FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on student schedules" ON student_schedules FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on student schedules" ON student_schedules FOR UPDATE USING (true);
 CREATE POLICY "Enable delete for all on student schedules" ON student_schedules FOR DELETE USING (true);
-
 CREATE POLICY "Enable read for all on student attendance schedules" ON student_attendance_schedules FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on student attendance schedules" ON student_attendance_schedules FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on student attendance schedules" ON student_attendance_schedules FOR UPDATE USING (true);
 CREATE POLICY "Enable delete for all on student attendance schedules" ON student_attendance_schedules FOR DELETE USING (true);
-
 -- ============================================================================
 -- ML CORE: Behavioral Analytics Based on Attendance Patterns
 -- ============================================================================
-
 -- Table for storing computed attendance patterns
 CREATE TABLE IF NOT EXISTS attendance_patterns (
   id BIGSERIAL PRIMARY KEY,
   student_lrn VARCHAR(50) UNIQUE NOT NULL REFERENCES students(lrn) ON DELETE CASCADE,
-  
   -- Pattern Classification
   pattern_type VARCHAR(100), -- 'High Consistency', 'Late Arrival', 'Monday Absent', 'Chronic Absent', 'Sporadic'
   pattern_confidence DECIMAL(5,2), -- 0-100: Pattern strength confidence
-  
   -- Attendance Metrics (last 60 days)
   attendance_rate DECIMAL(5,2), -- 0-100: % of school days present
   days_present INT,
   days_absent INT,
   total_school_days INT,
-  
   -- Time Pattern Metrics
   avg_check_in_minute INT, -- Average minute of check-in (0-1439)
   late_arrivals_count INT, -- Count of check-ins after 8:30am
   late_arrival_frequency DECIMAL(5,2), -- % of days late
-  
   -- Day-specific patterns
   monday_absent_rate DECIMAL(5,2),
   friday_absent_rate DECIMAL(5,2),
   weekend_correlation BOOLEAN, -- Is absence correlated with weekends?
-  
   -- Risk Indicators
   absence_trend VARCHAR(20), -- 'improving', 'declining', 'stable'
   critical_threshold_days INT, -- Days until 70% attendance critical level
-  
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Table for ML predictions: When will student be absent?
 CREATE TABLE IF NOT EXISTS absence_predictions (
   id BIGSERIAL PRIMARY KEY,
   student_lrn VARCHAR(50) NOT NULL REFERENCES students(lrn) ON DELETE CASCADE,
-  
   -- Prediction details
   predicted_absent_date DATE NOT NULL,
   prediction_type VARCHAR(50), -- 'Monday Pattern', 'Friday Pattern', 'Chronic', 'Anomaly'
   confidence_score DECIMAL(5,2), -- 0-100: How confident in prediction
   risk_factors JSONB, -- Array of contributing factors
-  
   -- Model metadata
   model_version VARCHAR(20) DEFAULT '1.0',
   training_data_size INT, -- How many historical days used
   prediction_made_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  
   -- Validation (updated after actual date)
   actual_present BOOLEAN,
   verified_at TIMESTAMP WITH TIME ZONE,
   model_accuracy_impact DECIMAL(5,2), -- +points if correct, -points if wrong
-  
   UNIQUE(student_lrn, predicted_absent_date)
 );
-
 -- Student behavioral summary (aggregated, updated daily)
 CREATE TABLE IF NOT EXISTS student_attendance_summary (
   id BIGSERIAL PRIMARY KEY,
   student_lrn VARCHAR(50) UNIQUE NOT NULL REFERENCES students(lrn) ON DELETE CASCADE,
-  
   -- Current status
   current_attendance_rate DECIMAL(5,2),
   attendance_trend VARCHAR(20), -- 'improving', 'stable', 'declining', 'critical'
   risk_level VARCHAR(20), -- 'low', 'medium', 'high', 'critical'
-  
   -- Historical counts (all-time)
   total_days_present INT DEFAULT 0,
   total_days_absent INT DEFAULT 0,
   total_days_late INT DEFAULT 0,
-  
   -- Recent metrics (30 days)
   recent_attendance_rate DECIMAL(5,2),
   recent_absent_count INT,
-  
   -- Predictions
   next_likely_absent_date DATE,
   next_absent_confidence DECIMAL(5,2),
   days_until_critical_threshold INT,
-  
   -- Last update
   last_calculated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Create indices for ML operations
 CREATE INDEX IF NOT EXISTS idx_attendance_patterns_lrn ON attendance_patterns(student_lrn);
 CREATE INDEX IF NOT EXISTS idx_attendance_patterns_type ON attendance_patterns(pattern_type);
@@ -596,11 +520,9 @@ CREATE INDEX IF NOT EXISTS idx_absence_predictions_student ON absence_prediction
 CREATE INDEX IF NOT EXISTS idx_absence_predictions_date ON absence_predictions(predicted_absent_date);
 CREATE INDEX IF NOT EXISTS idx_student_summary_risk ON student_attendance_summary(risk_level);
 CREATE INDEX IF NOT EXISTS idx_student_summary_trend ON student_attendance_summary(attendance_trend);
-
 -- ============================================================================
 -- BEHAVIORAL EVENTS: Based on Attendance Patterns
 -- ============================================================================
-
 -- Event categories based on attendance behavior
 CREATE TABLE IF NOT EXISTS event_categories (
   id BIGSERIAL PRIMARY KEY,
@@ -612,7 +534,6 @@ CREATE TABLE IF NOT EXISTS event_categories (
   notify_parent BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Behavioral events derived from attendance patterns
 CREATE TABLE IF NOT EXISTS behavioral_events (
   id BIGSERIAL PRIMARY KEY,
@@ -637,19 +558,16 @@ CREATE TABLE IF NOT EXISTS behavioral_events (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(student_lrn, event_date, event_time, event_type)
 );
-
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_status VARCHAR(30) DEFAULT 'pending_guidance';
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_reviewed_by VARCHAR(255);
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_reviewed_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_intervention_notes TEXT;
-
 -- Create indices for behavioral events
 CREATE INDEX IF NOT EXISTS idx_behavioral_events_student ON behavioral_events(student_lrn);
 CREATE INDEX IF NOT EXISTS idx_behavioral_events_date ON behavioral_events(event_date);
 CREATE INDEX IF NOT EXISTS idx_behavioral_events_severity ON behavioral_events(severity);
 CREATE INDEX IF NOT EXISTS idx_behavioral_events_category ON behavioral_events(category_id);
 CREATE INDEX IF NOT EXISTS idx_behavioral_events_guidance_status ON behavioral_events(guidance_status);
-
 -- Insert attendance-based event categories
 INSERT INTO event_categories (name, category_type, severity_level, color_code, description, notify_parent) VALUES
   ('Chronic Absent', 'Attendance', 'critical', '#dc2626', 'Student has very low attendance', true),
@@ -660,20 +578,16 @@ INSERT INTO event_categories (name, category_type, severity_level, color_code, d
   ('High Consistency', 'Attendance', 'positive', '#10b981', 'Student has excellent attendance', false),
   ('Average Attendance', 'Attendance', 'positive', '#10b981', 'Student has average attendance', false)
 ON CONFLICT DO NOTHING;
-
 -- Enable RLS on behavioral tables
 ALTER TABLE event_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE behavioral_events ENABLE ROW LEVEL SECURITY;
-
 -- Set up public access policies
 CREATE POLICY "Enable read for all on event categories" ON event_categories FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on event categories" ON event_categories FOR INSERT WITH CHECK (true);
-
 CREATE POLICY "Enable read for all on behavioral events" ON behavioral_events FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on behavioral events" ON behavioral_events FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on behavioral events" ON behavioral_events FOR UPDATE USING (true);
 CREATE POLICY "Enable delete for all on behavioral events" ON behavioral_events FOR DELETE USING (true);
-
 -- Role-based in-app and push notifications
 CREATE TABLE IF NOT EXISTS role_notifications (
   id BIGSERIAL PRIMARY KEY,
@@ -686,21 +600,16 @@ CREATE TABLE IF NOT EXISTS role_notifications (
   meta JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 CREATE INDEX IF NOT EXISTS idx_role_notifications_created_at ON role_notifications(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_role_notifications_target_roles ON role_notifications USING GIN(target_roles);
 CREATE INDEX IF NOT EXISTS idx_role_notifications_read_by_roles ON role_notifications USING GIN(read_by_roles);
-
 ALTER TABLE role_notifications ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "Enable read for all on role notifications" ON role_notifications FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on role notifications" ON role_notifications FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on role notifications" ON role_notifications FOR UPDATE USING (true);
-
 -- ============================================================================
 -- ML PREDICTION FUNCTIONS: Core Absence Forecasting Engine
 -- ============================================================================
-
 -- Drop existing functions to avoid conflicts
 DROP FUNCTION IF EXISTS calculate_student_attendance_metrics(VARCHAR, INT) CASCADE;
 DROP FUNCTION IF EXISTS analyze_and_predict_absence(VARCHAR) CASCADE;
@@ -708,7 +617,6 @@ DROP FUNCTION IF EXISTS store_absence_prediction(VARCHAR) CASCADE;
 DROP FUNCTION IF EXISTS update_student_summary(VARCHAR) CASCADE;
 DROP FUNCTION IF EXISTS calculate_student_risk_score(VARCHAR) CASCADE;
 DROP FUNCTION IF EXISTS generate_behavioral_events_from_patterns(VARCHAR) CASCADE;
-
 -- Helper function to calculate student attendance metrics
 CREATE OR REPLACE FUNCTION calculate_student_attendance_metrics(p_student_lrn VARCHAR, p_days_back INT DEFAULT 60)
 RETURNS TABLE(
@@ -776,7 +684,6 @@ BEGIN
     COALESCE((SELECT on_time_cnt FROM late_calc), 0)::INT;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Main function: Analyze patterns and predict next absent date
 CREATE OR REPLACE FUNCTION analyze_and_predict_absence(p_student_lrn VARCHAR)
 RETURNS TABLE(
@@ -812,12 +719,10 @@ BEGIN
     COALESCE(on_time_count, 0)
   INTO v_attendance_rate, v_days_present, v_school_days, v_late_count, v_on_time_count
   FROM calculate_student_attendance_metrics(p_student_lrn, 60);
-
   -- Calculate late percentage
   v_late_percentage := CASE WHEN (v_late_count + v_on_time_count) > 0 
     THEN (v_late_count::DECIMAL / (v_late_count + v_on_time_count)) * 100 
     ELSE 0 END;
-
   -- Determine Monday/Friday absence rates
   SELECT COALESCE(
     (COUNT(*) FILTER (WHERE NOT EXISTS (
@@ -835,7 +740,6 @@ BEGIN
       AND date <= CURRENT_DATE
       AND EXTRACT(DOW FROM date) = 1
   ) om;
-
   SELECT COALESCE(
     (COUNT(*) FILTER (WHERE NOT EXISTS (
       SELECT 1 FROM attendance_logs al
@@ -852,7 +756,6 @@ BEGIN
       AND date <= CURRENT_DATE
       AND EXTRACT(DOW FROM date) = 5
   ) ofr;
-
   -- Pattern Detection Logic
   IF v_attendance_rate < 60 THEN
     -- Chronic absence pattern
@@ -862,7 +765,6 @@ BEGIN
     v_next_absent_date := CURRENT_DATE + INTERVAL '1 day';
     v_prediction_confidence := 85;
     v_recommendation := 'URGENT: Immediate parent contact and intervention required. Attendance crisis.';
-    
   ELSIF v_attendance_rate < 75 THEN
     v_pattern_type := 'Sporadic Absent';
     v_pattern_confidence := 75;
@@ -870,7 +772,6 @@ BEGIN
     v_next_absent_date := CURRENT_DATE + INTERVAL '3 days';
     v_prediction_confidence := 70;
     v_recommendation := 'High risk of absence. Monitor closely. Parent meeting recommended.';
-    
   ELSIF v_monday_rate > 45 THEN
     -- Monday pattern detected
     v_pattern_type := 'Monday Absent';
@@ -882,7 +783,6 @@ BEGIN
                                                                ELSE 8 - EXTRACT(DOW FROM CURRENT_DATE) END);
     v_prediction_confidence := LEAST(v_monday_rate, 95);
     v_recommendation := 'Student frequently absent on Mondays. Proactive parent contact on Sunday recommended.';
-    
   ELSIF v_friday_rate > 45 THEN
     -- Friday pattern detected
     v_pattern_type := 'Friday Absent';
@@ -894,7 +794,6 @@ BEGIN
                                                                ELSE 12 - EXTRACT(DOW FROM CURRENT_DATE) END);
     v_prediction_confidence := LEAST(v_friday_rate, 95);
     v_recommendation := 'Student frequently absent on Fridays. Teacher monitoring and parent contact recommended.';
-    
   ELSIF v_late_percentage > 50 THEN
     -- Late arrival pattern - high risk of absence
     v_pattern_type := 'Late Arrival Trend';
@@ -903,7 +802,6 @@ BEGIN
     v_next_absent_date := CURRENT_DATE + INTERVAL '2 days';
     v_prediction_confidence := 65;
     v_recommendation := 'Pattern of lateness may escalate to absence. Early intervention needed.';
-    
   ELSIF v_attendance_rate >= 95 THEN
     -- Excellent attendance
     v_pattern_type := 'High Consistency';
@@ -912,7 +810,6 @@ BEGIN
     v_next_absent_date := NULL;
     v_prediction_confidence := 95;
     v_recommendation := 'Student has excellent attendance. Monitor for any pattern changes.';
-    
   ELSE
     -- Average attendance
     v_pattern_type := 'Average Attendance';
@@ -922,12 +819,10 @@ BEGIN
     v_prediction_confidence := 50;
     v_recommendation := 'Normal attendance pattern. Continue regular monitoring.';
   END IF;
-
   -- If no specific absent date predicted, estimate based on patterns
   IF v_next_absent_date IS NULL AND v_attendance_rate < 90 THEN
     v_next_absent_date := CURRENT_DATE + INTERVAL '4 days';
   END IF;
-
   RETURN QUERY SELECT
     v_pattern_type AS pattern_type,
     ROUND(v_pattern_confidence::NUMERIC, 2) AS pattern_confidence,
@@ -937,7 +832,6 @@ BEGIN
     v_recommendation AS recommendation;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Store and update predictions
 CREATE OR REPLACE FUNCTION store_absence_prediction(p_student_lrn VARCHAR)
 RETURNS TABLE(
@@ -965,7 +859,6 @@ BEGIN
     v_prediction_confidence, v_risk_factors, v_recommendation
   FROM analyze_and_predict_absence(p_student_lrn) AS apred
   LIMIT 1;
-
   -- Only store if we have a predicted date
   IF v_next_absent_date IS NOT NULL THEN
     -- Check if prediction already exists for this date
@@ -973,7 +866,6 @@ BEGIN
     WHERE student_lrn = p_student_lrn 
     AND predicted_absent_date = v_next_absent_date
     AND verified_at IS NULL;
-
     -- Insert new prediction
     INSERT INTO absence_predictions (
       student_lrn, predicted_absent_date, prediction_type, 
@@ -984,7 +876,6 @@ BEGIN
       (EXTRACT(DAY FROM CURRENT_DATE - DATE('2025-11-15')))::INT
     )
     RETURNING id INTO v_prediction_id;
-
     RETURN QUERY SELECT
       v_prediction_id,
       p_student_lrn,
@@ -994,9 +885,7 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql;
-
 DROP FUNCTION IF EXISTS update_student_summary(VARCHAR) CASCADE;
-
 CREATE OR REPLACE FUNCTION update_student_summary(p_student_lrn VARCHAR)
 RETURNS TABLE(
   result_student_lrn VARCHAR,
@@ -1018,19 +907,16 @@ DECLARE
   v_risk_factors TEXT;
   v_recommendation TEXT;  -- FIXED: Now TEXT (not VARCHAR)
 BEGIN
-
   -- Get current 30-day attendance
   SELECT COALESCE(attendance_rate, 0)
   INTO v_current_attendance
   FROM calculate_student_attendance_metrics(p_student_lrn, 30)
   LIMIT 1;
-
   -- Get previous 60-day attendance
   SELECT COALESCE(attendance_rate, 0)
   INTO v_previous_attendance
   FROM calculate_student_attendance_metrics(p_student_lrn, 60)
   LIMIT 1;
-
   -- Determine trend
   IF v_current_attendance > v_previous_attendance + 3 THEN
     v_trend := 'improving';
@@ -1039,7 +925,6 @@ BEGIN
   ELSE
     v_trend := 'stable';
   END IF;
-
   -- Determine risk level
   IF v_current_attendance < 60 THEN
     v_risk_level := 'critical';
@@ -1050,7 +935,6 @@ BEGIN
   ELSE
     v_risk_level := 'low';
   END IF;
-
   -- Get ML prediction
   SELECT 
     apred.pattern_type,
@@ -1068,7 +952,6 @@ BEGIN
     v_recommendation
   FROM analyze_and_predict_absence(p_student_lrn) AS apred
   LIMIT 1;
-
   -- Upsert summary safely
   INSERT INTO student_attendance_summary AS sas (
     student_lrn,
@@ -1100,7 +983,6 @@ BEGIN
     recent_attendance_rate = EXCLUDED.recent_attendance_rate,
     updated_at = NOW(),
     last_calculated = NOW();
-
   -- Return properly typed values
   RETURN QUERY
   SELECT
@@ -1110,32 +992,25 @@ BEGIN
     v_risk_level::VARCHAR,
     v_next_absent_date::DATE,
     v_recommendation::TEXT;
-
 END;
 $$ LANGUAGE plpgsql;
-
 -- Enable RLS on ML tables
 ALTER TABLE attendance_patterns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE absence_predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_attendance_summary ENABLE ROW LEVEL SECURITY;
-
 -- Set up public access policies for ML tables
 CREATE POLICY "Enable read for all on attendance patterns" ON attendance_patterns FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on attendance patterns" ON attendance_patterns FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on attendance patterns" ON attendance_patterns FOR UPDATE USING (true);
-
 CREATE POLICY "Enable read for all on absence predictions" ON absence_predictions FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on absence predictions" ON absence_predictions FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on absence predictions" ON absence_predictions FOR UPDATE USING (true);
-
 CREATE POLICY "Enable read for all on student summary" ON student_attendance_summary FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on student summary" ON student_attendance_summary FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on student summary" ON student_attendance_summary FOR UPDATE USING (true);
-
 -- ============================================================================
 -- CALCULATE STUDENT RISK SCORE (COMBINES ATTENDANCE + BEHAVIOR)
 -- ============================================================================
-
 CREATE OR REPLACE FUNCTION calculate_student_risk_score(p_student_lrn VARCHAR)
 RETURNS TABLE(
   risk_score DECIMAL,
@@ -1173,7 +1048,6 @@ BEGIN
   INTO v_attendance_rate, v_days_present, v_school_days, v_late_arrivals, v_on_time_count
   FROM calculate_student_attendance_metrics(p_student_lrn, 60)
   LIMIT 1;
-
   -- Get behavioral events (last 30 days)
   SELECT 
     COUNT(*) FILTER (WHERE severity IN ('major', 'critical')) as neg_events,
@@ -1182,15 +1056,12 @@ BEGIN
   FROM behavioral_events
   WHERE student_lrn = p_student_lrn
   AND event_date >= CURRENT_DATE - INTERVAL '30 days';
-
   -- Get pattern type
   SELECT pattern_type INTO v_pattern_type
   FROM attendance_patterns
   WHERE student_lrn = p_student_lrn
   LIMIT 1;
-
   -- ========== CALCULATE RISK COMPONENTS ==========
-  
   -- 1. ATTENDANCE COMPONENT (0-40 points)
   IF v_attendance_rate >= 95 THEN
     v_attendance_component := 0;
@@ -1203,14 +1074,12 @@ BEGIN
   ELSE
     v_attendance_component := 40;
   END IF;
-
   -- Add late arrival penalty if high frequency
   IF (v_late_arrivals + v_on_time_count) > 0 THEN
     IF (v_late_arrivals::DECIMAL / (v_late_arrivals + v_on_time_count)) > 0.5 THEN
       v_attendance_component := LEAST(v_attendance_component + 10, 40);
     END IF;
   END IF;
-
   -- 2. BEHAVIOR COMPONENT (0-35 points)
   IF v_negative_events = 0 AND v_positive_events > 0 THEN
     v_behavior_component := 0;
@@ -1225,7 +1094,6 @@ BEGIN
   ELSE
     v_behavior_component := 35;
   END IF;
-
   -- 3. PATTERN COMPONENT (0-25 points)
   IF v_pattern_type = 'High Consistency' THEN
     v_pattern_component := 0;
@@ -1242,10 +1110,8 @@ BEGIN
   ELSE
     v_pattern_component := 8;
   END IF;
-
   -- CALCULATE TOTAL RISK SCORE (0-100)
   v_risk_score := (v_attendance_component::DECIMAL + v_behavior_component::DECIMAL + v_pattern_component::DECIMAL);
-  
   -- DETERMINE RISK LEVEL
   IF v_risk_score >= 75 THEN
     v_risk_level := 'critical';
@@ -1256,7 +1122,6 @@ BEGIN
   ELSE
     v_risk_level := 'low';
   END IF;
-
   -- BUILD BREAKDOWN OBJECT
   v_breakdown := jsonb_build_object(
     'attendance_rate', ROUND(v_attendance_rate::NUMERIC, 1),
@@ -1270,7 +1135,6 @@ BEGIN
     'calculation_date', CURRENT_DATE::TEXT,
     'pattern_type', v_pattern_type
   );
-
   RETURN QUERY SELECT
     ROUND(v_risk_score::NUMERIC, 1)::DECIMAL,
     v_risk_level::VARCHAR,
@@ -1279,14 +1143,11 @@ BEGIN
     v_pattern_component::INT,
     v_confidence::INT,
     v_breakdown::JSONB;
-
 END;
 $$ LANGUAGE plpgsql;
-
 -- ============================================================================
 -- AUTOMATICALLY GENERATE BEHAVIORAL EVENTS FROM ATTENDANCE PATTERNS
 -- ============================================================================
-
 CREATE OR REPLACE FUNCTION generate_behavioral_events_from_patterns(p_student_lrn VARCHAR)
 RETURNS TABLE(
   event_id BIGINT,
@@ -1309,12 +1170,10 @@ BEGIN
   FROM attendance_patterns
   WHERE student_lrn = p_student_lrn
   LIMIT 1;
-
   -- If no pattern data yet, calculate it first
   IF v_pattern_type = 'Unknown' THEN
     RETURN;
   END IF;
-
   -- Determine severity and get category ID
   IF v_attendance_rate < 60 THEN
     v_severity := 'critical';
@@ -1345,19 +1204,16 @@ BEGIN
     v_event_type := 'Average Attendance';
     v_description := 'Stable attendance: ' || ROUND(v_attendance_rate::NUMERIC, 1) || '%.';
   END IF;
-
   -- Get category ID
   SELECT id INTO v_category_id
   FROM event_categories
   WHERE name = v_event_type
   LIMIT 1;
-
   -- Delete old behavioral event for this student from today
   DELETE FROM behavioral_events
   WHERE student_lrn = p_student_lrn
   AND event_date = CURRENT_DATE
   AND event_type = v_event_type;
-
   -- Insert new behavioral event
   INSERT INTO behavioral_events (
     student_lrn, category_id, event_type, severity, description,
@@ -1369,16 +1225,12 @@ BEGIN
   )
   RETURNING id, event_type, severity, description
   INTO v_event_id, v_event_type, v_severity, v_description;
-
   RETURN QUERY SELECT v_event_id, v_event_type, v_severity, v_description;
-
 END;
 $$ LANGUAGE plpgsql;
-
 -- ============================================================================
 -- UPDATE ATTENDANCE PATTERNS BASED ON CURRENT ATTENDANCE
 -- ============================================================================
-
 CREATE OR REPLACE FUNCTION update_attendance_patterns(p_student_lrn VARCHAR)
 RETURNS TABLE(
   student_lrn VARCHAR,
@@ -1411,12 +1263,10 @@ BEGIN
   INTO v_attendance_rate, v_days_present, v_school_days, v_late_arrivals, v_on_time_count
   FROM calculate_student_attendance_metrics(p_student_lrn, 60)
   LIMIT 1;
-
   v_days_absent := v_school_days - v_days_present;
   v_late_percentage := CASE WHEN (v_late_arrivals + v_on_time_count) > 0 
     THEN (v_late_arrivals::DECIMAL / (v_late_arrivals + v_on_time_count)) * 100 
     ELSE 0 END;
-
   -- Calculate Monday/Friday absence rates
   SELECT COALESCE(
     (COUNT(*) FILTER (WHERE NOT EXISTS (
@@ -1434,7 +1284,6 @@ BEGIN
       AND date <= CURRENT_DATE
       AND EXTRACT(DOW FROM date) = 1
   ) om;
-
   SELECT COALESCE(
     (COUNT(*) FILTER (WHERE NOT EXISTS (
       SELECT 1 FROM attendance_logs al
@@ -1451,7 +1300,6 @@ BEGIN
       AND date <= CURRENT_DATE
       AND EXTRACT(DOW FROM date) = 5
   ) ofr;
-
   -- Determine pattern type
   IF v_attendance_rate < 60 THEN
     v_pattern_type := 'Chronic Absent';
@@ -1475,7 +1323,6 @@ BEGIN
     v_pattern_type := 'Average Attendance';
     v_pattern_confidence := 60;
   END IF;
-
   -- Update or insert attendance pattern record
   INSERT INTO attendance_patterns (
     student_lrn, pattern_type, pattern_confidence, attendance_rate,
@@ -1496,7 +1343,6 @@ BEGIN
     total_school_days = EXCLUDED.total_school_days,
     late_arrival_frequency = EXCLUDED.late_arrival_frequency,
     last_updated = NOW();
-
   RETURN QUERY SELECT
     p_student_lrn::VARCHAR,
     v_pattern_type::VARCHAR,
@@ -1504,10 +1350,8 @@ BEGIN
     ROUND(v_attendance_rate::NUMERIC, 2)::DECIMAL,
     v_days_present::INT,
     v_days_absent::INT;
-
 END;
 $$ LANGUAGE plpgsql;
-
 -- Initialize student attendance patterns and summaries
 INSERT INTO attendance_patterns (
   student_lrn, pattern_type, pattern_confidence, attendance_rate,
@@ -1524,11 +1368,9 @@ SELECT DISTINCT s.lrn,
    FROM calculate_student_attendance_metrics(s.lrn, 60) LIMIT 1)
 FROM students s
 ON CONFLICT (student_lrn) DO NOTHING;
-
 -- ============================================================================
 -- GENERATE BEHAVIORAL EVENTS FROM PATTERNS
 -- ============================================================================
-
 -- Insert behavioral events based on detected patterns
 INSERT INTO behavioral_events (
   student_lrn, category_id, event_type, severity, description,
@@ -1549,6 +1391,5 @@ FROM students s
 JOIN attendance_patterns ap ON s.lrn = ap.student_lrn
 JOIN event_categories ec ON ap.pattern_type = ec.name
 ON CONFLICT (student_lrn, event_date, event_time, event_type) DO NOTHING;
-
 -- Update student summaries
 SELECT update_student_summary(lrn) FROM students;

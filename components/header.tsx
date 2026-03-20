@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Sun, Moon, Bell, Lock, User as UserIcon, LogOut, Settings, Calendar, AlertTriangle, BarChart3, ClipboardCheck } from "lucide-react"
+import { Sun, Moon, Bell, Lock, User as UserIcon, LogOut, Settings, Calendar, AlertTriangle, BarChart3, ClipboardCheck, MapPinned } from "lucide-react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
@@ -16,7 +16,8 @@ const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/a
 
 const headerNavItems = [
   { label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin", "guidance"], icon: AlertTriangle },
-  { label: "Guidance Review", href: "/guidance-review", roles: ["admin", "guidance"], icon: ClipboardCheck },
+  { label: "Guidance Review", href: "/guidance-review", roles: ["guidance"], icon: ClipboardCheck },
+  { label: "School Heatmap", href: "/school-heatmap", roles: ["teacher", "admin", "guidance"], icon: MapPinned },
   { label: "Analytics", href: "/analytics", roles: ["admin"], icon: BarChart3 },
   { label: "Settings", href: "/settings", roles: ["admin"], icon: Settings },
 ]
@@ -99,7 +100,12 @@ export function Header() {
       return
     }
 
-    const loadedNotifications = await fetchRoleNotifications(normalizedRole, 20)
+    const loadedNotifications = await fetchRoleNotifications(normalizedRole, 20, {
+      id: user?.id || null,
+      username: user?.username || null,
+      fullName: user?.full_name || null,
+      email: user?.username || null,
+    })
     setRoleNotifications(loadedNotifications)
 
     if (loadedNotifications.length > 0) {

@@ -28,7 +28,7 @@ export function Navbar() {
   const allNavItems = [
     { href: '/', label: 'Dashboard', roles: ['admin', 'guidance'] },
     { href: '/behavioral-events', label: 'Behavioral Events', roles: ['teacher', 'admin', 'guidance'] },
-    { href: '/guidance-review', label: 'Guidance Review', roles: ['admin', 'guidance'] },
+    { href: '/guidance-review', label: 'Guidance Review', roles: ['guidance'] },
     { href: '/scan', label: 'Attendance / QR Scan', roles: ['teacher', 'admin'] },
     { href: '/attendance', label: 'Attendance Logs', roles: ['teacher', 'admin'] },
     { href: '/students', label: 'Current Students', roles: ['teacher', 'admin'] },

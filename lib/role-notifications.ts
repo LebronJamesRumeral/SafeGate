@@ -23,6 +23,43 @@ type CreateRoleNotificationInput = {
   meta?: Record<string, any>;
 };
 
+type FetchNotificationViewer = {
+  id?: string | null;
+  username?: string | null;
+  fullName?: string | null;
+  email?: string | null;
+};
+
+function normalizeIdentity(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function buildViewerIdentities(viewer?: FetchNotificationViewer): Set<string> {
+  const values = [viewer?.id, viewer?.username, viewer?.fullName, viewer?.email]
+    .map(normalizeIdentity)
+    .filter(Boolean);
+
+  return new Set(values);
+}
+
+function extractNotificationOwnerIdentities(meta: Record<string, any> | null): Set<string> {
+  if (!meta || typeof meta !== 'object') {
+    return new Set();
+  }
+
+  const values = [
+    meta.report_owner_id,
+    meta.report_owner_username,
+    meta.report_owner_email,
+    meta.report_owner_name,
+    meta.reported_by,
+  ]
+    .map(normalizeIdentity)
+    .filter(Boolean);
+
+  return new Set(values);
+}
+
 export async function createRoleNotification(input: CreateRoleNotificationInput): Promise<boolean> {
   if (!supabase) {
     return false;
@@ -47,7 +84,11 @@ export async function createRoleNotification(input: CreateRoleNotificationInput)
   return true;
 }
 
-export async function fetchRoleNotifications(role: string, limit = 20): Promise<RoleNotification[]> {
+export async function fetchRoleNotifications(
+  role: string,
+  limit = 20,
+  viewer?: FetchNotificationViewer
+): Promise<RoleNotification[]> {
   if (!supabase || !role) {
     return [];
   }
@@ -65,7 +106,34 @@ export async function fetchRoleNotifications(role: string, limit = 20): Promise<
     return [];
   }
 
-  return (data || []) as RoleNotification[];
+  const notifications = (data || []) as RoleNotification[];
+  if (normalizedRole === 'guidance') {
+    return notifications;
+  }
+
+  const viewerIdentities = buildViewerIdentities(viewer);
+  if (viewerIdentities.size === 0) {
+    return [];
+  }
+
+  return notifications.filter((item) => {
+    if (item.title !== 'Log Reviewed By Guidance') {
+      return true;
+    }
+
+    const ownerIdentities = extractNotificationOwnerIdentities(item.meta || null);
+    if (ownerIdentities.size === 0) {
+      return false;
+    }
+
+    for (const identity of ownerIdentities) {
+      if (viewerIdentities.has(identity)) {
+        return true;
+      }
+    }
+
+    return false;
+  });
 }
 
 export async function markRoleNotificationsAsRead(role: string, notifications: RoleNotification[]): Promise<void> {
