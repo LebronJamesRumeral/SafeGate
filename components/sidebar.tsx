@@ -153,7 +153,7 @@ export function Sidebar() {
             <div className="bg-gradient-to-r from-[#fbbf24]/20 to-[#ff8a00]/20 dark:from-orange-500/20 dark:to-orange-600/20 hover:from-[#fbbf24]/30 hover:to-[#ff8a00]/30 dark:hover:from-orange-500/30 dark:hover:to-orange-600/30 rounded-lg p-3 text-center transition-all duration-300 backdrop-blur-sm">
               {!collapsed && (
                 <>
-                  <p className="text-xs font-semibold text-white drop-shadow-sm">SafeGate v2.0</p>
+                  <p className="text-xs font-semibold text-white drop-shadow-sm">SafeGate v2.1</p>
                   <p className="text-xs text-[#fcd34d] dark:text-orange-400 mt-1">SGCDC Behavior and Intervention</p>
                 </>
               )}
