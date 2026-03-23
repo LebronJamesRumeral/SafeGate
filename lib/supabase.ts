@@ -37,3 +37,16 @@ export interface AttendanceLog {
   date: string;
   created_at?: string;
 }
+
+// HeatmapZone type for Supabase integration
+export interface HeatmapZone {
+  id: number;
+  name: string;
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+  keywords: string[];
+  created_at?: string;
+  updated_at?: string;
+}

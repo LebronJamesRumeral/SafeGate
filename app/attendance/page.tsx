@@ -678,162 +678,97 @@ export default function AttendancePage() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+          {/* Total Students Card */}
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 text-white">
-                    <Users className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 font-medium leading-tight">Total Students</p>
-                    <p className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{totalStudents}</p>
-                  </div>
+            <Card className="border-0 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-16 h-16 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                <div>
+                  <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Total Students</p>
+                  <div className="text-xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">{totalStudents}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">registered in system</p>
+                </div>
+                <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <Users className="w-7 h-7" />
                 </div>
               </CardContent>
+              <div className="h-1 w-full bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
             </Card>
           </motion.div>
 
+          {/* Check-ins Card */}
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white">
-                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs sm:text-sm text-emerald-700 dark:text-emerald-300 font-medium leading-tight">Check-ins</p>
-                    <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalCheckIns}</p>
-                  </div>
+            <Card className="border-0 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-16 h-16 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                <div>
+                  <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Check-ins</p>
+                  <div className="text-xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">{totalCheckIns}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">attendance events</p>
+                </div>
+                <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <CheckCircle className="w-7 h-7" />
                 </div>
               </CardContent>
+              <div className="h-1 w-full bg-gradient-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
             </Card>
           </motion.div>
 
+          {/* Absences Card */}
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.3 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/40 dark:to-amber-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-white">
-                    <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs sm:text-sm text-amber-700 dark:text-amber-300 font-medium leading-tight">Absences</p>
-                    <p className="text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{totalAbsences}</p>
-                  </div>
+            <Card className="border-0 bg-gradient-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-16 h-16 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                <div>
+                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Absences</p>
+                  <div className="text-xl sm:text-3xl font-bold text-orange-600 dark:text-orange-400">{totalAbsences}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">missed school days</p>
+                </div>
+                <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <AlertCircle className="w-7 h-7" />
                 </div>
               </CardContent>
+              <div className="h-1 w-full bg-gradient-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
             </Card>
           </motion.div>
 
+          {/* Avg. Attendance Card */}
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.4 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-950/40 dark:to-violet-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-violet-400 to-violet-600 text-white">
-                    <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs sm:text-sm text-violet-700 dark:text-violet-300 font-medium leading-tight">Avg. Attendance</p>
-                    <p className="text-xl sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{averageAttendance}%</p>
-                  </div>
+            <Card className="border-0 bg-gradient-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-violet-500/10 dark:bg-violet-400/5 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-16 h-16 bg-violet-500/5 dark:bg-violet-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                <div>
+                  <p className="text-[10px] sm:text-xs text-violet-600 dark:text-violet-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Avg. Attendance</p>
+                  <div className="text-xl sm:text-3xl font-bold text-violet-600 dark:text-violet-400">{averageAttendance}%</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">attendance rate</p>
+                </div>
+                <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-violet-600 text-white items-center justify-center shadow-lg shadow-violet-500/25 dark:shadow-violet-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <BarChart3 className="w-7 h-7" />
                 </div>
               </CardContent>
+              <div className="h-1 w-full bg-gradient-to-r from-violet-400 to-violet-600 dark:from-violet-500 dark:to-violet-700" />
             </Card>
           </motion.div>
-        </div>
-
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Daily Attendance Chart */}
-          <Card className="border-0 shadow-lg overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Activity className="w-5 h-5 text-emerald-500" />
-                Daily Attendance Trend
-              </CardTitle>
-              <CardDescription>Last 7 days attendance pattern</CardDescription>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="attendanceGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
-                    <XAxis dataKey="date" stroke="#6B7280" />
-                    <YAxis stroke="#6B7280" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        borderRadius: '8px',
-                        border: 'none',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="attendance"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      fill="url(#attendanceGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Level Performance Chart */}
-          <Card className="border-0 shadow-lg overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <BarChart3 className="w-5 h-5 text-blue-500" />
-                Attendance by Level
-              </CardTitle>
-              <CardDescription>Performance comparison across grades</CardDescription>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={levelChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
-                    <XAxis dataKey="level" stroke="#6B7280" />
-                    <YAxis stroke="#6B7280" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        borderRadius: '8px',
-                        border: 'none',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                      }}
-                    />
-                    <Bar dataKey="rate" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Insights Grid */}

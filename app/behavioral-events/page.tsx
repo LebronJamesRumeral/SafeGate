@@ -383,8 +383,15 @@ function BehavioralEventsPageContent() {
   });
 
   // Get live zone names for location select
-  const { zones, loading: zonesLoading, error: zonesError, addDataPoint } = useHeatmapZones();
+  const { zones, loading: zonesLoading, loadZones } = useHeatmapZones();
   const zoneNames: string[] = Array.isArray(zones) ? zones.map((z: { name: string }) => z.name) : [];
+
+  // Always refresh zones before opening the add event dialog
+  useEffect(() => {
+    if (isAddDialogOpen) {
+      loadZones();
+    }
+  }, [isAddDialogOpen, loadZones]);
 
   useEffect(() => {
     const user = localStorage.getItem('safegate_user');
@@ -1720,16 +1727,22 @@ function BehavioralEventsPageContent() {
                                       value={`${student.name} ${student.lrn} ${student.level}`}
                                       onSelect={() => {
                                         if (formData.report_mode === 'group') {
-                                            setFormData((current) => {
-                                              const selected = current.student_lrns.includes(student.lrn)
+                                          setFormData((current) => {
+                                            const alreadySelected = current.student_lrns.includes(student.lrn);
+                                            return {
+                                              ...current,
+                                              student_lrns: alreadySelected
                                                 ? current.student_lrns.filter((lrn) => lrn !== student.lrn)
-                                                : [...current.student_lrns, student.lrn];
-                                              return { ...current, student_lrns: selected };
-                                            });
-                                            return;
+                                                : [...current.student_lrns, student.lrn],
+                                            };
+                                          });
+                                          return;
                                         }
-
-                                        setFormData((current) => ({ ...current, student_lrn: student.lrn }));
+                                        // Single mode: deselect if already selected
+                                        setFormData((current) => ({
+                                          ...current,
+                                          student_lrn: current.student_lrn === student.lrn ? '' : student.lrn,
+                                        }));
                                         setStudentPickerOpen(false);
                                       }}
                                     >
@@ -1920,17 +1933,11 @@ function BehavioralEventsPageContent() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">No location selected</SelectItem>
-                          {zoneNames.length > 0
-                            ? zoneNames.map((location) => (
-                                <SelectItem key={location} value={location}>
-                                  {location}
-                                </SelectItem>
-                              ))
-                            : LOCATION_OPTIONS.map((location) => (
-                                <SelectItem key={location} value={location}>
-                                  {location}
-                                </SelectItem>
-                              ))}
+                          {zoneNames.map((location) => (
+                            <SelectItem key={location} value={location}>
+                              {location}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
@@ -2019,83 +2026,95 @@ function BehavioralEventsPageContent() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+          {/* Total Events Card */}
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 text-white">
-                    <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 font-medium leading-tight">Total Events</p>
-                    <p className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.total}</p>
-                  </div>
+            <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-16 h-16 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                <div>
+                  <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Total Events</p>
+                  <div className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.total}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">all behavioral events</p>
+                </div>
+                <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <Activity className="w-7 h-7" />
                 </div>
               </CardContent>
+              <div className="h-1 w-full bg-linear-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
             </Card>
           </motion.div>
 
+          {/* Positive Events Card */}
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white">
-                    <Heart className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs sm:text-sm text-emerald-700 dark:text-emerald-300 font-medium leading-tight">Positive Events</p>
-                    <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.positive}</p>
-                  </div>
+            <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-16 h-16 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                <div>
+                  <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Positive Events</p>
+                  <div className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.positive}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">reinforcing progress</p>
+                </div>
+                <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <Heart className="w-7 h-7" />
                 </div>
               </CardContent>
+              <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
             </Card>
           </motion.div>
 
+          {/* Negative Events Card */}
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.3 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/40 dark:to-rose-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-rose-400 to-rose-600 text-white">
-                    <AlertOctagon className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs sm:text-sm text-rose-700 dark:text-rose-300 font-medium leading-tight">Negative Events</p>
-                    <p className="text-xl sm:text-2xl font-bold text-rose-600 dark:text-rose-400">{stats.negative}</p>
-                  </div>
+            <Card className="border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-16 h-16 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                <div>
+                  <p className="text-[10px] sm:text-xs text-rose-600 dark:text-rose-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Negative Events</p>
+                  <div className="text-xl sm:text-2xl font-bold text-rose-600 dark:text-rose-400">{stats.negative}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">major/critical incidents</p>
+                </div>
+                <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-lg shadow-rose-500/25 dark:shadow-rose-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <AlertOctagon className="w-7 h-7" />
                 </div>
               </CardContent>
+              <div className="h-1 w-full bg-linear-to-r from-rose-400 to-rose-600 dark:from-rose-500 dark:to-rose-700" />
             </Card>
           </motion.div>
 
+          {/* Needs Follow-up Card */}
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.4 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/40 dark:to-orange-900/30 hover:shadow-lg transition-all duration-300">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                  <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-white">
-                    <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs sm:text-sm text-orange-700 dark:text-orange-300 font-medium leading-tight">Needs Follow-up</p>
-                    <p className="text-xl sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.needsFollowUp}</p>
-                  </div>
+            <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-16 h-16 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                <div>
+                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Needs Follow-up</p>
+                  <div className="text-xl sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.needsFollowUp}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">pending review</p>
+                </div>
+                <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <Bell className="w-7 h-7" />
                 </div>
               </CardContent>
+              <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
             </Card>
           </motion.div>
         </div>

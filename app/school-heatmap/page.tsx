@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { HeatmapZonesProvider } from '@/lib/heatmap-zones-context';
+import { HeatmapZonesProvider, useHeatmapZones } from '@/lib/heatmap-zones-context';
 import Image from 'next/image';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,11 +10,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Activity, AlertCircle, AlertTriangle, Calendar, Clock3, Flame, MapPinned, Phone, Plus, RefreshCw, ShieldAlert, Target, Trash2, Users } from 'lucide-react';
+import { Activity, AlertCircle, AlertTriangle, Calendar, Clock3, Flame, MapPinned, Phone, Plus, ShieldAlert, Target, Trash2, Users, Archive } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
+import React from 'react';
 type InternalSeverity = 'positive' | 'neutral' | 'minor' | 'major' | 'critical' | 'unknown';
 type Severity = 'positive' | 'minor' | 'major' | 'critical';
 
@@ -48,15 +49,9 @@ interface BehavioralLog {
     | null;
 }
 
-interface HeatZone {
-  id: string;
-  name: string;
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-  keywords: string[];
-}
+// Use HeatZone from context (id: number)
+import type { HeatZone as ContextHeatZone } from '@/lib/heatmap-zones-context';
+type HeatZone = ContextHeatZone;
 
 interface HighRiskStudent {
   lrn: string;
@@ -67,7 +62,7 @@ interface HighRiskStudent {
 type DragMode = 'move' | 'resize';
 
 interface ZoneDragState {
-  zoneId: string;
+  zoneId: number;
   mode: DragMode;
   startClientX: number;
   startClientY: number;
@@ -77,57 +72,14 @@ interface ZoneDragState {
   initialHeight: number;
 }
 
-const ZONES_STORAGE_KEY = 'sgcdc-school-heatmap-zones-v3';
-const NEW_ZONE_DEFAULTS = {
-  top: 42,
-  left: 42,
-  width: 14,
-  height: 14,
-};
 
-const DEFAULT_ZONES: HeatZone[] = [
-  {
-    id: 'kinder-room',
-    name: 'Kinder Room',
-    top: 24,
-    left: 18,
-    width: 12,
-    height: 14,
-    keywords: ['kinder room', 'kinder', 'kindergarten room'],
-  },
-  { id: 'grade-1-room', name: 'Grade 1 Room', top: 24, left: 31, width: 12, height: 14, keywords: ['grade 1 room', 'grade 1'] },
-  { id: 'grade-2-room', name: 'Grade 2 Room', top: 24, left: 44, width: 12, height: 14, keywords: ['grade 2 room', 'grade 2'] },
-  { id: 'grade-3-room', name: 'Grade 3 Room', top: 39, left: 18, width: 12, height: 14, keywords: ['grade 3 room', 'grade 3'] },
-  { id: 'grade-4-room', name: 'Grade 4 Room', top: 39, left: 31, width: 12, height: 14, keywords: ['grade 4 room', 'grade 4'] },
-  { id: 'grade-5-room', name: 'Grade 5 Room', top: 39, left: 44, width: 12, height: 14, keywords: ['grade 5 room', 'grade 5'] },
-  { id: 'grade-6-room', name: 'Grade 6 Room', top: 54, left: 18, width: 12, height: 14, keywords: ['grade 6 room', 'grade 6'] },
-  { id: 'grade-7-room', name: 'Grade 7 Room', top: 54, left: 31, width: 12, height: 14, keywords: ['grade 7 room', 'grade 7'] },
-  { id: 'grade-8-room', name: 'Grade 8 Room', top: 54, left: 44, width: 12, height: 14, keywords: ['grade 8 room', 'grade 8'] },
-  { id: 'gym-area', name: 'Gym Area', top: 12, left: 58, width: 19, height: 23, keywords: ['gym area', 'gym'] },
-  { id: 'cafeteria', name: 'Cafeteria', top: 36, left: 59, width: 20, height: 16, keywords: ['cafeteria', 'canteen'] },
-  {
-    id: 'sensory-room',
-    name: 'Sensory Room',
-    top: 30,
-    left: 34,
-    width: 12,
-    height: 14,
-    keywords: ['sensory room', 'calm room', 'special needs room'],
-  },
-  { id: 'dance-room', name: 'Dance Room', top: 54, left: 60, width: 16, height: 12, keywords: ['dance room'] },
-  { id: 'library', name: 'Library', top: 41, left: 24, width: 14, height: 12, keywords: ['library'] },
-  {
-    id: 'science-laboratory',
-    name: 'Science Laboratory',
-    top: 52,
-    left: 27,
-    width: 14,
-    height: 12,
-    keywords: ['science laboratory', 'science lab', 'laboratory'],
-  },
-  { id: 'music-room', name: 'Music Room', top: 58, left: 42, width: 13, height: 11, keywords: ['music room'] },
-  { id: 'entry-gate', name: 'Entrance / Gate', top: 72, left: 80, width: 16, height: 19, keywords: ['entrance', 'entry', 'gate', 'drop off'] },
-];
+const NEW_ZONE_DEFAULTS = {
+  // Place in the bottom right corner by default
+  top: 90 - 8.78, // 90% down minus pin height
+  left: 90 - 26.67, // 90% right minus pin width
+  width: 26.67,
+  height: 8.78,
+};
 
 const SEVERITY_WEIGHT: Record<InternalSeverity, number> = {
   critical: 5,
@@ -309,68 +261,87 @@ function isLogInZone(log: BehavioralLog, zone: HeatZone) {
   return levelMatchers.some((matcher) => studentLevel.includes(matcher));
 }
 
-function parseZonesFromStorage(raw: string | null): HeatZone[] {
-  if (!raw) return DEFAULT_ZONES;
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return DEFAULT_ZONES;
 
-    const cleaned = parsed
-      .map((zone: any): HeatZone | null => {
-        if (!zone || typeof zone !== 'object') return null;
-        if (!zone.id || !zone.name) return null;
-        const top = Number(zone.top);
-        const left = Number(zone.left);
-        const width = Number(zone.width);
-        const height = Number(zone.height);
-        if ([top, left, width, height].some((n) => Number.isNaN(n))) return null;
 
-        return {
-          id: String(zone.id),
-          name: String(zone.name),
-          top,
-          left,
-          width,
-          height,
-          keywords: Array.isArray(zone.keywords) ? zone.keywords.map((k: any) => String(k).trim()).filter(Boolean) : [],
-        };
-      })
-      .filter((z: HeatZone | null): z is HeatZone => Boolean(z));
 
-    return cleaned.length > 0 ? cleaned : DEFAULT_ZONES;
-  } catch {
-    return DEFAULT_ZONES;
-  }
-}
+function SchoolHeatmapContent() {
+    // --- Overlapping Pin Interaction ---
+    const [activePinId, setActivePinId] = useState<number | null>(null);
 
-export default function SchoolHeatmapPage() {
+    // Helper: get mouse position relative to map as percent
+    function getRelativeCoords(e: React.MouseEvent | MouseEvent) {
+      const rect = mapContainerRef.current?.getBoundingClientRect();
+      if (!rect) return { x: 0, y: 0 };
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+      return { x, y };
+    }
+
+    // Helper: Euclidean distance in percent space
+    function getDistance(a: { x: number; y: number }, b: { x: number; y: number }) {
+      return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+    }
+
+    // Mouse move: find closest pin
+    function handleMapMouseMove(e: React.MouseEvent) {
+      const mouse = getRelativeCoords(e);
+      let minDist = Infinity;
+      let closest: number | null = null;
+      for (const entry of zoneAnalytics) {
+        const zone = entry.zone;
+        // Pin center
+        const cx = zone.left + zone.width / 2;
+        const cy = zone.top + zone.height / 2;
+        const dist = getDistance(mouse, { x: cx, y: cy });
+        if (dist < minDist) {
+          minDist = dist;
+          closest = zone.id;
+        }
+      }
+      setActivePinId(closest);
+    }
+
+    // Mouse leave: clear active pin
+    function handleMapMouseLeave() {
+      setActivePinId(null);
+    }
+
+    // Click: trigger active pin
+    function handleMapClick() {
+      if (activePinId) {
+        setSelectedZoneId(activePinId);
+      }
+    }
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const [logs, setLogs] = useState<BehavioralLog[]>([]);
-  const [zones, setZones] = useState<HeatZone[]>(DEFAULT_ZONES);
-  const [selectedZoneId, setSelectedZoneId] = useState<string>(DEFAULT_ZONES[0].id);
+  const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [daysFilter, setDaysFilter] = useState<'7' | '30' | '90' | 'all'>('30');
   const [highRiskStudents, setHighRiskStudents] = useState<HighRiskStudent[]>([]);
-
   const [newZoneName, setNewZoneName] = useState('');
   const [newZoneKeywords, setNewZoneKeywords] = useState('');
   const [recentLogsModalOpen, setRecentLogsModalOpen] = useState(false);
   const [behaviorPatternsModalOpen, setBehaviorPatternsModalOpen] = useState(false);
   const [zoneDragState, setZoneDragState] = useState<ZoneDragState | null>(null);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = window.localStorage.getItem(ZONES_STORAGE_KEY);
-    const parsed = parseZonesFromStorage(stored);
-    setZones(parsed);
-    setSelectedZoneId(parsed[0]?.id || '');
+  const { zones, loading: zonesLoading, loadZones, addZone, updateZone, deleteZone } = useHeatmapZones();
+
+
+  // Load zones from Supabase on mount
+  React.useEffect(() => {
+    loadZones().then(() => {
+      // Set default selected zone
+      if (zones && zones.length > 0) setSelectedZoneId(zones[0].id);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(ZONES_STORAGE_KEY, JSON.stringify(zones));
-  }, [zones]);
+  // Update selectedZoneId if zones change and selected is missing
+  React.useEffect(() => {
+    if (zones.length > 0 && (selectedZoneId == null || !zones.some(z => z.id === selectedZoneId))) {
+      setSelectedZoneId(zones[0].id);
+    }
+  }, [zones, selectedZoneId]);
 
   useEffect(() => {
     void fetchData();
@@ -422,10 +393,8 @@ export default function SchoolHeatmapPage() {
       });
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
-
   const zoneAnalytics = useMemo(() => {
     return zones.map((zone) => {
       const zoneLogs = logs.filter((log) => isLogInZone(log, zone));
@@ -524,25 +493,16 @@ export default function SchoolHeatmapPage() {
     [logs]
   );
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchData();
-  };
 
-  const handleAddZone = () => {
+
+  const handleAddZone = async () => {
     const name = newZoneName.trim();
     if (!name) {
       toast({ title: 'Zone name required', description: 'Please provide a room or area name.', variant: 'destructive' });
       return;
     }
-
-    const keywords = newZoneKeywords
-      .split(',')
-      .map((token) => token.trim())
-      .filter(Boolean);
-
-    const newZone: HeatZone = {
-      id: `zone-${Date.now()}`,
+    const keywords = newZoneKeywords.split(',').map((token) => token.trim()).filter(Boolean);
+    const newZone = {
       name,
       top: NEW_ZONE_DEFAULTS.top,
       left: NEW_ZONE_DEFAULTS.left,
@@ -550,26 +510,33 @@ export default function SchoolHeatmapPage() {
       height: NEW_ZONE_DEFAULTS.height,
       keywords,
     };
-
-    setZones((prev) => [...prev, newZone]);
-    setSelectedZoneId(newZone.id);
-    setNewZoneName('');
-    setNewZoneKeywords('');
-
-    toast({
-      title: 'Area added',
-      description: `${name} is now part of the heatmap and linked to behavioral log locations.`,
-    });
+    const created = await addZone(newZone);
+    if (created) {
+      setSelectedZoneId(created.id);
+      setNewZoneName('');
+      setNewZoneKeywords('');
+      toast({
+        title: 'Area added',
+        description: `${name} is now part of the heatmap and linked to behavioral log locations.`,
+      });
+    } else {
+      toast({ title: 'Failed to add area', description: 'Could not add area to Supabase.', variant: 'destructive' });
+    }
   };
 
-  const handleDeleteZone = (zoneId: string) => {
-    setZones((prev) => {
-      const next = prev.filter((zone) => zone.id !== zoneId);
-      if (next.length > 0 && selectedZoneId === zoneId) {
-        setSelectedZoneId(next[0].id);
+
+  const handleDeleteZone = async (zoneId: number) => {
+    const ok = await deleteZone(zoneId);
+    if (ok) {
+      toast({ title: 'Area deleted', description: 'Area removed from heatmap.' });
+      // If deleted zone was selected, select another
+      if (selectedZoneId === zoneId && zones.length > 1) {
+        const next = zones.find(z => z.id !== zoneId);
+        if (next) setSelectedZoneId(next.id);
       }
-      return next;
-    });
+    } else {
+      toast({ title: 'Failed to delete area', description: 'Could not delete area from Supabase.', variant: 'destructive' });
+    }
   };
 
   const recentSelectedLogs = (selectedZone?.logs || []).slice(0, 8);
@@ -581,8 +548,9 @@ export default function SchoolHeatmapPage() {
     return `${safe.slice(0, 3)}***${safe.slice(-2)}`;
   };
 
+
   const beginZoneDrag = (
-    event: React.MouseEvent<HTMLButtonElement>,
+    event: React.MouseEvent<Element>,
     zone: HeatZone,
     mode: DragMode
   ) => {
@@ -601,7 +569,8 @@ export default function SchoolHeatmapPage() {
     });
   };
 
-  useEffect(() => {
+
+  React.useEffect(() => {
     if (!zoneDragState) return;
 
     const handleMouseMove = (event: MouseEvent) => {
@@ -611,22 +580,22 @@ export default function SchoolHeatmapPage() {
       const dxPercent = ((event.clientX - zoneDragState.startClientX) / mapRect.width) * 100;
       const dyPercent = ((event.clientY - zoneDragState.startClientY) / mapRect.height) * 100;
 
-      setZones((prev) =>
-        prev.map((zone) => {
-          if (zone.id !== zoneDragState.zoneId) return zone;
+      const zone = zones.find((z) => z.id === zoneDragState.zoneId);
+      if (!zone) return;
 
-          if (zoneDragState.mode === 'move') {
-            const nextLeft = Math.max(0, Math.min(100 - zone.width, zoneDragState.initialLeft + dxPercent));
-            const nextTop = Math.max(0, Math.min(100 - zone.height, zoneDragState.initialTop + dyPercent));
-            return { ...zone, left: Number(nextLeft.toFixed(2)), top: Number(nextTop.toFixed(2)) };
-          }
-
-          const minSize = 8;
-          const nextWidth = Math.max(minSize, Math.min(100 - zone.left, zoneDragState.initialWidth + dxPercent));
-          const nextHeight = Math.max(minSize, Math.min(100 - zone.top, zoneDragState.initialHeight + dyPercent));
-          return { ...zone, width: Number(nextWidth.toFixed(2)), height: Number(nextHeight.toFixed(2)) };
-        })
-      );
+      let updates: Partial<HeatZone> = {};
+      if (zoneDragState.mode === 'move') {
+        const nextLeft = Math.max(0, Math.min(100, zoneDragState.initialLeft + dxPercent));
+        const nextTop = Math.max(0, Math.min(100, zoneDragState.initialTop + dyPercent));
+        updates = { left: Number(nextLeft.toFixed(2)), top: Number(nextTop.toFixed(2)) };
+      } else {
+        const minSize = 8;
+        const nextWidth = Math.max(minSize, Math.min(100 - zone.left, zoneDragState.initialWidth + dxPercent));
+        const nextHeight = Math.max(minSize, Math.min(100 - zone.top, zoneDragState.initialHeight + dyPercent));
+        updates = { width: Number(nextWidth.toFixed(2)), height: Number(nextHeight.toFixed(2)) };
+      }
+      // Persist update to Supabase
+      updateZone(zone.id, updates);
     };
 
     const handleMouseUp = () => {
@@ -640,11 +609,13 @@ export default function SchoolHeatmapPage() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [zoneDragState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoneDragState, zones]);
+
+  // ...rest of the component remains unchanged, but use zones from context
 
   return (
-    <HeatmapZonesProvider initialZones={zones}>
-      <DashboardLayout>
+    <DashboardLayout>
         <div className="space-y-6">
         <Card className="border-orange-200/70 dark:border-slate-800/70 bg-white/90 dark:bg-slate-900/70 shadow-sm">
           <CardHeader>
@@ -763,7 +734,7 @@ export default function SchoolHeatmapPage() {
                                   <div className="flex items-center gap-2">
                                     <Phone className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                                     <span>
-                                      <span className="font-semibold">ML Risk Linked:</span> {Array.isArray(entry.highRiskMatches) && entry.highRiskMatches.length > 0 ? '✓ Yes' : '✗ No'}
+                                      <span className="font-semibold">ML Risk Linked:</span> {Array.isArray(entry.highRiskInZone) && entry.highRiskInZone.length > 0 ? '✓ Yes' : '✗ No'}
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -791,68 +762,90 @@ export default function SchoolHeatmapPage() {
                   </DialogContent>
                 </Dialog>
 
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={daysFilter === '7' ? 'default' : 'outline'}
-                  onClick={() => setDaysFilter('7')}
-                >
-                  7 Days
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={daysFilter === '30' ? 'default' : 'outline'}
-                  onClick={() => setDaysFilter('30')}
-                >
-                  30 Days
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={daysFilter === '90' ? 'default' : 'outline'}
-                  onClick={() => setDaysFilter('90')}
-                >
-                  90 Days
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={daysFilter === 'all' ? 'default' : 'outline'}
-                  onClick={() => setDaysFilter('all')}
-                >
-                  All
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={handleRefresh} disabled={refreshing || loading}>
-                  <RefreshCw className={cn('mr-2 h-4 w-4', refreshing ? 'animate-spin' : '')} />
-                  Refresh
-                </Button>
+                <div className="flex items-center gap-2 bg-orange-50/60 border border-orange-200 rounded-full px-2 py-1 shadow-sm">
+                  {[
+                    { label: '7 Days', value: '7' },
+                    { label: '30 Days', value: '30' },
+                    { label: '90 Days', value: '90' },
+                    { label: 'All', value: 'all' },
+                  ].map(opt => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      aria-label={`Filter: ${opt.label}`}
+                      size="sm"
+                      variant={daysFilter === opt.value ? 'default' : 'outline'}
+                      className={
+                        daysFilter === opt.value
+                          ? 'bg-blue-600 text-white shadow font-bold border-blue-600'
+                          : 'bg-transparent text-orange-900 border-none hover:bg-orange-100'
+                      }
+                      style={{ borderRadius: 999 }}
+                      onClick={() => setDaysFilter(opt.value as typeof daysFilter)}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+                {/* Refresh button removed. Data is now dynamically fetched. */}
               </div>
             </div>
           </CardHeader>
 
           <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-blue-200/70 bg-blue-50/70 p-4 dark:border-blue-900/50 dark:bg-blue-950/30">
-              <p className="text-xs text-blue-700 dark:text-blue-300">Behavioral Logs</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-100">{logs.length}</p>
-            </div>
-            <div className="rounded-xl border border-red-200/70 bg-red-50/70 p-4 dark:border-red-900/50 dark:bg-red-950/30">
-              <p className="text-xs text-red-700 dark:text-red-300">Critical Incidents</p>
-              <p className="mt-1 text-2xl font-bold text-red-900 dark:text-red-100">{totalCritical}</p>
-            </div>
-            <div className="rounded-xl border border-orange-200/70 bg-orange-50/70 p-4 dark:border-orange-900/50 dark:bg-orange-950/30">
-              <p className="text-xs text-orange-700 dark:text-orange-300">Mapped Areas</p>
-              <p className="mt-1 text-2xl font-bold text-orange-900 dark:text-orange-100">{zones.length}</p>
-            </div>
-            <div className="rounded-xl border border-rose-200/70 bg-rose-50/70 p-4 dark:border-rose-900/50 dark:bg-rose-950/30">
-              <p className="text-xs text-rose-700 dark:text-rose-300">ML High-Risk Students</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-100">{highRiskStudents.length}</p>
-            </div>
+            {/* Behavioral Logs */}
+            <Card className="shadow-xl border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/60">
+                  <Archive className="w-6 h-6 text-blue-600 dark:text-blue-300" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-blue-700 dark:text-blue-300">Behavioral Logs</p>
+                  <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-100">{logs.length}</p>
+                </div>
+              </CardContent>
+            </Card>
+            {/* Critical Incidents */}
+            <Card className="shadow-xl border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 overflow-hidden">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/60">
+                  <Flame className="w-6 h-6 text-red-600 dark:text-red-300" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-red-700 dark:text-red-300">Critical Incidents</p>
+                  <p className="mt-1 text-2xl font-bold text-red-900 dark:text-red-100">{totalCritical}</p>
+                </div>
+              </CardContent>
+            </Card>
+            {/* Mapped Areas */}
+            <Card className="shadow-xl border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 overflow-hidden">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/60">
+                  <MapPinned className="w-6 h-6 text-orange-600 dark:text-orange-300" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-orange-700 dark:text-orange-300">Mapped Areas</p>
+                  <p className="mt-1 text-2xl font-bold text-orange-900 dark:text-orange-100">{zones.length}</p>
+                </div>
+              </CardContent>
+            </Card>
+            {/* ML High-Risk Students */}
+            <Card className="shadow-xl border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 overflow-hidden">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-900/60">
+                  <ShieldAlert className="w-6 h-6 text-rose-600 dark:text-rose-300" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-rose-700 dark:text-rose-300">ML High-Risk Students</p>
+                  <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-100">{highRiskStudents.length}</p>
+                </div>
+              </CardContent>
+            </Card>
           </CardContent>
         </Card>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <Card className="xl:col-span-8 border-orange-200/70 dark:border-slate-800/70 bg-white/90 dark:bg-slate-900/70">
+          <Card className="xl:col-span-8 h-170 overflow-auto border-orange-200/70 dark:border-slate-800/70 bg-white/90 dark:bg-slate-900/70">
             <CardHeader>
               <CardTitle className="text-lg">Satellite School View</CardTitle>
               <CardDescription>
@@ -862,7 +855,11 @@ export default function SchoolHeatmapPage() {
             <CardContent>
               <div
                 ref={mapContainerRef}
-                className="relative mx-auto aspect-16/10 w-full overflow-hidden rounded-xl border border-slate-300/70 shadow-sm dark:border-slate-700/70"
+                className="relative mx-auto h-130 w-full overflow-hidden rounded-xl border border-slate-300/70 shadow-sm dark:border-slate-700/70"
+                onMouseMove={handleMapMouseMove}
+                onMouseLeave={handleMapMouseLeave}
+                onClick={handleMapClick}
+                style={{ cursor: activePinId ? 'pointer' : undefined }}
               >
                 <Image
                   src="/SGCDC-Satellite-View.png"
@@ -875,40 +872,95 @@ export default function SchoolHeatmapPage() {
                 {!loading && zoneAnalytics.map((entry) => {
                   const { zone, heat, logs: zoneLogs } = entry;
                   const isSelected = zone.id === selectedZone?.zone.id;
+                  const isActive = zone.id === activePinId;
+                  // Calculate pin size and position
+                  const pinWidth = zone.width;
+                  const pinHeight = zone.height;
+                  const pinTop = zone.top;
+                  const pinLeft = zone.left;
+                  // Pin center for hitbox
+                  const cx = pinLeft + pinWidth / 2;
+                  const cy = pinTop + pinHeight / 2;
                   return (
                     <div
                       key={zone.id}
-                      onClick={() => setSelectedZoneId(zone.id)}
                       className={cn(
-                        'absolute rounded-lg border-2 p-1 text-left text-[10px] font-semibold text-white shadow-md backdrop-blur-[1px] transition-all duration-200',
-                        'hover:scale-[1.02]',
+                        'absolute transition-all duration-200 group',
                         zoneDragState?.zoneId === zone.id ? 'cursor-grabbing' : 'cursor-grab',
-                        isSelected ? 'ring-2 ring-white' : ''
+                        isSelected ? 'z-20' : isActive ? 'z-30' : 'z-10'
                       )}
                       style={{
-                        top: `${zone.top}%`,
-                        left: `${zone.left}%`,
-                        width: `${zone.width}%`,
-                        height: `${zone.height}%`,
-                        backgroundColor: heat.background,
-                        borderColor: heat.border,
+                        top: `${pinTop}%`,
+                        left: `${pinLeft}%`,
+                        width: `${pinWidth}%`,
+                        height: `${pinHeight}%`,
+                        pointerEvents: 'auto', // Allow pointer events for drag/resize
+                        userSelect: 'none',
+                        transform: isActive ? 'scale(1.18)' : 'scale(1)',
+                        filter: isActive ? 'drop-shadow(0 4px 16px #0070f355)' : undefined,
+                        transition: 'transform 0.15s, filter 0.15s',
                       }}
-                      title={`${zone.name}: ${zoneLogs.length} logs, ${heat.label} intensity`}
                     >
-                      <button
-                        type="button"
+                      {/* Invisible hitbox for easier hover/click */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: '-20%',
+                          top: '-30%',
+                          width: '140%',
+                          height: '180%',
+                          borderRadius: '50%',
+                          background: 'transparent',
+                          pointerEvents: 'none', // Only for hover/click detection, not drag
+                        }}
+                      />
+                      <svg
+                        width="100%"
+                        height="100%"
+                        viewBox="0 0 100 120"
+                        style={{ position: 'absolute', top: 0, left: 0 }}
                         onMouseDown={(event) => beginZoneDrag(event, zone, 'move')}
-                        className="flex h-full w-full flex-col justify-between text-left focus:outline-none"
                       >
-                        <span className="truncate pr-1">{zone.name}</span>
-                        <span className="text-[9px] opacity-90">{zoneLogs.length} logs</span>
-                      </button>
-
+                        <path
+                          d="M50 10 C80 10, 90 40, 50 110 C10 40, 20 10, 50 10 Z"
+                          fill="#fff"
+                          stroke={isActive ? '#0070f3' : heat.border}
+                          strokeWidth={isActive ? 6 : 4}
+                          filter="drop-shadow(0 2px 6px rgba(0,0,0,0.18))"
+                        />
+                      </svg>
+                      {/* Hover modal/tooltip */}
+                      {isActive && (
+                        <div
+                          className="absolute left-1/2 top-full min-w-30 -translate-x-1/2 mt-2 rounded-md border border-slate-300 bg-white/95 px-3 py-2 text-xs text-slate-900 shadow-lg z-50"
+                          style={{ whiteSpace: 'nowrap', pointerEvents: 'none' }}
+                          tabIndex={-1}
+                          aria-hidden="true"
+                        >
+                          <div className="font-bold text-slate-800 mb-1">{zone.name}</div>
+                          <div className="mb-0.5">{zoneLogs.length} logs</div>
+                          <div className="capitalize text-[11px] text-slate-600">{heat.label} intensity</div>
+                        </div>
+                      )}
+                      {/* Resize handle as a small circle at the bottom tip of the pin */}
                       <button
                         type="button"
                         aria-label={`Resize ${zone.name}`}
                         onMouseDown={(event) => beginZoneDrag(event, zone, 'resize')}
-                        className="absolute bottom-1 right-1 h-3 w-3 rounded-sm border border-white/70 bg-white/40 hover:bg-white/70"
+                        style={{
+                          position: 'absolute',
+                          left: '50%',
+                          bottom: 0,
+                          transform: 'translate(-50%, 50%)',
+                          width: '18px',
+                          height: '18px',
+                          borderRadius: '50%',
+                          border: '2px solid #fff',
+                          background: 'rgba(255,255,255,0.7)',
+                          boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+                          cursor: 'nwse-resize',
+                          zIndex: 2,
+                        }}
                       />
                     </div>
                   );
@@ -921,19 +973,7 @@ export default function SchoolHeatmapPage() {
                 )}
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                {zoneAnalytics.map((entry) => (
-                  <Button
-                    key={entry.zone.id}
-                    variant={selectedZone?.zone.id === entry.zone.id ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setSelectedZoneId(entry.zone.id)}
-                    className="h-8"
-                  >
-                    {entry.zone.name}
-                  </Button>
-                ))}
-              </div>
+              {/* Removed zone selection buttons below the map as requested. */}
             </CardContent>
           </Card>
 
@@ -1091,11 +1131,11 @@ export default function SchoolHeatmapPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               <div className="xl:col-span-2">
-                <Label htmlFor="zone-name">Area Name</Label>
+                <Label htmlFor="zone-name" className="mb-1 block">Area Name</Label>
                 <Input id="zone-name" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} placeholder="e.g., Room A-101" />
               </div>
               <div className="xl:col-span-2">
-                <Label htmlFor="zone-keywords">Location Keywords</Label>
+                <Label htmlFor="zone-keywords" className="mb-1 block">Location Keywords</Label>
                 <Input
                   id="zone-keywords"
                   value={newZoneKeywords}
@@ -1136,6 +1176,14 @@ export default function SchoolHeatmapPage() {
         </Card>
         </div>
       </DashboardLayout>
+
+    );
+}
+
+export default function SchoolHeatmapPage() {
+  return (
+    <HeatmapZonesProvider>
+      <SchoolHeatmapContent />
     </HeatmapZonesProvider>
   );
 }

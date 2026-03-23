@@ -15,6 +15,7 @@ DROP TABLE IF EXISTS student_schedules CASCADE;
 DROP TABLE IF EXISTS student_attendance_schedules CASCADE;
 DROP TABLE IF EXISTS school_years CASCADE;
 DROP TABLE IF EXISTS students CASCADE;
+DROP TABLE IF EXISTS heatmap_zones CASCADE;
 -- ============================================================================
 -- Supabase Auth Profile Table (linked to auth.users)
 CREATE TABLE IF NOT EXISTS profiles (
@@ -444,6 +445,27 @@ CREATE POLICY "Enable delete for all on student attendance schedules" ON student
 -- ============================================================================
 -- ML CORE: Behavioral Analytics Based on Attendance Patterns
 -- ============================================================================
+-- ============================================================================
+-- Heatmap Zones Table for School Heatmap UI
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS heatmap_zones (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  top FLOAT NOT NULL,
+  "left" FLOAT NOT NULL,
+  width FLOAT NOT NULL,
+  height FLOAT NOT NULL,
+  keywords TEXT[],
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS and public access policies for heatmap_zones
+ALTER TABLE heatmap_zones ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable read for all on heatmap_zones" ON heatmap_zones FOR SELECT USING (true);
+CREATE POLICY "Enable insert for all on heatmap_zones" ON heatmap_zones FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for all on heatmap_zones" ON heatmap_zones FOR UPDATE USING (true);
+CREATE POLICY "Enable delete for all on heatmap_zones" ON heatmap_zones FOR DELETE USING (true);
 -- Table for storing computed attendance patterns
 CREATE TABLE IF NOT EXISTS attendance_patterns (
   id BIGSERIAL PRIMARY KEY,

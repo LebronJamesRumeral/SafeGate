@@ -6,7 +6,9 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -163,6 +165,36 @@ export default function GuidanceReviewPage() {
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [selectedStudentLrn, setSelectedStudentLrn] = useState<string>('');
   const [pendingStudentLrn, setPendingStudentLrn] = useState<string>('');
+  const [studentPickerOpen, setStudentPickerOpen] = useState(false);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+
+  // Deselect student function
+  const handleStudentSelect = (studentLrn: string) => {
+    if (selectedStudentLrn === studentLrn) {
+      setSelectedStudentLrn('');
+      setPendingStudentLrn('');
+      setEvents([]);
+      setAttendanceLogs([]);
+      setLastLoadedStudentLrn('');
+    } else {
+      setLoadingDetails(true);
+      setEvents([]);
+      setAttendanceLogs([]);
+      setLastLoadedStudentLrn('');
+      setPendingStudentLrn(studentLrn);
+      setSelectedStudentLrn(studentLrn);
+    }
+    setStudentPickerOpen(false);
+  };
+    const filteredStudentOptions = useMemo(() => {
+      const query = studentSearchQuery.trim().toLowerCase();
+      if (!query) return students;
+      return students.filter(student =>
+        student.name.toLowerCase().includes(query) ||
+        student.lrn.toLowerCase().includes(query) ||
+        student.level.toLowerCase().includes(query)
+      );
+    }, [students, studentSearchQuery]);
   const [lastLoadedStudentLrn, setLastLoadedStudentLrn] = useState<string>('');
   const [events, setEvents] = useState<BehavioralEventRecord[]>([]);
   const [pendingQueue, setPendingQueue] = useState<BehavioralEventRecord[]>([]);
@@ -696,30 +728,53 @@ export default function GuidanceReviewPage() {
             </CardTitle>
             <CardDescription>Select a student to open records. You can type in the dropdown to jump to a name.</CardDescription>
             <div className="pt-1 max-w-xl">
-              <Select
-                value={selectedStudentLrn}
-                onValueChange={(value) => {
-                  if (value !== selectedStudentLrn) {
-                    setLoadingDetails(true);
-                    setEvents([]);
-                    setAttendanceLogs([]);
-                    setLastLoadedStudentLrn('');
-                  }
-                  setPendingStudentLrn(value);
-                  setSelectedStudentLrn(value);
-                }}
-              >
-                <SelectTrigger className="w-full" disabled={loadingStudents}>
-                  <SelectValue placeholder="Select student" />
-                </SelectTrigger>
-                <SelectContent>
-                  {students.map(student => (
-                    <SelectItem key={student.lrn} value={student.lrn}>
-                      {student.name} ({student.level})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={studentPickerOpen} onOpenChange={setStudentPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="student_picker"
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-between font-normal"
+                    disabled={loadingStudents}
+                  >
+                    {selectedStudentLrn
+                      ? `${students.find(s => s.lrn === selectedStudentLrn)?.name || selectedStudentLrn} (${students.find(s => s.lrn === selectedStudentLrn)?.level || ''})`
+                      : 'Search student by name or LRN'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-100 p-0">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Type student name, LRN, or level"
+                      value={studentSearchQuery}
+                      onValueChange={setStudentSearchQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No student found. Try another name.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredStudentOptions.map((student) => {
+                          const isSelected = selectedStudentLrn === student.lrn;
+                          return (
+                            <CommandItem
+                              key={student.lrn}
+                              value={`${student.name} ${student.lrn} ${student.level}`}
+                              onSelect={() => handleStudentSelect(student.lrn)}
+                            >
+                              <Checkbox checked={isSelected} className="pointer-events-none" />
+                              <div className="flex flex-col">
+                                <span className="font-medium">{student.name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {student.lrn} • {student.level}
+                                </span>
+                              </div>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </CardHeader>
           <CardContent className="pt-0">

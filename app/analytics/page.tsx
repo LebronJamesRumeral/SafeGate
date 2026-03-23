@@ -84,7 +84,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'behavioral' | 'predictions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'behavioral'>('overview');
   const [stats, setStats] = useState({
     averageAttendance: 0,
     totalStudents: 0,
@@ -104,34 +104,13 @@ export default function AnalyticsPage() {
     weeklyTrend: [] as any[],
     severityDistribution: [] as any[]
   });
-  const [predictions, setPredictions] = useState({
-    nextWeekAttendance: 0,
-    riskPrediction: 0,
-    atRiskStudents: [] as any[],
-    recommendations: [] as string[],
-    trend: 'stable' as 'up' | 'down' | 'stable'
-  });
+
 
   useEffect(() => {
     fetchAnalyticsData();
-    // Trigger daily ML update when analytics page loads
-    triggerMLUpdate();
   }, [dateMode, rangeStart, rangeEnd, singleDate, selectedLevel]);
 
-  const triggerMLUpdate = async () => {
-    try {
-      const response = await fetch('/api/ml/daily-update', { method: 'POST' });
-      const data = await response.json();
-      console.log('[Analytics] ML data refreshed:', data.results);
-    } catch (error) {
-      console.warn('[Analytics] ML update trigger failed (non-critical):', error);
-      toast({
-        title: 'ML update failed',
-        description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
-      });
-    }
-  };
+
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -154,6 +133,15 @@ export default function AnalyticsPage() {
       setLoading(true);
 
       // Fetch total students
+      if (!supabase) {
+        setLoading(false);
+        toast({
+          title: 'Supabase not initialized',
+          description: 'Database connection is not available.',
+          variant: 'destructive',
+        });
+        return;
+      }
       let studentsQuery = supabase.from('students').select('*', { count: 'exact' });
       if (selectedLevel !== 'all') {
         studentsQuery = studentsQuery.eq('level', selectedLevel);
@@ -265,12 +253,14 @@ export default function AnalyticsPage() {
         const levelStudents = students?.filter(s => s.level === level) || [];
         const levelTotal = levelStudents.length;
         
-        const { data: levelAttendance } = await supabase
-          .from('attendance_logs')
-          .select('student_lrn')
-          .in('student_lrn', levelStudents.map(s => s.lrn))
-          .gte('date', last7Days[0])
-          .lte('date', last7Days[last7Days.length - 1]);
+        const { data: levelAttendance } = supabase
+          ? await supabase
+              .from('attendance_logs')
+              .select('student_lrn')
+              .in('student_lrn', levelStudents.map(s => s.lrn))
+              .gte('date', last7Days[0])
+              .lte('date', last7Days[last7Days.length - 1])
+          : { data: [] };
 
         const uniqueAttendances = new Set(levelAttendance?.map(a => a.student_lrn)).size;
         const attendance = levelTotal > 0 ? (uniqueAttendances / levelTotal) * 100 : 0;
@@ -313,14 +303,15 @@ export default function AnalyticsPage() {
           e.severity === 'major' || e.severity === 'critical'
         ).length;
 
-        // Category breakdown
-        const categoryMap = new Map();
+
+        // Type breakdown (use event_type field)
+        const typeMap = new Map();
         behavioralEvents.forEach(event => {
-          const category = event.event_categories?.category_type || 'Other';
-          categoryMap.set(category, (categoryMap.get(category) || 0) + 1);
+          const type = event.event_type || 'Other';
+          typeMap.set(type, (typeMap.get(type) || 0) + 1);
         });
-        const categoryBreakdown = Array.from(categoryMap.entries()).map(([category, count]) => ({
-          category,
+        const typeBreakdown = Array.from(typeMap.entries()).map(([type, count]) => ({
+          type,
           count
         }));
 
@@ -399,7 +390,7 @@ export default function AnalyticsPage() {
           positiveEvents,
           negativeEvents,
           studentsAtRisk,
-          categoryBreakdown,
+          categoryBreakdown: typeBreakdown,
           riskDistribution: [
             { level: 'Low Risk', count: riskDistribution.low, color: 'emerald', percentage: (riskDistribution.low / totalStudents) * 100 },
             { level: 'Medium Risk', count: riskDistribution.medium, color: 'amber', percentage: (riskDistribution.medium / totalStudents) * 100 },
@@ -409,17 +400,7 @@ export default function AnalyticsPage() {
           severityDistribution
         });
 
-        // Generate predictions
-        const predictedAttendance = averageAttendance * (0.95 + Math.random() * 0.1);
-        const predictedRisk = (studentsAtRisk / totalStudents) * 100;
-        
-        setPredictions({
-          nextWeekAttendance: parseFloat(predictedAttendance.toFixed(1)),
-          riskPrediction: parseFloat(predictedRisk.toFixed(1)),
-          atRiskStudents: atRiskStudentsList.slice(0, 5),
-          recommendations: generateRecommendations(averageAttendance, studentsAtRisk, lateArrivals, positiveEvents, negativeEvents),
-          trend: averageAttendance > 75 ? 'up' : averageAttendance < 50 ? 'down' : 'stable'
-        });
+
       }
 
     } catch (error) {
@@ -474,7 +455,6 @@ export default function AnalyticsPage() {
     const data = {
       attendance: stats,
       behavioral: behavioralStats,
-      predictions,
       exportDate: new Date().toISOString(),
       filters: {
         dateMode,
@@ -483,7 +463,6 @@ export default function AnalyticsPage() {
         selectedLevel
       }
     };
-    
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -513,7 +492,7 @@ export default function AnalyticsPage() {
         {/* Header with Actions */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-4xl font-bold bg-linear-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
               Analytics & Insights
             </h1>
             <p className="text-base text-gray-600 dark:text-gray-300 mt-2">
@@ -547,8 +526,7 @@ export default function AnalyticsPage() {
         <div className="flex w-full gap-2 overflow-x-auto p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl sm:w-fit">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart3 },
-            { id: 'behavioral', label: 'Behavioral', icon: Activity },
-            { id: 'predictions', label: 'Predictions', icon: Brain }
+            { id: 'behavioral', label: 'Behavioral', icon: Activity }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -591,109 +569,81 @@ export default function AnalyticsPage() {
               transition={{ duration: 0.3 }}
               className="space-y-6"
             >
-              {/* Summary Cards */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-4 sm:gap-6">
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/30 hover:shadow-xl transition-all duration-300">
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <CardContent className="p-4 sm:p-6">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-xs sm:text-sm font-medium text-emerald-700 dark:text-emerald-300 mb-1 sm:mb-2">Average Attendance</p>
-                          <p className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">{stats.averageAttendance}%</p>
-                          <p className="text-xs text-emerald-600/70 dark:text-emerald-400/60 mt-2">Last 7 days average</p>
-                        </div>
-                        <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg">
-                          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </div>
+              {/* Behavioral Summary Cards - Dashboard Style */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                {/* Total Events Card */}
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.05 }}>
+                  <Card className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 dark:bg-sky-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-sky-500/5 dark:bg-sky-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                      <div>
+                        <p className="text-[10px] sm:text-xs text-sky-600 dark:text-sky-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Total Events</p>
+                        <div className="text-xl sm:text-4xl font-bold text-sky-600 dark:text-sky-400">{behavioralStats.totalEvents}</div>
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">all behavioral events</p>
                       </div>
-                      <div className="mt-4 flex items-center gap-2 text-xs text-emerald-600/80 dark:text-emerald-400/80">
-                        <Sparkles className="w-3 h-3" />
-                        <span>Strong performance</span>
+                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-sky-500 to-sky-600 text-white items-center justify-center shadow-lg shadow-sky-500/25 dark:shadow-sky-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <BarChart3 className="w-8 h-8" />
                       </div>
                     </CardContent>
+                    <div className="h-1 w-full bg-linear-to-r from-sky-400 to-sky-600 dark:from-sky-500 dark:to-sky-700" />
                   </Card>
                 </motion.div>
 
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.2 }}
-                >
-                  <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 hover:shadow-xl transition-all duration-300">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <CardContent className="p-4 sm:p-6">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-xs sm:text-sm font-medium text-blue-700 dark:text-blue-300 mb-1 sm:mb-2">Total Students</p>
-                          <p className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.totalStudents}</p>
-                          <p className="text-xs text-blue-600/70 dark:text-blue-400/60 mt-2">Across {stats.levelStats.length} levels</p>
-                        </div>
-                        <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg">
-                          <Users className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </div>
+                {/* Positive Events Card */}
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1 }}>
+                  <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                      <div>
+                        <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Positive Behavior Events</p>
+                        <div className="text-xl sm:text-4xl font-bold text-emerald-600 dark:text-emerald-400">{behavioralStats.positiveEvents}</div>
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">reinforcing student progress</p>
                       </div>
-                      <div className="mt-4 flex items-center gap-2 text-xs text-blue-600/80 dark:text-blue-400/80">
-                        <Eye className="w-3 h-3" />
-                        <span>Active tracking</span>
+                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <CheckCircle className="w-8 h-8" />
                       </div>
                     </CardContent>
+                    <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
                   </Card>
                 </motion.div>
 
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/40 dark:to-orange-900/30 hover:shadow-xl transition-all duration-300">
-                    <div className="absolute inset-0 bg-gradient-to-r from-orange-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <CardContent className="p-4 sm:p-6">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-xs sm:text-sm font-medium text-orange-700 dark:text-orange-300 mb-1 sm:mb-2">Late Arrivals</p>
-                          <p className="text-2xl sm:text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.lateArrivals}</p>
-                          <p className="text-xs text-orange-600/70 dark:text-orange-400/60 mt-2">This week total</p>
-                        </div>
-                        <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg">
-                          <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </div>
+                {/* Negative Events Card */}
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.2 }}>
+                  <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                      <div>
+                        <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Major/Critical Incidents</p>
+                        <div className="text-xl sm:text-4xl font-bold text-orange-600 dark:text-orange-400">{behavioralStats.negativeEvents}</div>
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">major and critical incidents</p>
                       </div>
-                      <div className="mt-4 flex items-center gap-2 text-xs text-orange-600/80 dark:text-orange-400/80">
-                        <AlertTriangle className="w-3 h-3" />
-                        <span>Monitor punctuality</span>
+                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <XCircle className="w-8 h-8" />
                       </div>
                     </CardContent>
+                    <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
                   </Card>
                 </motion.div>
 
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                >
-                  <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-950/40 dark:to-violet-900/30 hover:shadow-xl transition-all duration-300">
-                    <div className="absolute inset-0 bg-gradient-to-r from-violet-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <CardContent className="p-4 sm:p-6">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-xs sm:text-sm font-medium text-violet-700 dark:text-violet-300 mb-1 sm:mb-2">At Risk Students</p>
-                          <p className="text-2xl sm:text-3xl font-bold text-violet-600 dark:text-violet-400">{behavioralStats.studentsAtRisk}</p>
-                          <p className="text-xs text-violet-600/70 dark:text-violet-400/60 mt-2">Need intervention</p>
-                        </div>
-                        <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-violet-400 to-violet-600 text-white shadow-lg">
-                          <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </div>
+                {/* At Risk Students Card */}
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.3 }}>
+                  <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 dark:bg-red-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                      <div>
+                        <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students Needing Intervention</p>
+                        <div className="text-xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{behavioralStats.studentsAtRisk}</div>
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">high or critical risk level</p>
                       </div>
-                      <div className="mt-4 flex items-center gap-2 text-xs text-violet-600/80 dark:text-violet-400/80">
-                        <Target className="w-3 h-3" />
-                        <span>Focus required</span>
+                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <AlertTriangle className="w-8 h-8" />
                       </div>
                     </CardContent>
+                    <div className="h-1 w-full bg-linear-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
                   </Card>
                 </motion.div>
               </div>
@@ -702,7 +652,7 @@ export default function AnalyticsPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Weekly Attendance Chart */}
                 <Card className="overflow-hidden border-0 shadow-xl">
-                  <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                  <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
                     <CardTitle className="flex items-center gap-2 text-lg">
                       <BarChart3 className="w-5 h-5 text-emerald-500" />
                       Weekly Attendance Trend
@@ -710,7 +660,7 @@ export default function AnalyticsPage() {
                     <CardDescription>Daily attendance breakdown for the last 7 days</CardDescription>
                   </CardHeader>
                   <CardContent className="p-6">
-                    <div className="h-[300px]">
+                    <div className="h-75">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={stats.weeklyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
@@ -734,23 +684,23 @@ export default function AnalyticsPage() {
                   </CardContent>
                 </Card>
 
-                {/* Monthly Trend */}
+                {/* Behavioral Event Trend (replaces Attendance Trend) */}
                 <Card className="overflow-hidden border-0 shadow-xl">
-                  <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                  <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
                     <CardTitle className="flex items-center gap-2 text-lg">
                       <AreaChart className="w-5 h-5 text-blue-500" />
-                      Attendance Trend
+                      Behavioral Event Trend
                     </CardTitle>
-                    <CardDescription>Monthly attendance pattern</CardDescription>
+                    <CardDescription>Monthly behavioral event pattern</CardDescription>
                   </CardHeader>
                   <CardContent className="p-6">
-                    <div className="h-[300px]">
+                    <div className="h-75">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={stats.monthlyTrend} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <AreaChart data={behavioralStats.weeklyTrend} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                           <defs>
-                            <linearGradient id="attendanceGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                            <linearGradient id="behavioralGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
@@ -766,10 +716,10 @@ export default function AnalyticsPage() {
                           />
                           <Area
                             type="monotone"
-                            dataKey="attendance"
-                            stroke="#3b82f6"
+                            dataKey="total"
+                            stroke="#ef4444"
                             strokeWidth={2}
-                            fill="url(#attendanceGradient)"
+                            fill="url(#behavioralGradient)"
                           />
                         </AreaChart>
                       </ResponsiveContainer>
@@ -780,7 +730,7 @@ export default function AnalyticsPage() {
 
               {/* Grade-wise Attendance */}
               <Card className="overflow-hidden border-0 shadow-xl">
-                <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <PieChart className="w-5 h-5 text-violet-500" />
                     Attendance by Grade Level
@@ -795,7 +745,7 @@ export default function AnalyticsPage() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.1 }}
-                        className="p-4 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800/50 dark:to-slate-900/50"
+                        className="p-4 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-linear-to-br from-white to-slate-50 dark:from-slate-800/50 dark:to-slate-900/50"
                       >
                         <div className="flex items-center justify-between mb-3">
                           <span className="font-semibold text-slate-900 dark:text-white">{grade.grade}</span>
@@ -818,9 +768,9 @@ export default function AnalyticsPage() {
                               animate={{ width: `${grade.attendance}%` }}
                               transition={{ duration: 1, delay: index * 0.1 }}
                               className={`h-full rounded-full ${
-                                grade.attendance >= 75 ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' :
-                                grade.attendance >= 50 ? 'bg-gradient-to-r from-amber-500 to-amber-400' :
-                                'bg-gradient-to-r from-rose-500 to-rose-400'
+                                grade.attendance >= 75 ? 'bg-linear-to-r from-emerald-500 to-emerald-400' :
+                                grade.attendance >= 50 ? 'bg-linear-to-r from-amber-500 to-amber-400' :
+                                'bg-linear-to-r from-rose-500 to-rose-400'
                               }`}
                             />
                           </div>
@@ -843,62 +793,82 @@ export default function AnalyticsPage() {
               className="space-y-6"
             >
               {/* Behavioral Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 text-white">
-                        <Activity className="w-5 h-5" />
-                      </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                {/* Total Events Card */}
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.05 }}>
+                  <Card className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 dark:bg-sky-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-sky-500/5 dark:bg-sky-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                       <div>
-                        <p className="text-sm text-blue-700 dark:text-blue-300">Total Events</p>
-                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{behavioralStats.totalEvents}</p>
+                        <p className="text-[10px] sm:text-xs text-sky-600 dark:text-sky-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Total Events</p>
+                        <div className="text-xl sm:text-4xl font-bold text-sky-600 dark:text-sky-400">{behavioralStats.totalEvents}</div>
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">all behavioral events</p>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-sky-500 to-sky-600 text-white items-center justify-center shadow-lg shadow-sky-500/25 dark:shadow-sky-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <BarChart3 className="w-8 h-8" />
+                      </div>
+                    </CardContent>
+                    <div className="h-1 w-full bg-linear-to-r from-sky-400 to-sky-600 dark:from-sky-500 dark:to-sky-700" />
+                  </Card>
+                </motion.div>
 
-                <Card className="border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/30">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white">
-                        <Heart className="w-5 h-5" />
-                      </div>
+                {/* Positive Events Card */}
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1 }}>
+                  <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                       <div>
-                        <p className="text-sm text-emerald-700 dark:text-emerald-300">Positive</p>
-                        <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{behavioralStats.positiveEvents}</p>
+                        <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Positive Behavior Events</p>
+                        <div className="text-xl sm:text-4xl font-bold text-emerald-600 dark:text-emerald-400">{behavioralStats.positiveEvents}</div>
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">reinforcing student progress</p>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <CheckCircle className="w-8 h-8" />
+                      </div>
+                    </CardContent>
+                    <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
+                  </Card>
+                </motion.div>
 
-                <Card className="border-0 bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/40 dark:to-rose-900/30">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-gradient-to-br from-rose-400 to-rose-600 text-white">
-                        <XCircle className="w-5 h-5" />
-                      </div>
+                {/* Negative Events Card */}
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.2 }}>
+                  <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                       <div>
-                        <p className="text-sm text-rose-700 dark:text-rose-300">Negative</p>
-                        <p className="text-2xl font-bold text-rose-600 dark:text-rose-400">{behavioralStats.negativeEvents}</p>
+                        <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Major/Critical Incidents</p>
+                        <div className="text-xl sm:text-4xl font-bold text-orange-600 dark:text-orange-400">{behavioralStats.negativeEvents}</div>
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">major and critical incidents</p>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <XCircle className="w-8 h-8" />
+                      </div>
+                    </CardContent>
+                    <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
+                  </Card>
+                </motion.div>
 
-                <Card className="border-0 bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/40 dark:to-orange-900/30">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-white">
-                        <AlertTriangle className="w-5 h-5" />
-                      </div>
+                {/* At Risk Students Card */}
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.3 }}>
+                  <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 dark:bg-red-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                       <div>
-                        <p className="text-sm text-orange-700 dark:text-orange-300">At Risk</p>
-                        <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{behavioralStats.studentsAtRisk}</p>
+                        <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students Needing Intervention</p>
+                        <div className="text-xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{behavioralStats.studentsAtRisk}</div>
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">high or critical risk level</p>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <AlertTriangle className="w-8 h-8" />
+                      </div>
+                    </CardContent>
+                    <div className="h-1 w-full bg-linear-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
+                  </Card>
+                </motion.div>
               </div>
 
               {/* Behavioral Charts */}
@@ -908,11 +878,11 @@ export default function AnalyticsPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <PieChart className="w-5 h-5 text-violet-500" />
-                      Events by Category
+                      Events by Type
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-[300px]">
+                    <div className="h-75">
                       <ResponsiveContainer width="100%" height="100%">
                         <RePieChart>
                           <Pie
@@ -923,6 +893,7 @@ export default function AnalyticsPage() {
                             outerRadius={80}
                             paddingAngle={5}
                             dataKey="count"
+                            nameKey="type"
                           >
                             {behavioralStats.categoryBreakdown.map((entry, index) => (
                               <Cell 
@@ -962,7 +933,7 @@ export default function AnalyticsPage() {
                               initial={{ width: 0 }}
                               animate={{ width: `${item.percentage}%` }}
                               transition={{ duration: 1, delay: index * 0.1 }}
-                              className={`h-full rounded-full bg-gradient-to-r ${
+                              className={`h-full rounded-full bg-linear-to-r ${
                                 item.color === 'emerald' ? 'from-emerald-500 to-emerald-400' :
                                 item.color === 'amber' ? 'from-amber-500 to-amber-400' :
                                 'from-rose-500 to-rose-400'
@@ -985,7 +956,7 @@ export default function AnalyticsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[300px]">
+                    <div className="h-75">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={behavioralStats.weeklyTrend}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
@@ -1004,163 +975,7 @@ export default function AnalyticsPage() {
             </motion.div>
           )}
 
-          {activeTab === 'predictions' && (
-            <motion.div
-              key="predictions"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.3 }}
-              className="space-y-6"
-            >
-              {/* AI Predictions Header */}
-              <div className="bg-gradient-to-r from-blue-500/10 to-sky-500/10 dark:from-blue-500/5 dark:to-sky-500/5 rounded-xl p-6 border border-blue-200/20 dark:border-blue-700/20">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-blue-600 to-sky-600 dark:from-blue-700 dark:to-sky-700 text-white">
-                    <Brain className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-sky-600 dark:from-blue-400 dark:to-sky-400 bg-clip-text text-transparent">
-                      AI-Powered Predictions
-                    </h2>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
-                      Machine learning insights based on historical data
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              {/* Prediction Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 text-white">
-                        <TrendingUp className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-blue-700 dark:text-blue-300">Next Week Attendance</p>
-                        <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{predictions.nextWeekAttendance}%</p>
-                        <p className="text-xs text-blue-600/70 mt-1">
-                          {predictions.trend === 'up' ? '↑ Increasing trend' : 
-                           predictions.trend === 'down' ? '↓ Decreasing trend' : 
-                           '→ Stable trend'}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/40 dark:to-orange-900/30">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-white">
-                        <AlertTriangle className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-orange-700 dark:text-orange-300">Risk Prediction</p>
-                        <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">{predictions.riskPrediction}%</p>
-                        <p className="text-xs text-orange-600/70 mt-1">Students likely to need intervention</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/30">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white">
-                        <Award className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-emerald-700 dark:text-emerald-300">Confidence Score</p>
-                        <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">87%</p>
-                        <p className="text-xs text-emerald-600/70 mt-1">Prediction accuracy</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* At Risk Students */}
-              {predictions.atRiskStudents.length > 0 && (
-                <Card className="overflow-hidden border-0 shadow-xl">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Target className="w-5 h-5 text-rose-500" />
-                      Students Requiring Attention
-                    </CardTitle>
-                    <CardDescription>
-                      Early warning system identified {predictions.atRiskStudents.length} students who may need intervention
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {predictions.atRiskStudents.map((student, index) => (
-                        <motion.div
-                          key={student.lrn}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.1 }}
-                          className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-slate-900 dark:text-white">{student.name}</p>
-                              <p className="text-sm text-slate-500 dark:text-slate-400">LRN: {student.lrn}</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                student.riskLevel === 'high' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
-                                'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                              }`}>
-                                {student.riskLevel.toUpperCase()} RISK
-                              </span>
-                              <span className="text-sm text-slate-600 dark:text-slate-400">
-                                Attendance: {student.attendanceRate.toFixed(0)}%
-                              </span>
-                            </div>
-                          </div>
-                          <div className="mt-2 flex gap-4 text-xs text-slate-500 dark:text-slate-400">
-                            <span>⚠️ {student.negativeEvents} negative events</span>
-                            <span>✅ {student.positiveEvents} positive events</span>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Recommendations */}
-              <Card className="overflow-hidden border-0 shadow-xl bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/30 dark:to-sky-950/30">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-amber-500" />
-                    AI Recommendations
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {predictions.recommendations.map((rec, index) => (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-slate-800/50"
-                      >
-                        <div className="p-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                          <Sparkles className="w-4 h-4" />
-                        </div>
-                        <p className="text-sm text-slate-700 dark:text-slate-300">{rec}</p>
-                      </motion.div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
         </AnimatePresence>
       </motion.div>
     </DashboardLayout>

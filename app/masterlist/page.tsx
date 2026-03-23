@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Download, Search, Eye, Mail, Phone, Archive, Upload } from 'lucide-react';
+import { UserCheck, GraduationCap } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
 import { supabase, type Student } from '@/lib/supabase';
@@ -291,47 +292,62 @@ export default function MasterlistPage() {
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 sm:gap-4 animate-slide-in-left">
-          <Card className="bg-card border-border/50 shadow-lg card-elevated">
-            <CardContent className="pt-4 sm:pt-6">
-              <div className="flex justify-between items-start">
+          {/* Total Records Card */}
+          <div className="relative group">
+            <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden group-hover:shadow-2xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-8 -mt-8 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-12 h-12 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-6 -mb-6 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-4 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Total Records</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-foreground mt-2">{students.length}</p>
+                  <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Total Records</p>
+                  <div className="text-xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">{students.length}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">all-time student entries</p>
                 </div>
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Archive size={24} className="text-primary" />
+                <div className="hidden sm:flex w-10 h-10 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <Archive size={22} />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+              <div className="h-1 w-full bg-linear-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
+            </Card>
+          </div>
 
-          <Card className="bg-card border-border/50 shadow-lg card-elevated">
-            <CardContent className="pt-4 sm:pt-6">
-              <div className="flex justify-between items-center gap-4">
+          {/* Active Students Card */}
+          <div className="relative group">
+            <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden group-hover:shadow-2xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-8 -mt-8 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-12 h-12 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-6 -mb-6 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-4 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Active</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-foreground mt-2">{activeCount}</p>
+                  <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Active</p>
+                  <div className="text-xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">{activeCount}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">currently enrolled</p>
                 </div>
-                <div className="shrink-0">
-                  <Badge className="bg-success/20 text-success border-success/30 px-3 py-1 text-xs">Active</Badge>
+                <div className="hidden sm:flex w-10 h-10 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <UserCheck size={22} />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+              <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
+            </Card>
+          </div>
 
-          <Card className="bg-card border-border/50 shadow-lg card-elevated">
-            <CardContent className="pt-4 sm:pt-6">
-              <div className="flex justify-between items-center gap-4">
+          {/* Graduated Students Card */}
+          <div className="relative group">
+            <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden group-hover:shadow-2xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-8 -mt-8 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-12 h-12 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-6 -mb-6 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-4 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Graduated</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-foreground mt-2">{graduatedCount}</p>
+                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Graduated</p>
+                  <div className="text-xl sm:text-3xl font-bold text-orange-600 dark:text-orange-400">{graduatedCount}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">alumni records</p>
                 </div>
-                <div className="shrink-0">
-                  <Badge className="bg-info/20 text-info border-info/30 px-3 py-1 text-xs">Graduated</Badge>
+                <div className="hidden sm:flex w-10 h-10 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <GraduationCap size={22} />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+              <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
+            </Card>
+          </div>
         </div>
 
         {/* Filters */}
