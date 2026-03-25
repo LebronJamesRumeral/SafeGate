@@ -16,7 +16,17 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from '@/components/ui/textarea';
 import { GuidanceReviewSkeleton } from '@/components/loading-skeletons';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Activity, AlertTriangle, CalendarDays, CheckCircle, Clock, Eye, Loader2, UserCircle2, Users, XCircle } from 'lucide-react';
+import { Activity, AlertTriangle, CalendarDays, CheckCircle, Clock, Eye, Loader2, UserCircle2, Users, XCircle, ChevronDownIcon, Minus, Info } from 'lucide-react';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator
+} from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
 import { createRoleNotification } from '@/lib/role-notifications';
@@ -167,6 +177,7 @@ export default function GuidanceReviewPage() {
   const [pendingStudentLrn, setPendingStudentLrn] = useState<string>('');
   const [studentPickerOpen, setStudentPickerOpen] = useState(false);
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [severityFilter, setSeverityFilter] = useState<string>('all');
 
   // Deselect student function
   const handleStudentSelect = (studentLrn: string) => {
@@ -186,17 +197,32 @@ export default function GuidanceReviewPage() {
     }
     setStudentPickerOpen(false);
   };
-    const filteredStudentOptions = useMemo(() => {
-      const query = studentSearchQuery.trim().toLowerCase();
-      if (!query) return students;
-      return students.filter(student =>
-        student.name.toLowerCase().includes(query) ||
-        student.lrn.toLowerCase().includes(query) ||
-        student.level.toLowerCase().includes(query)
-      );
-    }, [students, studentSearchQuery]);
+  // Student level filter state
+  const [studentLevelFilter, setStudentLevelFilter] = useState<string>("");
+  // Student search filter
+  const filteredStudentOptions = useMemo(() => {
+    let filtered = students;
+    if (studentLevelFilter) {
+      filtered = filtered.filter(s => s.level === studentLevelFilter);
+    }
+    const query = studentSearchQuery.trim().toLowerCase();
+    if (!query) return filtered;
+    return filtered.filter(student =>
+      student.name.toLowerCase().includes(query) ||
+      student.lrn.toLowerCase().includes(query)
+    );
+  }, [students, studentSearchQuery, studentLevelFilter]);
+
   const [lastLoadedStudentLrn, setLastLoadedStudentLrn] = useState<string>('');
   const [events, setEvents] = useState<BehavioralEventRecord[]>([]);
+
+  // Filter events by severity (ensure always array)
+  const filteredEvents = useMemo(() => {
+    const safeEvents = Array.isArray(events) ? events : [];
+    if (severityFilter === 'all') return safeEvents;
+    return safeEvents.filter(event => event.severity === severityFilter);
+  }, [events, severityFilter]);
+
   const [pendingQueue, setPendingQueue] = useState<BehavioralEventRecord[]>([]);
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLogRecord[]>([]);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
@@ -671,51 +697,91 @@ export default function GuidanceReviewPage() {
           <CardContent className="p-5 sm:p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="bg-blue-100 text-blue-700 border-0">Guidance Workflow</Badge>
-                  <Badge variant="outline" className="text-xs">Queue: {queueSummary.totalPending}</Badge>
-                  <Badge variant="outline" className="text-xs">Auto-updates every 15s</Badge>
-                </div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Guidance Review Center</h1>
                 <p className="text-sm text-slate-600 dark:text-slate-400 max-w-2xl">
                   Review pending behavior logs, check student context, and complete a clear approve or deny decision.
                 </p>
               </div>
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                <Badge className="bg-blue-100 text-blue-700 border-0">Guidance Workflow</Badge>
+                <Badge variant="outline" className="text-xs">Queue: {queueSummary.totalPending}</Badge>
+                <Badge variant="outline" className="text-xs">Auto-updates every 15s</Badge>
+              </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 dark:bg-amber-900/20 p-3">
-                <p className="text-xs text-amber-700 dark:text-amber-300">Pending Queue</p>
-                {isTopSummaryLoading ? (
-                  <Skeleton className="mt-1 h-7 w-12" />
-                ) : (
-                  <p className="text-xl font-bold text-amber-700 dark:text-amber-300">{queueSummary.totalPending}</p>
-                )}
-              </div>
-              <div className="rounded-xl border border-rose-200/70 bg-rose-50/70 dark:bg-rose-900/20 p-3">
-                <p className="text-xs text-rose-700 dark:text-rose-300">High Severity Pending</p>
-                {isTopSummaryLoading ? (
-                  <Skeleton className="mt-1 h-7 w-12" />
-                ) : (
-                  <p className="text-xl font-bold text-rose-700 dark:text-rose-300">{queueSummary.highSeverityCount}</p>
-                )}
-              </div>
-              <div className="rounded-xl border border-blue-200/70 bg-blue-50/70 dark:bg-blue-900/20 p-3">
-                <p className="text-xs text-blue-700 dark:text-blue-300">Students Loaded</p>
-                {isTopSummaryLoading ? (
-                  <Skeleton className="mt-1 h-7 w-12" />
-                ) : (
-                  <p className="text-xl font-bold text-blue-700 dark:text-blue-300">{queueSummary.studentCount}</p>
-                )}
-              </div>
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 dark:bg-slate-900/30 p-3">
-                <p className="text-xs text-slate-600 dark:text-slate-300">Selected Student Events</p>
-                {isTopSummaryLoading || isSelectedSummaryLoading ? (
-                  <Skeleton className="mt-1 h-7 w-12" />
-                ) : (
-                  <p className="text-xl font-bold text-slate-900 dark:text-white">{summary.totalEvents}</p>
-                )}
-              </div>
+            {/* Animated Metric Cards */}
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+              {/* Pending queue */}
+              <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1 }}>
+                <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300 min-h-30">
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 dark:bg-amber-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
+                  <div className="absolute bottom-0 left-0 w-10 h-10 bg-amber-500/5 dark:bg-amber-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
+                  <CardContent className="p-2 flex items-center justify-between relative z-10">
+                    <div>
+                      <p className="text-[9px] text-amber-700 dark:text-amber-400 font-semibold mb-0.5 tracking-wider leading-tight">Pending queue</p>
+                      <div className="text-lg font-bold text-amber-700 dark:text-amber-400">
+                        {isTopSummaryLoading ? <Skeleton className="h-6 w-10" /> : queueSummary.totalPending}
+                      </div>
+                      <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Awaiting review</p>
+                    </div>
+                  </CardContent>
+                  <div className="h-0.5 w-full bg-linear-to-r from-amber-400 to-amber-600 dark:from-amber-500 dark:to-amber-700" />
+                </Card>
+              </motion.div>
+
+              {/* High severity pending */}
+              <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.2 }}>
+                <Card className="border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300 min-h-30">
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
+                  <div className="absolute bottom-0 left-0 w-10 h-10 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
+                  <CardContent className="p-2 flex items-center justify-between relative z-10">
+                    <div>
+                      <p className="text-[9px] text-rose-700 dark:text-rose-400 font-semibold mb-0.5 tracking-wider leading-tight">High severity pending</p>
+                      <div className="text-lg font-bold text-rose-700 dark:text-rose-400">
+                        {isTopSummaryLoading ? <Skeleton className="h-6 w-10" /> : queueSummary.highSeverityCount}
+                      </div>
+                      <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Major/critical logs</p>
+                    </div>
+                  </CardContent>
+                  <div className="h-0.5 w-full bg-linear-to-r from-rose-400 to-rose-600 dark:from-rose-500 dark:to-rose-700" />
+                </Card>
+              </motion.div>
+
+              {/* Students loaded */}
+              <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.3 }}>
+                <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300 min-h-30">
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
+                  <div className="absolute bottom-0 left-0 w-10 h-10 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
+                  <CardContent className="p-2 flex items-center justify-between relative z-10">
+                    <div>
+                      <p className="text-[9px] text-blue-700 dark:text-blue-400 font-semibold mb-0.5 tracking-wider leading-tight">Students loaded</p>
+                      <div className="text-lg font-bold text-blue-700 dark:text-blue-400">
+                        {isTopSummaryLoading ? <Skeleton className="h-6 w-10" /> : queueSummary.studentCount}
+                      </div>
+                      <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Active in system</p>
+                    </div>
+                  </CardContent>
+                  <div className="h-0.5 w-full bg-linear-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
+                </Card>
+              </motion.div>
+
+              {/* Selected student events */}
+              <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.4 }}>
+                <Card className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300 min-h-30">
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-slate-500/10 dark:bg-slate-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
+                  <div className="absolute bottom-0 left-0 w-10 h-10 bg-slate-500/5 dark:bg-slate-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
+                  <CardContent className="p-2 flex items-center justify-between relative z-10">
+                    <div>
+                      <p className="text-[9px] text-slate-700 dark:text-slate-300 font-semibold mb-0.5 tracking-wider leading-tight">Selected student events</p>
+                      <div className="text-lg font-bold text-slate-900 dark:text-white">
+                        {isTopSummaryLoading || isSelectedSummaryLoading ? <Skeleton className="h-6 w-10" /> : summary.totalEvents}
+                      </div>
+                      <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">For current student</p>
+                    </div>
+                  </CardContent>
+                  <div className="h-0.5 w-full bg-linear-to-r from-slate-400 to-slate-600 dark:from-slate-500 dark:to-slate-700" />
+                </Card>
+              </motion.div>
             </div>
           </CardContent>
         </Card>
@@ -726,59 +792,139 @@ export default function GuidanceReviewPage() {
               <Users className="w-5 h-5 text-blue-600" />
               Students
             </CardTitle>
-            <CardDescription>Select a student to open records. You can type in the dropdown to jump to a name.</CardDescription>
-            <div className="pt-1 max-w-xl">
-              <Popover open={studentPickerOpen} onOpenChange={setStudentPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="student_picker"
-                    variant="outline"
-                    role="combobox"
-                    className="w-full justify-between font-normal"
-                    disabled={loadingStudents}
-                  >
-                    {selectedStudentLrn
-                      ? `${students.find(s => s.lrn === selectedStudentLrn)?.name || selectedStudentLrn} (${students.find(s => s.lrn === selectedStudentLrn)?.level || ''})`
-                      : 'Search student by name or LRN'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-100 p-0">
-                  <Command shouldFilter={false}>
-                    <CommandInput
-                      placeholder="Type student name, LRN, or level"
-                      value={studentSearchQuery}
-                      onValueChange={setStudentSearchQuery}
-                    />
-                    <CommandList>
-                      <CommandEmpty>No student found. Try another name.</CommandEmpty>
-                      <CommandGroup>
-                        {filteredStudentOptions.map((student) => {
-                          const isSelected = selectedStudentLrn === student.lrn;
-                          return (
+            <CardDescription>Select a student to open records. You can type in the dropdown to jump to a name or filter by level.</CardDescription>
+            <div className="pt-1 max-w-xl flex gap-2">
+              <div className="flex flex-row gap-2 w-full">
+                {/* All Levels filter */}
+                <div className="flex flex-col gap-2 w-full max-w-xs">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
+                    Student Level
+                  </label>
+                  <Select value={studentLevelFilter || "all"} onValueChange={val => setStudentLevelFilter(val === "all" ? "" : val)}>
+                    <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
+                      <SelectValue placeholder="All Levels" />
+                    </SelectTrigger>
+                    <SelectContent className="dark:bg-slate-800 dark:border-border/40">
+                      <SelectItem value="all">All Levels</SelectItem>
+                      {Array.from(new Set(students.map(s => s.level))).sort().map((level) => (
+                        <SelectItem key={level} value={level}>
+                          {level}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {/* Severity filter */}
+                <div className="flex flex-col gap-2 w-full max-w-xs">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
+                    Severity
+                  </label>
+                  <Select value={severityFilter || "all"} onValueChange={val => setSeverityFilter(val === "all" ? "" : val)}>
+                    <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
+                      <SelectValue placeholder="All Severities" />
+                    </SelectTrigger>
+                    <SelectContent className="dark:bg-slate-800 dark:border-border/40 min-w-55">
+                      <SelectItem value="all">
+                        <span className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-slate-400" />
+                          All Severities
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="positive">
+                        <span className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-600" />
+                          Positive
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="neutral">
+                        <span className="flex items-center gap-2">
+                          <Minus className="w-4 h-4 text-gray-500" />
+                          Neutral
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="minor">
+                        <span className="flex items-center gap-2">
+                          <Info className="w-4 h-4 text-yellow-500" />
+                          Minor
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="major">
+                        <span className="flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-orange-500" />
+                          Major
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="critical">
+                        <span className="flex items-center gap-2">
+                          <XCircle className="w-4 h-4 text-red-600" />
+                          Critical
+                        </span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {/* Student Search & Picker */}
+              <div className="flex flex-col gap-2 w-full">
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
+                  Search Student
+                </label>
+                <Popover open={studentPickerOpen} onOpenChange={setStudentPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={studentPickerOpen}
+                      className="w-full justify-between h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200"
+                    >
+                      {selectedStudentLrn
+                        ? students.find((s) => s.lrn === selectedStudentLrn)?.name || 'Select student'
+                        : 'Select student'}
+                      <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-87.5 p-0 dark:bg-slate-800 dark:border-border/40">
+                    <Command>
+                      <CommandInput
+                        placeholder="Search by name or LRN..."
+                        value={studentSearchQuery}
+                        onValueChange={setStudentSearchQuery}
+                        className="h-9"
+                        autoFocus
+                      />
+                      <CommandList>
+                        <CommandEmpty>No students found.</CommandEmpty>
+                        <CommandGroup>
+                          {filteredStudentOptions.map((student) => (
                             <CommandItem
                               key={student.lrn}
-                              value={`${student.name} ${student.lrn} ${student.level}`}
-                              onSelect={() => handleStudentSelect(student.lrn)}
+                              value={student.name}
+                              onSelect={() => {
+                                handleStudentSelect(student.lrn);
+                                setStudentPickerOpen(false);
+                              }}
+                              className={
+                                student.lrn === selectedStudentLrn
+                                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
+                                  : ''
+                              }
                             >
-                              <Checkbox checked={isSelected} className="pointer-events-none" />
                               <div className="flex flex-col">
                                 <span className="font-medium">{student.name}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {student.lrn} • {student.level}
-                                </span>
+                                <span className="text-xs text-slate-500">{student.lrn} • {student.level}</span>
                               </div>
                             </CommandItem>
-                          );
-                        })}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            {loadingStudents ? (
+            {loadingStudents && (
               <div className="space-y-3 py-2">
                 <Skeleton className="h-10 w-full max-w-xl" />
                 <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2 bg-white/70 dark:bg-slate-900/30">
@@ -786,16 +932,6 @@ export default function GuidanceReviewPage() {
                   <Skeleton className="h-4 w-40" />
                   <Skeleton className="h-4 w-48" />
                 </div>
-              </div>
-            ) : !selectedStudent ? (
-              <div className="text-sm text-slate-500 py-6">
-                Choose a student from the dropdown to load details.
-              </div>
-            ) : (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white/70 dark:bg-slate-900/30">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">{selectedStudent.name}</p>
-                <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">{selectedStudent.level}</p>
-                <p className="text-xs text-slate-500 mt-2">LRN: {selectedStudent.lrn}</p>
               </div>
             )}
           </CardContent>
@@ -986,11 +1122,11 @@ export default function GuidanceReviewPage() {
                               </div>
                             ))}
                           </div>
-                        ) : events.length === 0 ? (
+                        ) : filteredEvents.length === 0 ? (
                           <div className="py-8 text-center text-slate-500">No behavioral events found for this student.</div>
                         ) : (
                           <div className="space-y-3 max-h-112 overflow-auto pr-1">
-                            {events.map(event => (
+                            {filteredEvents.map(event => (
                               <div
                                 key={event.id}
                                 className="rounded-xl border border-border/70 bg-white/80 dark:bg-slate-900/30 p-4"

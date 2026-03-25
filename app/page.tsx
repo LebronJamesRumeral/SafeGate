@@ -42,7 +42,8 @@ export default function Dashboard() {
   const [behavioralStats, setBehavioralStats] = useState({
     positiveEvents: 0,
     negativeEvents: 0,
-    studentsAtRisk: 0
+    studentsAtRisk: 0,
+    categoryDistribution: [] as { name: string; value: number }[]
   });
   const [topStudents, setTopStudents] = useState<any[]>([]);
   const [topGrades, setTopGrades] = useState<any[]>([]);
@@ -226,7 +227,6 @@ export default function Dashboard() {
             const riskScores = await calculateBatchRiskScores(
               studentsData.data.map(s => s.lrn)
             );
-            
             riskScores.forEach((score) => {
               if (score && (score.risk_level === 'high' || score.risk_level === 'critical')) {
                 studentsAtRisk++;
@@ -249,7 +249,6 @@ export default function Dashboard() {
               stats.negative++;
             }
           });
-
           studentEventMap.forEach((stats) => {
             if (stats.negative >= 2) {
               studentsAtRisk++;
@@ -257,10 +256,19 @@ export default function Dashboard() {
           });
         }
 
+        // Compute category distribution
+        const categoryMap = new Map<string, number>();
+        filteredBehavioral.forEach(event => {
+          const category = event.event_categories?.category_type || event.category_type || event.event_type || 'Other';
+          categoryMap.set(category, (categoryMap.get(category) || 0) + 1);
+        });
+        const categoryDistribution = Array.from(categoryMap.entries()).map(([name, value]) => ({ name, value }));
+
         setBehavioralStats({
           positiveEvents,
           negativeEvents,
-          studentsAtRisk
+          studentsAtRisk,
+          categoryDistribution
         });
       }
 
@@ -305,7 +313,7 @@ export default function Dashboard() {
         {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-4xl font-bold bg-linear-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
               {userRole === 'teacher' ? 'Teacher Dashboard' : userRole === 'guidance' ? 'Guidance Dashboard' : 'Admin Dashboard'}
             </h1>
             <p className="text-base text-slate-600 dark:text-slate-400 mt-2">
@@ -347,20 +355,20 @@ export default function Dashboard() {
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+            <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
                   <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Positive Behavior Events</p>
                   <div className="text-xl sm:text-4xl font-bold text-emerald-600 dark:text-emerald-400">{behavioralStats.positiveEvents}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">reinforcing student progress</p>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Reinforcing Student Progress</p>
                 </div>
-                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                   <CheckCircle className="w-8 h-8" />
                 </div>
               </CardContent>
-              <div className="h-1 w-full bg-gradient-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
+              <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
             </Card>
           </motion.div>
 
@@ -370,20 +378,20 @@ export default function Dashboard() {
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+            <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
               <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 dark:bg-red-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
                   <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students Needing Intervention</p>
                   <div className="text-xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{behavioralStats.studentsAtRisk}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">high or critical risk level</p>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">High Or Critical Risk Level</p>
                 </div>
-                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                   <AlertTriangle className="w-8 h-8" />
                 </div>
               </CardContent>
-              <div className="h-1 w-full bg-gradient-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
+              <div className="h-1 w-full bg-linear-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
             </Card>
           </motion.div>
 
@@ -393,26 +401,26 @@ export default function Dashboard() {
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.3 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+            <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
               <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Major/Critical Incidents</p>
+                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Major / Critical Incidents</p>
                   <div className="text-xl sm:text-4xl font-bold text-orange-600 dark:text-orange-400">{behavioralStats.negativeEvents}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">major and critical incidents</p>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Major And Critical Incidents</p>
                 </div>
-                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                   <XCircle className="w-8 h-8" />
                 </div>
               </CardContent>
-              <div className="h-1 w-full bg-gradient-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
+              <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
             </Card>
           </motion.div>
         </div>
 
         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-          Attendance and QR scanning remain available as secondary operational features.
+           Attendance And QR Scanning Remain Available As Secondary Operational Features.
         </p>
 
         {/* Tables Section */}
@@ -423,15 +431,15 @@ export default function Dashboard() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden">
-              <CardHeader className="border-b border-orange-200/40 dark:border-orange-700/30 bg-gradient-to-r from-orange-50/50 to-transparent dark:from-orange-950/20 dark:to-transparent pb-4">
+            <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden">
+              <CardHeader className="border-b border-orange-200/40 dark:border-orange-700/30 bg-linear-to-r from-orange-50/50 to-transparent dark:from-orange-950/20 dark:to-transparent pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20">
+                  <div className="p-3 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20">
                     <TrendingUp className="w-5 h-5" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl text-slate-900 dark:text-white">Top Students</CardTitle>
-                    <CardDescription className="text-slate-600 dark:text-slate-400">attendance snapshot by check-in events</CardDescription>
+                        <CardTitle className="text-xl text-slate-900 dark:text-white">Top Students</CardTitle>
+                        <CardDescription className="text-slate-600 dark:text-slate-400">Attendance Snapshot By Check-In Events</CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -481,54 +489,67 @@ export default function Dashboard() {
             </Card>
           </motion.div>
 
-          {/* Grade Level Check-In Activity */}
+          {/* Top Behavioral Event Categories */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.5 }}
           >
-            <Card className="border-0 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden">
-              <CardHeader className="border-b border-blue-200/40 dark:border-blue-700/30 bg-gradient-to-r from-blue-50/50 to-transparent dark:from-blue-950/20 dark:to-transparent pb-4">
+            <Card className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden">
+              <CardHeader className="border-b border-sky-200/40 dark:border-sky-700/30 bg-linear-to-r from-sky-50/50 to-transparent dark:from-sky-950/20 dark:to-transparent pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20">
-                    <BarChart3 className="w-5 h-5" />
+                  <div className="p-3 rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white shadow-lg shadow-sky-500/25 dark:shadow-sky-500/20">
+                    <Activity className="w-5 h-5" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl text-slate-900 dark:text-white">Grade Levels</CardTitle>
-                    <CardDescription className="text-slate-600 dark:text-slate-400">check-in activity</CardDescription>
+                        <CardTitle className="text-xl text-slate-900 dark:text-white">Top Behavior Categories</CardTitle>
+                        <CardDescription className="text-slate-600 dark:text-slate-400">Most Frequent Event Types</CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-6 space-y-6">
-                {topGrades.length > 0 ? (
-                  topGrades.map((grade: any, idx: number) => (
-                    <div key={grade.level} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 w-6">{idx + 1}</span>
-                          <p className="font-semibold text-slate-900 dark:text-white">{grade.level}</p>
-                        </div>
-                        <span className="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-100/50 dark:bg-blue-900/30 px-3 py-1 rounded-full">
-                          {grade.count}
-                        </span>
-                      </div>
-                      <div className="relative">
-                        <div className="h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${(grade.count / maxGradeCount) * 100}%` }}
-                            transition={{ duration: 1, delay: idx * 0.1 }}
-                            className="h-full bg-gradient-to-r from-blue-500 to-blue-400 dark:from-blue-500 dark:to-blue-400 rounded-full"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-12">
-                    No attendance data available
-                  </p>
-                )}
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-sky-100/50 dark:bg-sky-900/20">
+                        <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">#</th>
+                        <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">Category</th>
+                        <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">Count</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {behavioralStats.categoryDistribution && behavioralStats.categoryDistribution.length > 0 ? (
+                        behavioralStats.categoryDistribution
+                          .sort((a: any, b: any) => b.value - a.value)
+                          .slice(0, 4)
+                          .map((cat: any, idx: number) => (
+                            <tr
+                              key={cat.name}
+                              className="border-b border-sky-100/30 dark:border-sky-800/20 last:border-0 hover:bg-sky-50/50 dark:hover:bg-sky-900/10 transition-colors"
+                            >
+                              <td className="px-6 py-4">
+                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400 font-semibold text-xs">
+                                  {idx + 1}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{cat.name}</td>
+                              <td className="px-6 py-4">
+                                <span className="font-bold text-sky-600 dark:text-sky-400 bg-sky-100/50 dark:bg-sky-900/30 px-3 py-1 rounded-full">
+                                  {cat.value}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                      ) : (
+                        <tr>
+                          <td colSpan={3} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                            No behavioral event data available
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           </motion.div>

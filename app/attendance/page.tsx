@@ -31,7 +31,11 @@ import {
   Zap,
   Activity,
   Sparkles,
-  ArrowUpDown
+  ArrowUpDown,
+  Minus,
+  Info,
+  AlertTriangle,
+  XCircle
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { sortByLevel } from '@/lib/level-order';
@@ -119,7 +123,7 @@ export default function AttendancePage() {
   const [singleDate, setSingleDate] = useState(today);
   const [monthValue, setMonthValue] = useState(today.slice(0, 7));
   const [selectedLevel, setSelectedLevel] = useState('all');
-  const [studentFilter, setStudentFilter] = useState('all');
+  const [severityFilter, setSeverityFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -138,7 +142,7 @@ export default function AttendancePage() {
 
   useEffect(() => {
     fetchData();
-  }, [dateMode, rangeStart, rangeEnd, singleDate, monthValue, studentFilter, selectedLevel]);
+  }, [dateMode, rangeStart, rangeEnd, singleDate, monthValue, selectedLevel, severityFilter]);
 
   const fetchData = async () => {
     if (!supabase) {
@@ -211,9 +215,7 @@ export default function AttendancePage() {
         .order('date', { ascending: false })
         .order('check_in_time', { ascending: false });
 
-      if (studentFilter !== 'all') {
-        attendanceQuery = attendanceQuery.eq('student_lrn', studentFilter);
-      } else if (selectedLevel !== 'all' && sortedStudents.length > 0) {
+      if (selectedLevel !== 'all' && sortedStudents.length > 0) {
         attendanceQuery = attendanceQuery.in('student_lrn', sortedStudents.map(s => s.lrn));
       }
 
@@ -258,7 +260,7 @@ export default function AttendancePage() {
           dateMode,
           range: appliedRange,
           level: selectedLevel,
-          student: studentFilter
+          severity: severityFilter
         },
         summary: summaryRows,
         logs: logs,
@@ -320,7 +322,7 @@ export default function AttendancePage() {
   const summaryRows = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     let rows = students
-      .filter((student) => (studentFilter === 'all' ? true : student.lrn === studentFilter))
+      .filter((student) => (selectedLevel === 'all' ? true : student.level === selectedLevel))
       .filter((student) =>
         normalizedSearch
           ? student.name.toLowerCase().includes(normalizedSearch) || student.lrn.toLowerCase().includes(normalizedSearch)
@@ -332,35 +334,37 @@ export default function AttendancePage() {
         const attendanceRate = schoolDays.length
           ? ((presentDays / schoolDays.length) * 100).toFixed(1)
           : '0.0';
-
+        // Severity logic: classify by attendance rate
+        let severity = 'Positive';
+        if (attendanceRate < 50) severity = 'Critical';
+        else if (attendanceRate < 75) severity = 'Major';
+        else if (attendanceRate < 90) severity = 'Minor';
+        else if (attendanceRate < 95) severity = 'Neutral';
+        // else Positive
         return {
           ...student,
           presentDays,
           absentDays,
           attendanceRate: parseFloat(attendanceRate),
+          severity,
         };
-      });
+      })
+      .filter((row) => severityFilter === 'all' ? true : row.severity === severityFilter);
 
     // Apply sorting
     rows.sort((a, b) => {
       const aVal = a[sortConfig.key as keyof typeof a];
       const bVal = b[sortConfig.key as keyof typeof b];
-      
       if (typeof aVal === 'number' && typeof bVal === 'number') {
         return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
       }
-      
       const aStr = String(aVal).toLowerCase();
       const bStr = String(bVal).toLowerCase();
-      
-      if (sortConfig.direction === 'asc') {
-        return aStr.localeCompare(bStr);
-      }
+      if (sortConfig.direction === 'asc') return aStr.localeCompare(bStr);
       return bStr.localeCompare(aStr);
     });
-
     return rows;
-  }, [attendanceByStudent, schoolDays.length, search, studentFilter, students, sortConfig]);
+  }, [attendanceByStudent, schoolDays.length, search, students, sortConfig, selectedLevel, severityFilter]);
 
   const handleSort = (key: string) => {
     setSortConfig(current => ({
@@ -369,9 +373,8 @@ export default function AttendancePage() {
     }));
   };
 
-  const selectedStudentSummary = studentFilter !== 'all'
-    ? summaryRows.find((row) => row.lrn === studentFilter)
-    : null;
+  // Remove selectedStudentSummary logic (no per-student details with severity filter)
+  const selectedStudentSummary = null;
 
   const absentDatesForStudent = useMemo(() => {
     if (!selectedStudentSummary) return [] as string[];
@@ -530,17 +533,17 @@ export default function AttendancePage() {
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-800/50">
-                <CardHeader className="pb-4 border-b border-slate-200/40 dark:border-slate-700/30">
-                  <CardTitle className="flex items-center gap-2 text-lg">
+              <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-800/50 rounded-2xl p-2 md:p-6">
+                <CardHeader className="pb-1 border-b border-slate-200/40 dark:border-slate-700/30 px-0 md:px-2">
+                  <CardTitle className="flex items-center gap-2 text-lg px-0 md:px-1">
                     <Filter className="w-5 h-5 text-blue-500" />
                     Filters
                   </CardTitle>
-                  <CardDescription>Customize your attendance view</CardDescription>
+                  <CardDescription className="mt-1">Customize your attendance view</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4 pt-6">
+                <CardContent className="space-y-1 pt-2 px-0 md:px-2">
                   {/* Date Mode Tabs */}
-                  <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-slate-100/40 dark:bg-slate-800/50 p-1.5">
+                  <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-slate-100/40 dark:bg-slate-800/50 p-2 md:p-3">
                     {(['all', 'single', 'range', 'month'] as DateMode[]).map((mode) => (
                       <button
                         key={mode}
@@ -558,115 +561,126 @@ export default function AttendancePage() {
                   </div>
 
                   {/* Input Fields Grid */}
-                  <div className="grid gap-4 md:grid-cols-4">
-                    {dateMode === 'single' && (
-                      <div className="flex flex-col gap-2">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
-                          Single date
-                        </label>
-                        <Input 
-                          type="date" 
-                          value={singleDate} 
-                          onChange={(e) => setSingleDate(e.target.value)}
-                          className="h-10 dark:bg-slate-800 dark:border-slate-600 dark:text-white border-slate-300 rounded-lg"
-                        />
-                      </div>
-                    )}
-
-                    {dateMode === 'range' && (
-                      <>
+                  <div className="flex flex-col gap-1">
+                    {/* Date pickers row (if any) */}
+                    <div className="flex flex-wrap gap-4">
+                      {dateMode === 'single' && (
                         <div className="flex flex-col gap-2">
                           <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
-                            Range start
+                            Single date
                           </label>
                           <Input 
                             type="date" 
-                            value={rangeStart} 
-                            onChange={(e) => setRangeStart(e.target.value)}
-                            className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200"
+                            value={singleDate} 
+                            onChange={(e) => setSingleDate(e.target.value)}
+                            className="h-10 dark:bg-slate-800 dark:border-slate-600 dark:text-white border-slate-300 rounded-lg"
                           />
                         </div>
+                      )}
+                      {dateMode === 'range' && (
+                        <>
+                          <div className="flex flex-col gap-2">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                              Range start
+                            </label>
+                            <Input 
+                              type="date" 
+                              value={rangeStart} 
+                              onChange={(e) => setRangeStart(e.target.value)}
+                              className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                              Range end
+                            </label>
+                            <Input 
+                              type="date" 
+                              value={rangeEnd} 
+                              onChange={(e) => setRangeEnd(e.target.value)}
+                              className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200"
+                            />
+                          </div>
+                        </>
+                      )}
+                      {dateMode === 'month' && (
                         <div className="flex flex-col gap-2">
                           <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
-                            Range end
+                            Month
                           </label>
                           <Input 
-                            type="date" 
-                            value={rangeEnd} 
-                            onChange={(e) => setRangeEnd(e.target.value)}
+                            type="month" 
+                            value={monthValue} 
+                            onChange={(e) => setMonthValue(e.target.value)}
                             className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200"
                           />
                         </div>
-                      </>
-                    )}
-
-                    {dateMode === 'month' && (
-                      <div className="flex flex-col gap-2">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
-                          Month
+                      )}
+                    </div>
+                    {/* Main filter row */}
+                    <div className="flex flex-col md:flex-row gap-4 w-full">
+                      <div className="flex-1 min-w-[200px]">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-2 block">
+                          Student Level
                         </label>
-                        <Input 
-                          type="month" 
-                          value={monthValue} 
-                          onChange={(e) => setMonthValue(e.target.value)}
-                          className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200"
-                        />
+                        <Select value={selectedLevel} onValueChange={setSelectedLevel}>
+                          <SelectTrigger className="h-10 w-full dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <SelectValue placeholder="All Levels" />
+                          </SelectTrigger>
+                          <SelectContent className="dark:bg-slate-800 dark:border-border/40">
+                            <SelectItem value="all">All Levels</SelectItem>
+                            {[
+                              'Toddler & Nursery',
+                              'Pre-K',
+                              'Kinder 1',
+                              'Kinder 2',
+                              'Grade 1',
+                              'Grade 2',
+                              'Grade 3',
+                              'Grade 4',
+                              'Grade 5',
+                              'Grade 6',
+                              'Grade 7',
+                              'Grade 8',
+                            ].map((level) => (
+                              <SelectItem key={level} value={level}>
+                                {level}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    )}
-
-                    {/* Level Selector */}
-                    <div className="flex flex-col gap-2">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
-                        Student Level
-                      </label>
-                      <Select value={selectedLevel} onValueChange={setSelectedLevel}>
-                        <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200">
-                          <SelectValue placeholder="All Levels" />
-                        </SelectTrigger>
-                        <SelectContent className="dark:bg-slate-800 dark:border-border/40">
-                          <SelectItem value="all">All Levels</SelectItem>
-                          {Array.from(new Set(students.map(s => s.level))).sort().map((level) => (
-                            <SelectItem key={level} value={level}>
-                              {level}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Student Selector */}
-                    <div className="flex flex-col gap-2">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
-                        Student
-                      </label>
-                      <Select value={studentFilter} onValueChange={setStudentFilter}>
-                        <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200">
-                          <SelectValue placeholder="All students" />
-                        </SelectTrigger>
-                        <SelectContent className="dark:bg-slate-800 dark:border-border/40">
-                          <SelectItem value="all">All students</SelectItem>
-                          {students.map((student) => (
-                            <SelectItem key={student.lrn} value={student.lrn}>
-                              {student.name} ({student.lrn})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Search */}
-                    <div className="flex flex-col gap-2">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
-                        Search
-                      </label>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <Input
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          placeholder="Name or LRN"
-                          className="h-10 pl-9 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200"
-                        />
+                      <div className="flex-1 min-w-[200px]">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-2 block">
+                          Severity
+                        </label>
+                        <Select value={severityFilter} onValueChange={setSeverityFilter}>
+                          <SelectTrigger className="h-10 w-full dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <SelectValue placeholder="All Severities" />
+                          </SelectTrigger>
+                          <SelectContent className="dark:bg-slate-800 dark:border-border/40">
+                            <SelectItem value="all">All Severities</SelectItem>
+                            <SelectItem value="Positive"><CheckCircle className="inline w-4 h-4 mr-2 text-emerald-600" />Positive</SelectItem>
+                            <SelectItem value="Neutral"><Minus className="inline w-4 h-4 mr-2 text-gray-500" />Neutral</SelectItem>
+                            <SelectItem value="Minor"><Info className="inline w-4 h-4 mr-2 text-yellow-500" />Minor</SelectItem>
+                            <SelectItem value="Major"><AlertTriangle className="inline w-4 h-4 mr-2 text-orange-500" />Major</SelectItem>
+                            <SelectItem value="Critical"><XCircle className="inline w-4 h-4 mr-2 text-red-600" />Critical</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-2 block">
+                          Search
+                        </label>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <Input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Name or LRN"
+                            className="h-10 w-full pl-9 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-slate-700"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -691,7 +705,7 @@ export default function AttendancePage() {
                 <div>
                   <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Total Students</p>
                   <div className="text-xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">{totalStudents}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">registered in system</p>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Registered in system</p>
                 </div>
                 <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                   <Users className="w-7 h-7" />
@@ -712,9 +726,9 @@ export default function AttendancePage() {
               <div className="absolute bottom-0 left-0 w-16 h-16 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Check-ins</p>
+                  <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Attendance Events</p>
                   <div className="text-xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">{totalCheckIns}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">attendance events</p>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Attendance events</p>
                 </div>
                 <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                   <CheckCircle className="w-7 h-7" />
@@ -737,7 +751,7 @@ export default function AttendancePage() {
                 <div>
                   <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Absences</p>
                   <div className="text-xl sm:text-3xl font-bold text-orange-600 dark:text-orange-400">{totalAbsences}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">missed school days</p>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Missed school days</p>
                 </div>
                 <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                   <AlertCircle className="w-7 h-7" />
@@ -760,7 +774,7 @@ export default function AttendancePage() {
                 <div>
                   <p className="text-[10px] sm:text-xs text-violet-600 dark:text-violet-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Avg. Attendance</p>
                   <div className="text-xl sm:text-3xl font-bold text-violet-600 dark:text-violet-400">{averageAttendance}%</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">attendance rate</p>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Attendance rate</p>
                 </div>
                 <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-violet-600 text-white items-center justify-center shadow-lg shadow-violet-500/25 dark:shadow-violet-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                   <BarChart3 className="w-7 h-7" />

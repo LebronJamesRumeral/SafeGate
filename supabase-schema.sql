@@ -1,3 +1,63 @@
+ALTER TABLE student_schedules
+DROP CONSTRAINT IF EXISTS student_schedules_student_lrn_fkey;
+
+ALTER TABLE student_schedules
+ADD CONSTRAINT student_schedules_student_lrn_fkey
+FOREIGN KEY (student_lrn)
+REFERENCES students(lrn)
+ON UPDATE CASCADE
+ON DELETE CASCADE;
+
+-- Place this at the end of the schema file
+ALTER TABLE student_schedules
+DROp CONSTRAINT IF EXISTS student_schedules_student_lrn_fkey;
+
+ALTER TABLE student_schedules
+ADD CONSTRAINT student_schedules_student_lrn_fkey
+FOREIGN KEY (student_lrn)
+REFERENCES students(lrn)
+ON UPDATE CASCADE
+ON DELETE CASCADE;
+-- Ensure ON UPDATE CASCADE is set for student_schedules.student_lrn foreign key
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'student_schedules_student_lrn_fkey'
+      AND table_name = 'student_schedules'
+  ) THEN
+    EXECUTE 'ALTER TABLE student_schedules DROP CONSTRAINT student_schedules_student_lrn_fkey';
+  END IF;
+END$$;
+
+ALTER TABLE student_schedules
+ADD CONSTRAINT student_schedules_student_lrn_fkey
+FOREIGN KEY (student_lrn)
+REFERENCES students(lrn)
+ON UPDATE CASCADE
+ON DELETE CASCADE;
+-- =========================
+-- Fix foreign key for ON UPDATE CASCADE on student_schedules
+ALTER TABLE student_schedules
+DROP CONSTRAINT IF EXISTS student_schedules_student_lrn_fkey;
+
+ALTER TABLE student_schedules
+ADD CONSTRAINT student_schedules_student_lrn_fkey
+FOREIGN KEY (student_lrn)
+REFERENCES students(lrn)
+ON UPDATE CASCADE
+ON DELETE CASCADE;
+
+-- =========================
+-- Function: update_student_lrn
+-- Updates a student's LRN everywhere it is referenced, in a single transaction
+CREATE OR REPLACE FUNCTION update_student_lrn(old_lrn VARCHAR, new_lrn VARCHAR, student_id BIGINT)
+RETURNS void AS $$
+BEGIN
+  -- Only update the students table; ON UPDATE CASCADE will update all referencing tables
+  UPDATE students SET lrn = new_lrn WHERE id = student_id AND lrn = old_lrn;
+END;
+$$ LANGUAGE plpgsql;
 -- ============================================================================
 DROP TABLE IF EXISTS student_behavioral_summary CASCADE;
 DROP TABLE IF EXISTS role_notifications CASCADE;
@@ -92,7 +152,7 @@ CREATE TABLE IF NOT EXISTS student_attendance_schedules (
 -- Weekly schedule per student (class/subject schedule)
 CREATE TABLE IF NOT EXISTS student_schedules (
   id BIGSERIAL PRIMARY KEY,
-  student_lrn VARCHAR(50) NOT NULL REFERENCES students(lrn) ON DELETE CASCADE,
+  student_lrn VARCHAR(50) NOT NULL,
   school_year_id BIGINT REFERENCES school_years(id) ON DELETE SET NULL,
   day_of_week VARCHAR(12) NOT NULL,
   day_number SMALLINT NOT NULL,

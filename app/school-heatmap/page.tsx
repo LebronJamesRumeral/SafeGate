@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -268,6 +269,11 @@ function SchoolHeatmapContent() {
     // --- Overlapping Pin Interaction ---
     const [activePinId, setActivePinId] = useState<number | null>(null);
 
+  // Multi-select state for area deletion
+  const [selectedZoneIds, setSelectedZoneIds] = useState<number[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
     // Helper: get mouse position relative to map as percent
     function getRelativeCoords(e: React.MouseEvent | MouseEvent) {
       const rect = mapContainerRef.current?.getBoundingClientRect();
@@ -325,6 +331,36 @@ function SchoolHeatmapContent() {
   const [zoneDragState, setZoneDragState] = useState<ZoneDragState | null>(null);
 
   const { zones, loading: zonesLoading, loadZones, addZone, updateZone, deleteZone } = useHeatmapZones();
+  // Handle select all toggle
+  useEffect(() => {
+    if (selectAll) {
+      setSelectedZoneIds(zones.map((z) => z.id));
+    } else {
+      setSelectedZoneIds([]);
+    }
+  }, [selectAll, zones]);
+
+  // Handle individual checkbox toggle
+  const handleZoneCheckbox = (zoneId: number) => {
+    setSelectedZoneIds((prev) =>
+      prev.includes(zoneId) ? prev.filter((id) => id !== zoneId) : [...prev, zoneId]
+    );
+  };
+
+  // Open delete dialog
+  const openDeleteDialog = () => setDeleteDialogOpen(true);
+  const closeDeleteDialog = () => setDeleteDialogOpen(false);
+
+  // Delete selected zones
+  const handleBulkDelete = async () => {
+    for (const zoneId of selectedZoneIds) {
+      await deleteZone(zoneId);
+    }
+    setSelectedZoneIds([]);
+    setSelectAll(false);
+    closeDeleteDialog();
+    toast({ title: 'Area(s) deleted', description: 'Selected area(s) removed from heatmap.' });
+  };
 
 
   // Load zones from Supabase on mount
@@ -1150,17 +1186,43 @@ function SchoolHeatmapContent() {
               Add Area to Heatmap
             </Button>
 
+
+            <div className="flex items-center gap-3 mb-2">
+              <Checkbox
+                checked={selectAll}
+                onCheckedChange={(checked) => setSelectAll(!!checked)}
+                id="select-all-zones"
+              />
+              <Label htmlFor="select-all-zones" className="text-sm cursor-pointer select-none">Select All</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                disabled={selectedZoneIds.length === 0}
+                onClick={openDeleteDialog}
+              >
+                <Trash2 className="h-4 w-4 mr-1" /> Delete Selected
+              </Button>
+            </div>
+
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
               {zones.map((zone) => (
                 <div
                   key={zone.id}
                   className="flex items-center justify-between rounded-lg border border-slate-200/80 px-3 py-2 dark:border-slate-700/70"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{zone.name}</p>
-                    <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                      {zone.top}% / {zone.left}% / {zone.width}% / {zone.height}%
-                    </p>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Checkbox
+                      checked={selectedZoneIds.includes(zone.id)}
+                      onCheckedChange={() => handleZoneCheckbox(zone.id)}
+                      id={`zone-checkbox-${zone.id}`}
+                    />
+                    <div>
+                      <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{zone.name}</p>
+                      <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                        {zone.top}% / {zone.left}% / {zone.width}% / {zone.height}%
+                      </p>
+                    </div>
                   </div>
                   <Button type="button" size="icon" variant="ghost" onClick={() => handleDeleteZone(zone.id)}>
                     <Trash2 className="h-4 w-4 text-red-500" />
@@ -1168,6 +1230,27 @@ function SchoolHeatmapContent() {
                 </div>
               ))}
             </div>
+
+            {/* Confirmation Dialog for Bulk Delete */}
+            <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete Area(s)?</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to delete the selected area(s)/room(s)? This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {zones.filter(z => selectedZoneIds.includes(z.id)).map(z => (
+                    <Badge key={z.id} className="bg-orange-100 text-orange-800 border border-orange-300 dark:bg-orange-900/40 dark:text-orange-100 dark:border-orange-800/70">{z.name}</Badge>
+                  ))}
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button type="button" variant="outline" onClick={closeDeleteDialog}>Cancel</Button>
+                  <Button type="button" variant="destructive" onClick={handleBulkDelete}>Delete</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
 
             <div className="rounded-lg border border-dashed border-orange-300/80 bg-orange-50/60 p-3 text-sm text-orange-900 dark:border-orange-900/60 dark:bg-orange-950/25 dark:text-orange-100">
               New areas are added with a default size/position. Drag the box on the map to move it, and drag the bottom-right handle to resize. Use consistent location names (for example, "Room A-101") and matching keywords for accurate heatmap scoring.

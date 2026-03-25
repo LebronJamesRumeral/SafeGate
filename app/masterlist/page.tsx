@@ -367,36 +367,38 @@ export default function MasterlistPage() {
                   className="pl-10 bg-muted/30 border-border/50 focus:border-primary focus:ring-primary hover:border-border transition-colors"
                 />
               </div>
-              <Select value={filterGrade} onValueChange={setFilterGrade}>
-                <SelectTrigger className="bg-muted/30 border-border/50 focus:border-primary focus:ring-primary hover:border-border transition-colors">
-                  <SelectValue placeholder="Filter by level" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Levels</SelectItem>
-                  <SelectItem value="Toddler & Nursery">Toddler & Nursery</SelectItem>
-                  <SelectItem value="Pre-K">Pre-K</SelectItem>
-                  <SelectItem value="Kinder 1">Kinder 1</SelectItem>
-                  <SelectItem value="Kinder 2">Kinder 2</SelectItem>
-                  <SelectItem value="Grade 1">Grade 1</SelectItem>
-                  <SelectItem value="Grade 2">Grade 2</SelectItem>
-                  <SelectItem value="Grade 3">Grade 3</SelectItem>
-                  <SelectItem value="Grade 4">Grade 4</SelectItem>
-                  <SelectItem value="Grade 5">Grade 5</SelectItem>
-                  <SelectItem value="Grade 6">Grade 6</SelectItem>
-                  <SelectItem value="Grade 7">Grade 7</SelectItem>
-                  <SelectItem value="Grade 8">Grade 8</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="bg-muted/30 border-border/50 focus:border-primary focus:ring-primary hover:border-border transition-colors">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="graduated">Graduated</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select value={filterGrade} onValueChange={setFilterGrade}>
+                  <SelectTrigger className="bg-muted/30 border-border/50 focus:border-primary focus:ring-primary hover:border-border transition-colors">
+                    <SelectValue placeholder="Filter by level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Levels</SelectItem>
+                    <SelectItem value="Toddler & Nursery">Toddler & Nursery</SelectItem>
+                    <SelectItem value="Pre-K">Pre-K</SelectItem>
+                    <SelectItem value="Kinder 1">Kinder 1</SelectItem>
+                    <SelectItem value="Kinder 2">Kinder 2</SelectItem>
+                    <SelectItem value="Grade 1">Grade 1</SelectItem>
+                    <SelectItem value="Grade 2">Grade 2</SelectItem>
+                    <SelectItem value="Grade 3">Grade 3</SelectItem>
+                    <SelectItem value="Grade 4">Grade 4</SelectItem>
+                    <SelectItem value="Grade 5">Grade 5</SelectItem>
+                    <SelectItem value="Grade 6">Grade 6</SelectItem>
+                    <SelectItem value="Grade 7">Grade 7</SelectItem>
+                    <SelectItem value="Grade 8">Grade 8</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                  <SelectTrigger className="bg-muted/30 border-border/50 focus:border-primary focus:ring-primary hover:border-border transition-colors">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="graduated">Graduated</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="text-sm text-muted-foreground font-medium flex items-center md:col-span-4">
                 Showing <span className="font-bold text-foreground ml-1 mr-1">{filteredStudents.length}</span> of <span className="font-bold text-foreground ml-1">{students.length}</span> records
               </div>

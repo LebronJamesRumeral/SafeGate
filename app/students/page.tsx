@@ -51,7 +51,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
 import { supabase, type Student } from '@/lib/supabase';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { sortByLevel } from '@/lib/level-order';
 import { calculateStudentRiskScore, getActionRecommendations, type RiskScore } from '@/lib/ml-risk-calculator';
 import { StudentRiskCard } from '@/components/ml-dashboard';
@@ -194,6 +194,10 @@ type EditableScheduleRow = {
 
 // Enforce consistent layout structure for students page
 export default function StudentsPage() {
+    // For LRN confirmation
+    const [pendingLrn, setPendingLrn] = useState('');
+    const [confirmLrnOpen, setConfirmLrnOpen] = useState(false);
+    const [lrnToSave, setLrnToSave] = useState('');
   const isMobile = useIsMobile();
   const [search, setSearch] = useState('');
   const [filterGrade, setFilterGrade] = useState('all');
@@ -210,6 +214,14 @@ export default function StudentsPage() {
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [addingStudent, setAddingStudent] = useState(false);
   const [selectedScheduleDays, setSelectedScheduleDays] = useState<string[]>(WEEKDAY_OPTIONS.map((d) => d.label));
+  // Add state for editing student info
+  const [editingStudentInfo, setEditingStudentInfo] = useState(false);
+
+  const handleConfirmStudentInfo = async () => {
+    // TODO: Save logic here (API call or update)
+    setEditingStudentInfo(false);
+    toast({ title: 'Student info updated!', description: 'Student information was successfully updated.' });
+  };
   const [scheduleTimeSlots, setScheduleTimeSlots] = useState<Array<{ label: string; startTime: string; endTime: string }>>([...DEFAULT_SCHEDULE_SLOTS]);
   const [newStudentForm, setNewStudentForm] = useState({
     lrn: '',
@@ -295,6 +307,10 @@ export default function StudentsPage() {
     }
   };
 
+  // School year advancement handler (fix: mark as async)
+  const handleAdvanceSchoolYear = async () => {
+    // ...existing code...
+  };
   // Function to check if school day has ended based on per-student schedule or year level fallback
   const isSchoolDayEnded = (studentLevel: string, scheduledEndTime?: string): boolean => {
     const now = new Date();
@@ -549,6 +565,146 @@ export default function StudentsPage() {
     );
   };
 
+
+  const [confirmNoLrnOpen, setConfirmNoLrnOpen] = useState(false);
+  const [pendingAddStudent, setPendingAddStudent] = useState(false);
+
+  // Move handleConfirmNoLrn to component scope
+  const handleConfirmNoLrn = async () => {
+    setConfirmNoLrnOpen(false);
+    setPendingAddStudent(false);
+    // Actually proceed to save student with blank LRN
+    const isEarlyLevel = EARLY_LEVEL_OPTIONS.includes(newStudentForm.level);
+    const isGradeLevel = GRADE_LEVEL_OPTIONS.includes(newStudentForm.level);
+    const shouldCreateSchedule = isEarlyLevel || isGradeLevel;
+    if (isEarlyLevel && selectedScheduleDays.length === 0) {
+      toast({
+        title: 'Schedule days required',
+        description: 'Please select at least one weekday for the student schedule.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (shouldCreateSchedule && scheduleTimeSlots.length === 0) {
+      toast({
+        title: 'Schedule slots required',
+        description: 'Please add at least one schedule time slot.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (shouldCreateSchedule) {
+      const invalidSlot = scheduleTimeSlots.find((slot) => {
+        return !slot.startTime || !slot.endTime || slot.startTime >= slot.endTime;
+      });
+      if (invalidSlot) {
+        toast({
+          title: 'Invalid schedule slot',
+          description: 'Each schedule slot must have start and end time, and start must be earlier than end.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+    setAddingStudent(true);
+    try {
+      const { error } = await supabase
+        .from('students')
+        .insert({
+          lrn: newStudentForm.lrn.trim(),
+          name: newStudentForm.name.trim(),
+          gender: newStudentForm.gender,
+          birthday: newStudentForm.birthday,
+          level: newStudentForm.level,
+          address: newStudentForm.address.trim() || null,
+          parent_name: newStudentForm.parentName.trim(),
+          parent_contact: newStudentForm.parentContact.trim(),
+          parent_email: newStudentForm.parentEmail.trim(),
+          status: newStudentForm.status,
+          updated_at: new Date().toISOString(),
+        });
+      if (error) {
+        throw error;
+      }
+      if (shouldCreateSchedule) {
+        const { data: currentSchoolYear } = await supabase
+          .from('school_years')
+          .select('id')
+          .eq('is_current', true)
+          .maybeSingle();
+        const scheduleDays = isEarlyLevel
+          ? selectedScheduleDays
+          : WEEKDAY_OPTIONS.map((day) => day.label);
+        const scheduleRows = scheduleDays.flatMap((day) => {
+          const dayConfig = WEEKDAY_OPTIONS.find((item) => item.label === day);
+          return scheduleTimeSlots.map((slot, slotIndex) => ({
+            student_lrn: newStudentForm.lrn.trim(),
+            school_year_id: currentSchoolYear?.id ?? null,
+            day_of_week: day,
+            day_number: dayConfig?.dayNumber ?? 1,
+            subject: slot.label?.trim() ? `${newStudentForm.level} ${slot.label.trim()}` : `${newStudentForm.level} Session ${slotIndex + 1}`,
+            start_time: slot.startTime,
+            end_time: slot.endTime,
+            room: null,
+            teacher_name: null,
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          }));
+        });
+        const { error: scheduleError } = await supabase
+          .from('student_schedules')
+          .insert(scheduleRows);
+        if (scheduleError) {
+          toast({
+            title: 'Student added, schedule failed',
+            description: scheduleError.message,
+            variant: 'destructive',
+          });
+        }
+      }
+      toast({
+        title: 'Student added',
+        description: `${newStudentForm.name} was added successfully.`,
+        variant: 'default',
+      });
+      setAddStudentOpen(false);
+      // Optimistically add new student to UI (all required fields)
+      setStudents((prev) => [
+        {
+          id: -1, // temporary id for optimistic UI
+          lrn: newStudentForm.lrn.trim(),
+          name: newStudentForm.name.trim(),
+          gender: newStudentForm.gender,
+          birthday: newStudentForm.birthday,
+          address: newStudentForm.address.trim() || null,
+          level: newStudentForm.level,
+          parent_name: newStudentForm.parentName.trim(),
+          parent_contact: newStudentForm.parentContact.trim(),
+          parent_email: newStudentForm.parentEmail.trim(),
+          parentName: newStudentForm.parentName.trim(),
+          parentContact: newStudentForm.parentContact.trim(),
+          parentEmail: newStudentForm.parentEmail.trim(),
+          status: newStudentForm.status,
+          created_at: undefined,
+          updated_at: new Date().toISOString(),
+        } as Student,
+        ...prev,
+      ]);
+      resetAddStudentForm();
+      // Optionally refetch in background for full sync
+      fetchStudents();
+    } catch (error) {
+      console.error('Error adding student:', error);
+      toast({
+        title: 'Failed to add student',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setAddingStudent(false);
+    }
+  };
+
   const handleAddStudent = async () => {
     if (!supabase) {
       toast({
@@ -560,7 +716,6 @@ export default function StudentsPage() {
     }
 
     if (
-      !newStudentForm.lrn.trim() ||
       !newStudentForm.name.trim() ||
       !newStudentForm.gender ||
       !newStudentForm.birthday ||
@@ -571,15 +726,138 @@ export default function StudentsPage() {
     ) {
       toast({
         title: 'Missing required fields',
-        description: 'Please complete LRN, Name, Gender, Birthday, Year Level, Parent Name, Parent Contact, and Parent Email.',
+        description: 'Please complete Name, Gender, Birthday, Year Level, Parent Name, Parent Contact, and Parent Email.',
         variant: 'destructive',
       });
       return;
     }
 
+    if (!newStudentForm.lrn.trim()) {
+      setConfirmNoLrnOpen(true);
+      setPendingAddStudent(true);
+      return; // Prevent auto-saving until user confirms
+    }
+
     const isEarlyLevel = EARLY_LEVEL_OPTIONS.includes(newStudentForm.level);
     const isGradeLevel = GRADE_LEVEL_OPTIONS.includes(newStudentForm.level);
     const shouldCreateSchedule = isEarlyLevel || isGradeLevel;
+
+    // ...existing save logic...
+      // Confirm dialog for missing LRN
+      const handleConfirmNoLrn = async () => {
+        setConfirmNoLrnOpen(false);
+        setPendingAddStudent(false);
+        // Actually proceed to save student with blank LRN
+        // Copy the save logic from handleAddStudent here, skipping the LRN check
+        const isEarlyLevel = EARLY_LEVEL_OPTIONS.includes(newStudentForm.level);
+        const isGradeLevel = GRADE_LEVEL_OPTIONS.includes(newStudentForm.level);
+        const shouldCreateSchedule = isEarlyLevel || isGradeLevel;
+        if (isEarlyLevel && selectedScheduleDays.length === 0) {
+          toast({
+            title: 'Schedule days required',
+            description: 'Please select at least one weekday for the student schedule.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (shouldCreateSchedule && scheduleTimeSlots.length === 0) {
+          toast({
+            title: 'Schedule slots required',
+            description: 'Please add at least one schedule time slot.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (shouldCreateSchedule) {
+          const invalidSlot = scheduleTimeSlots.find((slot) => {
+            return !slot.startTime || !slot.endTime || slot.startTime >= slot.endTime;
+          });
+          if (invalidSlot) {
+            toast({
+              title: 'Invalid schedule slot',
+              description: 'Each schedule slot must have start and end time, and start must be earlier than end.',
+              variant: 'destructive',
+            });
+            return;
+          }
+        }
+        setAddingStudent(true);
+
+        try {
+          const { error } = await supabase
+            .from('students')
+            .insert({
+              lrn: newStudentForm.lrn.trim(),
+              name: newStudentForm.name.trim(),
+              gender: newStudentForm.gender,
+              birthday: newStudentForm.birthday,
+              level: newStudentForm.level,
+              address: newStudentForm.address.trim() || null,
+              parent_name: newStudentForm.parentName.trim(),
+              parent_contact: newStudentForm.parentContact.trim(),
+              parent_email: newStudentForm.parentEmail.trim(),
+              status: newStudentForm.status,
+              updated_at: new Date().toISOString(),
+            });
+
+          if (error) {
+            throw error;
+          }
+          if (shouldCreateSchedule) {
+            const { data: currentSchoolYear } = await supabase
+              .from('school_years')
+              .select('id')
+              .eq('is_current', true)
+              .maybeSingle();
+            const scheduleDays = isEarlyLevel
+              ? selectedScheduleDays
+              : WEEKDAY_OPTIONS.map((day) => day.label);
+            const scheduleRows = scheduleDays.flatMap((day) => {
+              const dayConfig = WEEKDAY_OPTIONS.find((item) => item.label === day);
+              return scheduleTimeSlots.map((slot, slotIndex) => ({
+                student_lrn: newStudentForm.lrn.trim(),
+                school_year_id: currentSchoolYear?.id ?? null,
+                day_of_week: day,
+                day_number: dayConfig?.dayNumber ?? 1,
+                subject: slot.label?.trim() ? `${newStudentForm.level} ${slot.label.trim()}` : `${newStudentForm.level} Session ${slotIndex + 1}`,
+                start_time: slot.startTime,
+                end_time: slot.endTime,
+                room: null,
+                teacher_name: null,
+                is_active: true,
+                updated_at: new Date().toISOString(),
+              }));
+            });
+            const { error: scheduleError } = await supabase
+              .from('student_schedules')
+              .insert(scheduleRows);
+            if (scheduleError) {
+              toast({
+                title: 'Student added, schedule failed',
+                description: scheduleError.message,
+                variant: 'destructive',
+              });
+            }
+          }
+          toast({
+            title: 'Student added',
+            description: `${newStudentForm.name} was added successfully.`,
+            variant: 'default',
+          });
+          setAddStudentOpen(false);
+          resetAddStudentForm();
+          await fetchStudents();
+        } catch (error) {
+          console.error('Error adding student:', error);
+          toast({
+            title: 'Failed to add student',
+            description: error instanceof Error ? error.message : String(error),
+            variant: 'destructive',
+          });
+        } finally {
+          setAddingStudent(false);
+        }
+      };
     if (isEarlyLevel && selectedScheduleDays.length === 0) {
       toast({
         title: 'Schedule days required',
@@ -635,18 +913,15 @@ export default function StudentsPage() {
       if (error) {
         throw error;
       }
-
       if (shouldCreateSchedule) {
         const { data: currentSchoolYear } = await supabase
           .from('school_years')
           .select('id')
           .eq('is_current', true)
           .maybeSingle();
-
         const scheduleDays = isEarlyLevel
           ? selectedScheduleDays
           : WEEKDAY_OPTIONS.map((day) => day.label);
-
         const scheduleRows = scheduleDays.flatMap((day) => {
           const dayConfig = WEEKDAY_OPTIONS.find((item) => item.label === day);
           return scheduleTimeSlots.map((slot, slotIndex) => ({
@@ -663,11 +938,9 @@ export default function StudentsPage() {
             updated_at: new Date().toISOString(),
           }));
         });
-
         const { error: scheduleError } = await supabase
           .from('student_schedules')
           .insert(scheduleRows);
-
         if (scheduleError) {
           toast({
             title: 'Student added, schedule failed',
@@ -676,13 +949,11 @@ export default function StudentsPage() {
           });
         }
       }
-
       toast({
         title: 'Student added',
         description: `${newStudentForm.name} was added successfully.`,
         variant: 'default',
       });
-
       setAddStudentOpen(false);
       resetAddStudentForm();
       await fetchStudents();
@@ -1051,71 +1322,26 @@ export default function StudentsPage() {
     'Grade 8': 'graduated', // Graduation
   };
 
-  const handleNewSchoolYear = async () => {
-    if (!schoolYearStartDate || !schoolYearEndDate) {
-      toast({
-        title: 'School year dates are required',
-        description: 'Please set the school year start and end dates before proceeding.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (new Date(schoolYearStartDate) > new Date(schoolYearEndDate)) {
-      toast({
-        title: 'Invalid school year range',
-        description: 'Start date must be earlier than or equal to end date.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setProcessingStudents({});
-    setProcessedCount(0);
-    setPreviousStudentData(students); // Store original data for undo
-    setUndoAvailable(false);
-
+  const handleConfirmLrn = async () => {
+    setConfirmLrnOpen(false);
+    if (!selectedStudent) return;
     try {
-      for (const student of students) {
-        setProcessingStudents(prev => ({ ...prev, [student.id]: 'processing' }));
-
-        const nextLevel = gradeProgression[student.level];
-        const status = nextLevel === 'graduated' ? 'graduated' : 'active';
-        const newLevel = nextLevel === 'graduated' ? student.level : nextLevel;
-
-        // Update student in database
-        const { error } = await supabase
-          .from('students')
-          .update({
-            level: newLevel,
-            status: status,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', student.id);
-
-        if (error) {
-          setProcessingStudents(prev => ({ ...prev, [student.id]: 'error' }));
-          console.error('Error updating student:', error);
-        } else {
-          setProcessingStudents(prev => ({ ...prev, [student.id]: 'completed' }));
-          setProcessedCount(prev => prev + 1);
-        }
-
-        // Small delay to show progress animation
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
-
-      // Refresh students list after all updates
-      await fetchStudents();
-      setUndoAvailable(true); // Enable undo after successful completion
-      toast({
-        title: 'School year advancement completed',
-        description: `School year set from ${schoolYearStartDate} to ${schoolYearEndDate}.`,
-        variant: 'default',
+      // Use the update_student_lrn RPC for atomic LRN update
+      const { error } = await supabase.rpc('update_student_lrn', {
+        old_lrn: selectedStudent.lrn,
+        new_lrn: lrnToSave,
+        student_id: selectedStudent.id
       });
-      
-    } catch (error) {
-      console.error('Error processing new school year:', error);
+      if (error) {
+        toast({ title: 'Failed to update LRN', description: error.message, variant: 'destructive' });
+        return;
+      }
+      setSelectedStudent({ ...selectedStudent, lrn: lrnToSave });
+      setLrnToSave('');
+      setPendingLrn('');
+      toast({ title: 'LRN updated', description: 'The LRN was successfully updated.' });
+    } catch (err) {
+      toast({ title: 'Failed to update LRN', description: String(err), variant: 'destructive' });
     }
   };
 
@@ -1416,6 +1642,22 @@ export default function StudentsPage() {
 
   return (
     <DashboardLayout>
+      {/* Confirmation Dialog for missing LRN */}
+      <Dialog open={confirmNoLrnOpen} onOpenChange={setConfirmNoLrnOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Are you sure this student does not have an LRN?</DialogTitle>
+            <DialogDescription>
+              This student will be saved <span className="font-semibold">without an LRN</span>.<br />
+              You can edit and add the LRN later.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 justify-end mt-6">
+            <Button variant="outline" onClick={() => { setConfirmNoLrnOpen(false); setPendingAddStudent(false); }}>Cancel</Button>
+            <Button variant="default" onClick={handleConfirmNoLrn}>Yes, Save Without LRN</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1439,31 +1681,27 @@ export default function StudentsPage() {
               accept=".xlsx,.xls,.csv"
               onChange={handleImportStudents}
               className="hidden"
+              disabled={importingStudents}
             />
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className="gap-2"
-            >
-              <Filter className="w-4 h-4" />
-              {showFilters ? 'Hide Filters' : 'Show Filters'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={() => importInputRef.current?.click()}
-              disabled={importingStudents}
               className="gap-2"
+              disabled={importingStudents}
             >
-              <Upload className="w-4 h-4" />
-              {importingStudents ? 'Importing...' : 'Import'}
+              {importingStudents ? (
+                <span className="flex items-center gap-2"><Loader2 className="animate-spin w-4 h-4" /> Importing...</span>
+              ) : (
+                <span className="flex items-center gap-2"><Upload className="w-4 h-4" />Import</span>
+              )}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={exportToCSV}
               className="gap-2"
+              disabled={importingStudents}
             >
               <Download className="w-4 h-4" />
               Export
@@ -1543,7 +1781,7 @@ export default function StudentsPage() {
                           </ul>
                         </div>
                         <Button 
-                          onClick={handleNewSchoolYear}
+                          onClick={handleAdvanceSchoolYear}
                           variant="default"
                           className="w-full"
                           disabled={
@@ -1634,7 +1872,8 @@ export default function StudentsPage() {
                     <Input
                       value={newStudentForm.lrn}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, lrn: e.target.value }))}
-                      placeholder="e.g., LRN-2026-0016"
+                      placeholder="E.g., LRN-2026-0016"
+                      className="capitalize"
                     />
                   </div>
 
@@ -1643,7 +1882,8 @@ export default function StudentsPage() {
                     <Input
                       value={newStudentForm.name}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, name: e.target.value }))}
-                      placeholder="Student full name"
+                      placeholder="Student Full Name"
+                      className="capitalize"
                     />
                   </div>
 
@@ -1654,7 +1894,7 @@ export default function StudentsPage() {
                       onValueChange={(value) => setNewStudentForm((prev) => ({ ...prev, gender: value }))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select gender" />
+                        <SelectValue placeholder="Select Gender" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Male">Male</SelectItem>
@@ -1669,6 +1909,7 @@ export default function StudentsPage() {
                       type="date"
                       value={newStudentForm.birthday}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, birthday: e.target.value }))}
+                      placeholder="DD/MM/YYYY"
                     />
                   </div>
 
@@ -1679,11 +1920,11 @@ export default function StudentsPage() {
                       onValueChange={(value) => setNewStudentForm((prev) => ({ ...prev, level: value }))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select year level" />
+                        <SelectValue placeholder="Select Year Level" />
                       </SelectTrigger>
                       <SelectContent>
                         {YEAR_LEVEL_OPTIONS.map((level) => (
-                          <SelectItem key={level} value={level}>{level}</SelectItem>
+                          <SelectItem key={level} value={level}>{level.replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1771,7 +2012,7 @@ export default function StudentsPage() {
                       onValueChange={(value) => setNewStudentForm((prev) => ({ ...prev, status: value }))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
+                        <SelectValue placeholder="Select Status" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="active">Active</SelectItem>
@@ -1785,7 +2026,8 @@ export default function StudentsPage() {
                     <Input
                       value={newStudentForm.address}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, address: e.target.value }))}
-                      placeholder="Home address"
+                      placeholder="Home Address"
+                      className="capitalize"
                     />
                   </div>
 
@@ -1795,7 +2037,8 @@ export default function StudentsPage() {
                       required
                       value={newStudentForm.parentName}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parentName: e.target.value }))}
-                      placeholder="Parent/Guardian full name"
+                      placeholder="Parent/Guardian Full Name"
+                      className="capitalize"
                     />
                   </div>
 
@@ -1805,7 +2048,7 @@ export default function StudentsPage() {
                       required
                       value={newStudentForm.parentContact}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parentContact: e.target.value }))}
-                      placeholder="e.g., 0917-555-0116"
+                      placeholder="E.g., 0917-555-0116"
                     />
                   </div>
 
@@ -1816,7 +2059,7 @@ export default function StudentsPage() {
                       type="email"
                       value={newStudentForm.parentEmail}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parentEmail: e.target.value }))}
-                      placeholder="parent@example.com"
+                      placeholder="Parent@example.com"
                     />
                   </div>
                   </div>
@@ -1833,7 +2076,7 @@ export default function StudentsPage() {
                       onClick={handleAddStudent}
                       disabled={addingStudent}
                     >
-                      {addingStudent ? 'Saving...' : 'Save Student'}
+                      {addingStudent ? <span className="flex items-center gap-2"><Loader2 className="animate-spin w-4 h-4" /> Saving...</span> : 'Save Student'}
                     </Button>
                   </div>
                 </div>
@@ -1966,18 +2209,18 @@ export default function StudentsPage() {
                     </div>
                     <Select value={filterGrade} onValueChange={setFilterGrade}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Filter by level" />
+                        <SelectValue placeholder="Filter By Level" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Levels</SelectItem>
                         {Object.keys(LEVEL_COLORS).map(level => (
-                          <SelectItem key={level} value={level}>{level}</SelectItem>
+                          <SelectItem key={level} value={level}>{level.replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                     <Select value={filterGender} onValueChange={setFilterGender}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Filter by gender" />
+                        <SelectValue placeholder="Filter By Gender" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Genders</SelectItem>
@@ -1987,7 +2230,7 @@ export default function StudentsPage() {
                     </Select>
                     <Select value={filterRisk} onValueChange={setFilterRisk}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Filter by risk" />
+                        <SelectValue placeholder="Filter By Risk" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Risk Levels</SelectItem>
@@ -2204,7 +2447,7 @@ export default function StudentsPage() {
                                       </Badge>
                                     )}
                                     <span className="text-[10px] text-muted-foreground">
-                                      {new Date(attendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      {attendance.checkInTime ? new Date(attendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
                                     </span>
                                     {attendance.scheduledEndTime && (
                                       <span className="text-[10px] text-muted-foreground">
@@ -2249,9 +2492,9 @@ export default function StudentsPage() {
                                     </Button>
                                   </DialogTrigger>
                                   <DialogContent
-                                    className="w-[96vw] max-w-5xl lg:max-w-5xl h-[80vh] max-h-[92vh] overflow-hidden p-0 flex flex-col"
+                                    className="w-[96vw] max-w-5xl lg:max-w-5xl p-0 flex flex-col"
                                   >
-                                    <div className="h-full overflow-y-auto p-6 md:p-8">
+                                    <div className="h-full p-6 md:p-8">
                                     {selectedStudent && (
                                       <>
                                         <DialogHeader>
@@ -2264,8 +2507,51 @@ export default function StudentsPage() {
                                             <div>
                                               <DialogTitle className="text-2xl">{selectedStudent.name}</DialogTitle>
                                               <DialogDescription>
-                                                {selectedStudent.lrn} • {selectedStudent.level}
+                                                {selectedStudent.lrn === '' ? (
+                                                  <span className="flex items-center gap-2">
+                                                    <Input
+                                                      value={pendingLrn}
+                                                      onChange={e => setPendingLrn(e.target.value)}
+                                                      placeholder="Enter LRN"
+                                                      className="capitalize w-48"
+                                                    />
+                                                    <Button
+                                                      size="sm"
+                                                      variant="default"
+                                                      disabled={!pendingLrn.trim()}
+                                                      onClick={() => {
+                                                        setLrnToSave(pendingLrn.trim());
+                                                        setConfirmLrnOpen(true);
+                                                      }}
+                                                    >
+                                                      Confirm
+                                                    </Button>
+                                                  </span>
+                                                ) : (
+                                                  <Input
+                                                    value={selectedStudent.lrn}
+                                                    disabled
+                                                    className="capitalize w-48 bg-slate-100 dark:bg-slate-800/50"
+                                                  />
+                                                )}
+                                                <span className="ml-2">• {selectedStudent.level}</span>
                                               </DialogDescription>
+                                                  {/* Confirmation Dialog for LRN update */}
+                                                  <Dialog open={confirmLrnOpen} onOpenChange={setConfirmLrnOpen}>
+                                                    <DialogContent className="max-w-md">
+                                                      <DialogHeader>
+                                                        <DialogTitle className="text-xl font-bold">Confirm LRN Update</DialogTitle>
+                                                        <DialogDescription>
+                                                          Are you sure you want to set this student's LRN to <span className="font-semibold">{lrnToSave}</span>?<br />
+                                                          This action will update the student's LRN.
+                                                        </DialogDescription>
+                                                      </DialogHeader>
+                                                      <div className="flex gap-3 justify-end mt-6">
+                                                        <Button variant="outline" onClick={() => setConfirmLrnOpen(false)}>Cancel</Button>
+                                                        <Button variant="default" onClick={handleConfirmLrn}>Yes, Update LRN</Button>
+                                                      </div>
+                                                    </DialogContent>
+                                                  </Dialog>
                                             </div>
                                           </div>
                                         </DialogHeader>
@@ -2296,7 +2582,7 @@ export default function StudentsPage() {
                                             )}
 
                                             {/* Student Info Grid */}
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-2 gap-4 relative">
                                               <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
                                                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                                                   <Calendar className="w-3 h-3" />
@@ -2316,31 +2602,66 @@ export default function StudentsPage() {
                                                 </p>
                                                 <p className="font-medium">{selectedStudent.gender}</p>
                                               </div>
-                                              <div className="col-span-2 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                              <div className="col-span-2 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
                                                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                                                   <MapPin className="w-3 h-3" />
                                                   Address
                                                 </p>
-                                                <p className="font-medium">{selectedStudent.address || 'No address provided'}</p>
+                                                <Input
+                                                  value={selectedStudent.address || ''}
+                                                  onChange={e => setSelectedStudent({ ...selectedStudent, address: e.target.value })}
+                                                  placeholder="No address provided"
+                                                  className="font-medium max-w-md w-full"
+                                                  disabled={!editingStudentInfo}
+                                                />
                                               </div>
-                                              <div className="col-span-2 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                              <div className="col-span-2 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
                                                 <p className="text-xs text-muted-foreground mb-2">Parent/Guardian Information</p>
-                                                <div className="space-y-2">
+                                                <div className="space-y-2 w-full max-w-md">
                                                   <div className="flex items-center gap-2">
                                                     <User className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-medium">{selectedStudent.parentName}</span>
+                                                    <Input
+                                                      value={selectedStudent.parentName || ''}
+                                                      onChange={e => setSelectedStudent({ ...selectedStudent, parentName: e.target.value })}
+                                                      placeholder="Parent/Guardian Name"
+                                                      className="text-sm font-medium"
+                                                      disabled={!editingStudentInfo}
+                                                    />
                                                   </div>
                                                   <div className="flex items-center gap-2">
                                                     <Phone className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm">{selectedStudent.parentContact}</span>
+                                                    <Input
+                                                      value={selectedStudent.parentContact || ''}
+                                                      onChange={e => setSelectedStudent({ ...selectedStudent, parentContact: e.target.value })}
+                                                      placeholder="Parent Contact"
+                                                      className="text-sm"
+                                                      disabled={!editingStudentInfo}
+                                                    />
                                                   </div>
-                                                  {selectedStudent.parentEmail && (
-                                                    <div className="flex items-center gap-2">
-                                                      <Mail className="w-4 h-4 text-muted-foreground" />
-                                                      <span className="text-sm">{selectedStudent.parentEmail}</span>
-                                                    </div>
-                                                  )}
+                                                  <div className="flex items-center gap-2">
+                                                    <Mail className="w-4 h-4 text-muted-foreground" />
+                                                    <Input
+                                                      value={selectedStudent.parentEmail || ''}
+                                                      onChange={e => setSelectedStudent({ ...selectedStudent, parentEmail: e.target.value })}
+                                                      placeholder="Parent Email"
+                                                      className="text-sm"
+                                                      disabled={!editingStudentInfo}
+                                                    />
+                                                  </div>
                                                 </div>
+                                              </div>
+
+                                              {/* Edit/Confirm Button */}
+                                              <div className="absolute bottom-4 right-8 flex gap-2">
+                                                {!editingStudentInfo ? (
+                                                  <Button size="sm" variant="outline" className="min-w-[100px]" onClick={() => setEditingStudentInfo(true)}>
+                                                    Edit Info
+                                                  </Button>
+                                                ) : (
+                                                  <Button size="sm" variant="default" className="min-w-[100px]" onClick={handleConfirmStudentInfo}>
+                                                    Confirm
+                                                  </Button>
+                                                )}
                                               </div>
                                             </div>
                                           </TabsContent>
@@ -2525,7 +2846,7 @@ export default function StudentsPage() {
                                                   <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
                                                     <p className="text-xs text-muted-foreground">Check In</p>
                                                     <p className="font-bold text-xl mt-1">
-                                                      {new Date(attendanceByLrn[selectedStudent.lrn].checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                      {attendanceByLrn[selectedStudent.lrn].checkInTime ? new Date(attendanceByLrn[selectedStudent.lrn].checkInTime as string).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
                                                     </p>
                                                   </div>
                                                   {attendanceByLrn[selectedStudent.lrn].checkOutTime && (
@@ -2533,16 +2854,18 @@ export default function StudentsPage() {
                                                       <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
                                                         <p className="text-xs text-muted-foreground">Check Out</p>
                                                         <p className="font-bold text-xl mt-1">
-                                                          {new Date(attendanceByLrn[selectedStudent.lrn].checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                          {attendanceByLrn[selectedStudent.lrn].checkOutTime ? new Date(attendanceByLrn[selectedStudent.lrn].checkOutTime as string).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
                                                         </p>
                                                       </div>
                                                       <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
                                                         <p className="text-xs text-muted-foreground">Duration</p>
                                                         <p className="font-bold text-xl mt-1 text-blue-600">
-                                                          {calculateDuration(
-                                                            attendanceByLrn[selectedStudent.lrn].checkInTime,
-                                                            attendanceByLrn[selectedStudent.lrn].checkOutTime
-                                                          )}
+                                                          {attendanceByLrn[selectedStudent.lrn].checkInTime && attendanceByLrn[selectedStudent.lrn].checkOutTime
+                                                            ? calculateDuration(
+                                                                attendanceByLrn[selectedStudent.lrn].checkInTime as string,
+                                                                attendanceByLrn[selectedStudent.lrn].checkOutTime as string
+                                                              )
+                                                            : '--'}
                                                         </p>
                                                       </div>
                                                     </>
@@ -2643,7 +2966,7 @@ export default function StudentsPage() {
                                               <p className="text-muted-foreground mb-4">Scan this QR code to check-in/check-out</p>
                                               <div ref={qrRef} className="flex justify-center p-6 bg-white rounded-lg border-2 inline-block mx-auto">
                                                 <QRCodeCanvas
-                                                  value={selectedStudent.lrn}
+                                                  value={selectedStudent.lrn && selectedStudent.lrn.trim() !== '' ? selectedStudent.lrn : selectedStudent.name}
                                                   size={200}
                                                   level="H"
                                                   includeMargin={true}

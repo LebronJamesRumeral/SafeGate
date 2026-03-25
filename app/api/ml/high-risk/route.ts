@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 
     const { data: students, error: studentsError } = await supabase
       .from('students')
-      .select('lrn, name, parent_contact, parent_email')
+      .select('lrn, name, parent_contact, parent_email, level')
       .eq('status', 'active');
 
     if (studentsError) {
@@ -117,6 +117,7 @@ export async function GET(request: Request) {
           name: student.name || 'Unknown',
           parentContact: student.parent_contact || 'N/A',
           parentEmail: student.parent_email || null,
+          class_level: student.level || '',
           riskLevel: level,
           behaviorStatus,
           concerningEvents,

@@ -342,6 +342,18 @@ function BehavioralEventsPageContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [eventCategoryFilter, setEventCategoryFilter] = useState('all');
+
+  // When eventCategoryFilter changes, clear event_type if it is not valid for the new category
+  useEffect(() => {
+    if (eventCategoryFilter === 'all') return;
+    // Find the current selected event_type option
+    const valid = eventTypeOptions.some(opt => opt.name === formData.event_type);
+    if (!valid && formData.event_type) {
+      setFormData(prev => ({ ...prev, event_type: '' }));
+    }
+  }, [eventCategoryFilter]);
+  const [studentLevelFilter, setStudentLevelFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [selectedEvent, setSelectedEvent] = useState<BehavioralEvent | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -486,6 +498,7 @@ function BehavioralEventsPageContent() {
     return [...dbCategoryTemplates, ...extras];
   }, [dbCategoryTemplates]);
 
+  // Filter event types by selected event category
   const eventTypeOptions = useMemo(() => {
     const severityOrder: Record<string, number> = {
       positive: 0,
@@ -494,14 +507,17 @@ function BehavioralEventsPageContent() {
       major: 3,
       critical: 4,
     };
-
-    return [...availableCategoryTemplates].sort((a, b) => {
+    let filtered = [...availableCategoryTemplates];
+    if (eventCategoryFilter !== 'all') {
+      filtered = filtered.filter(opt => opt.categoryType === eventCategoryFilter);
+    }
+    return filtered.sort((a, b) => {
       const aRank = severityOrder[a.severity] ?? 99;
       const bRank = severityOrder[b.severity] ?? 99;
       if (aRank !== bRank) return aRank - bRank;
       return a.name.localeCompare(b.name);
     });
-  }, [availableCategoryTemplates]);
+  }, [availableCategoryTemplates, eventCategoryFilter]);
 
   const activeStudentLevelScopes = useMemo<Array<'early' | 'grade'>>(() => {
     if (formData.report_mode === 'group') {
@@ -646,20 +662,24 @@ function BehavioralEventsPageContent() {
     });
   }, [filteredEvents]);
 
+  // Filter students by grade/level and search
   const filteredStudentOptions = useMemo(() => {
-    const query = studentSearchQuery.trim().toLowerCase();
-    if (!query) {
-      return students;
+    let filtered = students;
+    if (studentLevelFilter !== 'all') {
+      filtered = filtered.filter(student => student.level === studentLevelFilter);
     }
-
-    return students.filter((student) => {
-      return (
-        student.name.toLowerCase().includes(query) ||
-        student.lrn.toLowerCase().includes(query) ||
-        student.level.toLowerCase().includes(query)
-      );
-    });
-  }, [students, studentSearchQuery]);
+    const query = studentSearchQuery.trim().toLowerCase();
+    if (query) {
+      filtered = filtered.filter((student) => {
+        return (
+          student.name.toLowerCase().includes(query) ||
+          student.lrn.toLowerCase().includes(query) ||
+          student.level.toLowerCase().includes(query)
+        );
+      });
+    }
+    return filtered;
+  }, [students, studentSearchQuery, studentLevelFilter]);
 
   useEffect(() => {
     if (!formData.event_type) {
@@ -828,6 +848,11 @@ function BehavioralEventsPageContent() {
     // Category filter
     if (categoryFilter !== 'all') {
       filtered = filtered.filter(event => event.event_categories?.category_type === categoryFilter);
+    }
+
+    // Event type category filter (for event type selection UI)
+    if (eventCategoryFilter !== 'all') {
+      filtered = filtered.filter(event => event.event_categories?.category_type === eventCategoryFilter);
     }
 
     // Date filter
@@ -2180,6 +2205,38 @@ function BehavioralEventsPageContent() {
                           {Array.from(new Set(categories.map((category) => category.category_type))).map((type) => (
                             <SelectItem key={type} value={type}>
                               {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="event-type-category-filter">Event Type Category</Label>
+                      <Select value={eventCategoryFilter} onValueChange={setEventCategoryFilter}>
+                        <SelectTrigger id="event-type-category-filter">
+                          <SelectValue placeholder="All Event Categories" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Event Categories</SelectItem>
+                          {Array.from(new Set(availableCategoryTemplates.map((template) => template.categoryType))).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="student-level-filter">Student Level</Label>
+                      <Select value={studentLevelFilter} onValueChange={setStudentLevelFilter}>
+                        <SelectTrigger id="student-level-filter">
+                          <SelectValue placeholder="All Levels" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Levels</SelectItem>
+                          {Array.from(new Set(students.map((student) => student.level))).sort().map((level) => (
+                            <SelectItem key={level} value={level}>
+                              {level}
                             </SelectItem>
                           ))}
                         </SelectContent>

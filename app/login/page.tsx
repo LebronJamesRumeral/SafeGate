@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,18 +35,27 @@ const fadeInOut = `
   }
 `;
 
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const { login, logout } = useAuth();
+  // Privacy Policy modal and checkbox state
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [policyChecked, setPolicyChecked] = useState(false);
 
   // Setup Supabase client for direct user fetch after login
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+  const handlePolicyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPolicyChecked(e.target.checked);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,10 +101,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
       {/* Left Side - Navy Background */}
-      <div className="hidden lg:flex flex-col justify-between bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 dark:from-blue-950 dark:via-blue-900 dark:to-slate-950 px-8 py-7 xl:px-10 xl:py-8 text-white overflow-hidden">
+      <div className="hidden lg:flex flex-col justify-between bg-linear-to-br from-blue-950 via-blue-900 to-blue-800 dark:from-blue-950 dark:via-blue-900 dark:to-slate-950 px-8 py-7 xl:px-10 xl:py-8 text-white overflow-hidden">
         <div>
-          <p className="text-xs uppercase tracking-widest text-blue-300 font-semibold mb-6">SafeGate Access</p>
-          
           <div className="flex items-center gap-4 mb-8">
             <div className="h-14 w-14 rounded-full bg-white/10 backdrop-blur flex items-center justify-center border border-white/20">
               <Image 
@@ -112,13 +120,13 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <h1 className="text-4xl xl:text-5xl font-bold leading-tight mb-4 text-white">A Smarter Approach to Behavioral Tracking and Intervention</h1>
-          <p className="text-blue-100 text-base xl:text-lg leading-relaxed mb-8">SafeGate provides real-time behavioral event tracking, intervention workflows, and risk visibility in one connected platform. Attendance and QR scanning remain supporting features for daily operations and context.</p>
+          <h1 className="text-3xl xl:text-4xl font-bold leading-tight mb-8 text-white">A Smarter Approach to Behavioral Tracking and Intervention</h1>
+          <p className="text-blue-100 text-sm xl:text-base leading-relaxed mb-14">SafeGate provides real-time behavioral event tracking, intervention workflows, and risk visibility in one connected platform. Attendance and QR scanning remain supporting features for daily operations and context.</p>
 
           {/* Role Cards */}
-          <div className="space-y-3">
+          <div className="space-y-12">
             <div className="flex items-start gap-4 bg-white/5 backdrop-blur border border-white/10 rounded-lg p-4 hover:bg-white/10 transition-colors">
-              <div className="h-10 w-10 rounded-lg bg-yellow-400/20 flex items-center justify-center flex-shrink-0">
+              <div className="h-10 w-10 rounded-lg bg-yellow-400/20 flex items-center justify-center shrink-0">
                 <Users className="w-6 h-6 text-yellow-300" />
               </div>
               <div>
@@ -128,7 +136,7 @@ export default function LoginPage() {
             </div>
 
             <div className="flex items-start gap-4 bg-white/5 backdrop-blur border border-white/10 rounded-lg p-4 hover:bg-white/10 transition-colors">
-              <div className="h-10 w-10 rounded-lg bg-orange-400/20 flex items-center justify-center flex-shrink-0">
+              <div className="h-10 w-10 rounded-lg bg-orange-400/20 flex items-center justify-center shrink-0">
                 <UserCheck className="w-6 h-6 text-orange-300" />
               </div>
               <div>
@@ -138,7 +146,7 @@ export default function LoginPage() {
             </div>
 
             <div className="flex items-start gap-4 bg-white/5 backdrop-blur border border-white/10 rounded-lg p-4 hover:bg-white/10 transition-colors">
-              <div className="h-10 w-10 rounded-lg bg-emerald-400/20 flex items-center justify-center flex-shrink-0">
+              <div className="h-10 w-10 rounded-lg bg-emerald-400/20 flex items-center justify-center shrink-0">
                 <ShieldCheck className="w-6 h-6 text-emerald-300" />
               </div>
               <div>
@@ -147,11 +155,6 @@ export default function LoginPage() {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="text-xs font-semibold text-white">
-          <p>© 2026 SafeGate. All rights reserved.</p>
         </div>
       </div>
 
@@ -185,14 +188,16 @@ export default function LoginPage() {
                 animation: 'fadeInSlide 0.5s ease-out forwards',
               }}
             >
-              <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+              <h2 className="text-3xl xl:text-4xl font-bold text-slate-900 dark:text-white mb-2">
                 Sign In
               </h2>
-              <p className="text-slate-600 dark:text-slate-300 text-sm">Your role is detected automatically after login</p>
+              <p className="text-slate-600 dark:text-slate-300 text-base xl:text-lg">Your role is detected automatically after login</p>
             </div>
           </div>
 
+
           {/* Login Form */}
+
           <form 
             key="form-login"
             onSubmit={handleSubmit} 
@@ -201,12 +206,13 @@ export default function LoginPage() {
               animation: 'fadeInSlide 0.5s ease-out forwards',
             }}
           >
+
             <div className="space-y-2">
               <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 text-sm font-medium">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="name@safegate.com"
+                placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -217,28 +223,107 @@ export default function LoginPage() {
 
             <div className="space-y-2">
               <Label htmlFor="password" className="text-slate-700 dark:text-slate-300 text-sm font-medium">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-                className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-200"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-200 pr-12"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-400 transition-transform duration-200"
+                  style={{
+                    transition: 'transform 0.2s, opacity 0.2s',
+                    transform: showPassword ? 'scale(1.15)' : 'scale(1)',
+                    opacity: 1
+                  }}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" style={{ transition: 'opacity 0.2s', opacity: showPassword ? 1 : 0 }} />
+                  ) : (
+                    <Eye className="w-5 h-5" style={{ transition: 'opacity 0.2s', opacity: !showPassword ? 1 : 0 }} />
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Error toast replaces error alert */}
+
 
             <Button 
               type="submit" 
               variant="secondary" 
               className="w-full h-12 text-base font-bold uppercase tracking-wide transition-all duration-200 hover:scale-105 active:scale-95" 
-              disabled={loading}
+              disabled={loading || !policyChecked}
             >
               {loading ? 'Logging in...' : 'Login'}
             </Button>
+
+            {/* Privacy Policy & Terms Checkbox */}
+            <div className="flex items-center gap-2 mt-2 mb-2">
+              <input
+                id="policy"
+                type="checkbox"
+                checked={policyChecked}
+                onChange={handlePolicyChange}
+                className="accent-blue-600 w-4 h-4 rounded border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-blue-400"
+                required
+              />
+              <label htmlFor="policy" className="text-xs text-slate-600 dark:text-slate-300 select-none">
+                I agree to the{' '}
+                <button type="button" className="underline hover:text-blue-700 dark:hover:text-blue-300" onClick={() => setShowPolicyModal(true)}>
+                  Privacy Policy
+                </button>
+                {' '}and{' '}
+                <button type="button" className="underline hover:text-blue-700 dark:hover:text-blue-300" onClick={() => setShowPolicyModal(true)}>
+                  Terms of Service
+                </button>
+              </label>
+            </div>
+
+            {/* Modal for Privacy Policy and Terms */}
+            {showPolicyModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md animate-fadeIn">
+                <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-xl w-full px-8 py-8 sm:px-10 sm:py-10 flex flex-col items-center animate-fadeInModal" style={{fontFamily: 'inherit'}}>
+                  <button
+                    className="absolute top-4 right-4 text-slate-400 hover:text-red-500 text-2xl font-bold focus:outline-none"
+                    onClick={() => setShowPolicyModal(false)}
+                    aria-label="Close"
+                  >
+                    ×
+                  </button>
+                  <h3 className="text-2xl font-bold mb-8 text-slate-900 dark:text-white font-mono text-center">Privacy Policy</h3>
+                  <p className="text-base mb-10 text-slate-700 dark:text-slate-300 text-center leading-relaxed font-mono">
+                    Your privacy is important to us. We do not share your data with third parties. All information is handled securely and in accordance with applicable laws.
+                  </p>
+                  <h3 className="text-2xl font-bold mb-8 text-slate-900 dark:text-white font-mono text-center">Terms of Service</h3>
+                  <p className="text-base text-slate-700 dark:text-slate-300 text-center leading-relaxed font-mono" style={{marginBottom: '0.5rem'}}>
+                    By using this system, you agree to use it responsibly and in accordance with all school and legal guidelines. Misuse may result in account suspension.
+                  </p>
+                </div>
+                <style>{`
+                  @keyframes fadeInModal {
+                    from { opacity: 0; transform: scale(0.96) translateY(20px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                  }
+                  .animate-fadeInModal { animation: fadeInModal 0.25s cubic-bezier(.4,0,.2,1) both; }
+                `}</style>
+              </div>
+            )}
+
+            {/* Copyright Only */}
+            <div className="flex flex-col items-center gap-2 mt-8">
+              <hr className="w-full border-t border-slate-200 dark:border-slate-700 mb-2" />
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 w-full text-center">© 2026 SafeGate. All rights reserved.</span>
+            </div>
           </form>
 
           {/* Demo Credentials - Optional */}

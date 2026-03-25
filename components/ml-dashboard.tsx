@@ -8,6 +8,8 @@ import { AlertTriangle, TrendingDown, TrendingUp, AlertCircle, Target, AlertOcta
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@supabase/supabase-js';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 interface StudentRisk {
   lrn: string;
@@ -448,6 +450,64 @@ export function MLDashboard() {
     return createClient(url, key);
   });
 
+  // Filtering state
+  const [gradeFilter, setGradeFilter] = useState<string>('all');
+  const [riskFilter, setRiskFilter] = useState<string>('all');
+  const [search, setSearch] = useState<string>('');
+
+  // Use fixed student level options to match guidance review page
+  const gradeOptions = [
+    'Grade 1',
+    'Grade 2',
+    'Grade 3',
+    'Grade 4',
+    'Grade 5',
+    'Grade 6',
+    'Kinder 1',
+    'Kinder 2',
+    'Pre-K',
+    'Toddler & Nursery',
+  ];
+
+  // Risk level options
+  const riskOptions = ['critical', 'high', 'medium', 'low'];
+
+  // Filtered students (match fixed student level labels)
+  const filteredStudents = highRiskStudents.filter(s => {
+    let matches = true;
+    if (gradeFilter !== 'all') {
+      // Prefer class_level, fallback to grade/level/name extraction
+      let studentLevel = '';
+      if ((s as any).class_level) {
+        studentLevel = (s as any).class_level;
+      } else if ((s as any).grade) {
+        studentLevel = (s as any).grade;
+      } else if ((s as any).level) {
+        studentLevel = (s as any).level;
+      } else {
+        // Try to extract from name (e.g., "Grade 1", "Kinder 1", etc.)
+        const name = s.name || '';
+        const knownLevels = [
+          'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+          'Kinder 1', 'Kinder 2', 'Pre-K', 'Toddler & Nursery',
+        ];
+        studentLevel = knownLevels.find(lvl => name.includes(lvl)) || '';
+      }
+      matches = matches && studentLevel === gradeFilter;
+    }
+    if (riskFilter !== 'all') {
+      matches = matches && s.riskLevel === riskFilter;
+    }
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      matches = matches && (
+        s.name.toLowerCase().includes(q) ||
+        s.lrn.toLowerCase().includes(q)
+      );
+    }
+    return matches;
+  });
+
   useEffect(() => {
     void fetchHighRiskStudents(false);
   }, []);
@@ -542,19 +602,24 @@ export function MLDashboard() {
       <div className="space-y-4">
         {/* Header Skeleton */}
         <div className="flex items-start gap-4 mb-6">
-          <div className="p-3 rounded-2xl bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 animate-pulse w-14 h-14" />
+          <div className="p-3 rounded-2xl bg-linear-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 animate-pulse w-14 h-14" />
           <div className="flex-1 space-y-2">
             <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-lg w-64 animate-pulse" />
             <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded-lg w-96 animate-pulse" />
           </div>
         </div>
-        
+        {/* Filter Skeleton */}
+        <div className="flex gap-3 mb-4">
+          <div className="h-10 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+          <div className="h-10 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+          <div className="h-10 w-48 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+        </div>
         {/* Cards Skeleton */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3].map((i) => (
             <div 
               key={i} 
-              className="bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl animate-pulse border border-slate-200 dark:border-slate-700 shadow-lg"
+              className="bg-linear-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl animate-pulse border border-slate-200 dark:border-slate-700 shadow-lg"
               style={{ animationDelay: `${i * 100}ms` }}
             >
               <div className="h-1.5 bg-slate-300 dark:bg-slate-600 rounded-t-2xl" />
@@ -586,11 +651,11 @@ export function MLDashboard() {
     >
       {/* Header Section */}
       <div className="flex items-start gap-4">
-        <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-900 to-blue-700 shadow-lg shadow-blue-600/25">
+        <div className="p-3 rounded-2xl bg-linear-to-br from-blue-900 to-blue-700 shadow-lg shadow-blue-600/25">
           <Brain className="w-8 h-8 text-white" />
         </div>
         <div className="flex-1">
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-900 to-blue-700 bg-clip-text text-transparent mb-2">
+          <h2 className="text-3xl font-bold bg-linear-to-r from-blue-900 to-blue-700 bg-clip-text text-transparent mb-2">
             ML Behavior Risk Insights
           </h2>
           <p className="text-base text-slate-600 dark:text-slate-400">
@@ -599,10 +664,59 @@ export function MLDashboard() {
         </div>
       </div>
 
-      {/* Stats Summary */}
-      {!error && highRiskStudents.length > 0 && (
+      {/* Guidance Review-style Filter Bar */}
+      <div className="mb-4">
+        <div className="w-full bg-white/80 dark:bg-slate-900/55 backdrop-blur rounded-xl border border-border/70 shadow-sm p-4 sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
+            {/* Student Level Filter */}
+            <div className="flex flex-col gap-2 w-full max-w-xs">
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">Student Level</label>
+              <Select value={gradeFilter} onValueChange={(val: string) => setGradeFilter(val)}>
+                <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
+                  <SelectValue placeholder="All Levels" />
+                </SelectTrigger>
+                <SelectContent className="dark:bg-slate-800 dark:border-border/40">
+                  <SelectItem value="all">All Levels</SelectItem>
+                  {gradeOptions.map(g => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Risk Filter */}
+            <div className="flex flex-col gap-2 w-full max-w-xs">
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">Risk Level</label>
+              <Select value={riskFilter} onValueChange={(val: string) => setRiskFilter(val)}>
+                <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
+                  <SelectValue placeholder="All Risks" />
+                </SelectTrigger>
+                <SelectContent className="dark:bg-slate-800 dark:border-border/40 min-w-55">
+                  <SelectItem value="all">All Risks</SelectItem>
+                  {riskOptions.map(r => (
+                    <SelectItem key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Search */}
+            <div className="flex flex-col gap-2 w-full">
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">Search</label>
+              <Input
+                type="text"
+                className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full"
+                placeholder="Search by name or LRN..."
+                value={search}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Summary (filtered) */}
+      {!error && filteredStudents.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="border-0 bg-gradient-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/50 shadow-lg">
+          <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/50 shadow-lg">
             <CardContent className="p-4 flex items-center gap-3">
               <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/40">
                 <AlertOctagon className="w-5 h-5 text-red-600 dark:text-red-400" />
@@ -610,13 +724,12 @@ export function MLDashboard() {
               <div>
                 <p className="text-xs text-red-600 dark:text-red-400 font-semibold">Critical Risk</p>
                 <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-                  {highRiskStudents.filter(s => s.riskLevel === 'critical').length}
+                  {filteredStudents.filter(s => s.riskLevel === 'critical').length}
                 </p>
               </div>
             </CardContent>
           </Card>
-          
-          <Card className="border-0 bg-gradient-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/50 shadow-lg">
+          <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/50 shadow-lg">
             <CardContent className="p-4 flex items-center gap-3">
               <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/40">
                 <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
@@ -624,13 +737,12 @@ export function MLDashboard() {
               <div>
                 <p className="text-xs text-orange-600 dark:text-orange-400 font-semibold">High Risk</p>
                 <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                  {highRiskStudents.filter(s => s.riskLevel === 'high').length}
+                  {filteredStudents.filter(s => s.riskLevel === 'high').length}
                 </p>
               </div>
             </CardContent>
           </Card>
-          
-          <Card className="border-0 bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/50 shadow-lg">
+          <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/50 shadow-lg">
             <CardContent className="p-4 flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/40">
                 <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
@@ -638,7 +750,7 @@ export function MLDashboard() {
               <div>
                 <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold">Medium Risk</p>
                 <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                  {highRiskStudents.filter(s => s.riskLevel === 'medium').length}
+                  {filteredStudents.filter(s => s.riskLevel === 'medium').length}
                 </p>
               </div>
             </CardContent>
@@ -648,8 +760,8 @@ export function MLDashboard() {
 
       {/* Error State */}
       {error && (
-        <Card className="border-0 bg-gradient-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/50 shadow-xl overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-red-600 to-red-700" />
+        <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/50 shadow-xl overflow-hidden">
+          <div className="h-1 bg-linear-to-r from-red-600 to-red-700" />
           <CardContent className="p-6">
             <div className="flex items-start gap-4">
               <div className="p-3 rounded-xl bg-red-100 dark:bg-red-900/40">
@@ -674,10 +786,10 @@ export function MLDashboard() {
         </Card>
       )}
 
-      {/* Empty State */}
-      {!error && highRiskStudents.length === 0 ? (
-        <Card className="border-0 bg-gradient-to-br from-green-50 to-white dark:from-green-950/30 dark:to-slate-800/50 shadow-xl overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-green-600 to-emerald-600" />
+      {/* Empty State (filtered) */}
+      {!error && filteredStudents.length === 0 ? (
+        <Card className="border-0 bg-linear-to-br from-green-50 to-white dark:from-green-950/30 dark:to-slate-800/50 shadow-xl overflow-hidden">
+          <div className="h-1 bg-linear-to-r from-green-600 to-emerald-600" />
           <CardContent className="p-12">
             <div className="text-center">
               <div className="mb-6 inline-flex p-4 rounded-full bg-green-100 dark:bg-green-900/40">
@@ -687,15 +799,15 @@ export function MLDashboard() {
                 All Clear!
               </h3>
               <p className="text-base text-slate-600 dark:text-slate-400 max-w-md mx-auto">
-                No students are currently flagged with concerning behavior patterns.
+                No students match the selected filters or search.
               </p>
             </div>
           </CardContent>
         </Card>
       ) : (
-        /* Student Cards Grid */
+        /* Student Cards Grid (filtered) */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {highRiskStudents.map((student, index) => {
+          {filteredStudents.map((student, index) => {
             const colors = getRiskColor(student.riskLevel);
             return (
               <motion.div
@@ -708,7 +820,7 @@ export function MLDashboard() {
                   className={`${colors.cardBg} border-2 ${colors.border} shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden group`}
                 >
                   {/* Animated Gradient Bar */}
-                  <div className={`h-1.5 bg-gradient-to-r ${colors.gradient} relative overflow-hidden`}>
+                  <div className={`h-1.5 bg-linear-to-r ${colors.gradient} relative overflow-hidden`}>
                     <div className="absolute inset-0 bg-white/30 animate-shimmer" />
                   </div>
                   
@@ -716,7 +828,7 @@ export function MLDashboard() {
                     {/* Header with Name and Badge */}
                     <div className="flex justify-between items-start gap-3">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 truncate group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-slate-900 group-hover:to-slate-600 dark:group-hover:from-white dark:group-hover:to-slate-300 transition-all">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 truncate group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-linear-to-r group-hover:from-slate-900 group-hover:to-slate-600 dark:group-hover:from-white dark:group-hover:to-slate-300 transition-all">
                           {student.name}
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
@@ -775,16 +887,15 @@ export function MLDashboard() {
                                 initial={{ width: 0 }}
                                 animate={{ width: `${student.predictionConfidence}%` }}
                                 transition={{ duration: 1, delay: index * 0.1 + 0.3 }}
-                                className="h-full bg-gradient-to-r from-blue-600 to-blue-500 rounded-full"
+                                className="h-full bg-linear-to-r from-blue-600 to-blue-500 rounded-full"
                               />
                             </div>
-                            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 min-w-[32px] text-right">
+                            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 min-w-8 text-right">
                               {Math.round(student.predictionConfidence)}%
                             </span>
                           </div>
                         </div>
                       )}
-                      
                       {student.parentContact && (
                         <div className="flex-1 p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
                           <div className="flex items-center gap-1.5 mb-1.5">
@@ -916,7 +1027,7 @@ export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
 
   if (loading) {
     return (
-      <div className="bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl animate-pulse border border-slate-200 dark:border-slate-700 shadow-lg overflow-hidden">
+      <div className="bg-linear-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl animate-pulse border border-slate-200 dark:border-slate-700 shadow-lg overflow-hidden">
         <div className="h-1.5 bg-slate-300 dark:bg-slate-600" />
         <div className="p-4 space-y-3">
           <div className="flex justify-between">
@@ -936,8 +1047,8 @@ export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
 
   if (error) {
     return (
-      <Card className="border-0 bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/50 shadow-xl overflow-hidden">
-        <div className="h-1 bg-gradient-to-r from-amber-600 to-orange-600" />
+      <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/50 shadow-xl overflow-hidden">
+        <div className="h-1 bg-linear-to-r from-amber-600 to-orange-600" />
         <CardContent className="p-6">
           <div className="flex items-start gap-3">
             <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/40">
@@ -969,14 +1080,14 @@ export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
     >
       <Card className={`${colors.cardBg} border-2 ${colors.border} shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden`}>
         {/* Animated Gradient Bar */}
-        <div className={`h-1.5 bg-gradient-to-r ${colors.gradient} relative overflow-hidden`}>
+        <div className={`h-1.5 bg-linear-to-r ${colors.gradient} relative overflow-hidden`}>
           <div className="absolute inset-0 bg-white/30 animate-shimmer" />
         </div>
         
         <CardHeader className="pb-2">
           <div className="flex justify-between items-center gap-2">
             <CardTitle className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <div className="p-1 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40">
+              <div className="p-1 rounded-lg bg-linear-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40">
                 <Brain className="w-3.5 h-3.5 text-blue-900 dark:text-blue-300" />
               </div>
               ML Assessment
@@ -1038,10 +1149,10 @@ export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
                     initial={{ width: 0 }}
                     animate={{ width: `${summary.predictionConfidence}%` }}
                     transition={{ duration: 1, delay: 0.3 }}
-                    className="h-full bg-gradient-to-r from-blue-600 to-blue-500 rounded-full"
+                    className="h-full bg-linear-to-r from-blue-600 to-blue-500 rounded-full"
                   />
                 </div>
-                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 min-w-[32px] text-right">
+                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 min-w-8 text-right">
                   {Math.round(summary.predictionConfidence)}%
                 </span>
               </div>
@@ -1050,9 +1161,9 @@ export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
 
           {/* Concerning Pattern Alert - Only if needed */}
           {summary.concerningEvents > 0 && (
-            <div className="p-3 rounded-lg bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/50 dark:to-yellow-950/40 border border-amber-300 dark:border-amber-600/50">
+            <div className="p-3 rounded-lg bg-linear-to-r from-amber-50 to-yellow-50 dark:from-amber-950/50 dark:to-yellow-950/40 border border-amber-300 dark:border-amber-600/50">
               <div className="flex items-start gap-2">
-                <div className="p-1 rounded-lg bg-amber-100 dark:bg-amber-800/50 flex-shrink-0">
+                <div className="p-1 rounded-lg bg-amber-100 dark:bg-amber-800/50 shrink-0">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div>
