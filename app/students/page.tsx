@@ -196,12 +196,91 @@ type EditableScheduleRow = {
 
 // Enforce consistent layout structure for students page
 export default function StudentsPage() {
-      // State for Undo dialog
-      const [undoDialogOpen, setUndoDialogOpen] = useState(false);
+  // State for Undo dialog
+  const [undoDialogOpen, setUndoDialogOpen] = useState(false);
+  // State for validated parent emails
+  const [validatedParentEmails, setValidatedParentEmails] = useState<string[]>([]);
     // For LRN confirmation
     const [pendingLrn, setPendingLrn] = useState('');
     const [confirmLrnOpen, setConfirmLrnOpen] = useState(false);
     const [lrnToSave, setLrnToSave] = useState('');
+  // Handler for validating/creating parent account
+  const handleValidateParentAccount = async (student: Student) => {
+    const parentEmail = student.parentEmail?.trim();
+    const parentName = student.parentName?.trim();
+    if (!parentEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(parentEmail)) {
+      toast({
+        title: 'Invalid Email',
+        description: 'Parent email is missing or invalid.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      // 1. Check if already validated in state
+      if (validatedParentEmails.includes(parentEmail.toLowerCase())) {
+        toast({
+          title: 'Account already exists',
+          description: 'A user with this parent email already exists.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      // 2. Prepare password: lastnameSafegate
+      const nameParts = student.name.trim().split(' ');
+      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1].toLowerCase() : nameParts[0].toLowerCase();
+      const password = `${lastName}Safegate`;
+      // 3. Create user
+      const addRes = await fetch('/api/auth/add-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: parentEmail,
+          password,
+          full_name: parentName || parentEmail,
+          role: 'parent',
+        }),
+      });
+      const addData = await addRes.json();
+      if (addData.success) {
+        toast({
+          title: 'Parent Account Created',
+          description: `Account for ${parentEmail} created successfully.`,
+          variant: 'default',
+        });
+        // Update validated emails state so button disappears
+        setValidatedParentEmails((prev) => [...prev, parentEmail.toLowerCase()]);
+      } else {
+        toast({
+          title: 'Failed to Create Account',
+          description: addData.error || 'Unknown error',
+          variant: 'destructive',
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to validate/create account',
+        variant: 'destructive',
+      });
+    }
+  };
+    // Fetch validated parent emails on mount
+    useEffect(() => {
+      const fetchValidatedEmails = async () => {
+        try {
+          const res = await fetch('/api/auth/users');
+          const data = await res.json();
+          // Support both .users and .data for compatibility
+          const users = data.users || data.data || [];
+          setValidatedParentEmails(users.map((u: any) => u.email?.toLowerCase()).filter(Boolean));
+        } catch (e) {
+          // Ignore error, fallback to empty
+          setValidatedParentEmails([]);
+        }
+      };
+      fetchValidatedEmails();
+    }, []);
   const isMobile = useIsMobile();
   const [search, setSearch] = useState('');
   const [filterGrade, setFilterGrade] = useState('all');
@@ -2722,6 +2801,17 @@ export default function StudentsPage() {
                                       <Mail className="h-3 w-3 text-muted-foreground" />
                                       <span className="text-xs">{student.parentEmail}</span>
                                     </div>
+                                  )}
+                                  {/* Validate Account Button for Admins */}
+                                  {student.parentEmail && !validatedParentEmails.includes(student.parentEmail.toLowerCase()) && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="mt-2"
+                                      onClick={() => handleValidateParentAccount(student)}
+                                    >
+                                      Validate Account
+                                    </Button>
                                   )}
                                 </div>
                               </TableCell>
