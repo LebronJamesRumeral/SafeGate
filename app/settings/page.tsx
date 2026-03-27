@@ -10,7 +10,16 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Bell, Lock, User, School, Save, Database, Brain, Clock, ChevronRight } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+} from '@/components/ui/dialog';
 import { MLDashboard } from '@/components/ml-dashboard';
 
 interface YearLevelCheckoutTime {
@@ -46,6 +55,7 @@ export default function SettingsPage() {
     { level: 'Grade 8', time: '16:00' },
   ]);
 
+
   // State for new user creation
   const [newUser, setNewUser] = useState({
     email: '',
@@ -54,6 +64,86 @@ export default function SettingsPage() {
     role: 'teacher',
   });
   const [creatingUser, setCreatingUser] = useState(false);
+
+  // State for user listing and deletion
+  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; role: string }>>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<{ id: string; name: string } | null>(null);
+
+  // Fetch users
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const res = await fetch('/api/auth/users');
+      const data = await res.json();
+      if (data.success) {
+        setUsers(data.data);
+      } else {
+        toast({
+          title: 'Failed to load users',
+          description: data.error || 'Could not fetch users',
+          variant: 'destructive',
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Failed to load users',
+        description: err.message || 'Could not fetch users',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeCategory === 'account') {
+      fetchUsers();
+    }
+  }, [activeCategory]);
+
+  // Open modal for delete confirmation
+  const handleDeleteUser = (id: string, name: string) => {
+    setConfirmDeleteUser({ id, name });
+  };
+
+  // Confirm delete action
+  const confirmDelete = async () => {
+    if (!confirmDeleteUser) return;
+    setDeletingUserId(confirmDeleteUser.id);
+    try {
+      const res = await fetch('/api/auth/delete-user', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: confirmDeleteUser.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({
+          title: 'User Deleted',
+          description: `${confirmDeleteUser.name} was deleted successfully.`,
+          variant: 'default',
+        });
+        setUsers((prev) => prev.filter((u) => u.id !== confirmDeleteUser.id));
+      } else {
+        toast({
+          title: 'Failed to Delete User',
+          description: data.error || 'Failed to delete user',
+          variant: 'destructive',
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Failed to Delete User',
+        description: err.message || 'Failed to delete user',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingUserId(null);
+      setConfirmDeleteUser(null);
+    }
+  };
 
   const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -76,11 +166,13 @@ export default function SettingsPage() {
       const data = await res.json();
       if (data.success) {
         toast({
-          title: 'User Created',
-          description: 'The new user account was created successfully.',
+          title: 'User added',
+          description: `${newUser.full_name || newUser.email} was added successfully.`,
           variant: 'default',
         });
         setNewUser({ email: '', password: '', full_name: '', role: 'teacher' });
+        // Refresh user list after adding
+        fetchUsers();
       } else {
         toast({
           title: 'Failed to Create User',
@@ -257,14 +349,15 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-6">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Account Management</CardTitle>
-                      <CardDescription className="text-sm mt-2">Add new users to the system</CardDescription>
+                      <CardDescription className="text-sm mt-2">Add new users and manage existing accounts</CardDescription>
                     </div>
                     <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-linear-to-br from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700 flex items-center justify-center text-white shadow-lg shrink-0">
                       <User size={32} />
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-8">
+                <CardContent className="pt-8 space-y-10">
+                  {/* Add New User Form */}
                   <div className="p-6 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-slate-50/70 dark:bg-slate-800/50 shadow-sm">
                     <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">Add New User</h3>
                     <form className="space-y-6" onSubmit={handleCreateUser} autoComplete="off">
@@ -303,6 +396,80 @@ export default function SettingsPage() {
                         </Button>
                       </div>
                     </form>
+                  </div>
+
+                  {/* Gap between Add User and User List */}
+                  <div className="h-8" />
+                  {/* User List */}
+                  <div className="p-6 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-slate-50/70 dark:bg-slate-800/50 shadow-sm">
+                    <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">User Accounts</h3>
+                    {loadingUsers ? (
+                      <div className="text-center py-6 text-slate-500 dark:text-slate-400">Loading users...</div>
+                    ) : users.length === 0 ? (
+                      <div className="text-center py-6 text-slate-500 dark:text-slate-400">No users found.</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                          <thead>
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Name</th>
+                              <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Email</th>
+                              <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Role</th>
+                              <th className="px-4 py-2 text-right text-xs font-semibold text-slate-700 dark:text-slate-300">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {users.map((user) => (
+                              <tr key={user.id} className="border-b border-slate-100 dark:border-slate-800">
+                                <td className="px-4 py-2 whitespace-nowrap">{user.name}</td>
+                                <td className="px-4 py-2 whitespace-nowrap">{user.email}</td>
+                                <td className="px-4 py-2 whitespace-nowrap capitalize">{user.role}</td>
+                                <td className="px-4 py-2 whitespace-nowrap text-right">
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    className="rounded-md"
+                                    disabled={deletingUserId === user.id}
+                                    onClick={() => handleDeleteUser(user.id, user.name || user.email)}
+                                  >
+                                    {deletingUserId === user.id ? 'Deleting...' : 'Delete'}
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                                {/* Delete User Confirmation Modal - render once at page level */}
+                                <Dialog open={!!confirmDeleteUser} onOpenChange={(open) => { if (!open) setConfirmDeleteUser(null); }}>
+                                  <DialogContent className="w-[96vw] max-w-md h-auto max-h-[92vh] overflow-hidden p-0 flex flex-col rounded-xl">
+                                    <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40">
+                                      <DialogTitle className="text-2xl leading-tight">Are you sure?</DialogTitle>
+                                      <DialogDescription>
+                                        This action cannot be undone. This will permanently delete the user <b>{confirmDeleteUser?.name}</b> from the system.
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="bg-white dark:bg-slate-950 px-6 py-4 flex justify-end gap-2">
+                                      <Button
+                                        variant="outline"
+                                        onClick={() => setConfirmDeleteUser(null)}
+                                        disabled={deletingUserId === confirmDeleteUser?.id}
+                                        className="min-w-24"
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        variant="destructive"
+                                        onClick={confirmDelete}
+                                        disabled={deletingUserId === confirmDeleteUser?.id}
+                                        className="min-w-24"
+                                      >
+                                        {deletingUserId === confirmDeleteUser?.id ? 'Deleting...' : 'Delete'}
+                                      </Button>
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
