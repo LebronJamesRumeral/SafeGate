@@ -46,9 +46,62 @@ export default function SettingsPage() {
     { level: 'Grade 8', time: '16:00' },
   ]);
 
+  // State for new user creation
+  const [newUser, setNewUser] = useState({
+    email: '',
+    password: '',
+    full_name: '',
+    role: 'teacher',
+  });
+  const [creatingUser, setCreatingUser] = useState(false);
+
+  const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setNewUser((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleNewUserRoleChange = (value: string) => {
+    setNewUser((prev) => ({ ...prev, role: value }));
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreatingUser(true);
+    try {
+      const res = await fetch('/api/auth/add-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({
+          title: 'User Created',
+          description: 'The new user account was created successfully.',
+          variant: 'default',
+        });
+        setNewUser({ email: '', password: '', full_name: '', role: 'teacher' });
+      } else {
+        toast({
+          title: 'Failed to Create User',
+          description: data.error || 'Failed to create user',
+          variant: 'destructive',
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Failed to Create User',
+        description: err.message || 'Failed to create user',
+        variant: 'destructive',
+      });
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
   const categories: SettingsCategory[] = [
     { id: 'school', label: 'School Information', icon: <School size={20} />, color: 'blue' },
-    { id: 'account', label: 'Account Settings', icon: <User size={20} />, color: 'purple' },
+    { id: 'account', label: 'Account Management', icon: <User size={20} />, color: 'purple' },
     { id: 'system', label: 'System Settings', icon: <Database size={20} />, color: 'emerald' },
     { id: 'notifications', label: 'Notifications', icon: <Bell size={20} />, color: 'orange' },
     { id: 'security', label: 'Security', icon: <Lock size={20} />, color: 'red' },
@@ -130,7 +183,7 @@ export default function SettingsPage() {
                     onClick={() => setActiveCategory(category.id)}
                     className={`w-full flex items-center justify-between gap-2 px-3 py-3 sm:px-4 rounded-lg transition-all duration-200 text-left font-medium ${
                       activeCategory === category.id
-                        ? `bg-gradient-to-r ${getCategoryColor(category.color)} text-white shadow-md`
+                        ? `bg-linear-to-r ${getCategoryColor(category.color)} text-white shadow-md`
                         : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
                     }`}
                   >
@@ -150,13 +203,13 @@ export default function SettingsPage() {
             {/* School Information */}
             {activeCategory === 'school' && (
               <Card className="shadow-xl duration-200 animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 border-b border-blue-200/50 dark:border-blue-700/40 p-5 sm:p-8">
+                <CardHeader className="bg-linear-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 border-b border-blue-200/50 dark:border-blue-700/40 p-5 sm:p-8">
                   <div className="flex items-center justify-between gap-6">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">School Information</CardTitle>
                       <CardDescription className="text-sm mt-2">Update your school details and contact information</CardDescription>
                     </div>
-                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-linear-to-br from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700 flex items-center justify-center text-white shadow-lg shrink-0">
                       <School size={32} />
                     </div>
                   </div>
@@ -189,7 +242,7 @@ export default function SettingsPage() {
                 </CardContent>
                 <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
                   <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('school')}>Cancel</Button>
-                  <Button className="min-w-32 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
+                  <Button className="min-w-32 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
                     <Save size={16} />
                     Save Changes
                   </Button>
@@ -200,58 +253,71 @@ export default function SettingsPage() {
             {/* Account Settings */}
             {activeCategory === 'account' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 border-b border-blue-200/50 dark:border-blue-700/40 p-5 sm:p-8">
-                  <div className="flex items-center justify-between gap-6">
+                <CardHeader className="bg-linear-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 border-b border-blue-200/50 dark:border-blue-700/40 p-5 sm:p-8">
+                  <div className="flex items-center gap-6">
                     <div className="flex-1">
-                      <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Account Settings</CardTitle>
-                      <CardDescription className="text-sm mt-2">Manage your account and user preferences</CardDescription>
+                      <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Account Management</CardTitle>
+                      <CardDescription className="text-sm mt-2">Add new users to the system</CardDescription>
                     </div>
-                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-linear-to-br from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700 flex items-center justify-center text-white shadow-lg shrink-0">
                       <User size={32} />
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-6 pt-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <Label htmlFor="username" className="text-sm font-bold text-slate-700 dark:text-slate-300">Username</Label>
-                      <Input id="username" defaultValue="admin" className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500" />
-                    </div>
-                    <div className="space-y-3">
-                      <Label htmlFor="role" className="text-sm font-bold text-slate-700 dark:text-slate-300">Role</Label>
-                      <Select defaultValue="admin">
-                        <SelectTrigger id="role" className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Administrator</SelectItem>
-                          <SelectItem value="teacher">Teacher</SelectItem>
-                          <SelectItem value="staff">Staff</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                <CardContent className="pt-8">
+                  <div className="p-6 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-slate-50/70 dark:bg-slate-800/50 shadow-sm">
+                    <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">Add New User</h3>
+                    <form className="space-y-6" onSubmit={handleCreateUser} autoComplete="off">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-2">
+                          <Label htmlFor="newUserEmail" className="text-sm font-bold text-slate-700 dark:text-slate-300">Email</Label>
+                          <Input id="newUserEmail" name="email" type="email" required value={newUser.email} onChange={handleNewUserChange} placeholder="user@email.com" autoComplete="off" className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="newUserPassword" className="text-sm font-bold text-slate-700 dark:text-slate-300">Password</Label>
+                          <Input id="newUserPassword" name="password" type="password" required value={newUser.password} onChange={handleNewUserChange} placeholder="••••••••" autoComplete="new-password" className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="newUserRole" className="text-sm font-bold text-slate-700 dark:text-slate-300">Role</Label>
+                          <Select value={newUser.role} onValueChange={handleNewUserRoleChange}>
+                            <SelectTrigger id="newUserRole" className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Administrator</SelectItem>
+                              <SelectItem value="teacher">Teacher</SelectItem>
+                              <SelectItem value="guidance">Guidance</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label htmlFor="newUserFullName" className="text-sm font-bold text-slate-700 dark:text-slate-300">Full Name</Label>
+                          <Input id="newUserFullName" name="full_name" value={newUser.full_name} onChange={handleNewUserChange} placeholder="Full Name" autoComplete="off" className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500" />
+                        </div>
+                      </div>
+                      <div className="flex gap-3 justify-end mt-2">
+                        <Button type="submit" className="min-w-32 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" disabled={creatingUser}>
+                          {creatingUser ? 'Creating...' : 'Add User'}
+                        </Button>
+                      </div>
+                    </form>
                   </div>
                 </CardContent>
-                <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
-                  <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('account')}>Cancel</Button>
-                  <Button className="min-w-32 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
-                    <Save size={16} />
-                    Save Changes
-                  </Button>
-                </CardFooter>
               </Card>
             )}
 
             {/* Notifications */}
             {activeCategory === 'notifications' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-100/50 dark:from-orange-950/40 dark:to-orange-900/30 border-b border-orange-200/50 dark:border-orange-700/40 p-5 sm:p-8">
+                <CardHeader className="bg-linear-to-r from-orange-50 to-orange-100/50 dark:from-orange-950/40 dark:to-orange-900/30 border-b border-orange-200/50 dark:border-orange-700/40 p-5 sm:p-8">
                   <div className="flex items-center justify-between gap-6">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Notifications</CardTitle>
                       <CardDescription className="text-sm mt-2">Configure how you receive alerts and updates</CardDescription>
                     </div>
-                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-linear-to-br from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700 flex items-center justify-center text-white shadow-lg shrink-0">
                       <Bell size={32} />
                     </div>
                   </div>
@@ -278,7 +344,7 @@ export default function SettingsPage() {
                 </CardContent>
                 <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
                   <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('notifications')}>Cancel</Button>
-                  <Button className="min-w-32 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
+                  <Button className="min-w-32 bg-linear-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
                     <Save size={16} />
                     Save Changes
                   </Button>
@@ -289,13 +355,13 @@ export default function SettingsPage() {
             {/* Security */}
             {activeCategory === 'security' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-red-50 to-red-100/50 dark:from-red-950/40 dark:to-red-900/30 border-b border-red-200/50 dark:border-red-700/40 p-5 sm:p-8">
+                <CardHeader className="bg-linear-to-r from-red-50 to-red-100/50 dark:from-red-950/40 dark:to-red-900/30 border-b border-red-200/50 dark:border-red-700/40 p-5 sm:p-8">
                   <div className="flex items-center justify-between gap-6">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Security</CardTitle>
                       <CardDescription className="text-sm mt-2">Update your password and security settings</CardDescription>
                     </div>
-                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-red-400 to-red-600 dark:from-red-500 dark:to-red-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-linear-to-br from-red-400 to-red-600 dark:from-red-500 dark:to-red-700 flex items-center justify-center text-white shadow-lg shrink-0">
                       <Lock size={32} />
                     </div>
                   </div>
@@ -321,7 +387,7 @@ export default function SettingsPage() {
                 </CardContent>
                 <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
                   <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('security')}>Cancel</Button>
-                  <Button className="min-w-32 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
+                  <Button className="min-w-32 bg-linear-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
                     <Save size={16} />
                     Update Password
                   </Button>
@@ -332,13 +398,13 @@ export default function SettingsPage() {
             {/* System Settings */}
             {activeCategory === 'system' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/30 border-b border-emerald-200/50 dark:border-emerald-700/40 p-5 sm:p-8">
+                <CardHeader className="bg-linear-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/30 border-b border-emerald-200/50 dark:border-emerald-700/40 p-5 sm:p-8">
                   <div className="flex items-center justify-between gap-6">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">System Settings</CardTitle>
                       <CardDescription className="text-sm mt-2">Configure system behavior and preferences</CardDescription>
                     </div>
-                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-linear-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700 flex items-center justify-center text-white shadow-lg shrink-0">
                       <Database size={32} />
                     </div>
                   </div>
@@ -370,7 +436,7 @@ export default function SettingsPage() {
                 </CardContent>
                 <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
                   <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('system')}>Cancel</Button>
-                  <Button className="min-w-32 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
+                  <Button className="min-w-32 bg-linear-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
                     <Save size={16} />
                     Save Changes
                   </Button>
@@ -381,13 +447,13 @@ export default function SettingsPage() {
             {/* ML Settings */}
             {activeCategory === 'ml' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-violet-50 to-violet-100/50 dark:from-violet-950/40 dark:to-violet-900/30 border-b border-violet-200/50 dark:border-violet-700/40 p-5 sm:p-8">
+                <CardHeader className="bg-linear-to-r from-violet-50 to-violet-100/50 dark:from-violet-950/40 dark:to-violet-900/30 border-b border-violet-200/50 dark:border-violet-700/40 p-5 sm:p-8">
                   <div className="flex items-center justify-between gap-6">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">ML Prediction Settings</CardTitle>
                       <CardDescription className="text-sm mt-2">Configure machine learning and AI features</CardDescription>
                     </div>
-                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-violet-400 to-violet-600 dark:from-violet-500 dark:to-violet-700 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-linear-to-br from-violet-400 to-violet-600 dark:from-violet-500 dark:to-violet-700 flex items-center justify-center text-white shadow-lg shrink-0">
                       <Brain size={32} />
                     </div>
                   </div>
@@ -448,7 +514,7 @@ export default function SettingsPage() {
                 </CardContent>
                 <CardFooter className="bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-200/60 dark:border-slate-700/40 flex flex-wrap justify-end gap-3 pt-6">
                   <Button variant="outline" className="min-w-32 rounded-lg" onClick={() => handleCategoryCancel('ml')}>Cancel</Button>
-                  <Button className="min-w-32 bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
+                  <Button className="min-w-32 bg-linear-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white rounded-lg gap-2 shadow-lg hover:shadow-xl transition-all" onClick={handleSaveSettings}>
                     <Save size={16} />
                     Save Changes
                   </Button>
