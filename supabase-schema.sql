@@ -1,52 +1,4 @@
-ALTER TABLE student_schedules
-DROP CONSTRAINT IF EXISTS student_schedules_student_lrn_fkey;
 
-ALTER TABLE student_schedules
-ADD CONSTRAINT student_schedules_student_lrn_fkey
-FOREIGN KEY (student_lrn)
-REFERENCES students(lrn)
-ON UPDATE CASCADE
-ON DELETE CASCADE;
-
--- Place this at the end of the schema file
-ALTER TABLE student_schedules
-DROp CONSTRAINT IF EXISTS student_schedules_student_lrn_fkey;
-
-ALTER TABLE student_schedules
-ADD CONSTRAINT student_schedules_student_lrn_fkey
-FOREIGN KEY (student_lrn)
-REFERENCES students(lrn)
-ON UPDATE CASCADE
-ON DELETE CASCADE;
--- Ensure ON UPDATE CASCADE is set for student_schedules.student_lrn foreign key
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.table_constraints
-    WHERE constraint_name = 'student_schedules_student_lrn_fkey'
-      AND table_name = 'student_schedules'
-  ) THEN
-    EXECUTE 'ALTER TABLE student_schedules DROP CONSTRAINT student_schedules_student_lrn_fkey';
-  END IF;
-END$$;
-
-ALTER TABLE student_schedules
-ADD CONSTRAINT student_schedules_student_lrn_fkey
-FOREIGN KEY (student_lrn)
-REFERENCES students(lrn)
-ON UPDATE CASCADE
-ON DELETE CASCADE;
--- =========================
--- Fix foreign key for ON UPDATE CASCADE on student_schedules
-ALTER TABLE student_schedules
-DROP CONSTRAINT IF EXISTS student_schedules_student_lrn_fkey;
-
-ALTER TABLE student_schedules
-ADD CONSTRAINT student_schedules_student_lrn_fkey
-FOREIGN KEY (student_lrn)
-REFERENCES students(lrn)
-ON UPDATE CASCADE
-ON DELETE CASCADE;
 
 -- =========================
 -- Function: update_student_lrn
@@ -88,7 +40,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 -- Create students table
 CREATE TABLE IF NOT EXISTS students (
   id BIGSERIAL PRIMARY KEY,
-  lrn VARCHAR(50) UNIQUE NOT NULL,
+  lrn VARCHAR(50) UNIQUE,
   name VARCHAR(255) NOT NULL,
   gender VARCHAR(20) NOT NULL,
   birthday DATE NOT NULL,
@@ -168,6 +120,16 @@ CREATE TABLE IF NOT EXISTS student_schedules (
   CONSTRAINT student_schedule_day_valid CHECK (day_number BETWEEN 1 AND 7),
   CONSTRAINT student_schedule_unique UNIQUE (student_lrn, day_number, start_time, end_time, subject)
 );
+
+-- Add foreign key constraint for ON UPDATE CASCADE after table creation
+ALTER TABLE student_schedules
+  DROP CONSTRAINT IF EXISTS student_schedules_student_lrn_fkey;
+ALTER TABLE student_schedules
+  ADD CONSTRAINT student_schedules_student_lrn_fkey
+  FOREIGN KEY (student_lrn)
+  REFERENCES students(lrn)
+  ON UPDATE CASCADE
+  ON DELETE CASCADE;
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_students_lrn ON students(lrn);
 CREATE INDEX IF NOT EXISTS idx_students_level ON students(level);

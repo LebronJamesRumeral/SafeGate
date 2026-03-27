@@ -45,7 +45,9 @@ import {
   Info,
   Minus,
   Shield,
-  Zap
+  Zap,
+  Heart,
+  AlertOctagon
 } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
@@ -194,6 +196,8 @@ type EditableScheduleRow = {
 
 // Enforce consistent layout structure for students page
 export default function StudentsPage() {
+      // State for Undo dialog
+      const [undoDialogOpen, setUndoDialogOpen] = useState(false);
     // For LRN confirmation
     const [pendingLrn, setPendingLrn] = useState('');
     const [confirmLrnOpen, setConfirmLrnOpen] = useState(false);
@@ -207,7 +211,8 @@ export default function StudentsPage() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentSchoolYearLabel, setCurrentSchoolYearLabel] = useState('S.Y. 2025-2026');
+  const [currentSchoolYearLabel, setCurrentSchoolYearLabel] = useState('');
+  const [currentSchoolYear, setCurrentSchoolYear] = useState<{ label: string, start_date: string, end_date: string } | null>(null);
   const [showFilters, setShowFilters] = useState(true);
   const [activeTab, setActiveTab] = useState('list');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
@@ -217,8 +222,18 @@ export default function StudentsPage() {
   // Add state for editing student info
   const [editingStudentInfo, setEditingStudentInfo] = useState(false);
 
+  // Buffer for last name editing
+  const [editLastName, setEditLastName] = useState<string | null>(null);
+
   const handleConfirmStudentInfo = async () => {
-    // TODO: Save logic here (API call or update)
+    // Only update the name if last name was edited
+    if (editLastName !== null && selectedStudent) {
+      const nameParts = selectedStudent.name.trim().split(' ');
+      const firstMiddle = nameParts.slice(0, -1).join(' ');
+      const updatedName = `${firstMiddle}${firstMiddle ? ' ' : ''}${editLastName}`;
+      setSelectedStudent({ ...selectedStudent, name: updatedName });
+      setEditLastName(null);
+    }
     setEditingStudentInfo(false);
     toast({ title: 'Student info updated!', description: 'Student information was successfully updated.' });
   };
@@ -248,6 +263,12 @@ export default function StudentsPage() {
   const [previousStudentData, setPreviousStudentData] = useState<Student[]>([]);
   const [undoAvailable, setUndoAvailable] = useState(false);
   const [undoInProgress, setUndoInProgress] = useState(false);
+  // Track if school year advancement is pending confirmation
+  const [pendingSchoolYearConfirmation, setPendingSchoolYearConfirmation] = useState(false);
+  // Modal for final confirmation before processing
+  const [finalConfirmModalOpen, setFinalConfirmModalOpen] = useState(false);
+  // Modal for loading state after confirming advancement
+  const [schoolYearLoadingModalOpen, setSchoolYearLoadingModalOpen] = useState(false);
   const qrRef = useRef(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [behavioralData, setBehavioralData] = useState<any>(null);
@@ -287,6 +308,19 @@ export default function StudentsPage() {
     if (isMobile) {
       setShowFilters(false);
     }
+    // Fetch current school year from DB
+    (async () => {
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('school_years')
+        .select('label, start_date, end_date')
+        .eq('is_current', true)
+        .maybeSingle();
+      if (data) {
+        setCurrentSchoolYearLabel(data.label);
+        setCurrentSchoolYear(data);
+      }
+    })();
   }, [isMobile]);
 
   // Function to calculate duration
@@ -308,8 +342,114 @@ export default function StudentsPage() {
   };
 
   // School year advancement handler (fix: mark as async)
+  // Start school year advancement, but require confirmation
   const handleAdvanceSchoolYear = async () => {
-    // ...existing code...
+    if (!schoolYearStartDate || !schoolYearEndDate) {
+      toast({
+        title: 'Missing Dates',
+        description: 'Please select both start and end dates.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!supabase) {
+      toast({
+        title: 'Internal Error',
+        description: 'Supabase client not initialized',
+        variant: 'destructive',
+      });
+      return;
+    }
+    // Only set pending confirmation, do not advance yet
+    setPendingSchoolYearConfirmation(true);
+  };
+
+  // Show final confirmation modal before processing
+  const handleConfirmSchoolYear = () => {
+    setFinalConfirmModalOpen(true);
+  };
+
+  // Actually process advancement after final confirmation
+  const handleFinalConfirmSchoolYear = async () => {
+    setFinalConfirmModalOpen(false);
+    setSchoolYearLoadingModalOpen(true);
+    setPreviousStudentData(students); // Save for undo
+    setProcessingStudents({});
+    setProcessedCount(0);
+    setUndoAvailable(false);
+    setUndoInProgress(false);
+    try {
+      // 1. Advance students to next grade or graduate
+      let processed = 0;
+      for (const student of students) {
+        let newLevel = '';
+        let newStatus = student.status;
+        if (student.level === 'Grade 8') {
+          newLevel = 'Grade 8';
+          newStatus = 'graduated';
+        } else {
+          const idx = GRADE_LEVEL_OPTIONS.indexOf(student.level);
+          if (idx !== -1 && idx < GRADE_LEVEL_OPTIONS.length - 1) {
+            newLevel = GRADE_LEVEL_OPTIONS[idx + 1];
+          } else if (EARLY_LEVEL_OPTIONS.includes(student.level)) {
+            // Early levels advance
+            const earlyIdx = EARLY_LEVEL_OPTIONS.indexOf(student.level);
+            if (earlyIdx !== -1 && earlyIdx < EARLY_LEVEL_OPTIONS.length - 1) {
+              newLevel = EARLY_LEVEL_OPTIONS[earlyIdx + 1];
+            } else {
+              newLevel = 'Grade 1';
+            }
+          } else {
+            newLevel = student.level;
+          }
+        }
+        // Update student in DB
+        const { error } = await supabase
+          .from('students')
+          .update({
+            level: newLevel,
+            status: newStatus,
+          })
+          .eq('id', student.id);
+        if (error) {
+          toast({
+            title: `Failed to update ${student.name}`,
+            description: error.message,
+            variant: 'destructive',
+          });
+        }
+        processed++;
+        setProcessedCount(processed);
+      }
+      // 2. Create new school year record
+      const startYear = new Date(schoolYearStartDate).getFullYear();
+      const endYear = new Date(schoolYearEndDate).getFullYear();
+      const label = `S.Y. ${startYear}-${endYear}`;
+      await supabase.from('school_years').insert({
+        label,
+        start_date: schoolYearStartDate,
+        end_date: schoolYearEndDate,
+        is_current: true,
+      });
+      // 3. Mark previous school years as not current
+      await supabase.from('school_years').update({ is_current: false }).neq('label', label);
+      // 4. Sync to masterlist (if needed, add logic here)
+      toast({
+        title: 'School Year Advanced!',
+        description: 'All students have been advanced and data synced.',
+      });
+      setUndoAvailable(false); // revert to New School Year button after confirm
+      setPendingSchoolYearConfirmation(false);
+      fetchStudents();
+    } catch (error: any) {
+      toast({
+        title: 'Advancement Failed',
+        description: error.message || String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setSchoolYearLoadingModalOpen(false);
+    }
   };
   // Function to check if school day has ended based on per-student schedule or year level fallback
   const isSchoolDayEnded = (studentLevel: string, scheduledEndTime?: string): boolean => {
@@ -478,6 +618,10 @@ export default function StudentsPage() {
       const riskScorePromises = mappedStudents.map(async (student) => {
         try {
           const score = await calculateStudentRiskScore(student.lrn);
+          // If no score or no records, default to low
+          if (!score || !score.risk_level) {
+            return { lrn: student.lrn, score: { risk_level: 'low' } };
+          }
           return { lrn: student.lrn, score };
         } catch (error) {
           console.error(`Error fetching risk score for ${student.lrn}:`, error);
@@ -486,7 +630,7 @@ export default function StudentsPage() {
             description: error instanceof Error ? error.message : String(error),
             variant: 'destructive',
           });
-          return { lrn: student.lrn, score: null };
+          return { lrn: student.lrn, score: { risk_level: 'low' } };
         }
       });
 
@@ -611,7 +755,7 @@ export default function StudentsPage() {
       const { error } = await supabase
         .from('students')
         .insert({
-          lrn: newStudentForm.lrn.trim(),
+          lrn: newStudentForm.lrn.trim() === '' ? null : newStudentForm.lrn.trim(),
           name: newStudentForm.name.trim(),
           gender: newStudentForm.gender,
           birthday: newStudentForm.birthday,
@@ -694,10 +838,21 @@ export default function StudentsPage() {
       // Optionally refetch in background for full sync
       fetchStudents();
     } catch (error) {
+      // Try to extract useful error info
+      let errorMsg = '';
+      if (error instanceof Error) {
+        errorMsg = error.message;
+      } else if (error && typeof error === 'object') {
+        errorMsg = JSON.stringify(error);
+        if ('message' in error) errorMsg = error.message;
+        else if ('details' in error) errorMsg = error.details;
+      } else {
+        errorMsg = String(error);
+      }
       console.error('Error adding student:', error);
       toast({
         title: 'Failed to add student',
-        description: error instanceof Error ? error.message : String(error),
+        description: errorMsg || 'Unknown error',
         variant: 'destructive',
       });
     } finally {
@@ -1643,6 +1798,29 @@ export default function StudentsPage() {
   return (
     <DashboardLayout>
       {/* Confirmation Dialog for missing LRN */}
+      {/* Loading Modal for School Year Advancement */}
+      <Dialog open={schoolYearLoadingModalOpen}>
+        <DialogContent className="max-w-xs flex flex-col items-center justify-center gap-6 py-10">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold mb-1">Advancing School Year...</DialogTitle>
+          </DialogHeader>
+          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-2" />
+          <div className="w-full text-center">
+            <div className="text-sm text-muted-foreground mb-4">Please wait while we update student records.</div>
+            <div className="w-full bg-muted/50 rounded-lg h-3 overflow-hidden mb-2">
+              <motion.div
+                className="h-full bg-gradient-to-r from-blue-600 to-blue-500"
+                initial={{ width: 0 }}
+                animate={{ width: `${(processedCount / students.length) * 100}%` }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {processedCount} / {students.length} students processed
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog open={confirmNoLrnOpen} onOpenChange={setConfirmNoLrnOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -1706,144 +1884,248 @@ export default function StudentsPage() {
               <Download className="w-4 h-4" />
               Export
             </Button>
-            <Dialog open={newSchoolYearOpen} onOpenChange={handleSchoolYearDialogChange}>
-              <DialogTrigger asChild>
-                <Button variant="default" size="sm" className="gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600">
-                  <Calendar size={16} />
-                  New School Year
+            {/* School Year Advancement/Undo/Confirm Buttons */}
+            {pendingSchoolYearConfirmation ? (
+              <>
+                <Button
+                  variant="warning"
+                  size="sm"
+                  className="gap-2 bg-orange-400 hover:bg-orange-500 text-white font-semibold"
+                  onClick={() => {
+                    setPendingSchoolYearConfirmation(false);
+                    setUndoAvailable(false);
+                  }}
+                  style={{ minWidth: 0 }}
+                >
+                  Undo School Year
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="text-2xl font-bold">Start New School Year (S.Y. 2026-2027)</DialogTitle>
-                  <DialogDescription>Validate and advance {students.length} students to their new grade levels</DialogDescription>
-                </DialogHeader>
-                
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={processedCount === 0 ? 'initial' : 'processing'}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="space-y-4"
-                  >
-                    {processedCount === 0 && !undoInProgress ? (
-                      <>
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                              <label htmlFor="school-year-start" className="text-sm font-medium text-foreground">
-                                School Year Start Date
-                              </label>
-                              <Input
-                                id="school-year-start"
-                                type="date"
-                                value={schoolYearStartDate}
-                                onChange={(e) => setSchoolYearStartDate(e.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <label htmlFor="school-year-end" className="text-sm font-medium text-foreground">
-                                School Year End Date
-                              </label>
-                              <Input
-                                id="school-year-end"
-                                type="date"
-                                value={schoolYearEndDate}
-                                onChange={(e) => setSchoolYearEndDate(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          {schoolYearStartDate && schoolYearEndDate && new Date(schoolYearStartDate) > new Date(schoolYearEndDate) && (
-                            <p className="text-xs text-red-600 dark:text-red-400">
-                              End date must be on or after the start date.
-                            </p>
-                          )}
-                        </div>
-                        <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/50 rounded-lg p-4 space-y-3">
-                          <h3 className="font-semibold text-foreground flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-blue-600" />
-                            What will happen:
-                          </h3>
-                          <ul className="text-sm text-muted-foreground space-y-2">
-                            <li className="flex items-start gap-2">
-                              <span className="text-blue-600 dark:text-blue-400 font-bold">✓</span>
-                              <span>Students will be advanced to their next grade level</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-blue-600 dark:text-blue-400 font-bold">✓</span>
-                              <span>Grade 8 students will be marked as <strong>Graduated</strong></span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-blue-600 dark:text-blue-400 font-bold">✓</span>
-                              <span>All data will be synced to the Masterlist</span>
-                            </li>
-                          </ul>
-                        </div>
-                        <Button 
-                          onClick={handleAdvanceSchoolYear}
-                          variant="default"
-                          className="w-full"
-                          disabled={
-                            !schoolYearStartDate ||
-                            !schoolYearEndDate ||
-                            new Date(schoolYearStartDate) > new Date(schoolYearEndDate)
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+                  onClick={handleConfirmSchoolYear}
+                  style={{ minWidth: 0 }}
+                >
+                  Confirm School Year
+                </Button>
+                {/* Final confirmation modal */}
+                <Dialog open={finalConfirmModalOpen} onOpenChange={setFinalConfirmModalOpen}>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-bold">Are you sure you want to start the new school year?</DialogTitle>
+                      <DialogDescription>
+                        This will advance all students to their new grade levels and update the school year to <span className="font-semibold">S.Y. {(() => {
+                          const startYear = new Date(schoolYearStartDate).getFullYear();
+                          const endYear = new Date(schoolYearEndDate).getFullYear();
+                          return `${startYear}-${endYear}`;
+                        })()}</span>.<br />
+                        This action cannot be undone except by using the Undo School Year function.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex gap-3 justify-end mt-6">
+                      <Button variant="outline" onClick={() => setFinalConfirmModalOpen(false)}>Cancel</Button>
+                      <Button variant="default" onClick={handleFinalConfirmSchoolYear}>Yes, Start New School Year</Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </>
+            ) : undoAvailable && processedCount === students.length && !undoInProgress ? (
+              <>
+                <Button
+                  variant="warning"
+                  size="sm"
+                  className="gap-2 bg-orange-400 hover:bg-orange-500 text-white font-semibold"
+                  onClick={() => setUndoDialogOpen(true)}
+                  style={{ minWidth: 0 }}
+                >
+                  Undo School Year
+                </Button>
+                <Dialog open={undoDialogOpen} onOpenChange={setUndoDialogOpen}>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-bold">Undo School Year Advancement</DialogTitle>
+                      <DialogDescription>
+                        {(() => {
+                          if (currentSchoolYear) {
+                            const prevStart = new Date(currentSchoolYear.start_date);
+                            prevStart.setFullYear(prevStart.getFullYear() - 1);
+                            const prevEnd = new Date(currentSchoolYear.end_date);
+                            prevEnd.setFullYear(prevEnd.getFullYear() - 1);
+                            return `This will revert all students back to their previous grade levels and restore S.Y. ${prevStart.getFullYear()}-${prevEnd.getFullYear()}.`;
                           }
-                        >
-                          Proceed with School Year Advancement
-                        </Button>
-                        <Button 
-                          onClick={() => handleSchoolYearDialogChange(false)}
-                          variant="outline"
-                          className="w-full"
-                        >
-                          Cancel
-                        </Button>
-                      </>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">
-                              {undoInProgress ? 'Reverting Changes...' : 'Processing Students...'}
-                            </span>
-                            <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
-                              {processedCount} / {students.length}
-                            </span>
+                          return 'This will revert all students back to their previous grade levels and restore the previous school year.';
+                        })()}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-4 mt-4">
+                      <Button
+                        onClick={handleUndoSchoolYear}
+                        disabled={undoInProgress}
+                        variant="secondary"
+                        className="w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {(() => {
+                          if (currentSchoolYear) {
+                            const prevStart = new Date(currentSchoolYear.start_date);
+                            prevStart.setFullYear(prevStart.getFullYear() - 1);
+                            const prevEnd = new Date(currentSchoolYear.end_date);
+                            prevEnd.setFullYear(prevEnd.getFullYear() - 1);
+                            return `Undo Changes (Back to S.Y. ${prevStart.getFullYear()}-${prevEnd.getFullYear()})`;
+                          }
+                          return 'Undo Changes (Back to Previous S.Y.)';
+                        })()}
+                      </Button>
+                      <Button
+                        onClick={() => setUndoDialogOpen(false)}
+                        variant="outline"
+                        className="w-full"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </>
+            ) : (
+              <Dialog open={newSchoolYearOpen} onOpenChange={handleSchoolYearDialogChange}>
+                <DialogTrigger asChild>
+                  <Button variant="default" size="sm" className="gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600">
+                    <Calendar size={16} />
+                    New School Year
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl font-bold">
+                      {(() => {
+                        if (currentSchoolYear) {
+                          const prevStart = new Date(currentSchoolYear.start_date);
+                          const nextStart = new Date(prevStart);
+                          nextStart.setFullYear(prevStart.getFullYear() + 1);
+                          const nextEnd = new Date(currentSchoolYear.end_date);
+                          nextEnd.setFullYear(nextEnd.getFullYear() + 1);
+                          return `Start New School Year (Current S.Y. ${nextStart.getFullYear()}-${nextEnd.getFullYear()})`;
+                        }
+                        return 'Start New School Year';
+                      })()}
+                    </DialogTitle>
+                    <DialogDescription>Validate and advance {students.length} students to their new grade levels</DialogDescription>
+                  </DialogHeader>
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={processedCount === 0 ? 'initial' : 'processing'}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-4"
+                    >
+                      {processedCount === 0 && !undoInProgress ? (
+                        <>
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <label htmlFor="school-year-start" className="text-sm font-medium text-foreground">
+                                  School Year Start Date
+                                </label>
+                                <Input
+                                  id="school-year-start"
+                                  type="date"
+                                  value={schoolYearStartDate}
+                                  onChange={(e) => setSchoolYearStartDate(e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <label htmlFor="school-year-end" className="text-sm font-medium text-foreground">
+                                  School Year End Date
+                                </label>
+                                <Input
+                                  id="school-year-end"
+                                  type="date"
+                                  value={schoolYearEndDate}
+                                  onChange={(e) => setSchoolYearEndDate(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            {schoolYearStartDate && schoolYearEndDate && new Date(schoolYearStartDate) > new Date(schoolYearEndDate) && (
+                              <p className="text-xs text-red-600 dark:text-red-400">
+                                End date must be on or after the start date.
+                              </p>
+                            )}
                           </div>
-                          <div className="w-full bg-muted/50 rounded-lg h-3 overflow-hidden">
-                            <motion.div 
-                              className="h-full bg-gradient-to-r from-blue-600 to-blue-500"
-                              initial={{ width: 0 }}
-                              animate={{ width: `${(processedCount / students.length) * 100}%` }}
-                              transition={{ duration: 0.3 }}
-                            />
+                          <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/50 rounded-lg p-4 space-y-3">
+                            <h3 className="font-semibold text-foreground flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-blue-600" />
+                              What will happen:
+                            </h3>
+                            <ul className="text-sm text-muted-foreground space-y-2">
+                              <li className="flex items-start gap-2">
+                                <span className="text-blue-600 dark:text-blue-400 font-bold">✓</span>
+                                <span>Students will be advanced to their next grade level</span>
+                              </li>
+                              <li className="flex items-start gap-2">
+                                <span className="text-blue-600 dark:text-blue-400 font-bold">✓</span>
+                                <span>Grade 8 students will be marked as <strong>Graduated</strong></span>
+                              </li>
+                              <li className="flex items-start gap-2">
+                                <span className="text-blue-600 dark:text-blue-400 font-bold">✓</span>
+                                <span>All data will be synced to the Masterlist</span>
+                              </li>
+                            </ul>
                           </div>
-                          <p className="text-xs text-muted-foreground text-center">
-                            {undoInProgress 
-                              ? 'Restoring previous data...'
-                              : processedCount === students.length 
-                              ? '✓ All students processed successfully!'
-                              : 'Please wait while we update student records...'}
-                          </p>
-                        </div>
-                        
-                        {processedCount === students.length && !undoInProgress && undoAvailable && (
                           <Button 
-                            onClick={handleUndoSchoolYear}
-                            disabled={undoInProgress}
-                            variant="secondary"
-                            className="w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={handleAdvanceSchoolYear}
+                            variant="default"
+                            className="w-full"
+                            disabled={
+                              !schoolYearStartDate ||
+                              !schoolYearEndDate ||
+                              new Date(schoolYearStartDate) > new Date(schoolYearEndDate)
+                            }
                           >
-                            Undo Changes (Back to S.Y. 2025-2026)
+                            Proceed with School Year Advancement
                           </Button>
-                        )}
-                      </div>
-                    )}
-                  </motion.div>
-                </AnimatePresence>
-              </DialogContent>
-            </Dialog>
+                          <Button 
+                            onClick={() => handleSchoolYearDialogChange(false)}
+                            variant="outline"
+                            className="w-full"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">
+                                {undoInProgress ? 'Reverting Changes...' : 'Processing Students...'}
+                              </span>
+                              <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                                {processedCount} / {students.length}
+                              </span>
+                            </div>
+                            <div className="w-full bg-muted/50 rounded-lg h-3 overflow-hidden">
+                              <motion.div 
+                                className="h-full bg-gradient-to-r from-blue-600 to-blue-500"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${(processedCount / students.length) * 100}%` }}
+                                transition={{ duration: 0.3 }}
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground text-center">
+                              {undoInProgress 
+                                ? 'Restoring previous data...'
+                                : processedCount === students.length 
+                                ? '✓ All students processed successfully!'
+                                : 'Please wait while we update student records...'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
+                </DialogContent>
+              </Dialog>
+            )}
             <Dialog
               open={addStudentOpen}
               onOpenChange={(open) => {
@@ -1859,8 +2141,8 @@ export default function StudentsPage() {
                   Add Student
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[82vw] max-w-6xl max-h-[92vh] overflow-hidden p-0 flex flex-col">
-                <div className="max-h-[92vh] overflow-y-auto p-6 md:p-8 space-y-4">
+              <DialogContent className="w-[96vw] max-w-5xl lg:max-w-4xl h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
+                <div className="flex-1 max-h-[92vh] overflow-y-auto p-6 md:p-8 space-y-4">
                   <DialogHeader>
                     <DialogTitle className="text-xl font-bold">Add New Student</DialogTitle>
                     <DialogDescription>Fill out the required details to register a student.</DialogDescription>
@@ -2063,22 +2345,24 @@ export default function StudentsPage() {
                     />
                   </div>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setAddStudentOpen(false)}
-                      disabled={addingStudent}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleAddStudent}
-                      disabled={addingStudent}
-                    >
-                      {addingStudent ? <span className="flex items-center gap-2"><Loader2 className="animate-spin w-4 h-4" /> Saving...</span> : 'Save Student'}
-                    </Button>
-                  </div>
+                </div>
+                {/* Sticky footer for actions */}
+                <div className="flex-shrink-0 border-t bg-white dark:bg-slate-900/80 px-6 md:px-8 py-4 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-end items-stretch sm:items-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setAddStudentOpen(false)}
+                    disabled={addingStudent}
+                    className="w-full sm:w-auto"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleAddStudent}
+                    disabled={addingStudent}
+                    className="w-full sm:w-auto"
+                  >
+                    {addingStudent ? <span className="flex items-center gap-2"><Loader2 className="animate-spin w-4 h-4" /> Saving...</span> : 'Save Student'}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -2389,7 +2673,18 @@ export default function StudentsPage() {
                                       {student.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <span className="font-medium">{student.name}</span>
+                                  <span className="font-medium break-all whitespace-pre-line leading-tight">
+                                    {(() => {
+                                      const parts = student.name.split(' ');
+                                      if (parts.length > 1) {
+                                        return parts.map((p, i) => (
+                                          <span key={i} className="block">{p}</span>
+                                        ));
+                                      } else {
+                                        return student.name;
+                                      }
+                                    })()}
+                                  </span>
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -2566,23 +2861,39 @@ export default function StudentsPage() {
                                           </TabsList>
 
                                           <TabsContent value="overview" className="space-y-4 mt-4">
-                                            {/* Risk Banner */}
-                                            {riskScore && (
-                                              <div className={`${riskColors.bg} ${riskColors.color} rounded-lg p-4 border ${riskColors.border}`}>
-                                                <div className="flex items-center gap-3">
-                                                  <RiskIcon className="w-6 h-6" />
-                                                  <div>
-                                                    <p className="font-semibold text-lg">Risk Level: {riskLevel.toUpperCase()}</p>
-                                                    <p className="text-sm text-current/90">
-                                                      Risk Score: {riskScore.risk_score.toFixed(1)}/100 • Confidence: {riskScore.confidence.toFixed(0)}%
-                                                    </p>
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            )}
 
                                             {/* Student Info Grid */}
                                             <div className="grid grid-cols-2 gap-4 relative">
+                                              {/* Name Section - Only Last Name Editable */}
+                                              {(() => {
+                                                // Split name into parts
+                                                const nameParts = selectedStudent.name.trim().split(' ');
+                                                const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+                                                const firstMiddle = nameParts.slice(0, -1).join(' ');
+                                                return (
+                                                  <div className="col-span-2 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
+                                                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                                      <User className="w-3 h-3" />
+                                                      Name
+                                                    </p>
+                                                    <div className="flex gap-2 w-full max-w-md">
+                                                      <Input
+                                                        value={firstMiddle}
+                                                        disabled
+                                                        className="font-medium w-1/2 bg-slate-100 dark:bg-slate-800/50"
+                                                        placeholder="First & Middle Name"
+                                                      />
+                                                      <Input
+                                                        value={editLastName !== null ? editLastName : lastName}
+                                                        onChange={e => setEditLastName(e.target.value)}
+                                                        placeholder="Last Name"
+                                                        className="font-medium w-1/2"
+                                                        disabled={!editingStudentInfo}
+                                                      />
+                                                    </div>
+                                                  </div>
+                                                );
+                                              })()}
                                               <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
                                                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                                                   <Calendar className="w-3 h-3" />
@@ -2654,7 +2965,12 @@ export default function StudentsPage() {
                                               {/* Edit/Confirm Button */}
                                               <div className="absolute bottom-4 right-8 flex gap-2">
                                                 {!editingStudentInfo ? (
-                                                  <Button size="sm" variant="outline" className="min-w-[100px]" onClick={() => setEditingStudentInfo(true)}>
+                                                  <Button size="sm" variant="outline" className="min-w-[100px]" onClick={() => {
+                                                    // When entering edit mode, buffer the last name
+                                                    const nameParts = selectedStudent.name.trim().split(' ');
+                                                    setEditLastName(nameParts.length > 1 ? nameParts[nameParts.length - 1] : '');
+                                                    setEditingStudentInfo(true);
+                                                  }}>
                                                     Edit Info
                                                   </Button>
                                                 ) : (
@@ -2888,34 +3204,78 @@ export default function StudentsPage() {
                                             ) : behavioralData ? (
                                               <>
                                                 {/* Stats Grid */}
-                                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                                  <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900/50 rounded-lg p-4">
-                                                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400 mb-2">
-                                                      <CheckCircle className="w-4 h-4" />
-                                                      <span className="text-xs font-semibold">Positive</span>
-                                                    </div>
-                                                    <p className="text-3xl font-bold text-green-800 dark:text-green-300">{behavioralData.stats.positiveEvents}</p>
+                                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+                                                  {/* Total Events Card */}
+                                                  <div>
+                                                    <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                                                      <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
+                                                      <div className="absolute bottom-0 left-0 w-10 h-10 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
+                                                      <CardContent className="p-3 sm:p-4 flex items-center justify-between relative z-10">
+                                                        <div>
+                                                          <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Total Events</p>
+                                                          <div className="text-lg sm:text-xl font-bold text-blue-600 dark:text-blue-400">{behavioralData.stats.totalEvents}</div>
+                                                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">all behavioral events</p>
+                                                        </div>
+                                                        <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                                                          <Activity className="w-5 h-5" />
+                                                        </div>
+                                                      </CardContent>
+                                                      <div className="h-1 w-full bg-linear-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
+                                                    </Card>
                                                   </div>
-                                                  <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg p-4">
-                                                    <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-2">
-                                                      <AlertTriangle className="w-4 h-4" />
-                                                      <span className="text-xs font-semibold">Negative</span>
-                                                    </div>
-                                                    <p className="text-3xl font-bold text-red-800 dark:text-red-300">{behavioralData.stats.negativeEvents}</p>
+                                                  {/* Positive Events Card */}
+                                                  <div>
+                                                    <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                                                      <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
+                                                      <div className="absolute bottom-0 left-0 w-10 h-10 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
+                                                      <CardContent className="p-3 sm:p-4 flex items-center justify-between relative z-10">
+                                                        <div>
+                                                          <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Positive Events</p>
+                                                          <div className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">{behavioralData.stats.positiveEvents}</div>
+                                                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">reinforcing progress</p>
+                                                        </div>
+                                                        <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                                                          <Heart className="w-5 h-5" />
+                                                        </div>
+                                                      </CardContent>
+                                                      <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
+                                                    </Card>
                                                   </div>
-                                                  <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-lg p-4">
-                                                    <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400 mb-2">
-                                                      <Minus className="w-4 h-4" />
-                                                      <span className="text-xs font-semibold">Minor</span>
-                                                    </div>
-                                                    <p className="text-3xl font-bold text-yellow-800 dark:text-yellow-300">{behavioralData.stats.minorEvents}</p>
+                                                  {/* Negative Events Card */}
+                                                  <div>
+                                                    <Card className="border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                                                      <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
+                                                      <div className="absolute bottom-0 left-0 w-10 h-10 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
+                                                      <CardContent className="p-3 sm:p-4 flex items-center justify-between relative z-10">
+                                                        <div>
+                                                          <p className="text-[10px] sm:text-xs text-rose-600 dark:text-rose-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Negative Events</p>
+                                                          <div className="text-lg sm:text-xl font-bold text-rose-600 dark:text-rose-400">{behavioralData.stats.negativeEvents}</div>
+                                                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">major/critical incidents</p>
+                                                        </div>
+                                                        <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-lg shadow-rose-500/25 dark:shadow-rose-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                                                          <AlertOctagon className="w-5 h-5" />
+                                                        </div>
+                                                      </CardContent>
+                                                      <div className="h-1 w-full bg-linear-to-r from-rose-400 to-rose-600 dark:from-rose-500 dark:to-rose-700" />
+                                                    </Card>
                                                   </div>
-                                                  <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-lg p-4">
-                                                    <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 mb-2">
-                                                      <Activity className="w-4 h-4" />
-                                                      <span className="text-xs font-semibold">Total</span>
-                                                    </div>
-                                                    <p className="text-3xl font-bold text-blue-800 dark:text-blue-300">{behavioralData.stats.totalEvents}</p>
+                                                  {/* Minor Events Card */}
+                                                  <div>
+                                                    <Card className="border-0 bg-linear-to-br from-yellow-50 to-white dark:from-yellow-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                                                      <div className="absolute top-0 right-0 w-16 h-16 bg-yellow-500/10 dark:bg-yellow-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
+                                                      <div className="absolute bottom-0 left-0 w-10 h-10 bg-yellow-500/5 dark:bg-yellow-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
+                                                      <CardContent className="p-3 sm:p-4 flex items-center justify-between relative z-10">
+                                                        <div>
+                                                          <p className="text-[10px] sm:text-xs text-yellow-600 dark:text-yellow-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Minor Events</p>
+                                                          <div className="text-lg sm:text-xl font-bold text-yellow-600 dark:text-yellow-400">{behavioralData.stats.minorEvents}</div>
+                                                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">minor incidents</p>
+                                                        </div>
+                                                        <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-yellow-500 to-yellow-600 text-white items-center justify-center shadow-lg shadow-yellow-500/25 dark:shadow-yellow-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                                                          <Minus className="w-5 h-5" />
+                                                        </div>
+                                                      </CardContent>
+                                                      <div className="h-1 w-full bg-linear-to-r from-yellow-400 to-yellow-600 dark:from-yellow-500 dark:to-yellow-700" />
+                                                    </Card>
                                                   </div>
                                                 </div>
 

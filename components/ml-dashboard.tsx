@@ -811,7 +811,7 @@ export function MLDashboard() {
             const colors = getRiskColor(student.riskLevel);
             return (
               <motion.div
-                key={student.lrn}
+                key={student.lrn ?? `student-${index}`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}

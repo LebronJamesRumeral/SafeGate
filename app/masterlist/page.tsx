@@ -114,7 +114,7 @@ export default function MasterlistPage() {
 
   // Count statistics
   const activeCount = students.filter(s => (s.status || 'active') === 'active').length;
-  const graduatedCount = students.filter(s => (s.status || 'active') === 'graduated').length;
+  const undergradCount = students.filter(s => (s.status || 'active') === 'undergrad').length;
 
   const exportMasterlist = async () => {
     const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Status', 'Parent Name', 'Parent Contact', 'Parent Email', 'Address'];
@@ -330,16 +330,16 @@ export default function MasterlistPage() {
             </Card>
           </div>
 
-          {/* Graduated Students Card */}
+          {/* Undergrad Students Card */}
           <div className="relative group">
             <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden group-hover:shadow-2xl transition-all duration-300">
               <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-8 -mt-8 group-hover:scale-150 transition-transform duration-500" />
               <div className="absolute bottom-0 left-0 w-12 h-12 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-6 -mb-6 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-4 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Graduated</p>
-                  <div className="text-xl sm:text-3xl font-bold text-orange-600 dark:text-orange-400">{graduatedCount}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">alumni records</p>
+                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Undergrad</p>
+                  <div className="text-xl sm:text-3xl font-bold text-orange-600 dark:text-orange-400">{undergradCount}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">not yet graduated</p>
                 </div>
                 <div className="hidden sm:flex w-10 h-10 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                   <GraduationCap size={22} />
@@ -395,7 +395,7 @@ export default function MasterlistPage() {
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="graduated">Graduated</SelectItem>
+                    <SelectItem value="undergrad">Undergrad</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -451,7 +451,7 @@ export default function MasterlistPage() {
                           {(student.status || 'active') === 'active' ? (
                             <Badge className="bg-success/20 text-success border-success/30 font-medium">Active</Badge>
                           ) : (
-                            <Badge className="bg-info/20 text-info border-info/30 font-medium">Graduated</Badge>
+                            <Badge className="bg-info/20 text-info border-info/30 font-medium">Undergrad</Badge>
                           )}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
@@ -488,7 +488,7 @@ export default function MasterlistPage() {
                             <DialogContent className="max-w-md">
                               <DialogHeader>
                                 <DialogTitle className="text-2xl font-bold">{selectedStudent?.name}</DialogTitle>
-                                <DialogDescription>{selectedStudent?.lrn} • {selectedStudent?.level} • {(selectedStudent?.status || 'active') === 'active' ? 'Active' : 'Graduated'}</DialogDescription>
+                                <DialogDescription>{selectedStudent?.lrn} • {selectedStudent?.level} • {(selectedStudent?.status || 'active') === 'active' ? 'Active' : 'Undergrad'}</DialogDescription>
                               </DialogHeader>
                               <div className="space-y-4">
                                 <div className="border-t border-border/40 pt-4">

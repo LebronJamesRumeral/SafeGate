@@ -192,11 +192,14 @@ async function getSimpleRiskScore(studentLrn: string): Promise<RiskScore | null>
 
     // console.log(`[ML FALLBACK] Found ${schoolDays} school days for ${studentLrn}`);
 
-    // Estimate based on simple checks
+
+    // If no attendance records, treat as new student: risk is low
     let simpleRiskScore = 0;
     let riskLevel: 'low' | 'medium' | 'high' | 'critical' = 'low';
-
-    if (schoolDays < 20) {
+    if (schoolDays === 0) {
+      simpleRiskScore = 0;
+      riskLevel = 'low';
+    } else if (schoolDays < 20) {
       simpleRiskScore = 70; // Low attendance = high risk
       riskLevel = 'high';
     } else if (schoolDays < 30) {
