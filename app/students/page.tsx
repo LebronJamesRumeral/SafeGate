@@ -229,7 +229,7 @@ export default function StudentsPage() {
         });
         return;
       }
-      // 2. Prepare password: lastnameSafegate
+      // 2. Prepare password: parent's last name (lowercase) + 'Safegate'
       const nameParts = student.name.trim().split(' ');
       const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1].toLowerCase() : nameParts[0].toLowerCase();
       const password = `${lastName}Safegate`;

@@ -24,6 +24,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 
 export const SidebarContext = createContext<{ collapsed: boolean; setCollapsed: (v: boolean) => void }>({ collapsed: false, setCollapsed: () => {} })
 
+
 const allNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/", roles: ["admin", "teacher", "guidance"] },
   { icon: AlertTriangle, label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin", "guidance"] },
@@ -34,8 +35,11 @@ const allNavItems = [
   { icon: Users, label: "Students", href: "/students", roles: ["teacher", "admin", "guidance"] },
   { icon: MapPinned, label: "School Heatmap", href: "/school-heatmap", roles: ["teacher", "admin", "guidance"] },
   { icon: BarChart3, label: "Analytics", href: "/analytics", roles: ["admin", "guidance"] },
-  
   { icon: Settings, label: "Settings", href: "/settings", roles: ["admin"] },
+  // Parent dashboard nav item
+  { icon: Users, label: "Parent Dashboard", href: "/parent", roles: ["parent"] },
+  { icon: CalendarDays, label: "Attendance", href: "/parent-attendance", roles: ["parent"] },
+  { icon: AlertTriangle, label: "Behavioral Events", href: "/parent-behavior", roles: ["parent"] },
 ]
 
 const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
@@ -50,7 +54,7 @@ export function Sidebar() {
   // Filter nav items based on user role
   const navItems = user ? allNavItems.filter(item => item.roles.includes(user.role)) : []
   const mobilePrimaryNavItems = navItems
-    .filter((item) => mobilePrimaryHrefs.includes(item.href))
+    .filter((item) => mobilePrimaryHrefs.includes(item.href) || item.href === "/parent")
     .sort((a, b) => mobilePrimaryHrefs.indexOf(a.href) - mobilePrimaryHrefs.indexOf(b.href))
 
   const getMobileLabel = (href: string, label: string) => {

@@ -32,7 +32,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check if user is logged in
     const storedUser = localStorage.getItem('safegate_user');
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      const parsed = JSON.parse(storedUser);
+      // Always set username to email for consistency
+      setUser({
+        ...parsed,
+        username: parsed.email || parsed.username || '',
+      });
     } else if (!publicPaths.includes(pathname)) {
       router.push('/login');
     }
@@ -53,18 +58,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error || !data.user) {
         return false;
       }
+      const role = data.user.user_metadata?.role || 'user';
       setUser({
         id: data.user.id,
         username: data.user.email ?? '',
         full_name: data.user.user_metadata?.full_name || '',
-        role: data.user.user_metadata?.role || 'user',
+        role,
       });
       // Store the user with role in localStorage for persistence
       localStorage.setItem('safegate_user', JSON.stringify({
         ...data.user,
-        role: data.user.user_metadata?.role || 'user',
+        role,
       }));
-      router.push('/');
+      // Redirect parent to /parent, others to home
+      if (role === 'parent') {
+        router.push('/parent');
+      } else {
+        router.push('/');
+      }
       return true;
     } catch (error) {
       console.error('Login error:', error);

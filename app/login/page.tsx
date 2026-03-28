@@ -78,7 +78,7 @@ export default function LoginPage() {
     // Fetch the latest user from Supabase after login
     const { data, error } = await supabase.auth.getUser();
     const role = (data?.user?.user_metadata?.role || '').toLowerCase();
-    const allowedRoles = ['teacher', 'admin', 'guidance'];
+    const allowedRoles = ['teacher', 'admin', 'guidance', 'parent'];
     if (!allowedRoles.includes(role)) {
       await logout();
       setError('Your account role is not allowed in this system. Please contact an administrator.');
@@ -92,7 +92,7 @@ export default function LoginPage() {
     }
     toast({
       title: 'Login Successful',
-      description: `Welcome, ${role.charAt(0).toUpperCase() + role.slice(1)}!`,
+      description: `Welcome, ${role === 'parent' ? 'Parent' : role.charAt(0).toUpperCase() + role.slice(1)}!`,
       variant: 'default',
     });
     setLoading(false);
