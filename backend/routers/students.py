@@ -2,12 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
+
 from database import get_db
 from schemas import StudentCreate, StudentUpdate, StudentResponse, StudentDashboard, StudentWithParentLink
 from schemas import AttendanceStats, BehaviorStats, RiskScoreResponse
 from services import StudentService, AttendanceService, BehaviorService, RiskScoringService
 from sqlalchemy import exists
 from models import Parent
+
+router = APIRouter(prefix="/api/students", tags=["students"])
+
 
 # Endpoint: Get students with parent linkage status
 @router.get("/with-parent-link", response_model=List[StudentWithParentLink])
