@@ -7,6 +7,19 @@ import enum
 from database import Base
 
 
+
+# Parent model
+class Parent(Base):
+    """Parent model for storing parent information."""
+    __tablename__ = "parents"
+    id = Column(Integer, primary_key=True, index=True)
+    parent_email = Column(String(255), unique=True, index=True, nullable=False)
+    full_name = Column(String(255))
+    contact = Column(String(50))
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
 class Student(Base):
     """Student model for storing student information."""
     __tablename__ = "students"
@@ -18,6 +31,7 @@ class Student(Base):
     email = Column(String(255), unique=True, index=True)
     class_level = Column(String(50))
     is_active = Column(Boolean, default=True)
+    parent_email = Column(String(255), index=True)
     
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

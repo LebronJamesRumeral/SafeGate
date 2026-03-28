@@ -3,14 +3,14 @@ from sqlalchemy import func, and_
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from models import Student, Attendance, BehaviorEvent, RiskScore
+from models import Student, Attendance, BehaviorEvent, RiskScore, Parent
 from schemas import AttendanceCreate, AttendanceUpdate, AttendanceStats
 from schemas import BehaviorEventCreate, BehaviorEventUpdate, BehaviorStats
 from schemas import StudentCreate, StudentUpdate
 
 
-class StudentService:
     """Service for student-related operations."""
+    Student = Student  # Expose Student model for router usage
     
     @staticmethod
     def create_student(db: Session, student: StudentCreate) -> Student:

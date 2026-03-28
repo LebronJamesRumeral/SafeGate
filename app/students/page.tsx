@@ -52,7 +52,10 @@ import {
 import { useState, useRef, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
-import { supabase, type Student } from '@/lib/supabase';
+import { supabase, type Student as BaseStudent } from '@/lib/supabase';
+
+// Extend Student type to include isLinked for local use
+type Student = BaseStudent & { isLinked?: boolean };
 import { toast } from '@/hooks/use-toast';
 import { sortByLevel } from '@/lib/level-order';
 import { calculateStudentRiskScore, getActionRecommendations, type RiskScore } from '@/lib/ml-risk-calculator';
@@ -242,14 +245,23 @@ export default function StudentsPage() {
         }),
       });
       const addData = await addRes.json();
-      if (addData.success) {
+      if (addData.success && addData.user?.id) {
+        // 4. Update parents table to set user_id for this parent_email
+        if (supabase) {
+          await supabase
+            .from('parents')
+            .update({ user_id: addData.user.id })
+            .eq('parent_email', parentEmail);
+        }
         toast({
           title: 'Parent Account Created',
-          description: `Account for ${parentEmail} created successfully.`,
+          description: `Account for ${parentEmail} created and linked successfully.`,
           variant: 'default',
         });
         // Update validated emails state so button disappears
         setValidatedParentEmails((prev) => [...prev, parentEmail.toLowerCase()]);
+        // Refetch students to update linkage immediately
+        fetchStudents();
       } else {
         toast({
           title: 'Failed to Create Account',
@@ -564,133 +576,50 @@ export default function StudentsPage() {
     }
   }, []);
 
+  // Fetch students and parents from Supabase, compute linkage in frontend
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      
+
       if (!supabase) {
-        const msg = 'Supabase client not initialized';
-        console.error(msg);
         toast({
-          title: 'Internal Error',
-          description: msg,
+          title: 'Database not connected',
+          description: 'Supabase client is not initialized.',
           variant: 'destructive',
         });
         return;
       }
-      
-      const { data, error } = await supabase
+
+      // Fetch all students
+      const { data: studentsData, error: studentsError } = await supabase
         .from('students')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*');
+      if (studentsError) throw studentsError;
 
-      const { data: currentSchoolYear } = await supabase
-        .from('school_years')
-        .select('label, start_date, end_date')
-        .eq('is_current', true)
-        .maybeSingle();
+      // Fetch all parents (emails and user_id for linkage)
+      const { data: parentsData, error: parentsError } = await supabase
+        .from('parents')
+        .select('parent_email, user_id');
+      if (parentsError) throw parentsError;
 
-      if (currentSchoolYear?.label) {
-        setCurrentSchoolYearLabel(currentSchoolYear.label);
-      } else if (currentSchoolYear?.start_date && currentSchoolYear?.end_date) {
-        const startYear = new Date(currentSchoolYear.start_date).getFullYear();
-        const endYear = new Date(currentSchoolYear.end_date).getFullYear();
-        if (!Number.isNaN(startYear) && !Number.isNaN(endYear)) {
-          setCurrentSchoolYearLabel(`S.Y. ${startYear}-${endYear}`);
-        }
-      }
+      // Only consider parent as linked if user_id is not null
+      const parentEmailSet = new Set(
+        (parentsData || [])
+          .filter((p: any) => p.user_id)
+          .map((p: any) => (p.parent_email || '').trim().toLowerCase())
+      );
 
-      if (error) {
-        toast({
-          title: 'Failed to fetch students',
-          description: error.message || String(error),
-          variant: 'destructive',
-        });
-        throw error;
-      }
-
-      const today = new Date().toISOString().split('T')[0];
-      const todayDayNumber = new Date().getDay();
-      const { data: attendance, error: attendanceError } = await supabase
-        .from('attendance_logs')
-        .select('student_lrn, check_in_time, check_out_time')
-        .eq('date', today);
-
-      if (attendanceError) {
-        toast({
-          title: 'Failed to fetch attendance',
-          description: attendanceError.message || String(attendanceError),
-          variant: 'destructive',
-        });
-        throw attendanceError;
-      }
-
-      let scheduleEndByLrn: Record<string, string> = {};
-      if (todayDayNumber >= 1 && todayDayNumber <= 5) {
-        const { data: todaySchedules, error: scheduleError } = await supabase
-          .from('student_schedules')
-          .select('student_lrn, end_time')
-          .eq('is_active', true)
-          .eq('day_number', todayDayNumber)
-          .order('end_time', { ascending: true });
-
-        if (scheduleError) {
-          console.warn('Unable to load student schedule end times:', scheduleError);
-        } else if (todaySchedules) {
-          todaySchedules.forEach((entry) => {
-            const existingEnd = scheduleEndByLrn[entry.student_lrn];
-            if (!existingEnd || entry.end_time > existingEnd) {
-              scheduleEndByLrn[entry.student_lrn] = entry.end_time;
-            }
-          });
-        }
-      }
-
-      // If school day has ended, reset all unchecked-out students to "not checked in"
-      const attendanceMap: Record<string, any> = {};
-      
-      if (attendance && attendance.length > 0) {
-        attendance.forEach((entry) => {
-          const student = data.find((s: Student) => s.lrn === entry.student_lrn);
-          if (student) {
-            const scheduledEndTime = scheduleEndByLrn[entry.student_lrn];
-            const schoolDayEnded = isSchoolDayEnded(student.level, scheduledEndTime);
-            
-            if (schoolDayEnded && !entry.check_out_time) {
-              // School day ended and student hasn't checked out
-              attendanceMap[entry.student_lrn] = {
-                checkInTime: entry.check_in_time,
-                checkOutTime: undefined,
-                passedDayEnd: true,
-                scheduledEndTime,
-              };
-            } else {
-              attendanceMap[entry.student_lrn] = {
-                checkInTime: entry.check_in_time,
-                checkOutTime: entry.check_out_time || undefined,
-                scheduledEndTime,
-              };
-            }
-          }
-        });
-      }
-
-      setAttendanceByLrn(attendanceMap);
-      toast({
-        title: 'Students Loaded',
-        description: 'Student and attendance data loaded successfully.',
-        variant: 'default',
+      // Map students and compute linkage
+      const mappedStudents = (studentsData || []).map((student: any) => {
+        const parentEmail = (student.parent_email || '').trim().toLowerCase();
+        return {
+          ...student,
+          parentName: student.parent_name,
+          parentContact: student.parent_contact,
+          parentEmail: student.parent_email,
+          isLinked: !!(parentEmail && parentEmailSet.has(parentEmail)),
+        };
       });
-      
-      // Map database fields to component format
-      const mappedStudents = data.map(student => ({
-        ...student,
-        parentName: student.parent_name,
-        parentContact: student.parent_contact,
-        parentEmail: student.parent_email,
-      }));
-      
-      // Sort by level order
       setStudents(sortByLevel(mappedStudents));
 
       // Fetch risk scores for all students
@@ -704,11 +633,6 @@ export default function StudentsPage() {
           return { lrn: student.lrn, score };
         } catch (error) {
           console.error(`Error fetching risk score for ${student.lrn}:`, error);
-          toast({
-            title: `Failed to fetch risk score for ${student.lrn}`,
-            description: error instanceof Error ? error.message : String(error),
-            variant: 'destructive',
-          });
           return { lrn: student.lrn, score: { risk_level: 'low' } };
         }
       });
@@ -719,7 +643,6 @@ export default function StudentsPage() {
         riskMap[result.lrn] = result.score;
       });
       setRiskScores(riskMap);
-
     } catch (error) {
       console.error('Error fetching students:', error);
       toast({
@@ -2789,30 +2712,28 @@ export default function StudentsPage() {
                               <TableCell>
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-2 text-sm">
-                                    <User className="h-3 w-3 text-muted-foreground" />
-                                    <span className="text-xs">{student.parentName}</span>
+                                    <Mail className="h-3 w-3 text-muted-foreground" />
+                                    <span className="text-xs">{student.parentEmail || <span className="italic text-gray-400">No Email</span>}</span>
                                   </div>
-                                  <div className="flex items-center gap-2 text-sm">
-                                    <Phone className="h-3 w-3 text-muted-foreground" />
-                                    <span className="text-xs">{student.parentContact}</span>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    {student.isLinked ? (
+                                      <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs">Linked</Badge>
+                                    ) : (
+                                      <Button
+                                        size="xs"
+                                        variant="outline"
+                                        className="bg-gray-200 text-gray-700 border-0 text-xs px-2 py-1 h-auto min-h-0 min-w-0 rounded"
+                                        onClick={async () => {
+                                          await handleValidateParentAccount(student);
+                                          fetchStudents();
+                                        }}
+                                        disabled={validatedParentEmails.includes((student.parentEmail || '').toLowerCase())}
+                                        title="Link parent account"
+                                      >
+                                        Link
+                                      </Button>
+                                    )}
                                   </div>
-                                  {student.parentEmail && (
-                                    <div className="flex items-center gap-2 text-sm">
-                                      <Mail className="h-3 w-3 text-muted-foreground" />
-                                      <span className="text-xs">{student.parentEmail}</span>
-                                    </div>
-                                  )}
-                                  {/* Validate Account Button for Admins */}
-                                  {student.parentEmail && !validatedParentEmails.includes(student.parentEmail.toLowerCase()) && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="mt-2"
-                                      onClick={() => handleValidateParentAccount(student)}
-                                    >
-                                      Validate Account
-                                    </Button>
-                                  )}
                                 </div>
                               </TableCell>
                               <TableCell>

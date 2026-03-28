@@ -3,9 +3,34 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from database import get_db
-from schemas import StudentCreate, StudentUpdate, StudentResponse, StudentDashboard
+from schemas import StudentCreate, StudentUpdate, StudentResponse, StudentDashboard, StudentWithParentLink
 from schemas import AttendanceStats, BehaviorStats, RiskScoreResponse
 from services import StudentService, AttendanceService, BehaviorService, RiskScoringService
+from sqlalchemy import exists
+from models import Parent
+
+# Endpoint: Get students with parent linkage status
+@router.get("/with-parent-link", response_model=List[StudentWithParentLink])
+def get_students_with_parent_link(db: Session = Depends(get_db)):
+    """Get all students with parent linkage status (isLinked)."""
+    students = db.query(StudentService.Student).all()
+    result = []
+    for student in students:
+        parent_email = (student.parent_email or '').strip().lower() if student.parent_email else None
+        is_linked = False
+        if parent_email:
+            is_linked = db.query(exists().where(Parent.parent_email == parent_email)).scalar()
+        result.append({
+            "id": student.id,
+            "first_name": student.first_name,
+            "last_name": student.last_name,
+            "email": student.email,
+            "class_level": student.class_level,
+            "student_id": student.student_id,
+            "parent_email": student.parent_email,
+            "isLinked": is_linked
+        })
+    return result
 
 router = APIRouter(prefix="/api/students", tags=["students"])
 

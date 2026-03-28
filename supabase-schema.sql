@@ -1,3 +1,19 @@
+-- --- MIGRATION: Fix parent_email foreign key constraint issues ---
+-- 1. Drop the foreign key constraint if it exists
+ALTER TABLE students DROP CONSTRAINT IF EXISTS fk_parent_email;
+
+-- 2. Insert missing parent_email values into parents
+INSERT INTO parents (parent_email, full_name)
+SELECT DISTINCT parent_email, parent_name
+FROM students
+WHERE parent_email IS NOT NULL
+  AND parent_email <> ''
+  AND parent_email NOT IN (SELECT parent_email FROM parents);
+
+-- 3. Re-add the foreign key constraint
+ALTER TABLE students
+  ADD CONSTRAINT fk_parent_email FOREIGN KEY (parent_email)
+  REFERENCES parents(parent_email) ON DELETE SET NULL;
 
 
 -- =========================
@@ -29,7 +45,6 @@ DROP TABLE IF EXISTS school_years CASCADE;
 DROP TABLE IF EXISTS students CASCADE;
 DROP TABLE IF EXISTS heatmap_zones CASCADE;
 -- ============================================================================
--- Supabase Auth Profile Table (linked to auth.users)
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   full_name TEXT,
@@ -37,7 +52,16 @@ CREATE TABLE IF NOT EXISTS profiles (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
--- Create students table
+-- Create parents table for validated parent accounts
+CREATE TABLE IF NOT EXISTS parents (
+  id BIGSERIAL PRIMARY KEY,
+  parent_email VARCHAR(255) UNIQUE NOT NULL,
+  full_name TEXT,
+  contact VARCHAR(50),
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL, -- link to Supabase Auth if available
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 CREATE TABLE IF NOT EXISTS students (
   id BIGSERIAL PRIMARY KEY,
   lrn VARCHAR(50) UNIQUE,
@@ -51,8 +75,17 @@ CREATE TABLE IF NOT EXISTS students (
   parent_email VARCHAR(255),
   status VARCHAR(20) DEFAULT 'active',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT fk_parent_email FOREIGN KEY (parent_email) REFERENCES parents(parent_email) ON DELETE SET NULL
 );
+
+-- Ensure all parent_email values in students exist in parents table (for FK constraint)
+INSERT INTO parents (parent_email, full_name)
+SELECT DISTINCT parent_email, parent_name
+FROM students
+WHERE parent_email IS NOT NULL
+  AND parent_email <> ''
+  AND parent_email NOT IN (SELECT parent_email FROM parents);
 -- Backward-compatible migration for existing databases
 ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_email VARCHAR(255);
 -- Create attendance_logs table (Core ML Data Source)

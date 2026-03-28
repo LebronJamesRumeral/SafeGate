@@ -13,6 +13,7 @@ class StudentBase(BaseModel):
     email: str = Field(..., max_length=255)
     class_level: str = Field(..., min_length=1, max_length=50)
     student_id: str = Field(..., min_length=1, max_length=50)
+    parent_email: str = Field(None, max_length=255)
 
 
 class StudentCreate(StudentBase):
@@ -27,6 +28,8 @@ class StudentUpdate(BaseModel):
     email: Optional[str] = None
     class_level: Optional[str] = None
     is_active: Optional[bool] = None
+    parent_email: Optional[str] = None
+
 
 
 class StudentResponse(StudentBase):
@@ -38,6 +41,20 @@ class StudentResponse(StudentBase):
     
     class Config:
         from_attributes = True
+
+# Schema for student with parent linkage status
+class StudentWithParentLink(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+    email: str
+    class_level: str
+    student_id: str
+    parent_email: Optional[str]
+    isLinked: bool
+
+    class Config:
+        orm_mode = True
 
 
 # ==================== Attendance Schemas ====================
