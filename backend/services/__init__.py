@@ -9,9 +9,12 @@ from schemas import BehaviorEventCreate, BehaviorEventUpdate, BehaviorStats
 from schemas import StudentCreate, StudentUpdate
 
 
-    """Service for student-related operations."""
+"""Service for student-related operations."""
+
+
+class StudentService:
     Student = Student  # Expose Student model for router usage
-    
+
     @staticmethod
     def create_student(db: Session, student: StudentCreate) -> Student:
         """Create a new student."""
@@ -26,18 +29,16 @@ from schemas import StudentCreate, StudentUpdate
         db.commit()
         db.refresh(db_student)
         return db_student
-    
+
     @staticmethod
     def get_student(db: Session, student_id: int) -> Optional[Student]:
         """Get student by ID."""
         return db.query(Student).filter(Student.id == student_id).first()
-    
+
     @staticmethod
     def get_student_by_student_id(db: Session, student_id: str) -> Optional[Student]:
         """Get student by student_id."""
         return db.query(Student).filter(Student.student_id == student_id).first()
-    
-    @staticmethod
     def get_all_students(db: Session, skip: int = 0, limit: int = 100) -> List[Student]:
         """Get all students with pagination."""
         return db.query(Student).offset(skip).limit(limit).all()
