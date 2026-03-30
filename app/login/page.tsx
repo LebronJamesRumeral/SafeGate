@@ -134,18 +134,19 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 overflow-hidden">
       {/* Left Side - Navy Background */}
-      <div className="hidden lg:flex flex-col justify-between bg-linear-to-br from-blue-950 via-blue-900 to-blue-800 dark:from-blue-950 dark:via-blue-900 dark:to-slate-950 px-8 py-10 xl:px-12 xl:py-14 text-white overflow-hidden min-h-screen">
+      <div className="hidden lg:flex flex-col justify-center bg-linear-to-br from-blue-950 via-blue-900 to-blue-800 dark:from-blue-950 dark:via-blue-900 dark:to-slate-950 px-8 py-10 xl:px-12 xl:py-14 text-white overflow-hidden min-h-screen">
         <div>
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 mb-6">
             <div className="h-14 w-14 rounded-full bg-white/10 backdrop-blur flex items-center justify-center border border-white/20">
               <Image 
                 src="/SGCDC.png" 
                 alt="SGCDC Logo" 
                 width={64} 
                 height={64} 
-                className="w-full h-full object-contain p-2"
+                className="w-full h-full object-cover p-2"
+                onError={(e) => { e.currentTarget.src = '/logo.png'; }}
                 priority
               />
             </div>
@@ -155,11 +156,11 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <h1 className="text-2xl xl:text-3xl font-bold leading-tight mb-8 text-white">A Smarter Approach to Behavioral Tracking and Intervention</h1>
-          <p className="text-blue-100 text-sm xl:text-base leading-relaxed mb-12">SafeGate provides real-time behavioral event tracking, intervention workflows, and risk visibility in one connected platform. Attendance and QR scanning remain supporting features for daily operations and context.</p>
+          <h1 className="text-2xl xl:text-3xl font-bold leading-tight mb-6 text-white">A Smarter Approach to Behavioral Tracking and Intervention</h1>
+          <p className="text-blue-100 text-sm xl:text-base leading-relaxed mb-8">SafeGate provides real-time behavioral event tracking, intervention workflows, and risk visibility in one connected platform. Attendance and QR scanning remain supporting features for daily operations and context.</p>
 
           {/* Role Cards */}
-          <div className="space-y-12">
+          <div className="space-y-6">
             <div className="flex items-start gap-4 bg-white/5 backdrop-blur border border-white/10 rounded-lg p-4 hover:bg-white/10 transition-colors">
               <div className="h-10 w-10 rounded-lg bg-yellow-400/20 flex items-center justify-center shrink-0">
                 <Users className="w-6 h-6 text-yellow-300" />
@@ -206,18 +207,19 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="flex items-center justify-center bg-white dark:bg-slate-900 p-6 lg:p-12">
+      <div className="flex items-center justify-center bg-white dark:bg-slate-900 p-4 lg:p-8 min-h-screen">
         <div className="w-full max-w-md">
           {/* Mobile Header */}
-          <div className="lg:hidden mb-8 text-center">
-            <div className="flex items-center justify-center gap-3 mb-6">
+          <div className="lg:hidden mb-6 text-center">
+            <div className="flex items-center justify-center gap-3 mb-4">
               <div className="h-12 w-12 rounded-lg bg-blue-950 flex items-center justify-center">
                 <Image 
                   src="/SGCDC.png" 
                   alt="SGCDC Logo" 
                   width={48} 
                   height={48} 
-                  className="w-full h-full object-contain p-1"
+                  className="w-full h-full object-cover p-1"
+                  onError={(e) => { e.currentTarget.src = '/logo.png'; }}
                 />
               </div>
               <div className="text-left">
