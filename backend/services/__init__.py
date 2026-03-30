@@ -235,17 +235,42 @@ class BehaviorService:
         event_id: int,
         event_data: BehaviorEventUpdate
     ) -> Optional[BehaviorEvent]:
-        """Update behavior event."""
+        """Update behavior event. If approved, notify parent."""
         db_event = db.query(BehaviorEvent).filter(BehaviorEvent.id == event_id).first()
         if not db_event:
             return None
         
+        was_approved = getattr(db_event, 'approved', False)
         update_data = event_data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_event, key, value)
         
         db.commit()
         db.refresh(db_event)
+        # Notify parent if just approved
+        if update_data.get('approved') is True and not was_approved:
+            # Find student and parent
+            student = db.query(Student).filter(Student.id == db_event.student_id).first()
+            if student and student.parent_email:
+                try:
+                    from supabase import create_client
+                    import os
+                    supabase_url = os.getenv('SUPABASE_URL')
+                    supabase_key = os.getenv('SUPABASE_SERVICE_KEY')
+                    supabase = create_client(supabase_url, supabase_key)
+                    supabase.table('role_notifications').insert({
+                        'title': 'Log Reviewed By Guidance',
+                        'message': f'A new log for {student.first_name} {student.last_name} (Attention Difficulty) was approved.',
+                        'target_roles': ['parent', 'teacher', 'admin', 'guidance'],
+                        'meta': {
+                            'parent_email': student.parent_email,
+                            'student_id': student.student_id,
+                            'log_id': db_event.id
+                        },
+                        'created_by': 'system',
+                    }).execute()
+                except Exception as e:
+                    print(f"Failed to send notification: {e}")
         return db_event
     
     @staticmethod

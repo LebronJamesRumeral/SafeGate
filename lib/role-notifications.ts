@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 
-export type SupportedRole = 'teacher' | 'admin' | 'guidance';
+export type SupportedRole = 'teacher' | 'admin' | 'guidance' | 'parent';
 
 export type RoleNotification = {
   id: number;
@@ -14,14 +14,6 @@ export type RoleNotification = {
   created_at: string;
 };
 
-type CreateRoleNotificationInput = {
-  title: string;
-  message: string;
-  targetRoles: SupportedRole[];
-  createdBy?: string | null;
-  relatedEventId?: number | null;
-  meta?: Record<string, any>;
-};
 
 type FetchNotificationViewer = {
   id?: string | null;
@@ -94,12 +86,24 @@ export async function fetchRoleNotifications(
   }
 
   const normalizedRole = role.toLowerCase();
-  const { data, error } = await supabase
-    .from('role_notifications')
-    .select('id, title, message, target_roles, read_by_roles, created_by, related_event_id, meta, created_at')
-    .contains('target_roles', [normalizedRole])
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  let data, error;
+  if (normalizedRole === 'parent' && viewer?.email) {
+    // Fetch notifications for parent role and specific parent identity
+    const parentIdentity = `parent:${viewer.email.trim().toLowerCase()}`;
+    ({ data, error } = await supabase
+      .from('role_notifications')
+      .select('id, title, message, target_roles, read_by_roles, created_by, related_event_id, meta, created_at')
+      .or(`target_roles.cs.{parent},target_roles.cs.{${parentIdentity}}`)
+      .order('created_at', { ascending: false })
+      .limit(limit));
+  } else {
+    ({ data, error } = await supabase
+      .from('role_notifications')
+      .select('id, title, message, target_roles, read_by_roles, created_by, related_event_id, meta, created_at')
+      .contains('target_roles', [normalizedRole])
+      .order('created_at', { ascending: false })
+      .limit(limit));
+  }
 
   if (error) {
     console.error('Failed to fetch role notifications:', error);

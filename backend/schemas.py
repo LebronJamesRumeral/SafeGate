@@ -122,6 +122,7 @@ class BehaviorEventUpdate(BaseModel):
     event_type: Optional[BehaviorEventType] = None
     description: Optional[str] = None
     severity: Optional[int] = Field(None, ge=0, le=10)
+    approved: Optional[bool] = None
 
 
 class BehaviorEventResponse(BehaviorEventBase):
@@ -131,6 +132,7 @@ class BehaviorEventResponse(BehaviorEventBase):
     timestamp: datetime
     created_at: datetime
     updated_at: datetime
+    approved: bool
     
     class Config:
         from_attributes = True

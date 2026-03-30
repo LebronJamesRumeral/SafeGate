@@ -1,10 +1,5 @@
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { TablePageSkeleton } from '@/components/loading-skeletons';
+import AttendanceSkeleton from '@/components/attendance-skeleton';
 
 export default function LoadingAttendance() {
-  return (
-    <DashboardLayout>
-      <TablePageSkeleton />
-    </DashboardLayout>
-  );
+  return <AttendanceSkeleton />;
 }

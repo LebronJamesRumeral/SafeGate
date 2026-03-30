@@ -4,6 +4,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
+import Cookies from 'js-cookie';
 
 interface User {
   id: string;
@@ -66,10 +67,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role,
       });
       // Store the user with role in localStorage for persistence
-      localStorage.setItem('safegate_user', JSON.stringify({
+      const userObj = {
         ...data.user,
         role,
-      }));
+      };
+      localStorage.setItem('safegate_user', JSON.stringify(userObj));
+      // Set cookie for server-side auth (expires in 7 days)
+      Cookies.set('safegate_user', JSON.stringify(userObj), { expires: 7, sameSite: 'lax' });
       // Redirect parent to /parent, others to home
       if (role === 'parent') {
         router.push('/parent');
@@ -86,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('safegate_user');
+    Cookies.remove('safegate_user');
     router.push('/login');
   };
 

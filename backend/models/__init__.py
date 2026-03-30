@@ -85,6 +85,7 @@ class BehaviorEvent(Base):
     
     # Relationship
     student = relationship("Student", back_populates="behavior_records")
+    approved = Column(Boolean, default=False)
 
 
 class RiskScore(Base):

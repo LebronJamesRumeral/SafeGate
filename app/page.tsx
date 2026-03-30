@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { calculateStudentRiskScore, calculateBatchRiskScores } from '@/lib/ml-risk-calculator';
 import { MLDashboard } from '@/components/ml-dashboard';
-import { DashboardSkeleton } from '@/components/loading-skeletons';
+import { DashboardSkeleton } from '@/components/dashboard-skeleton';
 import { DateLevelFilter } from '@/components/date-level-filter';
 import { motion } from 'framer-motion';
 import { useTheme } from 'next-themes';

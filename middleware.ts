@@ -7,7 +7,20 @@ export default function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // For now, allow all routes (authentication handled client-side)
+  // Check for user authentication from cookies (server-side)
+  const userCookie = request.cookies.get('safegate_user');
+
+  // If not authenticated and trying to access root, redirect to /login
+  if (!userCookie && request.nextUrl.pathname === '/') {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // If not authenticated and trying to access any other page, redirect to /login
+  if (!userCookie && request.nextUrl.pathname !== '/login') {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // If authenticated, allow access to any page (including last visited)
   return NextResponse.next();
 }
 

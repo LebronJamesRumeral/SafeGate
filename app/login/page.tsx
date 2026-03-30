@@ -1,4 +1,6 @@
+
 'use client';
+import React from 'react';
 
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
@@ -47,14 +49,47 @@ export default function LoginPage() {
   // Privacy Policy modal and checkbox state
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [policyChecked, setPolicyChecked] = useState(false);
+  const [policyEverAccepted, setPolicyEverAccepted] = useState(false);
+
+  // On mount, check if user has already accepted policy
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const accepted = localStorage.getItem('safegate_policy_accepted');
+      if (accepted === 'true') {
+        setPolicyChecked(true);
+        setPolicyEverAccepted(true);
+      }
+    }
+  }, []);
 
   // Setup Supabase client for direct user fetch after login
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+  // When checkbox is clicked, show modal instead of toggling
   const handlePolicyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!policyEverAccepted) {
+      setShowPolicyModal(true);
+      // Prevent checkbox from being checked directly
+      e.preventDefault();
+      return;
+    }
     setPolicyChecked(e.target.checked);
+  };
+
+  // Accept/Decline handlers for modal
+  const handleAcceptPolicy = () => {
+    setPolicyChecked(true);
+    setPolicyEverAccepted(true);
+    setShowPolicyModal(false);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('safegate_policy_accepted', 'true');
+    }
+  };
+  const handleDeclinePolicy = () => {
+    setPolicyChecked(false);
+    setShowPolicyModal(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -101,9 +136,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
       {/* Left Side - Navy Background */}
-      <div className="hidden lg:flex flex-col justify-between bg-linear-to-br from-blue-950 via-blue-900 to-blue-800 dark:from-blue-950 dark:via-blue-900 dark:to-slate-950 px-8 py-7 xl:px-10 xl:py-8 text-white overflow-hidden">
+      <div className="hidden lg:flex flex-col justify-between bg-linear-to-br from-blue-950 via-blue-900 to-blue-800 dark:from-blue-950 dark:via-blue-900 dark:to-slate-950 px-8 py-10 xl:px-12 xl:py-14 text-white overflow-hidden min-h-screen">
         <div>
-          <div className="flex items-center gap-4 mb-8">
+          <div className="flex items-center gap-3 mb-8">
             <div className="h-14 w-14 rounded-full bg-white/10 backdrop-blur flex items-center justify-center border border-white/20">
               <Image 
                 src="/SGCDC.png" 
@@ -120,8 +155,8 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <h1 className="text-3xl xl:text-4xl font-bold leading-tight mb-8 text-white">A Smarter Approach to Behavioral Tracking and Intervention</h1>
-          <p className="text-blue-100 text-sm xl:text-base leading-relaxed mb-14">SafeGate provides real-time behavioral event tracking, intervention workflows, and risk visibility in one connected platform. Attendance and QR scanning remain supporting features for daily operations and context.</p>
+          <h1 className="text-2xl xl:text-3xl font-bold leading-tight mb-8 text-white">A Smarter Approach to Behavioral Tracking and Intervention</h1>
+          <p className="text-blue-100 text-sm xl:text-base leading-relaxed mb-12">SafeGate provides real-time behavioral event tracking, intervention workflows, and risk visibility in one connected platform. Attendance and QR scanning remain supporting features for daily operations and context.</p>
 
           {/* Role Cards */}
           <div className="space-y-12">
@@ -152,6 +187,18 @@ export default function LoginPage() {
               <div>
                 <p className="font-bold text-white">GUIDANCE</p>
                 <p className="text-sm text-blue-200">Review + Intervention + Approval Workflow</p>
+              </div>
+            </div>
+
+            {/* Parent Card */}
+            <div className="flex items-start gap-4 bg-white/5 backdrop-blur border border-white/10 rounded-lg p-4 hover:bg-white/10 transition-colors">
+              <div className="h-10 w-10 rounded-lg bg-blue-400/20 flex items-center justify-center shrink-0">
+                {/* Use Users icon for parent, or replace with a more appropriate icon if desired */}
+                <Users className="w-6 h-6 text-blue-300" />
+              </div>
+              <div>
+                <p className="font-bold text-white">PARENT</p>
+                <p className="text-sm text-blue-200">Monitor Child Attendance & Behavior</p>
               </div>
             </div>
           </div>
@@ -267,27 +314,30 @@ export default function LoginPage() {
               {loading ? 'Logging in...' : 'Login'}
             </Button>
 
-            {/* Privacy Policy & Terms Checkbox */}
-            <div className="flex items-center gap-2 mt-2 mb-2">
-              <input
-                id="policy"
-                type="checkbox"
-                checked={policyChecked}
-                onChange={handlePolicyChange}
-                className="accent-blue-600 w-4 h-4 rounded border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-blue-400"
-                required
-              />
-              <label htmlFor="policy" className="text-xs text-slate-600 dark:text-slate-300 select-none">
-                I agree to the{' '}
-                <button type="button" className="underline hover:text-blue-700 dark:hover:text-blue-300" onClick={() => setShowPolicyModal(true)}>
-                  Privacy Policy
-                </button>
-                {' '}and{' '}
-                <button type="button" className="underline hover:text-blue-700 dark:hover:text-blue-300" onClick={() => setShowPolicyModal(true)}>
-                  Terms of Service
-                </button>
-              </label>
-            </div>
+            {/* Privacy Policy & Terms Checkbox (only show if not ever accepted) */}
+            {!policyEverAccepted && (
+              <div className="flex items-center gap-2 mt-2 mb-2">
+                <input
+                  id="policy"
+                  type="checkbox"
+                  checked={policyChecked}
+                  onChange={handlePolicyChange}
+                  className="accent-blue-600 w-4 h-4 rounded border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-blue-400"
+                  required
+                  readOnly
+                />
+                <label htmlFor="policy" className="text-xs text-slate-600 dark:text-slate-300 select-none">
+                  I agree to the{' '}
+                  <button type="button" className="underline hover:text-blue-700 dark:hover:text-blue-300" onClick={() => setShowPolicyModal(true)}>
+                    Privacy Policy
+                  </button>
+                  {' '}and{' '}
+                  <button type="button" className="underline hover:text-blue-700 dark:hover:text-blue-300" onClick={() => setShowPolicyModal(true)}>
+                    Terms of Service
+                  </button>
+                </label>
+              </div>
+            )}
 
             {/* Modal for Privacy Policy and Terms */}
             {showPolicyModal && (
@@ -295,8 +345,8 @@ export default function LoginPage() {
                 <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-xl w-full px-8 py-8 sm:px-10 sm:py-10 flex flex-col items-center animate-fadeInModal" style={{fontFamily: 'inherit'}}>
                   <button
                     className="absolute top-4 right-4 text-slate-400 hover:text-red-500 text-2xl font-bold focus:outline-none"
-                    onClick={() => setShowPolicyModal(false)}
-                    aria-label="Close"
+                    onClick={handleDeclinePolicy}
+                    aria-label="Decline"
                   >
                     ×
                   </button>
@@ -308,6 +358,10 @@ export default function LoginPage() {
                   <p className="text-base text-slate-700 dark:text-slate-300 text-center leading-relaxed font-mono" style={{marginBottom: '0.5rem'}}>
                     By using this system, you agree to use it responsibly and in accordance with all school and legal guidelines. Misuse may result in account suspension.
                   </p>
+                  <div className="flex gap-4 mt-8">
+                    <Button variant="outline" onClick={handleDeclinePolicy} className="px-6 py-2 text-base font-semibold">Decline</Button>
+                    <Button variant="secondary" onClick={handleAcceptPolicy} className="px-6 py-2 text-base font-semibold">Accept</Button>
+                  </div>
                 </div>
                 <style>{`
                   @keyframes fadeInModal {

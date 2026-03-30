@@ -1444,18 +1444,41 @@ function BehavioralEventsPageContent() {
             : 'Guidance approved. ML scoring completed with no parent email required.',
         });
 
+        // Always include parent in targetRoles and fetch parent info if missing
+        let parentEmail = selectedEvent.students?.parent_email || null;
+        let parentName = selectedEvent.students?.parent_name || null;
+        if (!parentEmail || !parentName) {
+          const { data: studentData } = await supabase
+            .from('students')
+            .select('parent_email, parent_name')
+            .eq('lrn', selectedEvent.student_lrn)
+            .single();
+          if (studentData) {
+            parentEmail = studentData.parent_email;
+            parentName = studentData.parent_name;
+          }
+        }
+
         await createRoleNotification({
           title: 'Log Reviewed By Guidance',
           message: `${selectedEvent.students?.name || selectedEvent.student_lrn} (${selectedEvent.event_type}) was approved by guidance.`,
-          targetRoles: ['teacher', 'admin'],
+          targetRoles: [
+            'teacher',
+            'admin',
+            'parent',
+            parentEmail ? `parent:${parentEmail}` : null
+          ].filter(Boolean),
           createdBy: reviewerName,
           relatedEventId: selectedEvent.id,
           meta: {
-            href: '/behavioral-events',
+            href: '/parent-behavior',
             student_lrn: selectedEvent.student_lrn,
             guidance_status: 'approved_for_ml',
             report_owner_name: selectedEvent.reported_by || null,
             report_owner_username: selectedEvent.reported_by || null,
+            parent_email: parentEmail,
+            parent_name: parentName,
+            parent_identity: parentEmail,
             prevention_note: buildEarlyPreventionNote({
               eventType: selectedEvent.event_type,
               severity: selectedEvent.severity,
@@ -2424,7 +2447,7 @@ function BehavioralEventsPageContent() {
                               )}
                               
                               <p className="font-medium text-sm mt-1 text-slate-800 dark:text-slate-200">
-                                {event.event_type}
+                                {event.event_type === 'parent_report' ? 'Parent Report' : event.event_type}
                               </p>
                               
                               <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">

@@ -26,6 +26,7 @@ const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrator',
   teacher: 'Teacher',
   guidance: 'Guidance Counselor',
+  parent: 'Parent',
 }
 
 export function Header() {
@@ -336,7 +337,8 @@ export function Header() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64 overflow-hidden rounded-2xl border border-slate-300/70 bg-white p-0 shadow-xl dark:border-slate-700 dark:bg-slate-900">
                 <div className="bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-900 dark:bg-slate-800 dark:text-slate-100">
-                  {user?.full_name || user?.username}
+                  {/* Prefer full name, then username/email */}
+                  {user?.full_name?.trim() ? user.full_name : (user?.username || '')}
                 </div>
                 <div className="bg-slate-100 px-4 pb-3 text-xs text-gray-600 dark:bg-slate-800 dark:text-slate-400">
                   {ROLE_LABELS[(user?.role || '').toLowerCase()] || 'User'}

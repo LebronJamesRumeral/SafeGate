@@ -1,10 +1,5 @@
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { DashboardSkeleton } from '@/components/loading-skeletons';
+import { DashboardSkeleton } from '@/components/dashboard-skeleton';
 
 export default function LoadingHome() {
-  return (
-    <DashboardLayout>
-      <DashboardSkeleton />
-    </DashboardLayout>
-  );
+  return <DashboardSkeleton />;
 }

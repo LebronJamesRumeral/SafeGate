@@ -39,7 +39,7 @@ const allNavItems = [
   // Parent dashboard nav item
   { icon: Users, label: "Parent Dashboard", href: "/parent", roles: ["parent"] },
   { icon: CalendarDays, label: "Attendance", href: "/parent-attendance", roles: ["parent"] },
-  { icon: AlertTriangle, label: "Behavioral Events", href: "/parent-behavior", roles: ["parent"] },
+  { icon: AlertTriangle, label: "Behavioral Events", href: "/parent-behavior", roles: ["parent"] }
 ]
 
 const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
@@ -53,9 +53,14 @@ export function Sidebar() {
 
   // Filter nav items based on user role
   const navItems = user ? allNavItems.filter(item => item.roles.includes(user.role)) : []
-  const mobilePrimaryNavItems = navItems
-    .filter((item) => mobilePrimaryHrefs.includes(item.href) || item.href === "/parent")
-    .sort((a, b) => mobilePrimaryHrefs.indexOf(a.href) - mobilePrimaryHrefs.indexOf(b.href))
+  // For parent, show all parent pages in mobile nav
+  let mobilePrimaryNavItems = navItems
+  if (user && user.role === "parent") {
+    mobilePrimaryNavItems = navItems.filter(item => ["/parent", "/parent-attendance", "/parent-behavior"].includes(item.href))
+  } else {
+    mobilePrimaryNavItems = navItems.filter((item) => mobilePrimaryHrefs.includes(item.href) || item.href === "/parent")
+      .sort((a, b) => mobilePrimaryHrefs.indexOf(a.href) - mobilePrimaryHrefs.indexOf(b.href))
+  }
 
   const getMobileLabel = (href: string, label: string) => {
     if (href === "/scan") return "Scan"
@@ -170,8 +175,10 @@ export function Sidebar() {
 
         {/* Mobile bottom nav */}
         {isMobile && mobilePrimaryNavItems.length > 0 && (
-          <nav className="fixed inset-x-2 bottom-2 z-40 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-xl lg:hidden">
-            <div className="grid grid-cols-5 items-center gap-1 px-2 py-2">
+          <nav className="fixed inset-x-2 bottom-2 z-40 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-xl lg:hidden flex justify-center">
+            <div className={cn(
+              `flex items-center justify-center gap-2 w-full px-2 py-2` // Always center, not grid
+            )}>
               {mobilePrimaryNavItems.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href
@@ -180,7 +187,7 @@ export function Sidebar() {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex min-w-0 flex-col items-center justify-center rounded-xl px-1 py-2 text-[10px] font-medium transition-all duration-200",
+                      "flex flex-col items-center justify-center rounded-xl px-3 py-2 text-[10px] font-medium transition-all duration-200",
                       isActive
                         ? "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"
                         : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"

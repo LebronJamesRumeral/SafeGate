@@ -26,7 +26,21 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     localStorage.setItem('sidebar-collapsed', String(value))
   }
 
-  if (!mounted) return null
+  if (!mounted) {
+    // Fallback: render minimal layout with sidebar/header placeholders so skeletons are always inside layout
+    return (
+      <div className="flex min-h-screen">
+        <div className="w-16 sm:w-64 bg-slate-100 dark:bg-slate-900/80 border-r border-slate-200 dark:border-slate-800 animate-pulse" />
+        <div className="flex-1 flex flex-col">
+          <div className="h-16 bg-white/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 animate-pulse" />
+          <main className="flex-1 p-4 sm:p-8 bg-gradient-to-br from-slate-50 via-white to-orange-50 dark:from-slate-950 dark:via-slate-900 dark:to-orange-950/30">
+            {/* Children will be skeletons or loading UI */}
+            {children}
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   // Provide sidebar state via context for all children
   return (

@@ -874,7 +874,7 @@ export function MLDashboard() {
                         <div className="flex-1 p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
                           <div className="flex items-center gap-1.5 mb-1.5">
                             <Calendar className="w-3.5 h-3.5 text-blue-900 dark:text-blue-300" />
-                            <p className="text-[10px] font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wide">
+                            <p className="text-[10px] font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wider">
                               Forecast
                             </p>
                           </div>
@@ -900,7 +900,7 @@ export function MLDashboard() {
                         <div className="flex-1 p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
                           <div className="flex items-center gap-1.5 mb-1.5">
                             <Phone className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                            <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide">
+                            <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
                               Contact
                             </p>
                           </div>
@@ -924,7 +924,7 @@ export function MLDashboard() {
 /**
  * Student Risk Card - Shows individual student risk (used in student details)
  */
-export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
+export function StudentRiskCard({ studentLrn, name, lrn }: { studentLrn: string, name?: string, lrn?: string }) {
   const [summary, setSummary] = useState<StudentSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1086,12 +1086,10 @@ export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
         
         <CardHeader className="pb-2">
           <div className="flex justify-between items-center gap-2">
-            <CardTitle className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <div className="p-1 rounded-lg bg-linear-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40">
-                <Brain className="w-3.5 h-3.5 text-blue-900 dark:text-blue-300" />
-              </div>
-              ML Assessment
-            </CardTitle>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xl font-bold font-mono text-slate-900 dark:text-white leading-tight">{name || summary?.name || 'Student Name'}</span>
+              <span className="text-xs font-mono text-slate-500 dark:text-slate-400">{lrn || studentLrn}</span>
+            </div>
             <Badge className={`${colors.badge} text-xs`}>
               <Sparkles className="w-3 h-3 mr-0.5" />
               {summary.riskLevel.toUpperCase()}
