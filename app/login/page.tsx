@@ -139,15 +139,15 @@ export default function LoginPage() {
       <div className="hidden lg:flex flex-col justify-center bg-linear-to-br from-blue-950 via-blue-900 to-blue-800 dark:from-blue-950 dark:via-blue-900 dark:to-slate-950 px-8 py-10 xl:px-12 xl:py-14 text-white overflow-hidden min-h-screen">
         <div>
           <div className="flex items-center gap-3 mb-6">
-            <div className="h-14 w-14 rounded-full bg-white/10 backdrop-blur flex items-center justify-center border border-white/20">
+            <div className="relative h-14 w-14 rounded-full overflow-hidden bg-white/10 flex items-center justify-center border border-white/20 shadow-lg">
               <Image 
-                src="/SGCDC.png" 
+                src="SGCDC.png" 
                 alt="SGCDC Logo" 
                 width={64} 
                 height={64} 
-                className="w-full h-full object-cover p-2"
-                onError={(e) => { e.currentTarget.src = '/logo.png'; }}
+                className="w-full h-full object-contain p-2"
                 priority
+                unoptimized
               />
             </div>
             <div>
@@ -212,14 +212,14 @@ export default function LoginPage() {
           {/* Mobile Header */}
           <div className="lg:hidden mb-6 text-center">
             <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="h-12 w-12 rounded-lg bg-blue-950 flex items-center justify-center">
+              <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-blue-950 flex items-center justify-center shadow-lg">
                 <Image 
-                  src="/SGCDC.png" 
+                  src="SGCDC.png" 
                   alt="SGCDC Logo" 
                   width={48} 
                   height={48} 
-                  className="w-full h-full object-cover p-1"
-                  onError={(e) => { e.currentTarget.src = '/logo.png'; }}
+                  className="w-full h-full object-contain p-1"
+                  unoptimized
                 />
               </div>
               <div className="text-left">
