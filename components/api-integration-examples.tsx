@@ -252,6 +252,7 @@ export function StudentDashboardExample({ studentId }: { studentId: number }) {
           </p>
           <p>Behavioral Score: {risk_score.behavioral_score}/100</p>
           <p>Attendance Score: {risk_score.attendance_score}/100</p>
+          <p>Parent Reports (Minor Risk): {risk_score.parent_report_count ?? 0}</p>
           <p className="risk-level">Risk Level: {risk_score.risk_level.toUpperCase()}</p>
         </section>
       )}

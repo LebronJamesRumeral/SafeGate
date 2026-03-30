@@ -3,7 +3,8 @@ import { SettingsSkeleton } from '@/components/loading-skeletons';
 
 export default function LoadingSettings() {
   return (
-    <ParentDashboardSkeleton />
+    <DashboardLayout>
+      <SettingsSkeleton />
+    </DashboardLayout>
   );
 }
-import ParentDashboardSkeleton from '@/components/parent-dashboard-skeleton';

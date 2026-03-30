@@ -60,7 +60,7 @@ import { toast } from '@/hooks/use-toast';
 import { sortByLevel } from '@/lib/level-order';
 import { calculateStudentRiskScore, getActionRecommendations, type RiskScore } from '@/lib/ml-risk-calculator';
 import { StudentRiskCard } from '@/components/ml-dashboard';
-import { TablePageSkeleton } from '@/components/loading-skeletons';
+import StudentsSkeleton from '@/components/students-skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getStudentImportRequiredFieldsHint, parseStudentImportRows } from '@/lib/student-import';
@@ -1789,12 +1789,9 @@ export default function StudentsPage() {
     }
   };
 
+
   if (loading) {
-    return (
-      <DashboardLayout>
-        <TablePageSkeleton />
-      </DashboardLayout>
-    );
+    return <StudentsSkeleton />;
   }
 
   return (

@@ -370,8 +370,21 @@ class RiskScoringService:
         # Lower attendance rate = lower score
         attendance_score = attendance_stats.attendance_rate
         
+        # --- Parent Report Minor Risk Penalty ---
+        # Count approved behavior events reported by parents
+        parent_report_count = sum(
+            1 for b in behaviors
+            if b.reported_by and b.reported_by.lower().endswith("@parent") and getattr(b, "approved", False)
+        )
+        # If your parent emails are not in the form ...@parent, adjust the check above accordingly
+        # Example: if you store parent emails, you may want to check for a domain or a flag
+
+        # Each parent report applies a 2-point penalty, max 10 points
+        parent_report_penalty = min(parent_report_count * 2, 10)
+
         # Calculate overall score (weighted average)
-        overall_score = (behavioral_score * 0.6) + (attendance_score * 0.4)
+        overall_score = (behavioral_score * 0.6) + (attendance_score * 0.4) - parent_report_penalty
+        overall_score = max(0, overall_score)  # Ensure score does not go below 0
         
         # Determine risk level
         if overall_score >= 80:
@@ -388,6 +401,7 @@ class RiskScoringService:
             RiskScore.student_id == student_id
         ).first()
         
+        # Attach parent_report_count as an attribute for API serialization (not stored in DB)
         if existing_score:
             existing_score.overall_score = round(overall_score, 2)
             existing_score.behavioral_score = round(behavioral_score, 2)
@@ -396,6 +410,7 @@ class RiskScoringService:
             existing_score.last_updated = datetime.utcnow()
             db.commit()
             db.refresh(existing_score)
+            existing_score.parent_report_count = parent_report_count
             return existing_score
         else:
             new_score = RiskScore(
@@ -408,6 +423,7 @@ class RiskScoringService:
             db.add(new_score)
             db.commit()
             db.refresh(new_score)
+            new_score.parent_report_count = parent_report_count
             return new_score
     
     @staticmethod

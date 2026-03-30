@@ -154,6 +154,7 @@ class RiskScoreResponse(RiskScoreBase):
     student_id: int
     last_updated: datetime
     created_at: datetime
+    parent_report_count: int = 0  # Number of parent-reported events in lookback window
     
     class Config:
         from_attributes = True

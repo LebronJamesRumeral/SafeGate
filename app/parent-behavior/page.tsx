@@ -33,6 +33,15 @@ export default function ParentBehaviorPage() {
     "Attended club",
     "Helped a friend",
     "Participated in class",
+    "Did homework",
+    "Read a book",
+    "Volunteered",
+    "Won an award",
+    "Had a conflict",
+    "Was absent",
+    "Was late",
+    "Showed leadership",
+    "Showed kindness",
     "Other"
   ];
   const [selected, setSelected] = useState<{ [key: string]: string[] }>({});
@@ -171,15 +180,15 @@ export default function ParentBehaviorPage() {
                   <span className="text-lg">+</span> Log Weekly Check-In
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[98vw] max-w-full sm:max-w-2xl h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
+                <DialogContent className="w-[99vw] max-w-full sm:max-w-3xl h-[88vh] max-h-[96vh] overflow-hidden p-0 flex flex-col">
                 <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40">
                   <DialogTitle className="text-2xl leading-tight">Log Weekly Check-In</DialogTitle>
                   <DialogDescription>
                     Please provide your child's activities and any notes for this week. Fields marked with * are required.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-5 px-6 py-5 overflow-y-auto flex-1">
-                  <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="flex flex-col h-full">
+                  <div className="space-y-5 px-6 py-5 overflow-y-auto flex-1">
                     {/* Student Selector if more than one child */}
                     {children.length > 1 && (
                       <div>
@@ -232,16 +241,23 @@ export default function ParentBehaviorPage() {
                         className="w-full border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                       />
                     </div>
-                    <Button type="submit" className="w-full h-12 text-base font-bold uppercase tracking-wide bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600">Submit Check-In</Button>
-                  </form>
-                </div>
+                  </div>
+                  <div className="px-6 pb-3 pt-2 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 sticky bottom-0 z-10 flex justify-end">
+                    <Button
+                      type="submit"
+                      className="flex items-center gap-2 rounded-full px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-base shadow-md transition-all duration-150"
+                    >
+                      <span className="text-lg font-bold">+</span> Log Check-In
+                    </Button>
+                  </div>
+                </form>
               </DialogContent>
             </Dialog>
           </div>
         </div>
 
         {/* Summary Cards Row - Updated Design */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-3 gap-4 mb-6">
           {/* Total Events */}
           <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
@@ -252,7 +268,7 @@ export default function ParentBehaviorPage() {
                 <div className="text-xl sm:text-4xl font-bold text-blue-600 dark:text-blue-400">{children.reduce((acc, child) => acc + (behavioralEvents[child.lrn]?.length || 0), 0)}</div>
                 <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">all behavioral events</p>
               </div>
-              <div className="flex sm:flex w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+              <div className="hidden sm:flex w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                 <Activity className="w-8 h-8" />
               </div>
             </CardContent>
@@ -268,7 +284,7 @@ export default function ParentBehaviorPage() {
                 <div className="text-xl sm:text-4xl font-bold text-emerald-600 dark:text-emerald-400">{children.reduce((acc, child) => acc + (behavioralEvents[child.lrn]?.filter((e: any) => e.event_type !== 'parent_report' && e.severity === 'positive').length || 0), 0)}</div>
                 <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">reinforcing progress</p>
               </div>
-              <div className="flex sm:flex w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+              <div className="hidden sm:flex w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                 <Heart className="w-8 h-8" />
               </div>
             </CardContent>
@@ -284,7 +300,7 @@ export default function ParentBehaviorPage() {
                 <div className="text-xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{children.reduce((acc, child) => acc + (behavioralEvents[child.lrn]?.filter((e: any) => e.event_type !== 'parent_report' && e.severity !== 'positive').length || 0), 0)}</div>
                 <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">major/critical incidents</p>
               </div>
-              <div className="flex sm:flex w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+              <div className="hidden sm:flex w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                 <AlertCircle className="w-8 h-8" />
               </div>
             </CardContent>
@@ -295,7 +311,7 @@ export default function ParentBehaviorPage() {
           <CardHeader className="border-b border-orange-100/40 dark:border-orange-800/30 bg-linear-to-r from-orange-50/50 to-transparent dark:from-orange-950/20 dark:to-transparent pb-4">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-xl bg-orange-100 dark:bg-orange-900/40">
-                <GraduationCap className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                <GraduationCap className="hidden sm:block w-5 h-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
                 <CardTitle className="text-xl font-bold text-slate-900 dark:text-white font-mono">Behavioral Events (Approved)</CardTitle>

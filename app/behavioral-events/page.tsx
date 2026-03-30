@@ -63,7 +63,7 @@ import { toast } from '@/hooks/use-toast';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { buildEarlyPreventionNote } from '@/lib/prevention-notes';
 import { MLDashboard } from '@/components/ml-dashboard';
-import { TablePageSkeleton } from '@/components/loading-skeletons';
+import BehavioralEventsSkeleton from '@/components/behavioral-events-skeleton';
 import { getOfflineQueueCount } from '@/lib/offline-secure-queue';
 import { queueBehaviorEvent, syncOfflineQueue } from '@/lib/offline-sync';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -319,7 +319,7 @@ export default function BehavioralEventsPage() {
   }, []);
   return (
     <HeatmapZonesProvider initialZones={zones}>
-      <Suspense fallback={<TablePageSkeleton />}>
+      <Suspense fallback={<BehavioralEventsSkeleton />}>
         <BehavioralEventsPageContent />
       </Suspense>
     </HeatmapZonesProvider>
@@ -413,7 +413,10 @@ function BehavioralEventsPageContent() {
     }
     const userData = JSON.parse(user);
     setCurrentUser(userData);
-    setAuthLoading(false);
+    // Artificial delay for loader demo
+    setTimeout(() => {
+      setAuthLoading(false);
+    }, 1500);
   }, [router]);
 
   useEffect(() => {
@@ -1626,11 +1629,7 @@ function BehavioralEventsPageContent() {
   }, [filteredEvents]);
 
   if (authLoading) {
-    return (
-      <DashboardLayout>
-        <TablePageSkeleton />
-      </DashboardLayout>
-    );
+    return <BehavioralEventsSkeleton />;
   }
 
   return (

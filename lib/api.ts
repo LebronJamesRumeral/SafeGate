@@ -186,6 +186,7 @@ export interface RiskScore {
   risk_level: string;
   last_updated: string;
   created_at: string;
+  parent_report_count?: number; // Number of parent-reported events in lookback window
 }
 
 export interface StudentDashboard {

@@ -21,7 +21,8 @@ def calculate_student_risk(
     Risk Score Calculation:
     - Behavioral Score (60% weight): Based on negative events and severity
     - Attendance Score (40% weight): Based on attendance rate
-    - Overall Score: Weighted average of both scores (0-100)
+    - Parent Reports: Each approved parent report applies a minor penalty (2 points each, max 10 points)
+    - Overall Score: Weighted average of all components (0-100)
     
     Risk Levels:
     - Low: 80-100
@@ -31,6 +32,7 @@ def calculate_student_risk(
     
     - **student_id**: ID of the student
     - **days_lookback**: Number of days to consider for calculation (default: 30)
+    - **parent_report_count**: Number of parent-reported events in lookback window
     """
     try:
         risk_score = RiskScoringService.calculate_risk_score(db, student_id, days_lookback)
