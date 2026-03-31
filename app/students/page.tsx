@@ -63,6 +63,7 @@ import { StudentRiskCard } from '@/components/ml-dashboard';
 import StudentsSkeleton from '@/components/students-skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useAuth } from '@/lib/auth-context';
 import { getStudentImportRequiredFieldsHint, parseStudentImportRows } from '@/lib/student-import';
 import { 
   AreaChart, 
@@ -199,6 +200,57 @@ type EditableScheduleRow = {
 
 // Enforce consistent layout structure for students page
 export default function StudentsPage() {
+  // Auth context for role-based UI
+  const { user } = useAuth ? useAuth() : { user: null };
+  const isAdmin = user?.role === 'admin';
+  const [dropDialogOpen, setDropDialogOpen] = useState(false);
+  const [dropConfirmEmail, setDropConfirmEmail] = useState('');
+  const [dropConfirmPassword, setDropConfirmPassword] = useState('');
+  const [dropError, setDropError] = useState('');
+  const [droppingStudent, setDroppingStudent] = useState(false);
+  // Drop student handler
+  const handleDropStudent = async () => {
+    if (!selectedStudent || !user) return;
+    setDropError('');
+    if (dropConfirmEmail.trim().toLowerCase() !== user.username?.toLowerCase()) {
+      setDropError('Account email does not match.');
+      return;
+    }
+    if (!dropConfirmPassword) {
+      setDropError('Password is required.');
+      return;
+    }
+    if (!supabase) {
+      setDropError('Supabase client not initialized.');
+      return;
+    }
+    setDroppingStudent(true);
+    try {
+      // Re-authenticate admin
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: dropConfirmEmail,
+        password: dropConfirmPassword,
+      });
+      if (signInError) {
+        setDropError('Invalid email or password.');
+        setDroppingStudent(false);
+        return;
+      }
+      const { error } = await supabase.from('students').update({ status: 'inactive', substatus: 'dropped' }).eq('id', selectedStudent.id);
+      if (error) throw error;
+      setDropDialogOpen(false);
+      setSelectedStudent(null);
+      setDetailsOpen(false);
+      await fetchStudents();
+      toast({ title: 'Student dropped', description: 'Student is now marked as dropped and is no longer a current student.' });
+    } catch (err) {
+      setDropError('Failed to drop student.');
+    } finally {
+      setDroppingStudent(false);
+      setDropConfirmEmail('');
+      setDropConfirmPassword('');
+    }
+  };
   // State for Undo dialog
   const [undoDialogOpen, setUndoDialogOpen] = useState(false);
   // State for validated parent emails
@@ -1555,20 +1607,20 @@ export default function StudentsPage() {
   // Filter and sort students
   const filteredStudents = useMemo(() => {
     let filtered = students.filter(student => {
+      // Only include students with status 'active' (exclude inactive: dropped/undergrad)
+      if (student.status !== 'active') return false;
       const term = search.toLowerCase();
       const matchesSearch = student.name.toLowerCase().includes(term) ||
                             student.lrn.toLowerCase().includes(term) ||
                             student.parentName.toLowerCase().includes(term);
       const matchesLevel = filterGrade === 'all' || student.level === filterGrade;
       const matchesGender = filterGender === 'all' || student.gender === filterGender;
-      
       // Risk filter
       if (filterRisk !== 'all') {
         const riskScore = riskScores[student.lrn];
         if (!riskScore) return false;
         return riskScore.risk_level === filterRisk;
       }
-      
       return matchesSearch && matchesLevel && matchesGender;
     });
 
@@ -1601,13 +1653,14 @@ export default function StudentsPage() {
 
   // Analytics calculations
   const stats = useMemo(() => {
-    const total = students.length;
-    const male = students.filter(s => s.gender === 'Male').length;
-    const female = students.filter(s => s.gender === 'Female').length;
-    
+    // Use filteredStudents for analytics (current students only)
+    const total = filteredStudents.length;
+    const male = filteredStudents.filter(s => s.gender === 'Male').length;
+    const female = filteredStudents.filter(s => s.gender === 'Female').length;
+
     // Level distribution
     const levelMap = new Map();
-    students.forEach(student => {
+    filteredStudents.forEach(student => {
       levelMap.set(student.level, (levelMap.get(student.level) || 0) + 1);
     });
     const levelDistribution = Array.from(levelMap.entries()).map(([level, count]) => ({
@@ -1622,7 +1675,6 @@ export default function StudentsPage() {
       high: 0,
       critical: 0
     };
-    
     Object.values(riskScores).forEach(score => {
       if (score) {
         riskCounts[score.risk_level as keyof typeof riskCounts]++;
@@ -1650,7 +1702,7 @@ export default function StudentsPage() {
       checkedOut,
       attendanceRate: total > 0 ? (checkedIn / total * 100).toFixed(1) : '0'
     };
-  }, [students, riskScores, attendanceByLrn]);
+  }, [filteredStudents, riskScores, attendanceByLrn]);
 
   const exportToCSV = async () => {
     const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Parent Name', 'Parent Contact', 'Parent Email', 'Address', 'Status'];
@@ -2972,7 +3024,61 @@ export default function StudentsPage() {
 
                                               {/* Edit/Confirm Button */}
                                               <div className="absolute bottom-4 right-8 flex gap-2">
-                                                {!editingStudentInfo ? (
+                                                {isAdmin && (
+                                                  <>
+                                                    <Button size="sm" variant="destructive" className="min-w-[120px]" onClick={() => setDropDialogOpen(true)}>
+                                                      Drop Student
+                                                    </Button>
+                                                    <Dialog open={dropDialogOpen} onOpenChange={(open) => {
+                                                      setDropDialogOpen(open);
+                                                      if (open) {
+                                                        setDropConfirmEmail('');
+                                                        setDropConfirmPassword('');
+                                                        setDropError('');
+                                                      }
+                                                    }}>
+                                                      <DialogContent className="max-w-md">
+                                                        <DialogHeader>
+                                                          <DialogTitle className="text-xl font-bold">Are you sure?</DialogTitle>
+                                                          <DialogDescription>
+                                                            This will permanently delete this student from the system.<br />
+                                                            Please enter your account email and password to confirm.
+                                                          </DialogDescription>
+                                                        </DialogHeader>
+                                                        {/* Hidden dummy input to confuse browser autofill */}
+                                                        <input type="text" name="fakeusernameremembered" autoComplete="username" style={{ display: 'none' }} tabIndex={-1} />
+                                                        <Input
+                                                          type="email"
+                                                          name="confirm_email_123"
+                                                          value={dropConfirmEmail}
+                                                          onChange={e => setDropConfirmEmail(e.target.value)}
+                                                          placeholder="Enter your email"
+                                                          className="mt-2"
+                                                          autoComplete="new-password"
+                                                          disabled={droppingStudent}
+                                                        />
+                                                        <Input
+                                                          type="password"
+                                                          name="confirm_password_123"
+                                                          value={dropConfirmPassword}
+                                                          onChange={e => setDropConfirmPassword(e.target.value)}
+                                                          placeholder="Enter your password"
+                                                          className="mt-2"
+                                                          autoComplete="new-password"
+                                                          disabled={droppingStudent}
+                                                        />
+                                                        {dropError && <div className="text-red-600 text-sm mt-2">{dropError}</div>}
+                                                        <div className="flex gap-3 justify-end mt-6">
+                                                          <Button variant="outline" onClick={() => setDropDialogOpen(false)} disabled={droppingStudent}>Cancel</Button>
+                                                          <Button variant="destructive" onClick={handleDropStudent} disabled={droppingStudent || !dropConfirmEmail.trim() || !dropConfirmPassword}>
+                                                            {droppingStudent ? 'Dropping...' : 'Drop Student'}
+                                                          </Button>
+                                                        </div>
+                                                      </DialogContent>
+                                                    </Dialog>
+                                                  </>
+                                                )}
+                                                {isAdmin && !editingStudentInfo ? (
                                                   <Button size="sm" variant="outline" className="min-w-[100px]" onClick={() => {
                                                     // When entering edit mode, buffer the last name
                                                     const nameParts = selectedStudent.name.trim().split(' ');
@@ -2981,7 +3087,8 @@ export default function StudentsPage() {
                                                   }}>
                                                     Edit Info
                                                   </Button>
-                                                ) : (
+                                                ) : null}
+                                                {isAdmin && editingStudentInfo && (
                                                   <Button size="sm" variant="default" className="min-w-[100px]" onClick={handleConfirmStudentInfo}>
                                                     Confirm
                                                   </Button>

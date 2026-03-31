@@ -1,3 +1,18 @@
+// Only these levels are considered current students and imported
+const YEAR_LEVEL_OPTIONS = [
+  'Toddler & Nursery',
+  'Pre-K',
+  'Kinder 1',
+  'Kinder 2',
+  'Grade 1',
+  'Grade 2',
+  'Grade 3',
+  'Grade 4',
+  'Grade 5',
+  'Grade 6',
+  'Grade 7',
+  'Grade 8',
+];
 export type ImportableStudentRow = {
   lrn: string;
   name: string;
@@ -9,6 +24,7 @@ export type ImportableStudentRow = {
   parent_contact: string;
   parent_email: string;
   status: string;
+  substatus?: string;
   updated_at: string;
 };
 
@@ -146,19 +162,37 @@ export function parseStudentImportRows(rawRows: Record<string, unknown>[]): Stud
     const birthdaySource = rowMap[normalizeHeader(FIELD_ALIASES.birthday[0])] ?? pickValue(rowMap, FIELD_ALIASES.birthday);
     const birthday = normalizeBirthday(birthdaySource);
 
-    rows.push({
-      lrn,
-      name,
-      gender,
-      birthday,
-      address,
-      level,
-      parent_name: parentName,
-      parent_contact: parentContact,
-      parent_email: parentEmail,
-      status,
-      updated_at: new Date().toISOString(),
-    });
+    // Save all students, but if their level is not in YEAR_LEVEL_OPTIONS, set status/substatus accordingly
+    if (YEAR_LEVEL_OPTIONS.includes(level)) {
+      rows.push({
+        lrn,
+        name,
+        gender,
+        birthday,
+        address,
+        level,
+        parent_name: parentName,
+        parent_contact: parentContact,
+        parent_email: parentEmail,
+        status,
+        updated_at: new Date().toISOString(),
+      });
+    } else {
+      rows.push({
+        lrn,
+        name,
+        gender,
+        birthday,
+        address,
+        level,
+        parent_name: parentName,
+        parent_contact: parentContact,
+        parent_email: parentEmail,
+        status: 'inactive',
+        substatus: 'undergrad',
+        updated_at: new Date().toISOString(),
+      });
+    }
   });
 
   return {

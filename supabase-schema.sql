@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS students (
   parent_contact VARCHAR(50),
   parent_email VARCHAR(255),
   status VARCHAR(20) DEFAULT 'active',
+  substatus VARCHAR(32),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT fk_parent_email FOREIGN KEY (parent_email) REFERENCES parents(parent_email) ON DELETE SET NULL
@@ -179,22 +180,22 @@ CREATE INDEX IF NOT EXISTS idx_student_schedules_lrn ON student_schedules(studen
 CREATE INDEX IF NOT EXISTS idx_student_schedules_day_time ON student_schedules(day_number, start_time);
 CREATE INDEX IF NOT EXISTS idx_student_schedules_active ON student_schedules(is_active);
 -- Insert sample students
-INSERT INTO students (lrn, name, gender, birthday, address, level, parent_name, parent_contact, parent_email, status) VALUES
-  ('LRN-2026-0001', 'Sarah Johnson', 'Female', '2014-05-12', '12 Lakeview St, City', 'Grade 4', 'Maria Johnson', '0917-555-0101', 'maria.johnson@example.com', 'active'),
-  ('LRN-2026-0002', 'James Smith', 'Male', '2013-11-03', '88 Maple Ave, City', 'Grade 5', 'Anthony Smith', '0917-555-0102', 'anthony.smith@example.com', 'active'),
-  ('LRN-2026-0003', 'Emily Davis', 'Female', '2016-02-19', '5 Sunrise Rd, City', 'Grade 2', 'Laura Davis', '0917-555-0103', 'laura.davis@example.com', 'active'),
-  ('LRN-2026-0004', 'Michael Brown', 'Male', '2015-09-21', '77 Pine St, City', 'Grade 3', 'Daniel Brown', '0917-555-0104', 'daniel.brown@example.com', 'active'),
-  ('LRN-2026-0005', 'Jessica White', 'Female', '2012-07-30', '23 River Dr, City', 'Grade 6', 'Grace White', '0917-555-0105', 'grace.white@example.com', 'active'),
-  ('LRN-2026-0006', 'David Wilson', 'Male', '2017-01-08', '9 Orchard Ln, City', 'Grade 1', 'Chloe Wilson', '0917-555-0106', 'chloe.wilson@example.com', 'active'),
-  ('LRN-2026-0007', 'Lisa Anderson', 'Female', '2023-03-15', '31 Hillside St, City', 'Kinder 1', 'Evelyn Anderson', '0917-555-0107', 'evelyn.anderson@example.com', 'active'),
-  ('LRN-2026-0008', 'Robert Taylor', 'Male', '2022-10-20', '54 Sunset Blvd, City', 'Kinder 2', 'Noah Taylor', '0917-555-0108', 'noah.taylor@example.com', 'active'),
-  ('LRN-2026-0009', 'Mia Santos', 'Female', '2023-01-15', '18 Garden St, City', 'Toddler & Nursery', 'Ana Santos', '0917-555-0109', 'ana.santos@example.com', 'active'),
-  ('LRN-2026-0010', 'Sophia Garcia', 'Female', '2022-02-08', '42 Oak St, City', 'Pre-K', 'Rosa Garcia', '0917-555-0110', 'rosa.garcia@example.com', 'active'),
-  ('LRN-2026-0011', 'Liam Martinez', 'Male', '2014-08-16', '67 Cedar Ave, City', 'Grade 4', 'Carmen Martinez', '0917-555-0111', 'carmen.martinez@example.com', 'active'),
-  ('LRN-2026-0012', 'Olivia Hernandez', 'Female', '2015-12-05', '91 Willow St, City', 'Grade 3', 'Diego Hernandez', '0917-555-0112', 'diego.hernandez@example.com', 'active'),
-  ('LRN-2026-0013', 'Noah Lopez', 'Male', '2013-04-28', '14 Birch Ln, City', 'Grade 5', 'Sofia Lopez', '0917-555-0113', 'sofia.lopez@example.com', 'active'),
-  ('LRN-2026-0014', 'Emma Gonzalez', 'Female', '2016-06-14', '36 Elm St, City', 'Grade 2', 'Miguel Gonzalez', '0917-555-0114', 'miguel.gonzalez@example.com', 'active'),
-  ('LRN-2026-0015', 'Ava Ramirez', 'Female', '2023-07-22', '58 Spruce Dr, City', 'Kinder 1', 'Isabel Ramirez', '0917-555-0115', 'isabel.ramirez@example.com', 'active')
+INSERT INTO students (lrn, name, gender, birthday, address, level, parent_name, parent_contact, parent_email, status, substatus) VALUES
+  ('LRN-2026-0001', 'Sarah Johnson', 'Female', '2014-05-12', '12 Lakeview St, City', 'Grade 4', 'Maria Johnson', '0917-555-0101', 'maria.johnson@example.com', 'active', 'undergrad'),
+  ('LRN-2026-0002', 'James Smith', 'Male', '2013-11-03', '88 Maple Ave, City', 'Grade 5', 'Anthony Smith', '0917-555-0102', 'anthony.smith@example.com', 'active', 'dropped'),
+  ('LRN-2026-0003', 'Emily Davis', 'Female', '2016-02-19', '5 Sunrise Rd, City', 'Grade 2', 'Laura Davis', '0917-555-0103', 'laura.davis@example.com', 'active', 'inactive'),
+  ('LRN-2026-0004', 'Michael Brown', 'Male', '2015-09-21', '77 Pine St, City', 'Grade 3', 'Daniel Brown', '0917-555-0104', 'daniel.brown@example.com', 'active', 'undergrad'),
+  ('LRN-2026-0005', 'Jessica White', 'Female', '2012-07-30', '23 River Dr, City', 'Grade 6', 'Grace White', '0917-555-0105', 'grace.white@example.com', 'active', 'dropped'),
+  ('LRN-2026-0006', 'David Wilson', 'Male', '2017-01-08', '9 Orchard Ln, City', 'Grade 1', 'Chloe Wilson', '0917-555-0106', 'chloe.wilson@example.com', 'active', 'undergrad'),
+  ('LRN-2026-0007', 'Lisa Anderson', 'Female', '2023-03-15', '31 Hillside St, City', 'Kinder 1', 'Evelyn Anderson', '0917-555-0107', 'evelyn.anderson@example.com', 'active', 'inactive'),
+  ('LRN-2026-0008', 'Robert Taylor', 'Male', '2022-10-20', '54 Sunset Blvd, City', 'Kinder 2', 'Noah Taylor', '0917-555-0108', 'noah.taylor@example.com', 'active', 'undergrad'),
+  ('LRN-2026-0009', 'Mia Santos', 'Female', '2023-01-15', '18 Garden St, City', 'Toddler & Nursery', 'Ana Santos', '0917-555-0109', 'ana.santos@example.com', 'active', 'dropped'),
+  ('LRN-2026-0010', 'Sophia Garcia', 'Female', '2022-02-08', '42 Oak St, City', 'Pre-K', 'Rosa Garcia', '0917-555-0110', 'rosa.garcia@example.com', 'active', 'undergrad'),
+  ('LRN-2026-0011', 'Liam Martinez', 'Male', '2014-08-16', '67 Cedar Ave, City', 'Grade 4', 'Carmen Martinez', '0917-555-0111', 'carmen.martinez@example.com', 'active', 'dropped'),
+  ('LRN-2026-0012', 'Olivia Hernandez', 'Female', '2015-12-05', '91 Willow St, City', 'Grade 3', 'Diego Hernandez', '0917-555-0112', 'diego.hernandez@example.com', 'active', 'inactive'),
+  ('LRN-2026-0013', 'Noah Lopez', 'Male', '2013-04-28', '14 Birch Ln, City', 'Grade 5', 'Sofia Lopez', '0917-555-0113', 'sofia.lopez@example.com', 'active', 'undergrad'),
+  ('LRN-2026-0014', 'Emma Gonzalez', 'Female', '2016-06-14', '36 Elm St, City', 'Grade 2', 'Miguel Gonzalez', '0917-555-0114', 'miguel.gonzalez@example.com', 'active', 'dropped'),
+  ('LRN-2026-0015', 'Ava Ramirez', 'Female', '2023-07-22', '58 Spruce Dr, City', 'Kinder 1', 'Isabel Ramirez', '0917-555-0115', 'isabel.ramirez@example.com', 'active', 'undergrad')
 ON CONFLICT (lrn) DO NOTHING;
 -- Insert school year records
 INSERT INTO school_years (label, start_date, end_date, is_current) VALUES
@@ -1403,12 +1404,11 @@ BEGIN
   -- Update or insert attendance pattern record
   INSERT INTO attendance_patterns (
     student_lrn, pattern_type, pattern_confidence, attendance_rate,
-    days_present, days_absent, total_school_days, late_arrival_frequency,
-    last_updated
+    days_present, days_absent, total_school_days, late_arrival_frequency
   ) VALUES (
     p_student_lrn, v_pattern_type, ROUND(v_pattern_confidence::NUMERIC, 2),
     ROUND(v_attendance_rate::NUMERIC, 2), v_days_present, v_days_absent,
-    v_school_days, ROUND(v_late_percentage::NUMERIC, 2), NOW()
+    v_school_days, ROUND(v_late_percentage::NUMERIC, 2)
   )
   ON CONFLICT (student_lrn)
   DO UPDATE SET
@@ -1418,8 +1418,7 @@ BEGIN
     days_present = EXCLUDED.days_present,
     days_absent = EXCLUDED.days_absent,
     total_school_days = EXCLUDED.total_school_days,
-    late_arrival_frequency = EXCLUDED.late_arrival_frequency,
-    last_updated = NOW();
+    late_arrival_frequency = EXCLUDED.late_arrival_frequency;
   RETURN QUERY SELECT
     p_student_lrn::VARCHAR,
     v_pattern_type::VARCHAR,

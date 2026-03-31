@@ -15,6 +15,22 @@ import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
 import { supabase, type Student } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
 import { sortByLevel } from '@/lib/level-order';
+
+// Only these levels are considered current students
+const YEAR_LEVEL_OPTIONS = [
+  'Toddler & Nursery',
+  'Pre-K',
+  'Kinder 1',
+  'Kinder 2',
+  'Grade 1',
+  'Grade 2',
+  'Grade 3',
+  'Grade 4',
+  'Grade 5',
+  'Grade 6',
+  'Grade 7',
+  'Grade 8',
+];
 import { MLDashboard } from '@/components/ml-dashboard';
 import { MasterlistSkeleton } from '@/components/loading-skeletons';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -102,7 +118,10 @@ export default function MasterlistPage() {
     }
   };
 
+  // Only show students whose level is in YEAR_LEVEL_OPTIONS
   const filteredStudents = students.filter(student => {
+    if (!YEAR_LEVEL_OPTIONS.includes(student.level)) return false;
+    if (student.status === 'dropped' && filterStatus === 'all') return false; // Hide dropped from current by default
     const term = search.toLowerCase();
     const matchesSearch = student.name.toLowerCase().includes(term) ||
                           student.lrn.toLowerCase().includes(term) ||
@@ -450,9 +469,13 @@ export default function MasterlistPage() {
                         <TableCell className="text-foreground">
                           {(student.status || 'active') === 'active' ? (
                             <Badge className="bg-success/20 text-success border-success/30 font-medium">Active</Badge>
-                          ) : (
+                          ) : (student.substatus === 'undergrad' ? (
                             <Badge className="bg-info/20 text-info border-info/30 font-medium">Undergrad</Badge>
-                          )}
+                          ) : (student.substatus === 'dropped' ? (
+                            <Badge className="bg-destructive/20 text-destructive border-destructive/30 font-medium">Dropped</Badge>
+                          ) : (
+                            <Badge className="bg-muted/20 text-muted-foreground border-muted/30 font-medium">Inactive</Badge>
+                          )))}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           <div className="flex flex-col gap-1">
