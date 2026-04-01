@@ -1,10 +1,10 @@
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { AnalyticsSkeleton } from '@/components/loading-skeletons';
+import { AnalyticsPageSkeleton } from '@/components/analytics-skeleton';
 
 export default function LoadingAnalytics() {
   return (
     <DashboardLayout>
-      <AnalyticsSkeleton />
+      <AnalyticsPageSkeleton />
     </DashboardLayout>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { HeatmapZonesProvider, useHeatmapZones } from '@/lib/heatmap-zones-context';
 import Image from 'next/image';
 import { DashboardLayout } from '@/components/dashboard-layout';
+import { SchoolHeatmapSkeleton } from '@/components/school-heatmap-skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -481,6 +482,8 @@ function SchoolHeatmapContent() {
     });
   }, [zones, logs, highRiskStudents]);
 
+  const isInitialHeatmapLoad = loading && logs.length === 0;
+
   const selectedZone = zoneAnalytics.find((entry) => entry.zone.id === selectedZoneId) || zoneAnalytics[0];
 
   const selectedZoneContext = useMemo(() => {
@@ -649,6 +652,14 @@ function SchoolHeatmapContent() {
   }, [zoneDragState, zones]);
 
   // ...rest of the component remains unchanged, but use zones from context
+
+  if (isInitialHeatmapLoad) {
+    return (
+      <DashboardLayout>
+        <SchoolHeatmapSkeleton />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

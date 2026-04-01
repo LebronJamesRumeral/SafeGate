@@ -32,7 +32,7 @@ const YEAR_LEVEL_OPTIONS = [
   'Grade 8',
 ];
 import { MLDashboard } from '@/components/ml-dashboard';
-import { MasterlistSkeleton } from '@/components/loading-skeletons';
+import { MasterlistPageSkeleton } from '@/components/masterlist-skeleton';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getStudentImportRequiredFieldsHint, parseStudentImportRows } from '@/lib/student-import';
 
@@ -269,7 +269,7 @@ export default function MasterlistPage() {
   return (
     <DashboardLayout>
       {loading ? (
-        <MasterlistSkeleton />
+        <MasterlistPageSkeleton />
       ) : (
       <div className="space-y-6 animate-fade-in-up">
         {/* Header */}

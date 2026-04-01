@@ -141,7 +141,7 @@ export default function LoginPage() {
           <div className="flex items-center gap-3 mb-6">
             <div className="relative h-14 w-14 rounded-full overflow-hidden bg-white/10 flex items-center justify-center border border-white/20 shadow-lg">
               <Image 
-                src="SGCDC.png" 
+                src="/SGCDC.png" 
                 alt="SGCDC Logo" 
                 width={64} 
                 height={64} 
@@ -214,7 +214,7 @@ export default function LoginPage() {
             <div className="flex items-center justify-center gap-3 mb-4">
               <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-blue-950 flex items-center justify-center shadow-lg">
                 <Image 
-                  src="SGCDC.png" 
+                  src="/SGCDC.png" 
                   alt="SGCDC Logo" 
                   width={48} 
                   height={48} 

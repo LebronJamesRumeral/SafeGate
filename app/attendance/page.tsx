@@ -41,7 +41,7 @@ import { supabase } from '@/lib/supabase';
 import { sortByLevel } from '@/lib/level-order';
 import { toast } from '@/components/ui/use-toast';
 import { MLDashboard } from '@/components/ml-dashboard';
-import { TablePageSkeleton } from '@/components/loading-skeletons';
+import AttendanceSkeleton from '@/components/attendance-skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   AreaChart, 
@@ -462,11 +462,7 @@ export default function AttendancePage() {
   }));
 
   if (loading && isInitialLoad) {
-    return (
-      <DashboardLayout>
-        <TablePageSkeleton />
-      </DashboardLayout>
-    );
+    return <AttendanceSkeleton />;
   }
 
   return (

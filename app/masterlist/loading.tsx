@@ -1,10 +1,10 @@
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { MasterlistSkeleton } from '@/components/loading-skeletons';
+import { MasterlistPageSkeleton } from '@/components/masterlist-skeleton';
 
 export default function LoadingMasterlist() {
   return (
     <DashboardLayout>
-      <MasterlistSkeleton />
+      <MasterlistPageSkeleton />
     </DashboardLayout>
   );
 }

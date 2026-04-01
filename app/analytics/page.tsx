@@ -33,7 +33,7 @@ import { useState, useEffect } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase';
 import { MLDashboard } from '@/components/ml-dashboard';
-import { AnalyticsSkeleton } from '@/components/loading-skeletons';
+import { AnalyticsPageSkeleton } from '@/components/analytics-skeleton';
 import { DateLevelFilter } from '@/components/date-level-filter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -476,7 +476,7 @@ export default function AnalyticsPage() {
   if (loading && isInitialLoad) {
     return (
       <DashboardLayout>
-        <AnalyticsSkeleton />
+        <AnalyticsPageSkeleton />
       </DashboardLayout>
     );
   }

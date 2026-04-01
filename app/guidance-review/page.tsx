@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { GuidanceReviewSkeleton } from '@/components/loading-skeletons';
+import { GuidanceReviewPageSkeleton } from '@/components/guidance-review-skeleton';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Activity, AlertTriangle, CalendarDays, CheckCircle, Clock, Eye, Loader2, UserCircle2, Users, XCircle, ChevronDownIcon, Minus, Info } from 'lucide-react';
 import {
@@ -230,7 +230,12 @@ export default function GuidanceReviewPage() {
   const [reviewNote, setReviewNote] = useState('');
   const [behaviorScoreInput, setBehaviorScoreInput] = useState('');
   const [suggestedBehaviorScore, setSuggestedBehaviorScore] = useState<number | null>(null);
+  const [isClientMounted, setIsClientMounted] = useState(false);
   const minimumInitialSkeletonMs = 1400;
+
+  useEffect(() => {
+    setIsClientMounted(true);
+  }, []);
 
   useEffect(() => {
     const rawUser = localStorage.getItem('safegate_user');
@@ -680,7 +685,7 @@ export default function GuidanceReviewPage() {
   if (authChecked && isInitialLoad && (loadingStudents || loadingPending)) {
     return (
       <DashboardLayout>
-        <GuidanceReviewSkeleton />
+        <GuidanceReviewPageSkeleton />
       </DashboardLayout>
     );
   }
@@ -794,133 +799,152 @@ export default function GuidanceReviewPage() {
             </CardTitle>
             <CardDescription>Select a student to open records. You can type in the dropdown to jump to a name or filter by level.</CardDescription>
             <div className="pt-1 max-w-xl flex gap-2">
-              <div className="flex flex-row gap-2 w-full">
-                {/* All Levels filter */}
-                <div className="flex flex-col gap-2 w-full max-w-xs">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
-                    Student Level
-                  </label>
-                  <Select value={studentLevelFilter || "all"} onValueChange={val => setStudentLevelFilter(val === "all" ? "" : val)}>
-                    <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
-                      <SelectValue placeholder="All Levels" />
-                    </SelectTrigger>
-                    <SelectContent className="dark:bg-slate-800 dark:border-border/40">
-                      <SelectItem value="all">All Levels</SelectItem>
-                      {Array.from(new Set(students.map(s => s.level))).sort().map((level) => (
-                        <SelectItem key={level} value={level}>
-                          {level}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {/* Severity filter */}
-                <div className="flex flex-col gap-2 w-full max-w-xs">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
-                    Severity
-                  </label>
-                  <Select value={severityFilter || "all"} onValueChange={val => setSeverityFilter(val === "all" ? "" : val)}>
-                    <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
-                      <SelectValue placeholder="All Severities" />
-                    </SelectTrigger>
-                    <SelectContent className="dark:bg-slate-800 dark:border-border/40 min-w-55">
-                      <SelectItem value="all">
-                        <span className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-slate-400" />
-                          All Severities
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="positive">
-                        <span className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-emerald-600" />
-                          Positive
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="neutral">
-                        <span className="flex items-center gap-2">
-                          <Minus className="w-4 h-4 text-gray-500" />
-                          Neutral
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="minor">
-                        <span className="flex items-center gap-2">
-                          <Info className="w-4 h-4 text-yellow-500" />
-                          Minor
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="major">
-                        <span className="flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4 text-orange-500" />
-                          Major
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="critical">
-                        <span className="flex items-center gap-2">
-                          <XCircle className="w-4 h-4 text-red-600" />
-                          Critical
-                        </span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {/* Student Search & Picker */}
-              <div className="flex flex-col gap-2 w-full">
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
-                  Search Student
-                </label>
-                <Popover open={studentPickerOpen} onOpenChange={setStudentPickerOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={studentPickerOpen}
-                      className="w-full justify-between h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200"
-                    >
-                      {selectedStudentLrn
-                        ? students.find((s) => s.lrn === selectedStudentLrn)?.name || 'Select student'
-                        : 'Select student'}
-                      <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-87.5 p-0 dark:bg-slate-800 dark:border-border/40">
-                    <Command>
-                      <CommandInput
-                        placeholder="Search by name or LRN..."
-                        value={studentSearchQuery}
-                        onValueChange={setStudentSearchQuery}
-                        className="h-9"
-                        autoFocus
-                      />
-                      <CommandList>
-                        <CommandEmpty>No students found.</CommandEmpty>
-                        <CommandGroup>
-                          {filteredStudentOptions.map((student) => (
-                            <CommandItem
-                              key={student.lrn}
-                              value={student.name}
-                              onSelect={() => {
-                                handleStudentSelect(student.lrn);
-                                setStudentPickerOpen(false);
-                              }}
-                              className={
-                                student.lrn === selectedStudentLrn
-                                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
-                                  : ''
-                              }
-                            >
-                              <div className="flex flex-col">
-                                <span className="font-medium">{student.name}</span>
-                                <span className="text-xs text-slate-500">{student.lrn} • {student.level}</span>
-                              </div>
-                            </CommandItem>
+              {isClientMounted ? (
+                <>
+                  <div className="flex flex-row gap-2 w-full">
+                    {/* All Levels filter */}
+                    <div className="flex flex-col gap-2 w-full max-w-xs">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
+                        Student Level
+                      </label>
+                      <Select value={studentLevelFilter || "all"} onValueChange={val => setStudentLevelFilter(val === "all" ? "" : val)}>
+                        <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
+                          <SelectValue placeholder="All Levels" />
+                        </SelectTrigger>
+                        <SelectContent className="dark:bg-slate-800 dark:border-border/40">
+                          <SelectItem value="all">All Levels</SelectItem>
+                          {Array.from(new Set(students.map(s => s.level))).sort().map((level) => (
+                            <SelectItem key={level} value={level}>
+                              {level}
+                            </SelectItem>
                           ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {/* Severity filter */}
+                    <div className="flex flex-col gap-2 w-full max-w-xs">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
+                        Severity
+                      </label>
+                      <Select value={severityFilter || "all"} onValueChange={val => setSeverityFilter(val === "all" ? "" : val)}>
+                        <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
+                          <SelectValue placeholder="All Severities" />
+                        </SelectTrigger>
+                        <SelectContent className="dark:bg-slate-800 dark:border-border/40 min-w-55">
+                          <SelectItem value="all">
+                            <span className="flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4 text-slate-400" />
+                              All Severities
+                            </span>
+                          </SelectItem>
+                          <SelectItem value="positive">
+                            <span className="flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4 text-emerald-600" />
+                              Positive
+                            </span>
+                          </SelectItem>
+                          <SelectItem value="neutral">
+                            <span className="flex items-center gap-2">
+                              <Minus className="w-4 h-4 text-gray-500" />
+                              Neutral
+                            </span>
+                          </SelectItem>
+                          <SelectItem value="minor">
+                            <span className="flex items-center gap-2">
+                              <Info className="w-4 h-4 text-yellow-500" />
+                              Minor
+                            </span>
+                          </SelectItem>
+                          <SelectItem value="major">
+                            <span className="flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-orange-500" />
+                              Major
+                            </span>
+                          </SelectItem>
+                          <SelectItem value="critical">
+                            <span className="flex items-center gap-2">
+                              <XCircle className="w-4 h-4 text-red-600" />
+                              Critical
+                            </span>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {/* Student Search & Picker */}
+                  <div className="flex flex-col gap-2 w-full">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
+                      Search Student
+                    </label>
+                    <Popover open={studentPickerOpen} onOpenChange={setStudentPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={studentPickerOpen}
+                          className="w-full justify-between h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200"
+                        >
+                          {selectedStudentLrn
+                            ? students.find((s) => s.lrn === selectedStudentLrn)?.name || 'Select student'
+                            : 'Select student'}
+                          <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-87.5 p-0 dark:bg-slate-800 dark:border-border/40">
+                        <Command>
+                          <CommandInput
+                            placeholder="Search by name or LRN..."
+                            value={studentSearchQuery}
+                            onValueChange={setStudentSearchQuery}
+                            className="h-9"
+                            autoFocus
+                          />
+                          <CommandList>
+                            <CommandEmpty>No students found.</CommandEmpty>
+                            <CommandGroup>
+                              {filteredStudentOptions.map((student) => (
+                                <CommandItem
+                                  key={student.lrn}
+                                  value={student.name}
+                                  onSelect={() => {
+                                    handleStudentSelect(student.lrn);
+                                    setStudentPickerOpen(false);
+                                  }}
+                                  className={
+                                    student.lrn === selectedStudentLrn
+                                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
+                                      : ''
+                                  }
+                                >
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{student.name}</span>
+                                    <span className="text-xs text-slate-500">{student.lrn} • {student.level}</span>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-row gap-2 w-full">
+                  <div className="w-full max-w-xs space-y-2">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                  <div className="w-full max-w-xs space-y-2">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                  <div className="w-full space-y-2">
+                    <Skeleton className="h-3 w-28" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent className="pt-0">

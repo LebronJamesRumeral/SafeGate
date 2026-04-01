@@ -1,10 +1,10 @@
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { GuidanceReviewSkeleton } from '@/components/loading-skeletons';
+import { GuidanceReviewPageSkeleton } from '@/components/guidance-review-skeleton';
 
 export default function LoadingGuidanceReview() {
   return (
     <DashboardLayout>
-      <GuidanceReviewSkeleton />
+      <GuidanceReviewPageSkeleton />
     </DashboardLayout>
   );
 }

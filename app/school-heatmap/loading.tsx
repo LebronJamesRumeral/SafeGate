@@ -1,10 +1,10 @@
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { AnalyticsSkeleton } from '@/components/loading-skeletons';
+import { SchoolHeatmapSkeleton } from '@/components/school-heatmap-skeleton';
 
 export default function LoadingSchoolHeatmap() {
   return (
     <DashboardLayout>
-      <AnalyticsSkeleton />
+      <SchoolHeatmapSkeleton />
     </DashboardLayout>
   );
 }

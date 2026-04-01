@@ -35,6 +35,8 @@ interface SettingsCategory {
 }
 
 export default function SettingsPage() {
+  const MIN_SKELETON_DURATION_MS = 650;
+  const [initialLoading, setInitialLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('school');
   const [notifications, setNotifications] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
@@ -220,6 +222,15 @@ export default function SettingsPage() {
         });
       }
     }
+
+    // Keep the skeleton visible briefly to avoid a flash where animated content appears to override it.
+    const loadingTimer = window.setTimeout(() => {
+      setInitialLoading(false);
+    }, MIN_SKELETON_DURATION_MS);
+
+    return () => {
+      window.clearTimeout(loadingTimer);
+    };
   }, []);
 
   const handleYearLevelTimeChange = (index: number, newTime: string) => {
@@ -251,6 +262,52 @@ export default function SettingsPage() {
     // Reset form if needed
     console.log(`Cancelled changes for ${categoryId}`);
   };
+
+  if (initialLoading) {
+    return (
+      <DashboardLayout>
+        <div className="animate-pulse space-y-6">
+          <div className="space-y-3">
+            <div className="h-10 w-72 rounded-lg bg-slate-200 dark:bg-slate-700" />
+            <div className="h-4 w-96 rounded bg-slate-200 dark:bg-slate-700" />
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+            <div className="rounded-xl border border-border/60 bg-card p-6 lg:col-span-1">
+              <div className="mb-4 h-5 w-28 rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="space-y-3">
+                <div className="h-11 rounded-lg bg-slate-200 dark:bg-slate-700" />
+                <div className="h-11 rounded-lg bg-slate-200 dark:bg-slate-700" />
+                <div className="h-11 rounded-lg bg-slate-200 dark:bg-slate-700" />
+                <div className="h-11 rounded-lg bg-slate-200 dark:bg-slate-700" />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/60 bg-card p-6 lg:col-span-3">
+              <div className="mb-6 flex items-center justify-between gap-4">
+                <div className="space-y-3">
+                  <div className="h-8 w-56 rounded bg-slate-200 dark:bg-slate-700" />
+                  <div className="h-4 w-80 rounded bg-slate-200 dark:bg-slate-700" />
+                </div>
+                <div className="h-14 w-14 rounded-2xl bg-slate-200 dark:bg-slate-700" />
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div className="h-24 rounded-xl bg-slate-200 dark:bg-slate-700" />
+                <div className="h-24 rounded-xl bg-slate-200 dark:bg-slate-700" />
+                <div className="h-24 rounded-xl bg-slate-200 dark:bg-slate-700 md:col-span-2" />
+              </div>
+
+              <div className="mt-8 flex justify-end gap-3">
+                <div className="h-10 w-28 rounded-lg bg-slate-200 dark:bg-slate-700" />
+                <div className="h-10 w-32 rounded-lg bg-slate-200 dark:bg-slate-700" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
