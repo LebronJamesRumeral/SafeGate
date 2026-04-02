@@ -65,6 +65,7 @@ export default function SettingsPage() {
     full_name: '',
     role: 'teacher',
   });
+  const [newUserErrors, setNewUserErrors] = useState<{ email?: string; password?: string; role?: string }>({});
   const [creatingUser, setCreatingUser] = useState(false);
 
   // State for user listing and deletion
@@ -150,14 +151,51 @@ export default function SettingsPage() {
   const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setNewUser((prev) => ({ ...prev, [name]: value }));
+    if (name === 'email' && value.trim()) {
+      setNewUserErrors((prev) => ({ ...prev, email: undefined }));
+    }
+    if (name === 'password' && value.trim()) {
+      setNewUserErrors((prev) => ({ ...prev, password: undefined }));
+    }
   };
 
   const handleNewUserRoleChange = (value: string) => {
     setNewUser((prev) => ({ ...prev, role: value }));
+    if (value) {
+      setNewUserErrors((prev) => ({ ...prev, role: undefined }));
+    }
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const missingInputs: string[] = [];
+    const validationErrors: { email?: string; password?: string; role?: string } = {};
+
+    if (!newUser.email.trim()) {
+      missingInputs.push('Email');
+      validationErrors.email = 'Please provide an email.';
+    }
+    if (!newUser.password.trim()) {
+      missingInputs.push('Password');
+      validationErrors.password = 'Please provide a password.';
+    }
+    if (!newUser.role.trim()) {
+      missingInputs.push('Role');
+      validationErrors.role = 'Please select a role.';
+    }
+
+    if (missingInputs.length > 0) {
+      setNewUserErrors(validationErrors);
+      toast({
+        title: 'Required Inputs Missing',
+        description: `Please complete: ${missingInputs.join(', ')}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setNewUserErrors({});
     setCreatingUser(true);
     try {
       const res = await fetch('/api/auth/add-user', {
@@ -173,6 +211,7 @@ export default function SettingsPage() {
           variant: 'default',
         });
         setNewUser({ email: '', password: '', full_name: '', role: 'teacher' });
+        setNewUserErrors({});
         // Refresh user list after adding
         fetchUsers();
       } else {
@@ -417,15 +456,17 @@ export default function SettingsPage() {
                   {/* Add New User Form */}
                   <div className="p-6 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-slate-50/70 dark:bg-slate-800/50 shadow-sm">
                     <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">Add New User</h3>
-                    <form className="space-y-6" onSubmit={handleCreateUser} autoComplete="off">
+                    <form className="space-y-6" onSubmit={handleCreateUser} autoComplete="off" noValidate>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-2">
                           <Label htmlFor="newUserEmail" className="text-sm font-bold text-slate-700 dark:text-slate-300">Email</Label>
                           <Input id="newUserEmail" name="email" type="email" required value={newUser.email} onChange={handleNewUserChange} placeholder="user@email.com" autoComplete="off" className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500" />
+                          {newUserErrors.email && <p className="text-sm text-red-600 dark:text-red-400">{newUserErrors.email}</p>}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="newUserPassword" className="text-sm font-bold text-slate-700 dark:text-slate-300">Password</Label>
                           <Input id="newUserPassword" name="password" type="password" required value={newUser.password} onChange={handleNewUserChange} placeholder="••••••••" autoComplete="new-password" className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500" />
+                          {newUserErrors.password && <p className="text-sm text-red-600 dark:text-red-400">{newUserErrors.password}</p>}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="newUserRole" className="text-sm font-bold text-slate-700 dark:text-slate-300">Role</Label>
@@ -439,6 +480,7 @@ export default function SettingsPage() {
                               <SelectItem value="guidance">Guidance</SelectItem>
                             </SelectContent>
                           </Select>
+                          {newUserErrors.role && <p className="text-sm text-red-600 dark:text-red-400">{newUserErrors.role}</p>}
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

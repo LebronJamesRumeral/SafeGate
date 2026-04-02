@@ -13,6 +13,7 @@ export const supabase = isValidUrl && supabaseAnonKey
 export interface Student {
   id: number;
   lrn: string;
+  rfid_uid?: string | null;
   name: string;
   gender: string;
   birthday: string;

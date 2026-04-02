@@ -10,14 +10,14 @@ export function GuidanceReviewPageSkeleton() {
             <Skeleton className="h-9 w-72" />
             <Skeleton className="h-4 w-md max-w-full" />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Skeleton className="h-7 w-32 rounded-full" />
             <Skeleton className="h-7 w-24 rounded-full" />
             <Skeleton className="h-7 w-40 rounded-full" />
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
           {[...Array(4)].map((_, i) => (
             <div
               key={i}
@@ -87,7 +87,7 @@ export function GuidanceReviewPageSkeleton() {
         </div>
 
         <div className="xl:col-span-7 space-y-4">
-          <div className="rounded-2xl border border-border/70 bg-white/80 dark:bg-slate-900/55 backdrop-blur shadow-sm p-10">
+          <div className="rounded-2xl border border-border/70 bg-white/80 dark:bg-slate-900/55 backdrop-blur shadow-sm p-6 sm:p-10">
             <div className="text-center space-y-3">
               <UserCircle2 className="w-10 h-10 text-slate-400 mx-auto" />
               <Skeleton className="h-5 w-56 mx-auto" />

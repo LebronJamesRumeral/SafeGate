@@ -47,15 +47,162 @@ export default function ScanPage() {
   const [lastScan, setLastScan] = useState<ScanResult | null>(null);
   const [manualId, setManualId] = useState('');
   const [showManualEntry, setShowManualEntry] = useState(false);
-  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine);
+  const [rfidConnected, setRfidConnected] = useState(false);
+  const [connectingRfid, setConnectingRfid] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean>(true);
   const [syncing, setSyncing] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [offlineAttendanceState, setOfflineAttendanceState] = useState<Record<string, 'in' | 'out'>>({});
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scannerRef = useRef<any>(null);
+  const rfidPortRef = useRef<any>(null);
+  const rfidReaderRef = useRef<any>(null);
+  const rfidReadingActiveRef = useRef(false);
+  const rfidDisconnectingRef = useRef(false);
   const recordingRef = useRef(false);
   const lastScanRef = useRef<{ value: string; time: number } | null>(null);
   const startupRetryRef = useRef<number | null>(null);
+
+  const normalizeRfidUid = (value: string) => value.toUpperCase().replace(/[^A-F0-9]/g, '');
+
+  const applyRfidLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    const uidMatch = trimmed.match(/(?:card\s*uid|uid)\s*:\s*(.+)$/i);
+    if (!uidMatch?.[1]) return;
+    
+    const uid = normalizeRfidUid(uidMatch[1]);
+    if (uid.length < 4) return;
+
+    setManualId(uid);
+  };
+
+  const disconnectRfidReader = async (silent = false) => {
+    if (rfidDisconnectingRef.current) return;
+    rfidDisconnectingRef.current = true;
+    rfidReadingActiveRef.current = false;
+
+    try {
+      const reader = rfidReaderRef.current;
+      const port = rfidPortRef.current;
+
+      if (reader) {
+        try {
+          await reader.cancel();
+        } catch {
+          // Reader can already be closed while disconnecting.
+        }
+
+        try {
+          reader.releaseLock();
+        } catch {
+          // No-op if lock is already released.
+        }
+      }
+
+      if (port) {
+        try {
+          await port.close();
+        } catch {
+          // Port can already be closed.
+        }
+      }
+    } catch {
+      // Best effort cleanup.
+    } finally {
+      rfidReaderRef.current = null;
+      rfidPortRef.current = null;
+      setRfidConnected(false);
+      rfidDisconnectingRef.current = false;
+      if (!silent) {
+        toast({
+          title: 'RFID Reader Disconnected',
+          description: 'Manual serial input has been disconnected.',
+        });
+      }
+    }
+  };
+
+  const connectRfidReader = async () => {
+    if (typeof navigator === 'undefined' || !(navigator as any).serial) {
+      toast({
+        title: 'Web Serial Not Supported',
+        description: 'Use Chrome/Edge and open the app over localhost or HTTPS.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setConnectingRfid(true);
+    try {
+      await disconnectRfidReader(true);
+
+      const serialApi = (navigator as any).serial;
+      const port = await serialApi.requestPort();
+      await port.open({ baudRate: 115200 });
+
+      rfidPortRef.current = port;
+      rfidReadingActiveRef.current = true;
+      setRfidConnected(true);
+      toast({
+        title: 'RFID Reader Connected',
+        description: 'Tap a tag and the UID will auto-fill manual entry.',
+      });
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (rfidReadingActiveRef.current && port.readable && rfidPortRef.current === port) {
+        const reader = port.readable.getReader();
+        rfidReaderRef.current = reader;
+        try {
+          while (rfidReadingActiveRef.current) {
+            const { value, done } = await reader.read();
+            if (done) {
+              break;
+            }
+            if (!value) {
+              continue;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split(/\r?\n/);
+            buffer = lines.pop() ?? '';
+            for (const line of lines) {
+              applyRfidLine(line);
+            }
+          }
+        } catch {
+          if (!rfidReadingActiveRef.current) {
+            break;
+          }
+        } finally {
+          try {
+            reader.releaseLock();
+          } catch {
+            // No-op if lock already released.
+          }
+          if (rfidReaderRef.current === reader) {
+            rfidReaderRef.current = null;
+          }
+        }
+      }
+    } catch (error: any) {
+      const cancelled = error?.name === 'NotFoundError';
+      if (!cancelled) {
+        toast({
+          title: 'Failed to Connect RFID Reader',
+          description: error?.message || String(error),
+          variant: 'destructive',
+        });
+      }
+      await disconnectRfidReader(true);
+    } finally {
+      setConnectingRfid(false);
+    }
+  };
 
   const findStudent = async (text: string) => {
     try {
@@ -71,21 +218,45 @@ export default function ScanPage() {
       }
       
       const normalized = text.trim().toUpperCase();
-      
-      const { data, error } = await supabase
+      const normalizedUid = normalized.replace(/[^A-F0-9]/g, '');
+
+      const { data: byLrn, error: lrnError } = await supabase
         .from('students')
         .select('*')
         .eq('lrn', normalized)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error finding student:', error);
+      if (lrnError && lrnError.code !== 'PGRST116') {
+        console.error('Error finding student:', lrnError);
         toast({
           title: 'Failed to find student',
-          description: error.message || String(error),
+          description: lrnError.message || String(lrnError),
           variant: 'destructive',
         });
         return null;
+      }
+
+      let data = byLrn;
+      if (!data) {
+        const rfidCandidates = Array.from(new Set([normalized, normalizedUid].filter(Boolean)));
+        const { data: byRfid, error: rfidError } = await supabase
+          .from('students')
+          .select('*')
+          .in('rfid_uid', rfidCandidates)
+          .limit(1)
+          .maybeSingle();
+
+        if (rfidError) {
+          console.error('Error finding student by RFID UID:', rfidError);
+          toast({
+            title: 'Failed to find student',
+            description: rfidError.message || String(rfidError),
+            variant: 'destructive',
+          });
+          return null;
+        }
+
+        data = byRfid;
       }
       
       if (data) {
@@ -444,6 +615,9 @@ export default function ScanPage() {
   useEffect(() => {
     void refreshPendingSyncCount();
 
+    // Keep initial SSR and hydration markup consistent, then update status on mount.
+    setIsOnline(navigator.onLine);
+
     const handleOnline = () => {
       setIsOnline(true);
       void syncQueuedRecords(true);
@@ -471,6 +645,12 @@ export default function ScanPage() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      void disconnectRfidReader(true);
     };
   }, []);
 
@@ -588,7 +768,7 @@ export default function ScanPage() {
     } else {
       setLastScan({
         status: 'error',
-        message: 'Student ID not found',
+        message: 'Student not found by LRN or RFID UID',
         scannedText: manualId,
         time: new Date().toLocaleTimeString(),
       });
@@ -876,7 +1056,12 @@ export default function ScanPage() {
                 Manual Entry
               </Button>
 
-              <Dialog open={showManualEntry} onOpenChange={setShowManualEntry}>
+              <Dialog
+                open={showManualEntry}
+                onOpenChange={(open) => {
+                  setShowManualEntry(open);
+                }}
+              >
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
@@ -884,15 +1069,43 @@ export default function ScanPage() {
                       Manual Entry
                     </DialogTitle>
                     <DialogDescription>
-                      Enter student ID to auto check in or check out.
+                      Enter student LRN or RFID UID to auto check in or check out.
                     </DialogDescription>
                   </DialogHeader>
 
                   <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      {!rfidConnected ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => void connectRfidReader()}
+                          disabled={connectingRfid}
+                          className="flex-1"
+                        >
+                          {connectingRfid ? 'Connecting RFID Reader...' : 'Connect RFID Reader'}
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => void disconnectRfidReader()}
+                          className="flex-1"
+                        >
+                          Disconnect RFID Reader
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {rfidConnected
+                        ? 'Reader connected. Tap a tag to auto-fill UID below.'
+                        : 'Connect first, then tap a tag to auto-type the UID.'}
+                    </p>
+
                     <Input
-                      placeholder="Enter Student ID"
+                      placeholder="Enter Student LRN or RFID UID"
                       value={manualId}
-                      onChange={(e) => setManualId(e.target.value)}
+                      onChange={(e) => setManualId(normalizeRfidUid(e.target.value))}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           void handleManualEntry();

@@ -6,6 +6,15 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  redirects: async () => {
+    return [
+      {
+        source: '/parent/daily-checkin',
+        destination: '/parent-behavior',
+        permanent: true,
+      },
+    ]
+  },
   headers: async () => {
     return [
       {

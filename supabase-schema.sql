@@ -33,11 +33,13 @@ DROP TABLE IF EXISTS parent_notifications CASCADE;
 DROP TABLE IF EXISTS interventions CASCADE;
 DROP TABLE IF EXISTS behavioral_patterns CASCADE;
 DROP TABLE IF EXISTS behavioral_events CASCADE;
+DROP TABLE IF EXISTS achievements CASCADE;
 DROP TABLE IF EXISTS event_categories CASCADE;
 -- Remove custom users table for Supabase Auth migration
 DROP TABLE IF EXISTS student_attendance_summary CASCADE;
 DROP TABLE IF EXISTS absence_predictions CASCADE;
 DROP TABLE IF EXISTS attendance_patterns CASCADE;
+DROP TABLE IF EXISTS parent_attendance_notes CASCADE;
 DROP TABLE IF EXISTS attendance_logs CASCADE;
 DROP TABLE IF EXISTS student_schedules CASCADE;
 DROP TABLE IF EXISTS student_attendance_schedules CASCADE;
@@ -65,6 +67,7 @@ CREATE TABLE IF NOT EXISTS parents (
 CREATE TABLE IF NOT EXISTS students (
   id BIGSERIAL PRIMARY KEY,
   lrn VARCHAR(50) UNIQUE,
+  rfid_uid VARCHAR(32) UNIQUE,
   name VARCHAR(255) NOT NULL,
   gender VARCHAR(20) NOT NULL,
   birthday DATE NOT NULL,
@@ -89,6 +92,9 @@ WHERE parent_email IS NOT NULL
   AND parent_email NOT IN (SELECT parent_email FROM parents);
 -- Backward-compatible migration for existing databases
 ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_email VARCHAR(255);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS rfid_uid VARCHAR(32);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_students_rfid_uid_unique ON students(rfid_uid) WHERE rfid_uid IS NOT NULL;
+
 -- Create attendance_logs table (Core ML Data Source)
 CREATE TABLE IF NOT EXISTS attendance_logs (
   id BIGSERIAL PRIMARY KEY,
@@ -103,6 +109,18 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
   is_invalid_timeout BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(student_lrn, date)
+);
+
+-- Parent-attached notes on attendance logs
+CREATE TABLE IF NOT EXISTS parent_attendance_notes (
+  id BIGSERIAL PRIMARY KEY,
+  attendance_log_id BIGINT NOT NULL REFERENCES attendance_logs(id) ON DELETE CASCADE,
+  student_lrn VARCHAR(50) NOT NULL REFERENCES students(lrn) ON DELETE CASCADE,
+  parent_email VARCHAR(255) NOT NULL REFERENCES parents(parent_email) ON DELETE CASCADE,
+  note_text TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(attendance_log_id, parent_email)
 );
 -- School years for enrollment and advancement tracking
 CREATE TABLE IF NOT EXISTS school_years (
@@ -172,6 +190,9 @@ CREATE INDEX IF NOT EXISTS idx_attendance_student_lrn ON attendance_logs(student
 CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance_logs(date);
 CREATE INDEX IF NOT EXISTS idx_attendance_is_present ON attendance_logs(is_present);
 CREATE INDEX IF NOT EXISTS idx_attendance_status ON attendance_logs(attendance_status);
+CREATE INDEX IF NOT EXISTS idx_parent_attendance_notes_log_id ON parent_attendance_notes(attendance_log_id);
+CREATE INDEX IF NOT EXISTS idx_parent_attendance_notes_student_lrn ON parent_attendance_notes(student_lrn);
+CREATE INDEX IF NOT EXISTS idx_parent_attendance_notes_parent_email ON parent_attendance_notes(parent_email);
 CREATE INDEX IF NOT EXISTS idx_attendance_schedules_lrn ON student_attendance_schedules(student_lrn);
 CREATE INDEX IF NOT EXISTS idx_attendance_schedules_active ON student_attendance_schedules(is_active);
 CREATE INDEX IF NOT EXISTS idx_attendance_schedules_year_level ON student_attendance_schedules(year_level);
@@ -646,6 +667,25 @@ CREATE INDEX IF NOT EXISTS idx_behavioral_events_date ON behavioral_events(event
 CREATE INDEX IF NOT EXISTS idx_behavioral_events_severity ON behavioral_events(severity);
 CREATE INDEX IF NOT EXISTS idx_behavioral_events_category ON behavioral_events(category_id);
 CREATE INDEX IF NOT EXISTS idx_behavioral_events_guidance_status ON behavioral_events(guidance_status);
+
+-- Positive achievements and recognitions
+CREATE TABLE IF NOT EXISTS achievements (
+  id BIGSERIAL PRIMARY KEY,
+  student_lrn VARCHAR(50) NOT NULL REFERENCES students(lrn) ON DELETE CASCADE,
+  category_type VARCHAR(50) DEFAULT 'Achievements' NOT NULL,
+  achievement_type VARCHAR(100) NOT NULL,
+  description TEXT NOT NULL,
+  notes TEXT,
+  reported_by VARCHAR(255) NOT NULL,
+  achievement_date DATE NOT NULL,
+  achievement_time TIME NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_achievements_student ON achievements(student_lrn);
+CREATE INDEX IF NOT EXISTS idx_achievements_date ON achievements(achievement_date);
+CREATE INDEX IF NOT EXISTS idx_achievements_type ON achievements(achievement_type);
+
 -- Insert attendance-based event categories
 INSERT INTO event_categories (name, category_type, severity_level, color_code, description, notify_parent) VALUES
   ('Chronic Absent', 'Attendance', 'critical', '#dc2626', 'Student has very low attendance', true),
@@ -659,6 +699,7 @@ ON CONFLICT DO NOTHING;
 -- Enable RLS on behavioral tables
 ALTER TABLE event_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE behavioral_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE achievements ENABLE ROW LEVEL SECURITY;
 -- Set up public access policies
 CREATE POLICY "Enable read for all on event categories" ON event_categories FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on event categories" ON event_categories FOR INSERT WITH CHECK (true);
@@ -666,6 +707,10 @@ CREATE POLICY "Enable read for all on behavioral events" ON behavioral_events FO
 CREATE POLICY "Enable insert for all on behavioral events" ON behavioral_events FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on behavioral events" ON behavioral_events FOR UPDATE USING (true);
 CREATE POLICY "Enable delete for all on behavioral events" ON behavioral_events FOR DELETE USING (true);
+CREATE POLICY "Enable read for all on achievements" ON achievements FOR SELECT USING (true);
+CREATE POLICY "Enable insert for all on achievements" ON achievements FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for all on achievements" ON achievements FOR UPDATE USING (true);
+CREATE POLICY "Enable delete for all on achievements" ON achievements FOR DELETE USING (true);
 -- Role-based in-app and push notifications
 CREATE TABLE IF NOT EXISTS role_notifications (
   id BIGSERIAL PRIMARY KEY,
@@ -1467,5 +1512,38 @@ FROM students s
 JOIN attendance_patterns ap ON s.lrn = ap.student_lrn
 JOIN event_categories ec ON ap.pattern_type = ec.name
 ON CONFLICT (student_lrn, event_date, event_time, event_type) DO NOTHING;
+
+-- Test seed: one day behavior for Ava Ramirez (visible in parent daily behavior modal)
+INSERT INTO behavioral_events (
+  student_lrn,
+  category_id,
+  event_type,
+  severity,
+  description,
+  location,
+  reported_by,
+  event_date,
+  event_time,
+  parent_notified,
+  follow_up_required,
+  guidance_status,
+  notes
+) VALUES (
+  'LRN-2026-0015',
+  (SELECT id FROM event_categories WHERE name = 'High Consistency' LIMIT 1),
+  'Positive Participation',
+  'positive',
+  'Student showed positive participation and cooperative behavior during class activities.',
+  'School Campus',
+  'Attendance System',
+  '2026-03-12',
+  '10:15:00'::TIME,
+  false,
+  false,
+  'approved_for_ml',
+  'Manual test event for parent attendance-behavior day modal.'
+)
+ON CONFLICT (student_lrn, event_date, event_time, event_type) DO NOTHING;
+
 -- Update student summaries
 SELECT update_student_summary(lrn) FROM students;

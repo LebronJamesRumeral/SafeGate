@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   CalendarDays, 
   CheckCircle, 
@@ -21,6 +23,7 @@ import {
   Search,
   Users,
   Clock,
+  Clock3,
   AlertCircle,
   BarChart3,
   Calendar,
@@ -35,7 +38,8 @@ import {
   Minus,
   Info,
   AlertTriangle,
-  XCircle
+  XCircle,
+  FileText
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { sortByLevel } from '@/lib/level-order';
@@ -133,6 +137,8 @@ export default function AttendancePage() {
   const [showFilters, setShowFilters] = useState(true);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'absentDays', direction: 'desc' });
   const [exportLoading, setExportLoading] = useState(false);
+  const [parentNotes, setParentNotes] = useState<Record<string, Array<{ studentLrn: string; parentEmail: string; noteText: string; createdAt: string; attendanceDate: string }>>>({});
+  const [openNotesModal, setOpenNotesModal] = useState<string | null>(null);
 
   useEffect(() => {
     if (isMobile) {
@@ -233,6 +239,46 @@ export default function AttendancePage() {
       setStudents(sortedStudents);
       setLogs(attendanceData || []);
       setAppliedRange({ start, end });
+
+      // Fetch parent notes for all students
+      const { data: notesData } = await supabase
+        .from('parent_attendance_notes')
+        .select('attendance_log_id, student_lrn, parent_email, note_text, created_at')
+        .in('student_lrn', sortedStudents.map(s => s.lrn));
+
+      // Fetch attendance log dates
+      const attendanceLogIds = notesData?.map(n => n.attendance_log_id) || [];
+      const { data: attendanceDatesData } = attendanceLogIds.length > 0
+        ? await supabase
+            .from('attendance_logs')
+            .select('id, date')
+            .in('id', attendanceLogIds)
+        : { data: null };
+
+      const datesByLogId: Record<string, string> = {};
+      if (attendanceDatesData) {
+        for (const log of attendanceDatesData) {
+          datesByLogId[log.id] = log.date;
+        }
+      }
+
+      const notesByStudent: Record<string, Array<{ studentLrn: string; parentEmail: string; noteText: string; createdAt: string; attendanceDate: string }>> = {};
+      if (notesData) {
+        for (const note of notesData) {
+          if (!notesByStudent[note.student_lrn]) {
+            notesByStudent[note.student_lrn] = [];
+          }
+          notesByStudent[note.student_lrn].push({
+            studentLrn: note.student_lrn,
+            parentEmail: note.parent_email,
+            noteText: note.note_text,
+            createdAt: note.created_at,
+            attendanceDate: datesByLogId[note.attendance_log_id] || '',
+          });
+        }
+      }
+      setParentNotes(notesByStudent);
+
       toast({
         title: 'Attendance Loaded',
         description: 'Attendance data loaded successfully.',
@@ -471,7 +517,7 @@ export default function AttendancePage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="space-y-6 max-w-7xl mx-auto"
+        className="space-y-6 max-w-7xl mx-auto animate-fade-in-up"
       >
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -923,6 +969,7 @@ export default function AttendancePage() {
                       </div>
                     </TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Note</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -939,7 +986,7 @@ export default function AttendancePage() {
                     ))
                   ) : summaryRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-12">
+                      <TableCell colSpan={7} className="text-center py-12">
                         <div className="flex flex-col items-center gap-2">
                           <Users className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 dark:text-gray-400">No students match your filters</p>
@@ -1011,6 +1058,64 @@ export default function AttendancePage() {
                               <Badge className="bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 border-0 gap-1">
                                 <AlertCircle className="w-3 h-3" />
                                 Needs Attention
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {parentNotes[row.lrn] && parentNotes[row.lrn].length > 0 ? (
+                              <Dialog open={openNotesModal === row.lrn} onOpenChange={(isOpen) => setOpenNotesModal(isOpen ? row.lrn : null)}>
+                                <DialogTrigger asChild>
+                                  <Button size="sm" variant="outline" className="h-8 px-2.5 border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                    <FileText className="w-3.5 h-3.5 mr-1" />
+                                    View Notes
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                                  <DialogHeader className="sticky top-0 bg-transparent z-10 pb-4 border-b border-slate-200 dark:border-slate-700">
+                                    <DialogTitle className="text-lg">Parent Feedback Notes</DialogTitle>
+                                    <DialogDescription>
+                                      All parent feedback and notes submitted for {row.name} ({row.lrn})
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <div className="flex-1 overflow-y-auto pr-4 space-y-4">
+                                    {parentNotes[row.lrn].map((note, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="rounded-lg border-l-4 border-l-blue-500 border border-slate-200 dark:border-slate-700 bg-blue-50/50 dark:bg-blue-950/20 p-4 hover:shadow-md transition-shadow"
+                                      >
+                                        <div className="space-y-3">
+                                          {/* Header Row */}
+                                          <div className="flex items-start justify-between gap-3">
+                                            <div className="flex-1">
+                                              <div className="flex items-center gap-2 mb-2">
+                                                <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                                <p className="font-bold text-sm text-blue-600 dark:text-blue-400">{note.parentEmail}</p>
+                                              </div>
+                                              <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                                                <Calendar className="w-3 h-3" />
+                                                Attendance Date: {note.attendanceDate}
+                                              </p>
+                                              <p className="text-xs text-slate-500 dark:text-slate-500 mt-1 flex items-center gap-1">
+                                                <Clock3 className="w-3 h-3" />
+                                                Submitted: {new Date(note.createdAt).toLocaleDateString()} at {new Date(note.createdAt).toLocaleTimeString()}
+                                              </p>
+                                            </div>
+                                            <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-semibold text-xs px-2.5 py-1 uppercase tracking-wider border-0">
+                                              Parent Note
+                                            </Badge>
+                                          </div>
+
+                                          {/* Note Content */}
+                                          <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">{note.noteText}</p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            ) : (
+                              <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs">
+                                No Notes
                               </Badge>
                             )}
                           </TableCell>

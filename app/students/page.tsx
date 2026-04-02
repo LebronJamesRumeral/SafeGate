@@ -207,21 +207,55 @@ export default function StudentsPage() {
   const [dropConfirmEmail, setDropConfirmEmail] = useState('');
   const [dropConfirmPassword, setDropConfirmPassword] = useState('');
   const [dropError, setDropError] = useState('');
+  const [dropValidationErrors, setDropValidationErrors] = useState<{ email?: string; password?: string }>({});
   const [droppingStudent, setDroppingStudent] = useState(false);
   // Drop student handler
   const handleDropStudent = async () => {
     if (!selectedStudent || !user) return;
     setDropError('');
-    if (dropConfirmEmail.trim().toLowerCase() !== user.username?.toLowerCase()) {
-      setDropError('Account email does not match.');
+
+    const missingInputs: string[] = [];
+    const validationErrors: { email?: string; password?: string } = {};
+
+    if (!dropConfirmEmail.trim()) {
+      missingInputs.push('Email');
+      validationErrors.email = 'Please provide your account email.';
+    } else if (dropConfirmEmail.trim().toLowerCase() !== user.username?.toLowerCase()) {
+      validationErrors.email = 'Account email does not match.';
+    }
+
+    if (!dropConfirmPassword.trim()) {
+      missingInputs.push('Password');
+      validationErrors.password = 'Please provide your password.';
+    }
+
+    if (missingInputs.length > 0) {
+      setDropValidationErrors(validationErrors);
+      toast({
+        title: 'Required Inputs Missing',
+        description: `Please complete: ${missingInputs.join(', ')}`,
+        variant: 'destructive',
+      });
       return;
     }
-    if (!dropConfirmPassword) {
-      setDropError('Password is required.');
+
+    if (validationErrors.email) {
+      setDropValidationErrors(validationErrors);
+      toast({
+        title: 'Invalid Email',
+        description: validationErrors.email,
+        variant: 'destructive',
+      });
       return;
     }
+
     if (!supabase) {
       setDropError('Supabase client not initialized.');
+      toast({
+        title: 'Failed to Drop Student',
+        description: 'Supabase client not initialized.',
+        variant: 'destructive',
+      });
       return;
     }
     setDroppingStudent(true);
@@ -233,6 +267,11 @@ export default function StudentsPage() {
       });
       if (signInError) {
         setDropError('Invalid email or password.');
+        toast({
+          title: 'Invalid Credentials',
+          description: 'Invalid email or password.',
+          variant: 'destructive',
+        });
         setDroppingStudent(false);
         return;
       }
@@ -245,10 +284,16 @@ export default function StudentsPage() {
       toast({ title: 'Student dropped', description: 'Student is now marked as dropped and is no longer a current student.' });
     } catch (err) {
       setDropError('Failed to drop student.');
+      toast({
+        title: 'Failed to Drop Student',
+        description: err instanceof Error ? err.message : 'Failed to drop student.',
+        variant: 'destructive',
+      });
     } finally {
       setDroppingStudent(false);
       setDropConfirmEmail('');
       setDropConfirmPassword('');
+      setDropValidationErrors({});
     }
   };
   // State for Undo dialog
@@ -368,17 +413,70 @@ export default function StudentsPage() {
   // Buffer for last name editing
   const [editLastName, setEditLastName] = useState<string | null>(null);
 
+  const normalizeRfidUid = (value: string) => value.trim().toUpperCase().replace(/[^A-F0-9]/g, '');
+
   const handleConfirmStudentInfo = async () => {
-    // Only update the name if last name was edited
-    if (editLastName !== null && selectedStudent) {
+    if (!selectedStudent || !supabase) {
+      return;
+    }
+
+    let updatedName = selectedStudent.name;
+    if (editLastName !== null) {
       const nameParts = selectedStudent.name.trim().split(' ');
       const firstMiddle = nameParts.slice(0, -1).join(' ');
-      const updatedName = `${firstMiddle}${firstMiddle ? ' ' : ''}${editLastName}`;
-      setSelectedStudent({ ...selectedStudent, name: updatedName });
-      setEditLastName(null);
+      updatedName = `${firstMiddle}${firstMiddle ? ' ' : ''}${editLastName}`.trim();
     }
-    setEditingStudentInfo(false);
-    toast({ title: 'Student info updated!', description: 'Student information was successfully updated.' });
+
+    const normalizedRfid = normalizeRfidUid(selectedStudent.rfid_uid || '');
+
+    const payload = {
+      name: updatedName,
+      address: (selectedStudent.address || '').trim() || null,
+      parent_name: (selectedStudent.parentName || '').trim() || null,
+      parent_contact: (selectedStudent.parentContact || '').trim() || null,
+      parent_email: (selectedStudent.parentEmail || '').trim() || null,
+      rfid_uid: normalizedRfid || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update(payload)
+        .eq('id', selectedStudent.id);
+
+      if (error) {
+        const duplicateUid = error.code === '23505' && (error.message || '').toLowerCase().includes('rfid_uid');
+        toast({
+          title: duplicateUid ? 'RFID UID already assigned' : 'Failed to update student',
+          description: duplicateUid
+            ? 'This RFID UID is already assigned to another student.'
+            : (error.message || 'Student information was not saved.'),
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setSelectedStudent({
+        ...selectedStudent,
+        name: updatedName,
+        address: payload.address || '',
+        parentName: payload.parent_name || '',
+        parentContact: payload.parent_contact || '',
+        parentEmail: payload.parent_email || '',
+        rfid_uid: payload.rfid_uid,
+      });
+      setEditLastName(null);
+      setEditingStudentInfo(false);
+      await fetchStudents();
+      toast({ title: 'Student info updated!', description: 'Student information and RFID UID were saved.' });
+    } catch (err) {
+      toast({
+        title: 'Failed to update student',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+    }
   };
   const [scheduleTimeSlots, setScheduleTimeSlots] = useState<Array<{ label: string; startTime: string; endTime: string }>>([...DEFAULT_SCHEDULE_SLOTS]);
   const [newStudentForm, setNewStudentForm] = useState({
@@ -393,6 +491,15 @@ export default function StudentsPage() {
     parentEmail: '',
     status: 'active',
   });
+  const [addStudentValidationErrors, setAddStudentValidationErrors] = useState<{
+    name?: string;
+    gender?: string;
+    birthday?: string;
+    level?: string;
+    parentName?: string;
+    parentContact?: string;
+    parentEmail?: string;
+  }>({});
   const isEarlyLevelSelected = EARLY_LEVEL_OPTIONS.includes(newStudentForm.level);
   const isGradeLevelSelected = GRADE_LEVEL_OPTIONS.includes(newStudentForm.level);
   const shouldShowScheduleConfig = isEarlyLevelSelected || isGradeLevelSelected;
@@ -725,6 +832,7 @@ export default function StudentsPage() {
       parentEmail: '',
       status: 'active',
     });
+    setAddStudentValidationErrors({});
     setSelectedScheduleDays(WEEKDAY_OPTIONS.map((d) => d.label));
     setScheduleTimeSlots([...DEFAULT_SCHEDULE_SLOTS]);
   };
@@ -924,22 +1032,57 @@ export default function StudentsPage() {
       return;
     }
 
-    if (
-      !newStudentForm.name.trim() ||
-      !newStudentForm.gender ||
-      !newStudentForm.birthday ||
-      !newStudentForm.level ||
-      !newStudentForm.parentName.trim() ||
-      !newStudentForm.parentContact.trim() ||
-      !newStudentForm.parentEmail.trim()
-    ) {
+    const missingInputs: string[] = [];
+    const validationErrors: {
+      name?: string;
+      gender?: string;
+      birthday?: string;
+      level?: string;
+      parentName?: string;
+      parentContact?: string;
+      parentEmail?: string;
+    } = {};
+
+    if (!newStudentForm.name.trim()) {
+      missingInputs.push('Full Name');
+      validationErrors.name = 'Please provide full name.';
+    }
+    if (!newStudentForm.gender) {
+      missingInputs.push('Gender');
+      validationErrors.gender = 'Please select gender.';
+    }
+    if (!newStudentForm.birthday) {
+      missingInputs.push('Birthday');
+      validationErrors.birthday = 'Please select birthday.';
+    }
+    if (!newStudentForm.level) {
+      missingInputs.push('Year Level');
+      validationErrors.level = 'Please select year level.';
+    }
+    if (!newStudentForm.parentName.trim()) {
+      missingInputs.push('Parent/Guardian Name');
+      validationErrors.parentName = 'Please provide parent/guardian name.';
+    }
+    if (!newStudentForm.parentContact.trim()) {
+      missingInputs.push('Parent Contact');
+      validationErrors.parentContact = 'Please provide parent contact.';
+    }
+    if (!newStudentForm.parentEmail.trim()) {
+      missingInputs.push('Parent Email');
+      validationErrors.parentEmail = 'Please provide parent email.';
+    }
+
+    if (missingInputs.length > 0) {
+      setAddStudentValidationErrors(validationErrors);
       toast({
-        title: 'Missing required fields',
-        description: 'Please complete Name, Gender, Birthday, Year Level, Parent Name, Parent Contact, and Parent Email.',
+        title: 'Required Inputs Missing',
+        description: `Please complete: ${missingInputs.join(', ')}`,
         variant: 'destructive',
       });
       return;
     }
+
+    setAddStudentValidationErrors({});
 
     if (!newStudentForm.lrn.trim()) {
       setConfirmNoLrnOpen(true);
@@ -2214,17 +2357,30 @@ export default function StudentsPage() {
                     <label className="text-sm font-medium">Full Name *</label>
                     <Input
                       value={newStudentForm.name}
-                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, name: e.target.value }))}
+                      onChange={(e) => {
+                        setNewStudentForm((prev) => ({ ...prev, name: e.target.value }));
+                        if (e.target.value.trim()) {
+                          setAddStudentValidationErrors((prev) => ({ ...prev, name: undefined }));
+                        }
+                      }}
                       placeholder="Student Full Name"
                       className="capitalize"
                     />
+                    {addStudentValidationErrors.name && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{addStudentValidationErrors.name}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Gender *</label>
                     <Select
                       value={newStudentForm.gender}
-                      onValueChange={(value) => setNewStudentForm((prev) => ({ ...prev, gender: value }))}
+                      onValueChange={(value) => {
+                        setNewStudentForm((prev) => ({ ...prev, gender: value }));
+                        if (value) {
+                          setAddStudentValidationErrors((prev) => ({ ...prev, gender: undefined }));
+                        }
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select Gender" />
@@ -2234,6 +2390,9 @@ export default function StudentsPage() {
                         <SelectItem value="Female">Female</SelectItem>
                       </SelectContent>
                     </Select>
+                    {addStudentValidationErrors.gender && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{addStudentValidationErrors.gender}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -2241,16 +2400,29 @@ export default function StudentsPage() {
                     <Input
                       type="date"
                       value={newStudentForm.birthday}
-                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, birthday: e.target.value }))}
+                      onChange={(e) => {
+                        setNewStudentForm((prev) => ({ ...prev, birthday: e.target.value }));
+                        if (e.target.value) {
+                          setAddStudentValidationErrors((prev) => ({ ...prev, birthday: undefined }));
+                        }
+                      }}
                       placeholder="DD/MM/YYYY"
                     />
+                    {addStudentValidationErrors.birthday && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{addStudentValidationErrors.birthday}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Year Level *</label>
                     <Select
                       value={newStudentForm.level}
-                      onValueChange={(value) => setNewStudentForm((prev) => ({ ...prev, level: value }))}
+                      onValueChange={(value) => {
+                        setNewStudentForm((prev) => ({ ...prev, level: value }));
+                        if (value) {
+                          setAddStudentValidationErrors((prev) => ({ ...prev, level: undefined }));
+                        }
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select Year Level" />
@@ -2261,6 +2433,9 @@ export default function StudentsPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {addStudentValidationErrors.level && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{addStudentValidationErrors.level}</p>
+                    )}
                   </div>
 
                   {shouldShowScheduleConfig && (
@@ -2369,10 +2544,18 @@ export default function StudentsPage() {
                     <Input
                       required
                       value={newStudentForm.parentName}
-                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parentName: e.target.value }))}
+                      onChange={(e) => {
+                        setNewStudentForm((prev) => ({ ...prev, parentName: e.target.value }));
+                        if (e.target.value.trim()) {
+                          setAddStudentValidationErrors((prev) => ({ ...prev, parentName: undefined }));
+                        }
+                      }}
                       placeholder="Parent/Guardian Full Name"
                       className="capitalize"
                     />
+                    {addStudentValidationErrors.parentName && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{addStudentValidationErrors.parentName}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -2380,9 +2563,17 @@ export default function StudentsPage() {
                     <Input
                       required
                       value={newStudentForm.parentContact}
-                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parentContact: e.target.value }))}
+                      onChange={(e) => {
+                        setNewStudentForm((prev) => ({ ...prev, parentContact: e.target.value }));
+                        if (e.target.value.trim()) {
+                          setAddStudentValidationErrors((prev) => ({ ...prev, parentContact: undefined }));
+                        }
+                      }}
                       placeholder="E.g., 0917-555-0116"
                     />
+                    {addStudentValidationErrors.parentContact && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{addStudentValidationErrors.parentContact}</p>
+                    )}
                   </div>
 
                   <div className="md:col-span-2 space-y-2">
@@ -2391,9 +2582,17 @@ export default function StudentsPage() {
                       required
                       type="email"
                       value={newStudentForm.parentEmail}
-                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parentEmail: e.target.value }))}
+                      onChange={(e) => {
+                        setNewStudentForm((prev) => ({ ...prev, parentEmail: e.target.value }));
+                        if (e.target.value.trim()) {
+                          setAddStudentValidationErrors((prev) => ({ ...prev, parentEmail: undefined }));
+                        }
+                      }}
                       placeholder="Parent@example.com"
                     />
+                    {addStudentValidationErrors.parentEmail && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{addStudentValidationErrors.parentEmail}</p>
+                    )}
                   </div>
                   </div>
                 </div>
@@ -2973,7 +3172,7 @@ export default function StudentsPage() {
                                                 </p>
                                                 <p className="font-medium">{selectedStudent.gender}</p>
                                               </div>
-                                              <div className="col-span-2 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
+                                              <div className="col-span-2 md:col-span-1 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
                                                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                                                   <MapPin className="w-3 h-3" />
                                                   Address
@@ -2982,9 +3181,25 @@ export default function StudentsPage() {
                                                   value={selectedStudent.address || ''}
                                                   onChange={e => setSelectedStudent({ ...selectedStudent, address: e.target.value })}
                                                   placeholder="No address provided"
-                                                  className="font-medium max-w-md w-full"
+                                                  className="font-medium w-full"
                                                   disabled={!editingStudentInfo}
                                                 />
+                                              </div>
+                                              <div className="col-span-2 md:col-span-1 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
+                                                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                                  <QrCode className="w-3 h-3" />
+                                                  RFID UID
+                                                </p>
+                                                <Input
+                                                  value={selectedStudent.rfid_uid || ''}
+                                                  onChange={e => setSelectedStudent({ ...selectedStudent, rfid_uid: normalizeRfidUid(e.target.value) })}
+                                                  placeholder="e.g. A1B2C3D4"
+                                                  className="font-medium w-full"
+                                                  disabled={!editingStudentInfo}
+                                                />
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                  Enter the tag UID from Serial Monitor. Only hex characters are saved.
+                                                </p>
                                               </div>
                                               <div className="col-span-2 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
                                                 <p className="text-xs text-muted-foreground mb-2">Parent/Guardian Information</p>
@@ -3035,6 +3250,7 @@ export default function StudentsPage() {
                                                         setDropConfirmEmail('');
                                                         setDropConfirmPassword('');
                                                         setDropError('');
+                                                        setDropValidationErrors({});
                                                       }
                                                     }}>
                                                       <DialogContent className="max-w-md">
@@ -3051,26 +3267,38 @@ export default function StudentsPage() {
                                                           type="email"
                                                           name="confirm_email_123"
                                                           value={dropConfirmEmail}
-                                                          onChange={e => setDropConfirmEmail(e.target.value)}
+                                                          onChange={e => {
+                                                            setDropConfirmEmail(e.target.value);
+                                                            if (e.target.value.trim()) {
+                                                              setDropValidationErrors((prev) => ({ ...prev, email: undefined }));
+                                                            }
+                                                          }}
                                                           placeholder="Enter your email"
                                                           className="mt-2"
                                                           autoComplete="new-password"
                                                           disabled={droppingStudent}
                                                         />
+                                                        {dropValidationErrors.email && <div className="text-red-600 text-sm mt-2">{dropValidationErrors.email}</div>}
                                                         <Input
                                                           type="password"
                                                           name="confirm_password_123"
                                                           value={dropConfirmPassword}
-                                                          onChange={e => setDropConfirmPassword(e.target.value)}
+                                                          onChange={e => {
+                                                            setDropConfirmPassword(e.target.value);
+                                                            if (e.target.value.trim()) {
+                                                              setDropValidationErrors((prev) => ({ ...prev, password: undefined }));
+                                                            }
+                                                          }}
                                                           placeholder="Enter your password"
                                                           className="mt-2"
                                                           autoComplete="new-password"
                                                           disabled={droppingStudent}
                                                         />
+                                                        {dropValidationErrors.password && <div className="text-red-600 text-sm mt-2">{dropValidationErrors.password}</div>}
                                                         {dropError && <div className="text-red-600 text-sm mt-2">{dropError}</div>}
                                                         <div className="flex gap-3 justify-end mt-6">
                                                           <Button variant="outline" onClick={() => setDropDialogOpen(false)} disabled={droppingStudent}>Cancel</Button>
-                                                          <Button variant="destructive" onClick={handleDropStudent} disabled={droppingStudent || !dropConfirmEmail.trim() || !dropConfirmPassword}>
+                                                          <Button variant="destructive" onClick={handleDropStudent} disabled={droppingStudent}>
                                                             {droppingStudent ? 'Dropping...' : 'Drop Student'}
                                                           </Button>
                                                         </div>

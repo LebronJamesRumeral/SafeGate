@@ -9,14 +9,14 @@ export function SchoolHeatmapSkeleton() {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <MapPinned className="h-6 w-6 text-orange-500/60" />
-              <Skeleton className="h-8 w-72" />
+              <Skeleton className="h-8 w-60 sm:w-72" />
             </div>
             <Skeleton className="h-4 w-full max-w-xl" />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <Skeleton className="h-9 w-36 rounded-lg" />
-            <div className="rounded-full border border-orange-200 bg-orange-50/60 p-1.5 flex items-center gap-1.5">
+            <div className="rounded-full border border-orange-200 bg-orange-50/60 p-1.5 flex items-center gap-1.5 overflow-x-auto max-w-full">
               {[...Array(4)].map((_, i) => (
                 <Skeleton key={i} className="h-8 w-14 rounded-full" />
               ))}
@@ -74,7 +74,7 @@ export function SchoolHeatmapSkeleton() {
             <Skeleton className="h-4 w-96 max-w-full" />
           </div>
           <div className="relative rounded-xl border border-slate-300/70 dark:border-slate-700/70 overflow-hidden">
-            <Skeleton className="h-128 w-full" />
+            <Skeleton className="h-72 sm:h-96 lg:h-128 w-full" />
             <div className="absolute inset-0 p-6">
               {[...Array(6)].map((_, i) => (
                 <div
@@ -98,7 +98,7 @@ export function SchoolHeatmapSkeleton() {
             <Skeleton className="h-4 w-full" />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
               <Skeleton className="h-3 w-16" />
               <Skeleton className="h-7 w-20" />

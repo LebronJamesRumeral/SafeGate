@@ -10,9 +10,9 @@ export function AnalyticsPageSkeleton() {
           <Skeleton className="h-10 w-72 mb-2" />
           <Skeleton className="h-5 w-96 max-w-full" />
         </div>
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-9 w-28 rounded-lg" />
-          <Skeleton className="h-9 w-24 rounded-lg" />
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Skeleton className="h-9 w-full md:w-28 rounded-lg" />
+          <Skeleton className="h-9 w-full md:w-24 rounded-lg" />
         </div>
       </div>
 
@@ -36,7 +36,7 @@ export function AnalyticsPageSkeleton() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
         <div className="rounded-2xl bg-sky-50 dark:bg-sky-950/30 shadow-xl p-6 flex items-center justify-between">
           <div>
             <Skeleton className="h-4 w-28 mb-2" />
@@ -94,12 +94,12 @@ export function AnalyticsPageSkeleton() {
       </div>
 
       {/* Grade level cards */}
-      <div className="rounded-2xl border bg-white/80 dark:bg-slate-800/70 p-5 shadow-md space-y-4">
+      <div className="rounded-2xl border bg-white/80 dark:bg-slate-800/70 p-4 sm:p-5 shadow-md space-y-4">
         <div className="flex items-center gap-2">
           <Activity className="h-5 w-5 text-violet-500/70" />
           <Skeleton className="h-6 w-60" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="rounded-xl border border-slate-200/60 dark:border-slate-700/40 p-4 space-y-3">
               <div className="flex items-center justify-between">

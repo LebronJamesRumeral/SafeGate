@@ -13,7 +13,7 @@ export function MasterlistPageSkeleton() {
           </div>
           <Skeleton className="h-5 w-md max-w-full" />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <div className="h-9 w-32 rounded-lg border border-border/60 bg-background/70 px-3 flex items-center gap-2">
             <Search size={14} className="text-muted-foreground/70" />
             <Skeleton className="h-4 w-16" />
@@ -73,29 +73,45 @@ export function MasterlistPageSkeleton() {
       </div>
 
       {/* Table */}
-      <div className="rounded-2xl border bg-white/70 dark:bg-slate-800/70 p-0 shadow-md overflow-x-auto">
-        <table className="min-w-245 w-full divide-y divide-slate-200 dark:divide-slate-700">
-          <thead>
-            <tr>
-              {[...Array(8)].map((_, i) => (
-                <th key={i} className="px-4 py-4">
-                  <Skeleton className="h-4 w-full max-w-24" />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {[...Array(8)].map((_, i) => (
-              <tr key={i} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
-                {[...Array(8)].map((_, j) => (
-                  <td key={j} className="px-4 py-4">
-                    <Skeleton className="h-6 w-full rounded" />
-                  </td>
+      <div className="rounded-2xl border bg-white/70 dark:bg-slate-800/70 p-0 shadow-md overflow-hidden">
+        <div className="md:hidden p-4 space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="rounded-xl border border-slate-200/70 dark:border-slate-700/60 p-3 space-y-2">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-4 w-48 max-w-full" />
+              <div className="grid grid-cols-2 gap-2">
+                {[...Array(4)].map((_, j) => (
+                  <Skeleton key={j} className="h-4 w-full" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
+          <table className="min-w-245 w-full divide-y divide-slate-200 dark:divide-slate-700">
+            <thead>
+              <tr>
+                {[...Array(8)].map((_, i) => (
+                  <th key={i} className="px-4 py-4">
+                    <Skeleton className="h-4 w-full max-w-24" />
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {[...Array(8)].map((_, i) => (
+                <tr key={i} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                  {[...Array(8)].map((_, j) => (
+                    <td key={j} className="px-4 py-4">
+                      <Skeleton className="h-6 w-full rounded" />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

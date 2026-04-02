@@ -12,16 +12,16 @@ export default function AttendanceSkeleton() {
             <Skeleton className="h-10 w-64 mb-2" />
             <Skeleton className="h-5 w-80" />
           </div>
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-9 w-32 rounded-lg" />
-            <Skeleton className="h-9 w-36 rounded-lg" />
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <Skeleton className="h-9 w-full md:w-32 rounded-lg" />
+            <Skeleton className="h-9 w-full md:w-36 rounded-lg" />
           </div>
         </div>
 
         {/* Date range pill */}
-        <div className="inline-flex items-center gap-2 rounded-xl border border-blue-200/60 bg-blue-50/80 p-3">
+        <div className="inline-flex w-full sm:w-auto items-center gap-2 rounded-xl border border-blue-200/60 bg-blue-50/80 p-3">
           <CalendarDays className="h-5 w-5 text-blue-500" />
-          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-4 w-40 sm:w-48" />
           <Skeleton className="h-6 w-24 rounded-full" />
         </div>
 
@@ -91,18 +91,33 @@ export default function AttendanceSkeleton() {
 
         {/* Attendance summary table */}
         <div className="rounded-2xl border bg-white/70 dark:bg-slate-800/70 shadow-md overflow-hidden">
-          <div className="bg-slate-100/80 dark:bg-slate-900/50 p-4 grid grid-cols-6 gap-4">
+          <div className="md:hidden p-4 space-y-3">
             {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className="h-4 w-full rounded" />
+              <div key={i} className="rounded-xl border border-slate-200/70 dark:border-slate-700/60 p-3 space-y-2">
+                <Skeleton className="h-5 w-36" />
+                <div className="grid grid-cols-2 gap-2">
+                  {[...Array(4)].map((_, j) => (
+                    <Skeleton key={j} className="h-4 w-full" />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-          {[...Array(10)].map((_, rowIndex) => (
-            <div key={rowIndex} className="p-4 border-t border-slate-200/70 dark:border-slate-700/60 grid grid-cols-6 gap-4">
-              {[...Array(6)].map((_, colIndex) => (
-                <Skeleton key={colIndex} className="h-4 w-full rounded" />
+
+          <div className="hidden md:block">
+            <div className="bg-slate-100/80 dark:bg-slate-900/50 p-4 grid grid-cols-6 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full rounded" />
               ))}
             </div>
-          ))}
+            {[...Array(10)].map((_, rowIndex) => (
+              <div key={rowIndex} className="p-4 border-t border-slate-200/70 dark:border-slate-700/60 grid grid-cols-6 gap-4">
+                {[...Array(6)].map((_, colIndex) => (
+                  <Skeleton key={colIndex} className="h-4 w-full rounded" />
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </DashboardLayout>

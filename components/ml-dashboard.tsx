@@ -26,6 +26,7 @@ interface StudentRisk {
 }
 
 interface StudentSummary {
+  name?: string;
   trend: 'improving' | 'stable' | 'declining';
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
   behaviorStatus: 'stable' | 'watch' | 'concerning' | 'critical';
@@ -136,6 +137,9 @@ function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: strin
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [incidents, setIncidents] = useState<StudentIncident[]>([]);
+  const [dateFilter, setDateFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [severityFilter, setSeverityFilter] = useState('all');
   const [supabase] = useState(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -192,7 +196,19 @@ function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: strin
     void loadIncidents();
   }, [open, studentLrn, supabase]);
 
-  const severityStyle = incidents.length > 0 ? getSeverityStyle(incidents[0]?.severity) : getSeverityStyle('');
+  const uniqueEventTypes = Array.from(new Set(incidents.map((incident) => incident.event_type).filter(Boolean)));
+  const filteredIncidents = incidents.filter((incident) => {
+    const incidentDate = incident.event_date ? String(incident.event_date).slice(0, 10) : '';
+    const matchesDate = !dateFilter || incidentDate === dateFilter;
+    const matchesType = typeFilter === 'all' || incident.event_type === typeFilter;
+    const matchesSeverity = severityFilter === 'all' || String(incident.severity || '').toLowerCase() === severityFilter;
+    return matchesDate && matchesType && matchesSeverity;
+  });
+  const severityStyle = filteredIncidents.length > 0
+    ? getSeverityStyle(filteredIncidents[0]?.severity)
+    : incidents.length > 0
+    ? getSeverityStyle(incidents[0]?.severity)
+    : getSeverityStyle('');
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -215,13 +231,55 @@ function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: strin
             </div>
             {incidents.length > 0 && (
               <Badge className={`${severityStyle.badge} text-xs font-semibold px-3 py-1 whitespace-nowrap mr-8`}>
-                {incidents.length} Incident{incidents.length !== 1 ? 's' : ''}
+                {filteredIncidents.length} Incident{filteredIncidents.length !== 1 ? 's' : ''}
               </Badge>
             )}
           </div>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto pr-4 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="w-full h-9 px-2.5 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Type</label>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="All types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {uniqueEventTypes.map((type) => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Severity</label>
+              <Select value={severityFilter} onValueChange={setSeverityFilter}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="All severity" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Severity</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="major">Major</SelectItem>
+                  <SelectItem value="moderate">Moderate</SelectItem>
+                  <SelectItem value="minor">Minor</SelectItem>
+                  <SelectItem value="positive">Positive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {loading && (
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
@@ -244,7 +302,14 @@ function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: strin
             </div>
           )}
 
-          {!loading && !error && incidents.length > 0 && incidents.map((incident, index) => {
+          {!loading && !error && incidents.length > 0 && filteredIncidents.length === 0 && (
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-8 text-center">
+              <Shield className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+              <p className="text-sm text-slate-600 dark:text-slate-400">No incidents match the selected filters.</p>
+            </div>
+          )}
+
+          {!loading && !error && filteredIncidents.length > 0 && filteredIncidents.map((incident, index) => {
             const style = getSeverityStyle(incident.severity);
             return (
               <motion.div

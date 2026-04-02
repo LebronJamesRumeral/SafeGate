@@ -39,7 +39,7 @@ const allNavItems = [
   // Parent dashboard nav item
   { icon: Users, label: "Parent Dashboard", href: "/parent", roles: ["parent"] },
   { icon: CalendarDays, label: "Attendance", href: "/parent-attendance", roles: ["parent"] },
-  { icon: AlertTriangle, label: "Behavioral Events", href: "/parent-behavior", roles: ["parent"] }
+  { icon: AlertTriangle, label: "Child's Activity", href: "/parent-behavior", roles: ["parent"] }
 ]
 
 const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]

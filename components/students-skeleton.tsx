@@ -1,6 +1,6 @@
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Users, User, Search, GraduationCap, AlertTriangle, BarChart3, Activity, TrendingUp } from 'lucide-react';
+import { Users, User, BarChart3, TrendingUp } from 'lucide-react';
 export default function StudentsSkeleton() {
   return (
     <DashboardLayout>
@@ -8,12 +8,12 @@ export default function StudentsSkeleton() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <Skeleton className="h-10 w-72 mb-2" />
-            <Skeleton className="h-5 w-96" />
+            <Skeleton className="h-9 sm:h-10 w-52 sm:w-72 mb-2" />
+            <Skeleton className="h-4 sm:h-5 w-64 sm:w-96" />
           </div>
-          <div className="flex gap-2">
-            <Skeleton className="h-9 w-36 rounded-lg" />
-            <Skeleton className="h-9 w-40 rounded-lg" />
+          <div className="flex flex-wrap gap-2 w-full md:w-auto">
+            <Skeleton className="h-9 w-full sm:w-36 rounded-lg" />
+            <Skeleton className="h-9 w-full sm:w-40 rounded-lg" />
           </div>
         </div>
 
@@ -62,20 +62,20 @@ export default function StudentsSkeleton() {
         </div>
 
         {/* Search & Filter Bar Skeleton */}
-        <div className="rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow p-6 flex flex-col gap-4">
+        <div className="rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow p-4 sm:p-6 flex flex-col gap-4">
           <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <div className="flex-1 flex items-center gap-3">
-              <Skeleton className="h-10 w-64 rounded-lg" />
-              <Skeleton className="h-10 w-32 rounded-lg" />
-              <Skeleton className="h-10 w-32 rounded-lg" />
-              <Skeleton className="h-10 w-32 rounded-lg" />
+            <div className="flex-1 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
+              <Skeleton className="h-10 w-full sm:w-64 rounded-lg" />
+              <Skeleton className="h-10 w-full sm:w-32 rounded-lg" />
+              <Skeleton className="h-10 w-full sm:w-32 rounded-lg" />
+              <Skeleton className="h-10 w-full sm:w-32 rounded-lg" />
             </div>
-            <div className="flex gap-2 mt-2 md:mt-0">
-              <Skeleton className="h-9 w-36 rounded-lg" />
-              <Skeleton className="h-9 w-40 rounded-lg" />
+            <div className="flex flex-wrap gap-2 mt-2 md:mt-0 w-full md:w-auto">
+              <Skeleton className="h-9 w-full sm:w-36 rounded-lg" />
+              <Skeleton className="h-9 w-full sm:w-40 rounded-lg" />
             </div>
           </div>
-          <div className="flex gap-2 mt-2">
+          <div className="flex flex-wrap gap-2 mt-2">
             <Skeleton className="h-8 w-28 rounded-lg" />
             <Skeleton className="h-8 w-28 rounded-lg" />
           </div>
@@ -88,7 +88,7 @@ export default function StudentsSkeleton() {
         </div>
 
         {/* Student Directory Table Skeleton */}
-        <div className="rounded-2xl border bg-white/70 dark:bg-slate-800/70 p-0 shadow-md overflow-x-auto">
+        <div className="hidden md:block rounded-2xl border bg-white/70 dark:bg-slate-800/70 p-0 shadow-md overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
             <thead>
               <tr>
@@ -117,6 +117,27 @@ export default function StudentsSkeleton() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="md:hidden space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="rounded-2xl border bg-white/80 dark:bg-slate-800/80 p-4 shadow-sm space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-6 w-16 rounded-full" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Skeleton className="h-8 flex-1 rounded-lg" />
+                <Skeleton className="h-8 flex-1 rounded-lg" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </DashboardLayout>

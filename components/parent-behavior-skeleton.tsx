@@ -9,16 +9,16 @@ export default function ParentBehaviorSkeleton() {
         {/* Page Header Skeleton */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <Skeleton className="h-10 w-64 mb-2" />
-            <Skeleton className="h-5 w-80" />
+            <Skeleton className="h-9 sm:h-10 w-52 sm:w-64 mb-2" />
+            <Skeleton className="h-4 sm:h-5 w-64 sm:w-80" />
           </div>
           <div>
-            <Skeleton className="h-10 w-48" />
+            <Skeleton className="h-10 w-full sm:w-48" />
           </div>
         </div>
 
         {/* Summary Cards Skeleton */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {/* Total Events */}
           <div className="border-0 bg-blue-50 dark:bg-blue-950/30 shadow-xl rounded-2xl p-6 flex items-center justify-between relative">
             <div>
@@ -61,8 +61,8 @@ export default function ParentBehaviorSkeleton() {
               <GraduationCap className="w-8 h-8 text-white" />
             </div>
             <div className="flex-1">
-              <Skeleton className="h-8 w-80 mb-2" />
-              <Skeleton className="h-5 w-96" />
+              <Skeleton className="h-7 sm:h-8 w-56 sm:w-80 mb-2" />
+              <Skeleton className="h-4 sm:h-5 w-full sm:w-96" />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

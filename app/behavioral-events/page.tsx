@@ -140,6 +140,24 @@ interface StudentRecord {
   parent_email: string | null;
 }
 
+interface AchievementRecord {
+  id: number;
+  student_lrn: string;
+  achievement_type: string;
+  category_type?: string;
+  description: string;
+  notes?: string | null;
+  reported_by: string;
+  achievement_date: string;
+  achievement_time: string;
+  created_at?: string;
+  updated_at?: string;
+  students?: {
+    name: string;
+    level: string;
+  };
+}
+
 interface TeacherOption {
   id: string;
   name: string;
@@ -210,6 +228,29 @@ const LOCATION_OPTIONS = [
   'Science Laboratory',
   'Music Room',
   'Entrance / Gate',
+];
+
+const EXTENDED_ACHIEVEMENT_TYPES: Array<{ id: string; name: string; categoryType: string }> = [
+  { id: 'perfect-attendance', name: 'Perfect Attendance', categoryType: 'Attendance' },
+  { id: 'most-improved-student', name: 'Most Improved Student', categoryType: 'Academic' },
+  { id: 'reading-milestone', name: 'Reading Milestone', categoryType: 'Academic' },
+  { id: 'math-mastery', name: 'Math Mastery', categoryType: 'Academic' },
+  { id: 'science-excellence', name: 'Science Excellence', categoryType: 'Academic' },
+  { id: 'leadership-award', name: 'Leadership Award', categoryType: 'Leadership' },
+  { id: 'peer-support', name: 'Peer Support Recognition', categoryType: 'Social' },
+  { id: 'kindness-award', name: 'Kindness Award', categoryType: 'Values' },
+  { id: 'respect-award', name: 'Respect Award', categoryType: 'Values' },
+  { id: 'teamwork-award', name: 'Teamwork Award', categoryType: 'Values' },
+  { id: 'good-conduct', name: 'Good Conduct', categoryType: 'Behavior' },
+  { id: 'class-participation', name: 'Outstanding Class Participation', categoryType: 'Behavior' },
+  { id: 'homework-consistency', name: 'Homework Consistency', categoryType: 'Academic' },
+  { id: 'creative-project', name: 'Creative Project Recognition', categoryType: 'Creativity' },
+  { id: 'sportsmanship', name: 'Sportsmanship Award', categoryType: 'Sports' },
+  { id: 'community-service', name: 'Community Service Recognition', categoryType: 'Service' },
+  { id: 'digital-literacy', name: 'Digital Literacy Achievement', categoryType: 'Academic' },
+  { id: 'cleanliness-award', name: 'Cleanliness and Discipline Award', categoryType: 'Values' },
+  { id: 'best-in-communication', name: 'Best in Communication', categoryType: 'Leadership' },
+  { id: 'special-recognition', name: 'Special Recognition', categoryType: 'General' },
 ];
 
 const CATEGORY_TEMPLATES: CategoryTemplate[] = [
@@ -335,6 +376,7 @@ function BehavioralEventsPageContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [events, setEvents] = useState<BehavioralEvent[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<BehavioralEvent[]>([]);
+  const [achievements, setAchievements] = useState<AchievementRecord[]>([]);
   const [categories, setCategories] = useState<EventCategory[]>([]);
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
@@ -358,9 +400,9 @@ function BehavioralEventsPageContent() {
   const [selectedEvent, setSelectedEvent] = useState<BehavioralEvent | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isAchievementDialogOpen, setIsAchievementDialogOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('list');
-  const [showFilters, setShowFilters] = useState(true);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'created_at', direction: 'desc' });
   const [showEventLog, setShowEventLog] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine);
@@ -372,11 +414,15 @@ function BehavioralEventsPageContent() {
   const [studentPickerOpen, setStudentPickerOpen] = useState(false);
   const [eventTypePickerOpen, setEventTypePickerOpen] = useState(false);
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
-  useEffect(() => {
-    if (isMobile) {
-      setShowFilters(false);
-    }
-  }, [isMobile]);
+
+  const [achievementSubmitting, setAchievementSubmitting] = useState(false);
+  const [achievementStudentPickerOpen, setAchievementStudentPickerOpen] = useState(false);
+  const [achievementStudentSearchQuery, setAchievementStudentSearchQuery] = useState('');
+  const [achievementValidationErrors, setAchievementValidationErrors] = useState<{
+    student?: string;
+    achievement_type?: string;
+    description?: string;
+  }>({});
 
   // Form state for adding new event
   const [formData, setFormData] = useState({
@@ -393,6 +439,24 @@ function BehavioralEventsPageContent() {
     follow_up_required: true,
     notes: ''
   });
+  const [addEventValidationErrors, setAddEventValidationErrors] = useState<{
+    student?: string;
+    event_type?: string;
+    description?: string;
+  }>({});
+
+  const [achievementFormData, setAchievementFormData] = useState({
+    student_lrn: '',
+    achievement_type: '',
+    achievement_level: 'classroom',
+    recognition_channel: '',
+    impact_summary: '',
+    evidence: '',
+    score_points: '',
+    skill_tags: '',
+    description: '',
+    notes: '',
+  });
 
   // Get live zone names for location select
   const { zones, loading: zonesLoading, loadZones } = useHeatmapZones();
@@ -404,6 +468,12 @@ function BehavioralEventsPageContent() {
       loadZones();
     }
   }, [isAddDialogOpen, loadZones]);
+
+  useEffect(() => {
+    if (isAchievementDialogOpen) {
+      loadZones();
+    }
+  }, [isAchievementDialogOpen, loadZones]);
 
   useEffect(() => {
     const user = localStorage.getItem('safegate_user');
@@ -500,6 +570,29 @@ function BehavioralEventsPageContent() {
     const extras = CATEGORY_TEMPLATES.filter((template) => !seen.has(template.name.toLowerCase()));
     return [...dbCategoryTemplates, ...extras];
   }, [dbCategoryTemplates]);
+
+  const achievementTypeOptions = useMemo(() => {
+    const positiveTemplateOptions = availableCategoryTemplates
+      .filter((template) => template.severity === 'positive')
+      .map((template) => ({
+        id: template.id,
+        name: template.name,
+        categoryType: template.categoryType,
+      }));
+
+    const deduped = [...positiveTemplateOptions, ...EXTENDED_ACHIEVEMENT_TYPES].reduce(
+      (acc, option) => {
+        const normalized = option.name.toLowerCase().trim();
+        if (!acc.some((item) => item.name.toLowerCase().trim() === normalized)) {
+          acc.push(option);
+        }
+        return acc;
+      },
+      [] as Array<{ id: string; name: string; categoryType: string }>
+    );
+
+    return deduped.sort((a, b) => a.name.localeCompare(b.name));
+  }, [availableCategoryTemplates]);
 
   // Filter event types by selected event category
   const eventTypeOptions = useMemo(() => {
@@ -684,6 +777,44 @@ function BehavioralEventsPageContent() {
     return filtered;
   }, [students, studentSearchQuery, studentLevelFilter]);
 
+  const achievementStudentOptions = useMemo(() => {
+    const query = achievementStudentSearchQuery.trim().toLowerCase();
+    if (!query) {
+      return students;
+    }
+
+    return students.filter((student) => {
+      return (
+        student.name.toLowerCase().includes(query) ||
+        student.lrn.toLowerCase().includes(query) ||
+        student.level.toLowerCase().includes(query)
+      );
+    });
+  }, [students, achievementStudentSearchQuery]);
+
+  const selectedAchievementStudent = useMemo(
+    () => students.find((student) => student.lrn === achievementFormData.student_lrn) || null,
+    [students, achievementFormData.student_lrn]
+  );
+
+  const resetAchievementForm = () => {
+    setAchievementFormData({
+      student_lrn: '',
+      achievement_type: '',
+      achievement_level: 'classroom',
+      recognition_channel: '',
+      impact_summary: '',
+      evidence: '',
+      score_points: '',
+      skill_tags: '',
+      description: '',
+      notes: '',
+    });
+    setAchievementStudentPickerOpen(false);
+    setAchievementStudentSearchQuery('');
+    setAchievementValidationErrors({});
+  };
+
   useEffect(() => {
     if (!formData.event_type) {
       return;
@@ -771,6 +902,41 @@ function BehavioralEventsPageContent() {
       }));
 
       setEvents(normalizedEvents);
+
+      const { data: achievementsData, error: achievementsError } = await supabase
+        .from('achievements')
+        .select(`
+          id,
+          student_lrn,
+          achievement_type,
+          category_type,
+          description,
+          notes,
+          reported_by,
+          achievement_date,
+          achievement_time,
+          created_at,
+          updated_at,
+          students(name, level)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (achievementsError) {
+        console.error('Achievements error:', achievementsError);
+        toast({
+          title: 'Failed to fetch achievements',
+          description: achievementsError.message || String(achievementsError),
+          variant: 'destructive',
+        });
+        setAchievements([]);
+      } else {
+        const normalizedAchievements: AchievementRecord[] = (achievementsData || []).map((achievement: any) => ({
+          ...achievement,
+          students: Array.isArray(achievement.students) ? achievement.students[0] : achievement.students,
+        }));
+
+        setAchievements(normalizedAchievements);
+      }
 
       // Fetch categories
       const { data: categoriesData, error: categoriesError } = await supabase
@@ -939,6 +1105,26 @@ function BehavioralEventsPageContent() {
     return payload;
   };
 
+  const triggerAchievementParentAutomation = async (params: {
+    achievementId: number;
+    studentLrn: string;
+  }) => {
+    const response = await fetch('/api/automation/achievement-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+
+    const payload = await response.json();
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.detail || payload.error || 'Failed to send achievement parent email');
+    }
+
+    return payload;
+  };
+
   const refreshPendingSyncCount = async () => {
     try {
       const count = await getOfflineQueueCount();
@@ -1025,22 +1211,32 @@ function BehavioralEventsPageContent() {
         : [];
     const trimmedDescription = formData.description.trim();
     const missingInputs: string[] = [];
+    const validationErrors: {
+      student?: string;
+      event_type?: string;
+      description?: string;
+    } = {};
 
     if (formData.report_mode === 'group' && targetStudentLrns.length < 2) {
       missingInputs.push('At least 2 students for General Report');
+      validationErrors.student = 'Please select at least 2 students for General Report.';
     } else if (formData.report_mode === 'single' && targetStudentLrns.length < 1) {
       missingInputs.push('Student');
+      validationErrors.student = 'Please select a student.';
     }
 
     if (!formData.event_type) {
       missingInputs.push('Event Type');
+      validationErrors.event_type = 'Please select an event type.';
     }
 
     if (!trimmedDescription) {
       missingInputs.push('Incident Description');
+      validationErrors.description = 'Please provide incident description.';
     }
 
     if (missingInputs.length > 0) {
+      setAddEventValidationErrors(validationErrors);
       toast({
         title: 'Required Inputs Missing',
         description: `Please complete: ${missingInputs.join(', ')}`,
@@ -1048,6 +1244,8 @@ function BehavioralEventsPageContent() {
       });
       return;
     }
+
+    setAddEventValidationErrors({});
 
     if (!levelAwareEventTypeOptions.some((option) => option.name === formData.event_type)) {
       toast({
@@ -1319,6 +1517,142 @@ function BehavioralEventsPageContent() {
     }
   };
 
+  const handleAddAchievement = async () => {
+    if (achievementSubmitting) {
+      toast({
+        title: 'Please wait',
+        description: 'Your achievement is already being submitted.',
+      });
+      return;
+    }
+
+    const missingInputs: string[] = [];
+    const validationErrors: {
+      student?: string;
+      achievement_type?: string;
+      description?: string;
+    } = {};
+
+    if (!achievementFormData.student_lrn) {
+      missingInputs.push('Student');
+      validationErrors.student = 'Please select a student.';
+    }
+
+    if (!achievementFormData.achievement_type) {
+      missingInputs.push('Achievement Type');
+      validationErrors.achievement_type = 'Please select an achievement type.';
+    }
+
+    if (!achievementFormData.description.trim()) {
+      missingInputs.push('Achievement Description');
+      validationErrors.description = 'Please provide achievement details.';
+    }
+
+    if (missingInputs.length > 0) {
+      setAchievementValidationErrors(validationErrors);
+      toast({
+        title: 'Required Inputs Missing',
+        description: `Please complete: ${missingInputs.join(', ')}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!supabase) {
+      toast({
+        title: 'Connection Missing',
+        description: 'Supabase is not configured in this environment.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const selectedStudent = students.find((student) => student.lrn === achievementFormData.student_lrn);
+    if (!selectedStudent) {
+      toast({
+        title: 'Student Not Found',
+        description: 'Please select a valid student from records.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setAchievementSubmitting(true);
+    try {
+      const now = new Date();
+      const metadataLines = [
+        `Achievement Level: ${achievementFormData.achievement_level || 'classroom'}`,
+        achievementFormData.recognition_channel ? `Recognition Channel: ${achievementFormData.recognition_channel}` : '',
+        achievementFormData.skill_tags.trim() ? `Skill Tags: ${achievementFormData.skill_tags.trim()}` : '',
+        achievementFormData.score_points.trim() ? `Score/Points: ${achievementFormData.score_points.trim()}` : '',
+        achievementFormData.impact_summary.trim() ? `Impact Summary: ${achievementFormData.impact_summary.trim()}` : '',
+        achievementFormData.evidence.trim() ? `Evidence/Reference: ${achievementFormData.evidence.trim()}` : '',
+      ].filter(Boolean);
+
+      const combinedNotes = [achievementFormData.notes.trim(), ...metadataLines]
+        .filter(Boolean)
+        .join('\n');
+
+      const achievementPayload = {
+        student_lrn: selectedStudent.lrn,
+        category_type: 'Achievements',
+        achievement_type: achievementFormData.achievement_type,
+        description: achievementFormData.description.trim(),
+        notes: combinedNotes || null,
+        reported_by:
+          currentUser?.display_name ||
+          currentUser?.full_name ||
+          currentUser?.name ||
+          currentUser?.username ||
+          'Admin',
+        achievement_date: now.toISOString().split('T')[0],
+        achievement_time: now.toTimeString().split(' ')[0],
+      };
+
+      const { data: insertedAchievement, error } = await supabase
+        .from('achievements')
+        .insert(achievementPayload)
+        .select('id')
+        .single();
+      if (error) throw error;
+
+      let emailNotice = ' Parent email was sent automatically.';
+      try {
+        if (insertedAchievement?.id) {
+          const automationResult = await triggerAchievementParentAutomation({
+            achievementId: insertedAchievement.id,
+            studentLrn: selectedStudent.lrn,
+          });
+
+          if (!automationResult?.queued) {
+            emailNotice = ' Achievement saved, but no parent email was sent (no parent email on file).';
+          }
+        }
+      } catch (automationError: any) {
+        console.error('Achievement parent automation error:', automationError);
+        emailNotice = ' Achievement saved, but parent email sending failed.';
+      }
+
+      toast({
+        title: 'Success',
+        description: `Achievement logged for ${selectedStudent.name} and saved successfully.${emailNotice}`,
+      });
+
+      setIsAchievementDialogOpen(false);
+      resetAchievementForm();
+      await fetchData();
+    } catch (error: any) {
+      console.error('Error adding achievement:', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to log achievement',
+        variant: 'destructive',
+      });
+    } finally {
+      setAchievementSubmitting(false);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       report_mode: 'single',
@@ -1336,6 +1670,7 @@ function BehavioralEventsPageContent() {
     });
     setEventTypePickerOpen(false);
     setStudentSearchQuery('');
+    setAddEventValidationErrors({});
   };
 
   const handleFollowUp = async (event: BehavioralEvent) => {
@@ -1585,6 +1920,7 @@ function BehavioralEventsPageContent() {
     const neutral = filteredEvents.filter(e => e.severity === 'neutral' || e.severity === 'minor').length;
     const needsFollowUp = filteredEvents.filter(e => e.follow_up_required).length;
     const parentNotified = filteredEvents.filter(e => e.parent_notified).length;
+    const achievementsCount = achievements.length;
 
     // Severity distribution for chart
     const severityDistribution = Object.keys(SEVERITY_COLORS).map(severity => ({
@@ -1622,11 +1958,12 @@ function BehavioralEventsPageContent() {
       neutral,
       needsFollowUp,
       parentNotified,
+      achievementsCount,
       severityDistribution,
       categoryDistribution,
       dailyTrend
     };
-  }, [filteredEvents]);
+  }, [filteredEvents, achievements]);
 
   if (authLoading) {
     return <BehavioralEventsSkeleton />;
@@ -1660,15 +1997,6 @@ function BehavioralEventsPageContent() {
               Pending Sync: {pendingSyncCount}
             </Badge>
             {syncing && <Badge className="bg-indigo-100 text-indigo-700">Syncing...</Badge>}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className="gap-2"
-            >
-              <Filter className="w-4 h-4" />
-              {showFilters ? 'Hide Filters' : 'Show Filters'}
-            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -1714,6 +2042,7 @@ function BehavioralEventsPageContent() {
                             student_lrns: mode === 'group' ? current.student_lrns : [],
                           }));
                           setStudentSearchQuery('');
+                          setAddEventValidationErrors((prev) => ({ ...prev, student: undefined }));
                         }}
                       >
                         <SelectTrigger id="report_mode" className="w-full">
@@ -1790,6 +2119,7 @@ function BehavioralEventsPageContent() {
                                           ...current,
                                           student_lrn: current.student_lrn === student.lrn ? '' : student.lrn,
                                         }));
+                                        setAddEventValidationErrors((prev) => ({ ...prev, student: undefined }));
                                         setStudentPickerOpen(false);
                                       }}
                                     >
@@ -1855,6 +2185,9 @@ function BehavioralEventsPageContent() {
                           </div>
                         )}
                       </div>
+                      {addEventValidationErrors.student && (
+                        <p className="text-sm text-red-600 dark:text-red-400">{addEventValidationErrors.student}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2 md:col-span-1">
@@ -1896,6 +2229,7 @@ function BehavioralEventsPageContent() {
                                           event_type: option.name,
                                           severity: option.severity,
                                         }));
+                                        setAddEventValidationErrors((prev) => ({ ...prev, event_type: undefined }));
                                         setEventTypePickerOpen(false);
                                       }}
                                     >
@@ -1928,6 +2262,9 @@ function BehavioralEventsPageContent() {
                           Suggested by selected student level{suggestedStudentLevels.length > 1 ? 's' : ''}: {suggestedStudentLevels.join(', ')}
                         </p>
                       )}
+                      {addEventValidationErrors.event_type && (
+                        <p className="text-sm text-red-600 dark:text-red-400">{addEventValidationErrors.event_type}</p>
+                      )}
                     </div>
                     <div className="space-y-2 md:max-w-xs">
                       <Label htmlFor="severity" className="flex items-center gap-1">
@@ -1958,11 +2295,19 @@ function BehavioralEventsPageContent() {
                     <Textarea
                       id="description"
                       value={formData.description}
-                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      onChange={(e) => {
+                        setFormData({...formData, description: e.target.value});
+                        if (e.target.value.trim()) {
+                          setAddEventValidationErrors((prev) => ({ ...prev, description: undefined }));
+                        }
+                      }}
                       placeholder="State what happened, who was involved, and immediate context."
                       rows={3}
                       className="resize-none"
                     />
+                    {addEventValidationErrors.description && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{addEventValidationErrors.description}</p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2068,6 +2413,264 @@ function BehavioralEventsPageContent() {
                 </div>
               </DialogContent>
             </Dialog>
+
+            <Dialog open={isAchievementDialogOpen} onOpenChange={setIsAchievementDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="default" className="gap-2 bg-linear-to-r from-[#ff8a00] to-[#fb923c] hover:from-[#e67e00] hover:to-[#f97316] text-white shadow-lg hover:shadow-xl transition-all duration-200">
+                  <Award className="w-4 h-4" />
+                  Achievements
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="w-[96vw] max-w-5xl lg:max-w-4xl h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
+                <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40">
+                  <DialogTitle className="text-3xl leading-tight">Log Achievement</DialogTitle>
+                  <DialogDescription>
+                    Record a positive achievement, recognition, or accomplishment. Fields marked with * are required.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-5 px-6 py-5 overflow-y-auto flex-1"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="achievement_student" className="flex items-center gap-1">
+                        Student <span className="text-red-500">*</span>
+                      </Label>
+                      <Popover open={achievementStudentPickerOpen} onOpenChange={setAchievementStudentPickerOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            id="achievement_student"
+                            variant="outline"
+                            role="combobox"
+                            className="w-full justify-between font-normal"
+                          >
+                            {selectedAchievementStudent
+                              ? `${selectedAchievementStudent.name} (${selectedAchievementStudent.level})`
+                              : 'Search student by name or LRN'}
+                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-(--radix-popover-trigger-width) p-0">
+                          <Command shouldFilter={false}>
+                            <CommandInput
+                              placeholder="Type student name, LRN, or level"
+                              value={achievementStudentSearchQuery}
+                              onValueChange={setAchievementStudentSearchQuery}
+                            />
+                            <CommandList>
+                              <CommandEmpty>No student found. Try another name.</CommandEmpty>
+                              <CommandGroup>
+                                {achievementStudentOptions.map((student) => (
+                                  <CommandItem
+                                    key={student.lrn}
+                                    value={`${student.name} ${student.lrn} ${student.level}`}
+                                    onSelect={() => {
+                                      setAchievementFormData((current) => ({
+                                        ...current,
+                                        student_lrn: student.lrn,
+                                      }));
+                                      setAchievementValidationErrors((prev) => ({ ...prev, student: undefined }));
+                                      setAchievementStudentPickerOpen(false);
+                                    }}
+                                  >
+                                    <div className="flex min-w-0 items-center gap-2">
+                                      <span className="truncate">{student.name}</span>
+                                      <span className="whitespace-nowrap text-xs text-muted-foreground">({student.level})</span>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      {achievementValidationErrors.student && (
+                        <p className="text-sm text-red-600 dark:text-red-400">{achievementValidationErrors.student}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="achievement_type" className="flex items-center gap-1">
+                        Achievement Type <span className="text-red-500">*</span>
+                      </Label>
+                      <Select
+                        value={achievementFormData.achievement_type}
+                        onValueChange={(value) => {
+                          setAchievementFormData((current) => ({ ...current, achievement_type: value }));
+                          setAchievementValidationErrors((prev) => ({ ...prev, achievement_type: undefined }));
+                        }}
+                      >
+                        <SelectTrigger id="achievement_type" className="w-full">
+                          <SelectValue placeholder="Select positive achievement type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {achievementTypeOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.name}>
+                              <div className="flex items-center gap-2">
+                                <Heart className="w-4 h-4 text-emerald-500" />
+                                <span>{option.name}</span>
+                                <span className="text-xs text-muted-foreground">({option.categoryType})</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {achievementValidationErrors.achievement_type && (
+                        <p className="text-sm text-red-600 dark:text-red-400">{achievementValidationErrors.achievement_type}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="achievement_level">Achievement Level</Label>
+                      <Select
+                        value={achievementFormData.achievement_level}
+                        onValueChange={(value) => {
+                          setAchievementFormData((current) => ({ ...current, achievement_level: value }));
+                        }}
+                      >
+                        <SelectTrigger id="achievement_level" className="w-full">
+                          <SelectValue placeholder="Select level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="classroom">Classroom</SelectItem>
+                          <SelectItem value="grade-level">Grade Level</SelectItem>
+                          <SelectItem value="school-wide">School-Wide</SelectItem>
+                          <SelectItem value="external">External / Competition</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="recognition_channel">Recognition Channel</Label>
+                      <Select
+                        value={achievementFormData.recognition_channel}
+                        onValueChange={(value) => {
+                          setAchievementFormData((current) => ({ ...current, recognition_channel: value }));
+                        }}
+                      >
+                        <SelectTrigger id="recognition_channel" className="w-full">
+                          <SelectValue placeholder="Select channel" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="class-announcement">Class Announcement</SelectItem>
+                          <SelectItem value="assembly">School Assembly</SelectItem>
+                          <SelectItem value="certificate">Certificate</SelectItem>
+                          <SelectItem value="digital-board">Digital Board / Portal</SelectItem>
+                          <SelectItem value="teacher-note">Teacher Note</SelectItem>
+                          <SelectItem value="parent-message">Parent Message</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="score_points">Score / Points (Optional)</Label>
+                      <Input
+                        id="score_points"
+                        value={achievementFormData.score_points}
+                        onChange={(e) => setAchievementFormData((current) => ({ ...current, score_points: e.target.value }))}
+                        placeholder="e.g., 95, 10 points"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="achievement_description" className="flex items-center gap-1">
+                      Achievement Description <span className="text-red-500">*</span>
+                    </Label>
+                    <Textarea
+                      id="achievement_description"
+                      value={achievementFormData.description}
+                      onChange={(e) => {
+                        setAchievementFormData((current) => ({ ...current, description: e.target.value }));
+                        if (e.target.value.trim()) {
+                          setAchievementValidationErrors((prev) => ({ ...prev, description: undefined }));
+                        }
+                      }}
+                      placeholder="Describe the positive action, recognition, or accomplishment."
+                      rows={3}
+                      className="resize-none"
+                    />
+                    {achievementValidationErrors.description && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{achievementValidationErrors.description}</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="impact_summary">Positive Impact Summary</Label>
+                      <Textarea
+                        id="impact_summary"
+                        value={achievementFormData.impact_summary}
+                        onChange={(e) => setAchievementFormData((current) => ({ ...current, impact_summary: e.target.value }))}
+                        placeholder="How did this achievement help the class, peers, or the student?"
+                        rows={2}
+                        className="resize-none"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="skill_tags">Skills / Values Demonstrated</Label>
+                      <Input
+                        id="skill_tags"
+                        value={achievementFormData.skill_tags}
+                        onChange={(e) => setAchievementFormData((current) => ({ ...current, skill_tags: e.target.value }))}
+                        placeholder="e.g., Leadership, Teamwork, Creativity"
+                      />
+                      <p className="text-xs text-muted-foreground">Separate multiple tags with commas.</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="evidence">Evidence / Reference (Optional)</Label>
+                    <Input
+                      id="evidence"
+                      value={achievementFormData.evidence}
+                      onChange={(e) => setAchievementFormData((current) => ({ ...current, evidence: e.target.value }))}
+                      placeholder="Certificate ID, document link, event name, or reference note"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="achievement_notes">Optional Notes</Label>
+                    <Textarea
+                      id="achievement_notes"
+                      value={achievementFormData.notes}
+                      onChange={(e) => setAchievementFormData((current) => ({ ...current, notes: e.target.value }))}
+                      placeholder="Add any extra recognition details, context, or celebration notes..."
+                      rows={2}
+                      className="resize-none"
+                    />
+                  </div>
+                </motion.div>
+
+                <div className="border-t bg-white dark:bg-slate-950 px-6 py-4 flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsAchievementDialogOpen(false);
+                      resetAchievementForm();
+                    }}
+                    disabled={achievementSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="default"
+                    onClick={handleAddAchievement}
+                    className="gap-2 bg-linear-to-r from-[#ff8a00] to-[#fb923c] hover:from-[#e67e00] hover:to-[#f97316] text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                    disabled={achievementSubmitting}
+                  >
+                    {achievementSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Award className="w-4 h-4" />}
+                    {achievementSubmitting ? 'Submitting...' : 'Log Achievement'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
@@ -2142,7 +2745,7 @@ function BehavioralEventsPageContent() {
             </Card>
           </motion.div>
 
-          {/* Needs Follow-up Card */}
+          {/* Achievements Card */}
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -2153,12 +2756,12 @@ function BehavioralEventsPageContent() {
               <div className="absolute bottom-0 left-0 w-16 h-16 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Needs Follow-up</p>
-                  <div className="text-xl sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.needsFollowUp}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">pending review</p>
+                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Achievements</p>
+                  <div className="text-xl sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.achievementsCount}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">positive recognitions</p>
                 </div>
                 <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                  <Bell className="w-7 h-7" />
+                  <Award className="w-7 h-7" />
                 </div>
               </CardContent>
               <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
@@ -2167,123 +2770,112 @@ function BehavioralEventsPageContent() {
         </div>
 
         {/* Filters */}
-        <AnimatePresence>
-          {showFilters && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Filter className="w-5 h-5 text-blue-500" />
-                    Filters
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="search">Search</Label>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="search"
-                          placeholder="Search events..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-9"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="severity-filter">Severity</Label>
-                      <Select value={severityFilter} onValueChange={setSeverityFilter}>
-                        <SelectTrigger id="severity-filter">
-                          <SelectValue placeholder="All Severities" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Severities</SelectItem>
-                          {Object.keys(SEVERITY_COLORS).map(severity => (
-                            <SelectItem key={severity} value={severity}>
-                              <div className="flex items-center gap-2">
-                                {getSeverityIcon(severity)}
-                                <span>{severity.charAt(0).toUpperCase() + severity.slice(1)}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="category-filter">Category</Label>
-                      <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                        <SelectTrigger id="category-filter">
-                          <SelectValue placeholder="All Categories" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Categories</SelectItem>
-                          {Array.from(new Set(categories.map((category) => category.category_type))).map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="event-type-category-filter">Event Type Category</Label>
-                      <Select value={eventCategoryFilter} onValueChange={setEventCategoryFilter}>
-                        <SelectTrigger id="event-type-category-filter">
-                          <SelectValue placeholder="All Event Categories" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Event Categories</SelectItem>
-                          {Array.from(new Set(availableCategoryTemplates.map((template) => template.categoryType))).map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="student-level-filter">Student Level</Label>
-                      <Select value={studentLevelFilter} onValueChange={setStudentLevelFilter}>
-                        <SelectTrigger id="student-level-filter">
-                          <SelectValue placeholder="All Levels" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Levels</SelectItem>
-                          {Array.from(new Set(students.map((student) => student.level))).sort().map((level) => (
-                            <SelectItem key={level} value={level}>
-                              {level}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="date-filter">Date Range</Label>
-                      <Select value={dateFilter} onValueChange={setDateFilter}>
-                        <SelectTrigger id="date-filter">
-                          <SelectValue placeholder="All Time" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Time</SelectItem>
-                          <SelectItem value="today">Today</SelectItem>
-                          <SelectItem value="week">Past Week</SelectItem>
-                          <SelectItem value="month">Past Month</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <Card className="border-0 shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Filter className="w-5 h-5 text-blue-500" />
+              Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="search">Search</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="search"
+                    placeholder="Search events..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="severity-filter">Severity</Label>
+                <Select value={severityFilter} onValueChange={setSeverityFilter}>
+                  <SelectTrigger id="severity-filter">
+                    <SelectValue placeholder="All Severities" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Severities</SelectItem>
+                    {Object.keys(SEVERITY_COLORS).map(severity => (
+                      <SelectItem key={severity} value={severity}>
+                        <div className="flex items-center gap-2">
+                          {getSeverityIcon(severity)}
+                          <span>{severity.charAt(0).toUpperCase() + severity.slice(1)}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category-filter">Category</Label>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger id="category-filter">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {Array.from(new Set(categories.map((category) => category.category_type))).map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="event-type-category-filter">Event Type Category</Label>
+                <Select value={eventCategoryFilter} onValueChange={setEventCategoryFilter}>
+                  <SelectTrigger id="event-type-category-filter">
+                    <SelectValue placeholder="All Event Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Event Categories</SelectItem>
+                    {Array.from(new Set(availableCategoryTemplates.map((template) => template.categoryType))).map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="student-level-filter">Student Level</Label>
+                <Select value={studentLevelFilter} onValueChange={setStudentLevelFilter}>
+                  <SelectTrigger id="student-level-filter">
+                    <SelectValue placeholder="All Levels" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Levels</SelectItem>
+                    {Array.from(new Set(students.map((student) => student.level))).sort().map((level) => (
+                      <SelectItem key={level} value={level}>
+                        {level}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="date-filter">Date Range</Label>
+                <Select value={dateFilter} onValueChange={setDateFilter}>
+                  <SelectTrigger id="date-filter">
+                    <SelectValue placeholder="All Time" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="week">Past Week</SelectItem>
+                    <SelectItem value="month">Past Month</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Tabs for List and Analytics */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
