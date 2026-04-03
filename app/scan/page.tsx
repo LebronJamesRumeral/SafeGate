@@ -165,8 +165,11 @@ export default function ScanPage() {
       }
 
       const serialApi = (navigator as any).serial;
-      const port = await serialApi.requestPort();
-      await port.open({ baudRate: 115200 });
+      const grantedPorts = await serialApi.getPorts();
+      const port = grantedPorts[0] ?? await serialApi.requestPort();
+      if (!port.readable) {
+        await port.open({ baudRate: 115200 });
+      }
 
       rfidPortRef.current = port;
       sharedScanRfidState.port = port;
@@ -347,10 +350,54 @@ export default function ScanPage() {
     }
   };
 
+  const toMinutes = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+
+  const dateMinutes = (date: Date) => date.getHours() * 60 + date.getMinutes();
+
+  const isScheduledSchoolDay = (schedule: Awaited<ReturnType<typeof getStudentSchedule>>, date: Date) => {
+    if (!schedule) return false;
+
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const schoolDays = schedule.school_days as Record<string, boolean>;
+    return Boolean(schoolDays?.[dayName]);
+  };
+
+  const formatTimeLabel = (timeStr: string) => {
+    const [hourRaw, minuteRaw] = timeStr.split(':');
+    const hour = Number(hourRaw);
+    const minute = Number(minuteRaw);
+    const suffix = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+    return `${hour12}:${String(minute).padStart(2, '0')} ${suffix}`;
+  };
+
   const applyAttendanceOnline = async (studentLrn: string, scanIsoTime: string) => {
     if (!supabase) {
       throw new Error('Supabase client not initialized');
     }
+
+    const schedule = await getStudentSchedule(studentLrn);
+    if (!schedule) {
+      return {
+        action: 'Blocked' as const,
+        message: 'No active attendance schedule found for this student.',
+      };
+    }
+
+    const scanTime = new Date(scanIsoTime);
+    if (!isScheduledSchoolDay(schedule, scanTime)) {
+      return {
+        action: 'Blocked' as const,
+        message: 'No class schedule for today.',
+      };
+    }
+
+    const nowMinutes = dateMinutes(scanTime);
+    const entryMinutes = toMinutes(schedule.entry_time);
+    const exitMinutes = toMinutes(schedule.exit_time);
 
     const date = scanIsoTime.split('T')[0];
     const { data: existing, error: existingError } = await supabase
@@ -366,8 +413,12 @@ export default function ScanPage() {
     }
 
     if (!existing || existing.length === 0) {
-      // Get student's attendance schedule for validation
-      const schedule = await getStudentSchedule(studentLrn);
+      if (nowMinutes >= exitMinutes) {
+        return {
+          action: 'Blocked' as const,
+          message: `Check-in window closed. Scheduled end time is ${formatTimeLabel(schedule.exit_time)}.`,
+        };
+      }
       
       const { error } = await supabase
         .from('attendance_logs')
@@ -384,21 +435,16 @@ export default function ScanPage() {
       }
 
       // Validate and update attendance status
-      if (schedule) {
-        const scanTime = new Date(scanIsoTime);
-        const validation = validateAttendanceStatus(schedule, scanTime);
-        
-        // Update the attendance record with validated status
-        await supabase
-          .from('attendance_logs')
-          .update({
-            attendance_status: validation.attendance_status,
-            is_late: validation.is_late,
-            is_invalid_timeout: validation.is_invalid_timeout,
-          })
-          .eq('student_lrn', studentLrn)
-          .eq('date', date);
-      }
+      const validation = validateAttendanceStatus(schedule, scanTime);
+      await supabase
+        .from('attendance_logs')
+        .update({
+          attendance_status: validation.attendance_status,
+          is_late: validation.is_late,
+          is_invalid_timeout: false,
+        })
+        .eq('student_lrn', studentLrn)
+        .eq('date', date);
 
       return {
         action: 'Checked In' as const,
@@ -411,6 +457,13 @@ export default function ScanPage() {
       };
     }
 
+    if (nowMinutes < exitMinutes) {
+      return {
+        action: 'Blocked' as const,
+        message: `Too early to check out. Check-out starts at ${formatTimeLabel(schedule.exit_time)}.`,
+      };
+    }
+
     const { error } = await supabase
       .from('attendance_logs')
       .update({ check_out_time: scanIsoTime })
@@ -420,28 +473,10 @@ export default function ScanPage() {
       throw error;
     }
 
-    // Validate exit time and mark invalid timeout if needed
-    const schedule = await getStudentSchedule(studentLrn);
-    if (schedule) {
-      const checkInTime = new Date(existing[0].check_in_time);
-      const checkOutTime = new Date(scanIsoTime);
-      const validation = validateAttendanceStatus(schedule, checkInTime, checkOutTime);
-
-      // Update the attendance record with validated status if there's an invalid timeout
-      if (validation.is_invalid_timeout) {
-        await supabase
-          .from('attendance_logs')
-          .update({
-            attendance_status: validation.attendance_status,
-            is_invalid_timeout: validation.is_invalid_timeout,
-          })
-          .eq('id', existing[0].id);
-      }
-    }
-
     return {
       action: 'Checked Out' as const,
       checkInTime: existing[0].check_in_time as string,
+      message: `Checked out after scheduled end (${formatTimeLabel(schedule.exit_time)}).`,
     };
   };
 
@@ -585,6 +620,16 @@ export default function ScanPage() {
             message: 'Student already checked out today',
             action: 'Check Out'
           });
+      } else if (result.action === 'Blocked') {
+          setLastScan({
+            student: student.name,
+            studentId: student.lrn,
+            grade: student.level,
+            time: now.toLocaleTimeString(),
+            date: now.toLocaleDateString(),
+            status: 'error',
+            message: result.message,
+          });
       } else {
         const duration = result.checkInTime
           ? calculateDuration(result.checkInTime, nowIso)
@@ -599,7 +644,7 @@ export default function ScanPage() {
         // Fetch the checkout record to check if there's an invalid timeout
         const { data: attendanceRecord } = await client
           .from('attendance_logs')
-          .select('attendance_status, is_invalid_timeout')
+          .select('attendance_status')
           .eq('student_lrn', student.lrn)
           .eq('date', date)
           .order('check_in_time', { ascending: false })
@@ -607,14 +652,13 @@ export default function ScanPage() {
           .single();
 
         const attendanceStatus = attendanceRecord?.attendance_status || 'present';
-        const isInvalidTimeout = attendanceRecord?.is_invalid_timeout || false;
         const statusDisplay = getAttendanceStatusDisplay({
           attendance_status: attendanceStatus as any,
           is_late: false,
-          is_invalid_timeout: isInvalidTimeout,
+          is_invalid_timeout: false,
           minutes_early: 0,
           minutes_overtime: 0,
-          status_reason: isInvalidTimeout ? 'Invalid timeout' : 'Checked out'
+          status_reason: result.message || 'Checked out'
         });
 
         setLastScan({
@@ -699,6 +743,34 @@ export default function ScanPage() {
   useEffect(() => {
     setRfidConnected(sharedScanRfidState.connected);
     setConnectingRfid(sharedScanRfidState.connecting);
+
+    if (typeof navigator !== 'undefined' && (navigator as any).serial) {
+      const serialApi = (navigator as any).serial;
+      const handleSerialDisconnect = (event: any) => {
+        const activePort = rfidPortRef.current ?? sharedScanRfidState.port;
+        const disconnectedPort = event?.port ?? event?.target;
+        if (activePort && disconnectedPort && activePort !== disconnectedPort) {
+          return;
+        }
+        void disconnectRfidReader(true);
+        setLastScan((current) => ({
+          ...current,
+          status: 'error',
+          message: 'RFID reader disconnected. Reconnect to continue tap input.',
+          time: new Date().toLocaleTimeString(),
+        }));
+      };
+
+      serialApi.addEventListener?.('disconnect', handleSerialDisconnect);
+      return () => {
+        serialApi.removeEventListener?.('disconnect', handleSerialDisconnect);
+        void disconnectRfidReader(true);
+      };
+    }
+
+    return () => {
+      void disconnectRfidReader(true);
+    };
   }, []);
 
   useEffect(() => {

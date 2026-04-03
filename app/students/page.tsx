@@ -121,6 +121,63 @@ function getRiskLevelColor(riskLevel: string): { color: string; bg: string; bord
   }
 }
 
+function getBehaviorEventVisuals(severity?: string) {
+  const normalized = (severity || '').toLowerCase();
+
+  if (normalized === 'critical') {
+    return {
+      Icon: AlertOctagon,
+      card: 'border-red-300/80 bg-red-50/40 dark:bg-red-950/15',
+      iconWrap: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+      title: 'text-red-700 dark:text-red-300',
+      badge: 'border-red-200 bg-red-600 text-white dark:border-red-700 dark:bg-red-700',
+      meta: 'text-red-700/80 dark:text-red-300/80',
+    };
+  }
+
+  if (normalized === 'major') {
+    return {
+      Icon: AlertTriangle,
+      card: 'border-orange-300/80 bg-orange-50/40 dark:bg-orange-950/15',
+      iconWrap: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+      title: 'text-orange-700 dark:text-orange-300',
+      badge: 'border-orange-200 bg-orange-600 text-white dark:border-orange-700 dark:bg-orange-700',
+      meta: 'text-orange-700/80 dark:text-orange-300/80',
+    };
+  }
+
+  if (normalized === 'minor') {
+    return {
+      Icon: Minus,
+      card: 'border-amber-300/80 bg-amber-50/40 dark:bg-amber-950/15',
+      iconWrap: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+      title: 'text-amber-700 dark:text-amber-300',
+      badge: 'border-amber-200 bg-amber-600 text-white dark:border-amber-700 dark:bg-amber-700',
+      meta: 'text-amber-700/80 dark:text-amber-300/80',
+    };
+  }
+
+  if (normalized === 'positive') {
+    return {
+      Icon: Heart,
+      card: 'border-emerald-300/80 bg-emerald-50/40 dark:bg-emerald-950/15',
+      iconWrap: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+      title: 'text-emerald-700 dark:text-emerald-300',
+      badge: 'border-emerald-200 bg-emerald-600 text-white dark:border-emerald-700 dark:bg-emerald-700',
+      meta: 'text-emerald-700/80 dark:text-emerald-300/80',
+    };
+  }
+
+  return {
+    Icon: Info,
+    card: 'border-slate-300/80 bg-slate-50/40 dark:bg-slate-900/20',
+    iconWrap: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    title: 'text-slate-700 dark:text-slate-300',
+    badge: 'border-slate-200 bg-slate-600 text-white dark:border-slate-700 dark:bg-slate-700',
+    meta: 'text-slate-700/80 dark:text-slate-300/80',
+  };
+}
+
 const LEVEL_COLORS = {
   'Toddler & Nursery': '#f59e0b',
   'Pre-K': '#10b981',
@@ -193,6 +250,7 @@ const DEFAULT_SCHEDULE_SLOTS = [
 type EditableScheduleRow = {
   id: number;
   day_of_week: string;
+  days_of_week: string[];
   day_number: number;
   subject: string;
   start_time: string;
@@ -525,8 +583,11 @@ export default function StudentsPage() {
       }
 
       const serialApi = (navigator as any).serial;
-      const port = await serialApi.requestPort();
-      await port.open({ baudRate: 115200 });
+      const grantedPorts = await serialApi.getPorts();
+      const port = grantedPorts[0] ?? await serialApi.requestPort();
+      if (!port.readable) {
+        await port.open({ baudRate: 115200 });
+      }
 
       rfidPortRef.current = port;
       sharedRfidState.port = port;
@@ -602,6 +663,25 @@ export default function StudentsPage() {
   useEffect(() => {
     setRfidConnected(sharedRfidState.connected);
     setConnectingRfid(sharedRfidState.connecting);
+
+    if (typeof navigator !== 'undefined' && (navigator as any).serial) {
+      const serialApi = (navigator as any).serial;
+      const handleSerialDisconnect = (event: any) => {
+        const activePort = rfidPortRef.current ?? sharedRfidState.port;
+        const disconnectedPort = event?.port ?? event?.target;
+        if (activePort && disconnectedPort && activePort !== disconnectedPort) {
+          return;
+        }
+        void disconnectRfidReader(true);
+      };
+
+      serialApi.addEventListener?.('disconnect', handleSerialDisconnect);
+      return () => {
+        serialApi.removeEventListener?.('disconnect', handleSerialDisconnect);
+        void disconnectRfidReader(true);
+      };
+    }
+
     return () => {
       void disconnectRfidReader(true);
     };
@@ -1540,7 +1620,7 @@ export default function StudentsPage() {
         .eq('student_lrn', studentLrn)
         .order('event_date', { ascending: false })
         .order('event_time', { ascending: false })
-        .limit(10);
+        .limit(5);
 
       if (eventsError) throw eventsError;
 
@@ -1622,6 +1702,7 @@ export default function StudentsPage() {
           (data || []).map((row) => ({
             id: row.id,
             day_of_week: row.day_of_week,
+            days_of_week: [row.day_of_week],
             day_number: row.day_number,
             subject: row.subject,
             start_time: row.start_time?.slice(0, 5) || '08:00',
@@ -1653,6 +1734,7 @@ export default function StudentsPage() {
     const baseRows = (studentSchedules[selectedStudent.lrn] || []).map((row) => ({
       id: row.id,
       day_of_week: row.day_of_week,
+      days_of_week: [row.day_of_week],
       day_number: row.day_number,
       subject: row.subject,
       start_time: row.start_time?.slice(0, 5) || '08:00',
@@ -1668,6 +1750,7 @@ export default function StudentsPage() {
             {
               id: -Date.now(),
               day_of_week: 'Monday',
+              days_of_week: ['Monday'],
               day_number: 1,
               subject: `${selectedStudent.level} Session 1`,
               start_time: '08:00',
@@ -1688,6 +1771,7 @@ export default function StudentsPage() {
       {
         id: -(Date.now() + prev.length),
         day_of_week: 'Monday',
+        days_of_week: ['Monday'],
         day_number: 1,
         subject: `${selectedStudent.level} Session ${prev.length + 1}`,
         start_time: '08:00',
@@ -1708,6 +1792,37 @@ export default function StudentsPage() {
     );
   };
 
+  const getNormalizedDraftDays = (row: Partial<EditableScheduleRow>) => {
+    if (Array.isArray(row.days_of_week) && row.days_of_week.length > 0) {
+      return row.days_of_week;
+    }
+    if (row.day_of_week) {
+      return [row.day_of_week];
+    }
+    return [];
+  };
+
+  const toggleScheduleDraftDay = (rowId: number, day: string) => {
+    setScheduleDraft((prev) =>
+      prev.map((row) => {
+        if (row.id !== rowId) return row;
+
+        const currentDays = getNormalizedDraftDays(row);
+        const hasDay = currentDays.includes(day);
+        const nextDays = hasDay
+          ? currentDays.filter((d) => d !== day)
+          : [...currentDays, day];
+
+        const normalizedDays = nextDays.length > 0 ? nextDays : currentDays;
+        return {
+          ...row,
+          days_of_week: normalizedDays,
+          day_of_week: normalizedDays[0] || row.day_of_week,
+        };
+      })
+    );
+  };
+
   const handleSaveScheduleChanges = async () => {
     if (!supabase || !selectedStudent) return;
 
@@ -1722,7 +1837,8 @@ export default function StudentsPage() {
 
     const weekdayMap = new Map(WEEKDAY_OPTIONS.map((d) => [d.label, d.dayNumber]));
     const invalidRow = scheduleDraft.find((row) => {
-      return !weekdayMap.has(row.day_of_week) || !row.subject.trim() || !row.start_time || !row.end_time || row.start_time >= row.end_time;
+      const validDays = (row.days_of_week || []).filter((day) => weekdayMap.has(day));
+      return validDays.length === 0 || !row.subject.trim() || !row.start_time || !row.end_time || row.start_time >= row.end_time;
     });
 
     if (invalidRow) {
@@ -1753,19 +1869,22 @@ export default function StudentsPage() {
         throw deleteError;
       }
 
-      const rowsToInsert = scheduleDraft.map((row) => ({
-        student_lrn: selectedStudent.lrn,
-        school_year_id: currentSchoolYear?.id ?? null,
-        day_of_week: row.day_of_week,
-        day_number: weekdayMap.get(row.day_of_week) || 1,
-        subject: row.subject.trim(),
-        start_time: row.start_time,
-        end_time: row.end_time,
-        room: row.room.trim() || null,
-        teacher_name: row.teacher_name.trim() || null,
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      }));
+      const rowsToInsert = scheduleDraft.flatMap((row) => {
+        const uniqueDays = Array.from(new Set(row.days_of_week.filter((day) => weekdayMap.has(day))));
+        return uniqueDays.map((day) => ({
+          student_lrn: selectedStudent.lrn,
+          school_year_id: currentSchoolYear?.id ?? null,
+          day_of_week: day,
+          day_number: weekdayMap.get(day) || 1,
+          subject: row.subject.trim(),
+          start_time: row.start_time,
+          end_time: row.end_time,
+          room: row.room.trim() || null,
+          teacher_name: row.teacher_name.trim() || null,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        }));
+      });
 
       const { data: insertedRows, error: insertError } = await supabase
         .from('student_schedules')
@@ -1785,6 +1904,7 @@ export default function StudentsPage() {
         (insertedRows || []).map((row) => ({
           id: row.id,
           day_of_week: row.day_of_week,
+          days_of_week: [row.day_of_week],
           day_number: row.day_number,
           subject: row.subject,
           start_time: row.start_time?.slice(0, 5) || '08:00',
@@ -3588,6 +3708,7 @@ export default function StudentsPage() {
                                                           setScheduleDraft((studentSchedules[selectedStudent.lrn] || []).map((row) => ({
                                                             id: row.id,
                                                             day_of_week: row.day_of_week,
+                                                            days_of_week: [row.day_of_week],
                                                             day_number: row.day_number,
                                                             subject: row.subject,
                                                             start_time: row.start_time?.slice(0, 5) || '08:00',
@@ -3614,22 +3735,27 @@ export default function StudentsPage() {
                                                     >
                                                       {editingSchedule ? (
                                                         <div className="space-y-3">
-                                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[160px_minmax(0,1.2fr)_minmax(0,1fr)]">
+                                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[220px_minmax(0,1.2fr)_minmax(0,1fr)]">
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Day</label>
-                                                              <Select
-                                                                value={schedule.day_of_week}
-                                                                onValueChange={(value) => updateScheduleDraftRow(schedule.id, 'day_of_week', value)}
-                                                              >
-                                                                <SelectTrigger className="h-11 rounded-xl">
-                                                                  <SelectValue placeholder="Day" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                  {WEEKDAY_OPTIONS.map((day) => (
-                                                                    <SelectItem key={day.label} value={day.label}>{day.label}</SelectItem>
-                                                                  ))}
-                                                                </SelectContent>
-                                                              </Select>
+                                                              <label className="text-xs font-medium text-muted-foreground">Days</label>
+                                                              <div className="flex flex-wrap gap-1.5 rounded-xl border p-1.5">
+                                                                {WEEKDAY_OPTIONS.map((day) => {
+                                                                  const editableSchedule = schedule as EditableScheduleRow;
+                                                                  const selected = getNormalizedDraftDays(editableSchedule).includes(day.label);
+                                                                  return (
+                                                                    <Button
+                                                                      key={day.label}
+                                                                      type="button"
+                                                                      variant={selected ? 'default' : 'outline'}
+                                                                      size="sm"
+                                                                      className="h-8 rounded-lg px-2.5"
+                                                                      onClick={() => toggleScheduleDraftDay(schedule.id, day.label)}
+                                                                    >
+                                                                      {day.label.slice(0, 3)}
+                                                                    </Button>
+                                                                  );
+                                                                })}
+                                                              </div>
                                                             </div>
                                                             <div className="space-y-1.5">
                                                               <label className="text-xs font-medium text-muted-foreground">Subject</label>
@@ -3860,33 +3986,76 @@ export default function StudentsPage() {
                                                 </div>
 
                                                 {/* Recent Events */}
-                                                <div className="border rounded-lg p-4">
-                                                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                                                <div>
+                                                  <h3 className="font-semibold mb-3 flex items-center gap-2 px-1">
                                                     <Bell className="w-4 h-4" />
                                                     Recent Events
                                                   </h3>
                                                   {behavioralData.events.length === 0 ? (
                                                     <p className="text-center py-4 text-muted-foreground">No recent events</p>
                                                   ) : (
-                                                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                                                      {behavioralData.events.map((event: any) => (
-                                                        <div key={event.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-sm">
-                                                          <div className="flex items-center gap-2 mb-1">
-                                                            <span className="font-semibold">{event.event_type}</span>
-                                                            <Badge className={
-                                                              event.severity === 'positive' ? 'bg-green-100 text-green-700' :
-                                                              event.severity === 'minor' ? 'bg-yellow-100 text-yellow-700' :
-                                                              event.severity === 'major' ? 'bg-orange-100 text-orange-700' :
-                                                              event.severity === 'critical' ? 'bg-red-100 text-red-700' :
-                                                              'bg-gray-100 text-gray-700'
-                                                            }>
-                                                              {event.severity}
+                                                    <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                                                      {behavioralData.events.slice(0, 5).map((event: any) => (
+                                                        <div
+                                                          key={event.id}
+                                                          className={`rounded-xl border px-4 py-3 text-sm shadow-sm ${getBehaviorEventVisuals(event.severity).card}`}
+                                                        >
+                                                          <div className="flex items-center justify-between gap-4">
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${getBehaviorEventVisuals(event.severity).iconWrap}`}>
+                                                                {(() => {
+                                                                  const EventIcon = getBehaviorEventVisuals(event.severity).Icon;
+                                                                  return <EventIcon className="h-3.5 w-3.5" />;
+                                                                })()}
+                                                              </div>
+                                                              <div className="min-w-0">
+                                                                <p className={`font-semibold leading-tight truncate ${getBehaviorEventVisuals(event.severity).title}`}>
+                                                                  {event.event_type || 'Behavior Event'}
+                                                                </p>
+                                                                <p className="text-[11px] text-muted-foreground">
+                                                                  {new Date(event.event_date).toLocaleDateString(undefined, {
+                                                                    weekday: 'short',
+                                                                    month: 'short',
+                                                                    day: 'numeric',
+                                                                    year: 'numeric',
+                                                                  })}
+                                                                  {event.event_time ? ` at ${event.event_time}` : ''}
+                                                                </p>
+                                                              </div>
+                                                            </div>
+                                                            <Badge className={`uppercase tracking-wide text-[9px] px-2 py-0.5 font-semibold border shadow-sm ${getBehaviorEventVisuals(event.severity).badge}`}>
+                                                              {event.severity || 'event'}
                                                             </Badge>
                                                           </div>
-                                                          <p className="text-muted-foreground">{event.description}</p>
-                                                          <p className="text-xs text-muted-foreground mt-1">
-                                                            {new Date(event.event_date).toLocaleDateString()}
+
+                                                          <p className="mt-3 text-slate-700 dark:text-slate-200 leading-relaxed text-[13px]">
+                                                            {event.description || 'No description provided.'}
                                                           </p>
+
+                                                          <div className={`mt-3 flex flex-wrap items-center gap-2 text-[11px] ${getBehaviorEventVisuals(event.severity).meta}`}>
+                                                            <div className="flex items-center gap-1.5 rounded-md border border-current/20 bg-white/50 dark:bg-slate-900/20 px-2 py-1">
+                                                              <Calendar className="h-3 w-3" />
+                                                              <span>{new Date(event.event_date).toLocaleDateString()}</span>
+                                                            </div>
+                                                            {event.event_categories?.name ? (
+                                                              <div className="flex items-center gap-1.5 rounded-md border border-current/20 bg-white/50 dark:bg-slate-900/20 px-2 py-1">
+                                                                <FileText className="h-3 w-3" />
+                                                                <span>Category: {event.event_categories.name}</span>
+                                                              </div>
+                                                            ) : null}
+                                                            {event.location ? (
+                                                              <div className="flex items-center gap-1.5 rounded-md border border-current/20 bg-white/50 dark:bg-slate-900/20 px-2 py-1">
+                                                                <MapPin className="h-3 w-3" />
+                                                                <span>Location: {event.location}</span>
+                                                              </div>
+                                                            ) : null}
+                                                            {event.reported_by ? (
+                                                              <div className="flex items-center gap-1.5 rounded-md border border-current/20 bg-white/50 dark:bg-slate-900/20 px-2 py-1">
+                                                                <User className="h-3 w-3" />
+                                                                <span>Reported by: {event.reported_by}</span>
+                                                              </div>
+                                                            ) : null}
+                                                          </div>
                                                         </div>
                                                       ))}
                                                     </div>

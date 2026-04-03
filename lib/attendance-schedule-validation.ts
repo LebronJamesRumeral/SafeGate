@@ -28,6 +28,13 @@ export interface StudentSchedule {
   is_active: boolean;
 }
 
+type StudentScheduleRow = {
+  day_of_week: string;
+  start_time: string;
+  end_time: string;
+  is_active: boolean;
+};
+
 export interface AttendanceValidation {
   attendance_status: 'present' | 'late' | 'absent' | 'invalid_timeout';
   is_late: boolean;
@@ -37,12 +44,118 @@ export interface AttendanceValidation {
   status_reason: string;
 }
 
+function normalizeTimeString(timeStr: string): string {
+  if (!timeStr) return '00:00:00';
+  const parts = timeStr.split(':');
+  if (parts.length === 2) {
+    return `${parts[0]}:${parts[1]}:00`;
+  }
+  return timeStr;
+}
+
+function emptySchoolDays() {
+  return {
+    monday: false,
+    tuesday: false,
+    wednesday: false,
+    thursday: false,
+    friday: false,
+    saturday: false,
+    sunday: false,
+  };
+}
+
+function dayKeyFromLabel(day: string): keyof ReturnType<typeof emptySchoolDays> | null {
+  const normalized = day.trim().toLowerCase();
+  const map: Record<string, keyof ReturnType<typeof emptySchoolDays>> = {
+    monday: 'monday',
+    tuesday: 'tuesday',
+    wednesday: 'wednesday',
+    thursday: 'thursday',
+    friday: 'friday',
+    saturday: 'saturday',
+    sunday: 'sunday',
+  };
+  return map[normalized] ?? null;
+}
+
+async function getScheduleFromStudentSchedules(studentLrn: string): Promise<StudentSchedule | null> {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('student_schedules')
+    .select('day_of_week, start_time, end_time, is_active')
+    .eq('student_lrn', studentLrn)
+    .eq('is_active', true);
+
+  if (error || !data || data.length === 0) {
+    return null;
+  }
+
+  const rows = data as StudentScheduleRow[];
+  const schoolDays = emptySchoolDays();
+  const dayWindows: Record<string, { start: number; end: number; startRaw: string; endRaw: string }> = {};
+
+  for (const row of rows) {
+    const dayKey = dayKeyFromLabel(row.day_of_week);
+    if (!dayKey) continue;
+
+    schoolDays[dayKey] = true;
+    const start = timeToMinutes(normalizeTimeString(row.start_time));
+    const end = timeToMinutes(normalizeTimeString(row.end_time));
+
+    if (!dayWindows[dayKey]) {
+      dayWindows[dayKey] = {
+        start,
+        end,
+        startRaw: normalizeTimeString(row.start_time),
+        endRaw: normalizeTimeString(row.end_time),
+      };
+      continue;
+    }
+
+    if (start < dayWindows[dayKey].start) {
+      dayWindows[dayKey].start = start;
+      dayWindows[dayKey].startRaw = normalizeTimeString(row.start_time);
+    }
+
+    if (end > dayWindows[dayKey].end) {
+      dayWindows[dayKey].end = end;
+      dayWindows[dayKey].endRaw = normalizeTimeString(row.end_time);
+    }
+  }
+
+  const todayKey = getDayName(new Date());
+  const todayWindow = dayWindows[todayKey];
+  const fallbackWindow = Object.values(dayWindows)[0];
+  const selectedWindow = todayWindow ?? fallbackWindow;
+
+  if (!selectedWindow) return null;
+
+  return {
+    id: 0,
+    student_lrn: studentLrn,
+    year_level: '',
+    entry_time: selectedWindow.startRaw,
+    exit_time: selectedWindow.endRaw,
+    school_days: schoolDays,
+    grace_period_minutes: 0,
+    is_active: true,
+  };
+}
+
 /**
  * Get student's current attendance schedule
  */
 export async function getStudentSchedule(studentLrn: string): Promise<StudentSchedule | null> {
   try {
     if (!supabase) return null;
+
+    // Keep scan logic aligned with what the Student Schedule tab shows.
+    const scheduleFromClasses = await getScheduleFromStudentSchedules(studentLrn);
+    if (scheduleFromClasses) {
+      return scheduleFromClasses;
+    }
 
     const { data, error } = await supabase
       .from('student_attendance_schedules')
