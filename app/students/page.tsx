@@ -47,7 +47,10 @@ import {
   Shield,
   Zap,
   Heart,
-  AlertOctagon
+  AlertOctagon,
+  CloudUpload,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
@@ -196,6 +199,15 @@ type EditableScheduleRow = {
   end_time: string;
   room: string;
   teacher_name: string;
+};
+
+const sharedRfidState = {
+  connected: false,
+  connecting: false,
+  disconnecting: false,
+  readingActive: false,
+  port: null as any,
+  reader: null as any,
 };
 
 // Enforce consistent layout structure for students page
@@ -409,11 +421,191 @@ export default function StudentsPage() {
   const [selectedScheduleDays, setSelectedScheduleDays] = useState<string[]>(WEEKDAY_OPTIONS.map((d) => d.label));
   // Add state for editing student info
   const [editingStudentInfo, setEditingStudentInfo] = useState(false);
+  const [savingStudentInfo, setSavingStudentInfo] = useState(false);
+  const [rfidConnected, setRfidConnected] = useState(sharedRfidState.connected);
+  const [connectingRfid, setConnectingRfid] = useState(sharedRfidState.connecting);
+  const rfidPortRef = useRef<any>(null);
+  const rfidReaderRef = useRef<any>(null);
+  const rfidReadingActiveRef = useRef(false);
+  const rfidDisconnectingRef = useRef(false);
 
   // Buffer for last name editing
   const [editLastName, setEditLastName] = useState<string | null>(null);
 
   const normalizeRfidUid = (value: string) => value.trim().toUpperCase().replace(/[^A-F0-9]/g, '');
+
+  const applyRfidLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    const uidMatch = trimmed.match(/(?:card\s*uid|uid)\s*:\s*(.+)$/i);
+    if (!uidMatch?.[1]) return;
+
+    const uid = normalizeRfidUid(uidMatch[1]);
+    if (uid.length < 4) return;
+
+    setSelectedStudent((current) => {
+      if (!current) return current;
+      return { ...current, rfid_uid: uid };
+    });
+
+    setEditingStudentInfo(true);
+  };
+
+  const disconnectRfidReader = async (silent = false) => {
+    if (rfidDisconnectingRef.current || sharedRfidState.disconnecting) return;
+    rfidDisconnectingRef.current = true;
+    sharedRfidState.disconnecting = true;
+    rfidReadingActiveRef.current = false;
+    sharedRfidState.readingActive = false;
+
+    try {
+      const reader = rfidReaderRef.current ?? sharedRfidState.reader;
+      const port = rfidPortRef.current ?? sharedRfidState.port;
+
+      if (reader) {
+        try {
+          await reader.cancel();
+        } catch {
+          // Reader can already be closed while disconnecting.
+        }
+
+        try {
+          reader.releaseLock();
+        } catch {
+          // No-op if lock is already released.
+        }
+      }
+
+      if (port) {
+        try {
+          await port.close();
+        } catch {
+          // Port can already be closed.
+        }
+      }
+    } catch {
+      // Best effort cleanup.
+    } finally {
+      rfidReaderRef.current = null;
+      rfidPortRef.current = null;
+      sharedRfidState.reader = null;
+      sharedRfidState.port = null;
+      sharedRfidState.connected = false;
+      sharedRfidState.connecting = false;
+      sharedRfidState.disconnecting = false;
+      sharedRfidState.readingActive = false;
+      setRfidConnected(false);
+      rfidDisconnectingRef.current = false;
+      if (!silent) {
+        toast({
+          title: 'RFID Reader Disconnected',
+          description: 'Manual serial input has been disconnected.',
+        });
+      }
+    }
+  };
+
+  const connectRfidReader = async () => {
+    if (typeof navigator === 'undefined' || !(navigator as any).serial) {
+      toast({
+        title: 'Web Serial Not Supported',
+        description: 'Use Chrome/Edge and open the app over localhost or HTTPS.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setConnectingRfid(true);
+    sharedRfidState.connecting = true;
+    try {
+      if (sharedRfidState.connected || rfidPortRef.current) {
+        setRfidConnected(true);
+        return;
+      }
+
+      const serialApi = (navigator as any).serial;
+      const port = await serialApi.requestPort();
+      await port.open({ baudRate: 115200 });
+
+      rfidPortRef.current = port;
+      sharedRfidState.port = port;
+      rfidReadingActiveRef.current = true;
+      sharedRfidState.readingActive = true;
+      setRfidConnected(true);
+      setConnectingRfid(false);
+      sharedRfidState.connected = true;
+      sharedRfidState.connecting = false;
+      toast({
+        title: 'RFID Reader Connected',
+        description: 'Tap a tag and the UID will auto-fill the field below.',
+      });
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (rfidReadingActiveRef.current && port.readable && rfidPortRef.current === port) {
+        const reader = port.readable.getReader();
+        rfidReaderRef.current = reader;
+        sharedRfidState.reader = reader;
+        try {
+          while (rfidReadingActiveRef.current) {
+            const { value, done } = await reader.read();
+            if (done) {
+              break;
+            }
+            if (!value) {
+              continue;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split(/\r?\n/);
+            buffer = lines.pop() ?? '';
+            for (const line of lines) {
+              applyRfidLine(line);
+            }
+          }
+        } catch {
+          if (!rfidReadingActiveRef.current) {
+            break;
+          }
+        } finally {
+          try {
+            reader.releaseLock();
+          } catch {
+            // No-op if lock already released.
+          }
+          if (rfidReaderRef.current === reader) {
+            rfidReaderRef.current = null;
+          }
+          if (sharedRfidState.reader === reader) {
+            sharedRfidState.reader = null;
+          }
+        }
+      }
+    } catch (error: any) {
+      const cancelled = error?.name === 'NotFoundError';
+      if (!cancelled) {
+        toast({
+          title: 'Failed to Connect RFID Reader',
+          description: error?.message || String(error),
+          variant: 'destructive',
+        });
+      }
+      await disconnectRfidReader(true);
+    } finally {
+      setConnectingRfid(false);
+      sharedRfidState.connecting = false;
+    }
+  };
+
+  useEffect(() => {
+    setRfidConnected(sharedRfidState.connected);
+    setConnectingRfid(sharedRfidState.connecting);
+    return () => {
+      void disconnectRfidReader(true);
+    };
+  }, []);
 
   const handleConfirmStudentInfo = async () => {
     if (!selectedStudent || !supabase) {
@@ -438,6 +630,8 @@ export default function StudentsPage() {
       rfid_uid: normalizedRfid || null,
       updated_at: new Date().toISOString(),
     };
+
+    setSavingStudentInfo(true);
 
     try {
       const { error } = await supabase
@@ -476,6 +670,8 @@ export default function StudentsPage() {
         description: err instanceof Error ? err.message : String(err),
         variant: 'destructive',
       });
+    } finally {
+      setSavingStudentInfo(false);
     }
   };
   const [scheduleTimeSlots, setScheduleTimeSlots] = useState<Array<{ label: string; startTime: string; endTime: string }>>([...DEFAULT_SCHEDULE_SLOTS]);
@@ -3048,7 +3244,7 @@ export default function StudentsPage() {
                                   <DialogContent
                                     className="w-[96vw] max-w-5xl lg:max-w-5xl p-0 flex flex-col"
                                   >
-                                    <div className="h-full p-6 md:p-8">
+                                    <div className="relative h-full p-6 md:p-8">
                                     {selectedStudent && (
                                       <>
                                         <DialogHeader>
@@ -3119,10 +3315,24 @@ export default function StudentsPage() {
                                             <TabsTrigger value="qr">QR Code</TabsTrigger>
                                           </TabsList>
 
+                                          {savingStudentInfo && (
+                                            <div className="absolute inset-0 z-20 rounded-2xl bg-white/85 dark:bg-slate-950/85 backdrop-blur-sm border border-slate-200/70 dark:border-slate-800/70 flex items-center justify-center px-6">
+                                              <div className="w-full max-w-2xl space-y-4 animate-pulse">
+                                                <div className="h-6 w-40 rounded bg-slate-200 dark:bg-slate-700" />
+                                                <div className="grid grid-cols-2 gap-4">
+                                                  <div className="h-24 rounded-xl bg-slate-200 dark:bg-slate-700" />
+                                                  <div className="h-24 rounded-xl bg-slate-200 dark:bg-slate-700" />
+                                                  <div className="col-span-2 h-32 rounded-xl bg-slate-200 dark:bg-slate-700" />
+                                                </div>
+                                                <div className="h-10 w-full rounded-xl bg-slate-200 dark:bg-slate-700" />
+                                              </div>
+                                            </div>
+                                          )}
+
                                           <TabsContent value="overview" className="space-y-4 mt-4">
 
                                             {/* Student Info Grid */}
-                                            <div className="grid grid-cols-2 gap-4 relative">
+                                            <div className="grid grid-cols-2 gap-3 relative">
                                               {/* Name Section - Only Last Name Editable */}
                                               {(() => {
                                                 // Split name into parts
@@ -3130,8 +3340,8 @@ export default function StudentsPage() {
                                                 const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
                                                 const firstMiddle = nameParts.slice(0, -1).join(' ');
                                                 return (
-                                                  <div className="col-span-2 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
-                                                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                                  <div className="col-span-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
+                                                    <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                       <User className="w-3 h-3" />
                                                       Name
                                                     </p>
@@ -3153,8 +3363,8 @@ export default function StudentsPage() {
                                                   </div>
                                                 );
                                               })()}
-                                              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                                                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                                <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                   <Calendar className="w-3 h-3" />
                                                   Birthday
                                                 </p>
@@ -3165,15 +3375,15 @@ export default function StudentsPage() {
                                                   </p>
                                                 )}
                                               </div>
-                                              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                                                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                                <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                   <User className="w-3 h-3" />
                                                   Gender
                                                 </p>
                                                 <p className="font-medium">{selectedStudent.gender}</p>
                                               </div>
-                                              <div className="col-span-2 md:col-span-1 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
-                                                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                              <div className="col-span-2 md:col-span-1 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
+                                                <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                   <MapPin className="w-3 h-3" />
                                                   Address
                                                 </p>
@@ -3185,26 +3395,52 @@ export default function StudentsPage() {
                                                   disabled={!editingStudentInfo}
                                                 />
                                               </div>
-                                              <div className="col-span-2 md:col-span-1 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
-                                                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                              <div className="col-span-2 md:col-span-1 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
+                                                <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                   <QrCode className="w-3 h-3" />
                                                   RFID UID
                                                 </p>
-                                                <Input
-                                                  value={selectedStudent.rfid_uid || ''}
-                                                  onChange={e => setSelectedStudent({ ...selectedStudent, rfid_uid: normalizeRfidUid(e.target.value) })}
-                                                  placeholder="e.g. A1B2C3D4"
-                                                  className="font-medium w-full"
-                                                  disabled={!editingStudentInfo}
-                                                />
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                  Enter the tag UID from Serial Monitor. Only hex characters are saved.
-                                                </p>
+                                                <div className="w-full space-y-1.5">
+                                                  <div className="flex flex-col gap-1.5 sm:flex-row">
+                                                    <Input
+                                                      value={selectedStudent.rfid_uid || ''}
+                                                      onChange={e => setSelectedStudent({ ...selectedStudent, rfid_uid: normalizeRfidUid(e.target.value) })}
+                                                      placeholder="e.g. A1B2C3D4"
+                                                      className="font-medium w-full"
+                                                      disabled={!editingStudentInfo}
+                                                    />
+                                                    <Button
+                                                      type="button"
+                                                      variant={rfidConnected ? 'outline' : 'default'}
+                                                      onClick={() => {
+                                                        if (rfidConnected) {
+                                                          void disconnectRfidReader();
+                                                        } else {
+                                                          void connectRfidReader();
+                                                        }
+                                                      }}
+                                                      disabled={!editingStudentInfo || connectingRfid || savingStudentInfo}
+                                                      className="sm:w-auto gap-2"
+                                                    >
+                                                      {rfidConnected ? <Wifi className="w-4 h-4" /> : <CloudUpload className="w-4 h-4" />}
+                                                      {connectingRfid ? 'Connecting...' : rfidConnected ? 'Disconnect' : 'Tap RFID'}
+                                                    </Button>
+                                                  </div>
+                                                  <p className="text-xs text-muted-foreground leading-snug">
+                                                    {editingStudentInfo
+                                                      ? 'Tap an RFID tag to auto-fill the UID field. Only hex characters are saved.'
+                                                      : 'Click Edit Info first, then connect the RFID reader to auto-fill the UID.'}
+                                                  </p>
+                                                  <p className="text-xs text-muted-foreground flex items-center gap-1 leading-snug">
+                                                    {rfidConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                                                    {rfidConnected ? 'RFID reader connected' : 'RFID reader not connected'}
+                                                  </p>
+                                                </div>
                                               </div>
-                                              <div className="col-span-2 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
-                                                <p className="text-xs text-muted-foreground mb-2">Parent/Guardian Information</p>
-                                                <div className="space-y-2 w-full max-w-md">
-                                                  <div className="flex items-center gap-2">
+                                              <div className="col-span-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
+                                                <p className="text-xs text-muted-foreground mb-1">Parent/Guardian Information</p>
+                                                <div className="space-y-1.5 w-full max-w-md">
+                                                  <div className="flex items-center gap-1.5">
                                                     <User className="w-4 h-4 text-muted-foreground" />
                                                     <Input
                                                       value={selectedStudent.parentName || ''}
@@ -3214,7 +3450,7 @@ export default function StudentsPage() {
                                                       disabled={!editingStudentInfo}
                                                     />
                                                   </div>
-                                                  <div className="flex items-center gap-2">
+                                                  <div className="flex items-center gap-1.5">
                                                     <Phone className="w-4 h-4 text-muted-foreground" />
                                                     <Input
                                                       value={selectedStudent.parentContact || ''}
@@ -3224,7 +3460,7 @@ export default function StudentsPage() {
                                                       disabled={!editingStudentInfo}
                                                     />
                                                   </div>
-                                                  <div className="flex items-center gap-2">
+                                                  <div className="flex items-center gap-1.5">
                                                     <Mail className="w-4 h-4 text-muted-foreground" />
                                                     <Input
                                                       value={selectedStudent.parentEmail || ''}
@@ -3317,8 +3553,9 @@ export default function StudentsPage() {
                                                   </Button>
                                                 ) : null}
                                                 {isAdmin && editingStudentInfo && (
-                                                  <Button size="sm" variant="default" className="min-w-[100px]" onClick={handleConfirmStudentInfo}>
-                                                    Confirm
+                                                  <Button size="sm" variant="default" className="min-w-[100px] gap-2" onClick={handleConfirmStudentInfo} disabled={savingStudentInfo}>
+                                                    {savingStudentInfo ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                                    {savingStudentInfo ? 'Saving...' : 'Confirm'}
                                                   </Button>
                                                 )}
                                               </div>

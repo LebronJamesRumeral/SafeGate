@@ -49,6 +49,11 @@ export default function ScanPage() {
   const lastScanRef = useRef<{ value: string; time: number } | null>(null);
   const startupRetryRef = useRef<number | null>(null);
 
+  const isMediaPlayAbortError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    return (error instanceof Error && error.name === 'AbortError') || message.includes('play() request was interrupted');
+  };
+
   const findStudent = async (text: string) => {
     try {
       if (!supabase) {
@@ -442,6 +447,10 @@ export default function ScanPage() {
                 try {
                   await scannerRef.current.start();
                 } catch (restartErr) {
+                  if (isMediaPlayAbortError(restartErr)) {
+                    return;
+                  }
+
                   console.error('Failed to restart camera scanner:', restartErr);
                 }
               }
@@ -457,6 +466,10 @@ export default function ScanPage() {
 
         await scannerRef.current.start();
       } catch (err) {
+        if (isMediaPlayAbortError(err)) {
+          return;
+        }
+
         console.error('Camera start failed:', err);
         setLastScan({
           status: 'error',

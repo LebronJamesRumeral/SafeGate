@@ -41,14 +41,23 @@ interface ScanResult {
   statusReason?: string;
 }
 
+const sharedScanRfidState = {
+  connected: false,
+  connecting: false,
+  disconnecting: false,
+  readingActive: false,
+  port: null as any,
+  reader: null as any,
+};
+
 export default function ScanPage() {
-  const [scanning, setScanning] = useState(true);
+  const [scanning, setScanning] = useState(false);
   const [qrText, setQrText] = useState<string | null>(null);
   const [lastScan, setLastScan] = useState<ScanResult | null>(null);
   const [manualId, setManualId] = useState('');
   const [showManualEntry, setShowManualEntry] = useState(false);
-  const [rfidConnected, setRfidConnected] = useState(false);
-  const [connectingRfid, setConnectingRfid] = useState(false);
+  const [rfidConnected, setRfidConnected] = useState(sharedScanRfidState.connected);
+  const [connectingRfid, setConnectingRfid] = useState(sharedScanRfidState.connecting);
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [syncing, setSyncing] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
@@ -62,6 +71,11 @@ export default function ScanPage() {
   const recordingRef = useRef(false);
   const lastScanRef = useRef<{ value: string; time: number } | null>(null);
   const startupRetryRef = useRef<number | null>(null);
+
+  const isMediaPlayAbortError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    return (error instanceof Error && error.name === 'AbortError') || message.includes('play() request was interrupted');
+  };
 
   const normalizeRfidUid = (value: string) => value.toUpperCase().replace(/[^A-F0-9]/g, '');
 
@@ -79,13 +93,15 @@ export default function ScanPage() {
   };
 
   const disconnectRfidReader = async (silent = false) => {
-    if (rfidDisconnectingRef.current) return;
+    if (rfidDisconnectingRef.current || sharedScanRfidState.disconnecting) return;
     rfidDisconnectingRef.current = true;
+    sharedScanRfidState.disconnecting = true;
     rfidReadingActiveRef.current = false;
+    sharedScanRfidState.readingActive = false;
 
     try {
-      const reader = rfidReaderRef.current;
-      const port = rfidPortRef.current;
+      const reader = rfidReaderRef.current ?? sharedScanRfidState.reader;
+      const port = rfidPortRef.current ?? sharedScanRfidState.port;
 
       if (reader) {
         try {
@@ -113,6 +129,12 @@ export default function ScanPage() {
     } finally {
       rfidReaderRef.current = null;
       rfidPortRef.current = null;
+      sharedScanRfidState.reader = null;
+      sharedScanRfidState.port = null;
+      sharedScanRfidState.connected = false;
+      sharedScanRfidState.connecting = false;
+      sharedScanRfidState.disconnecting = false;
+      sharedScanRfidState.readingActive = false;
       setRfidConnected(false);
       rfidDisconnectingRef.current = false;
       if (!silent) {
@@ -135,16 +157,25 @@ export default function ScanPage() {
     }
 
     setConnectingRfid(true);
+    sharedScanRfidState.connecting = true;
     try {
-      await disconnectRfidReader(true);
+      if (sharedScanRfidState.connected || rfidPortRef.current) {
+        setRfidConnected(true);
+        return;
+      }
 
       const serialApi = (navigator as any).serial;
       const port = await serialApi.requestPort();
       await port.open({ baudRate: 115200 });
 
       rfidPortRef.current = port;
+      sharedScanRfidState.port = port;
       rfidReadingActiveRef.current = true;
+      sharedScanRfidState.readingActive = true;
       setRfidConnected(true);
+      sharedScanRfidState.connected = true;
+      setConnectingRfid(false);
+      sharedScanRfidState.connecting = false;
       toast({
         title: 'RFID Reader Connected',
         description: 'Tap a tag and the UID will auto-fill manual entry.',
@@ -156,6 +187,7 @@ export default function ScanPage() {
       while (rfidReadingActiveRef.current && port.readable && rfidPortRef.current === port) {
         const reader = port.readable.getReader();
         rfidReaderRef.current = reader;
+        sharedScanRfidState.reader = reader;
         try {
           while (rfidReadingActiveRef.current) {
             const { value, done } = await reader.read();
@@ -187,6 +219,9 @@ export default function ScanPage() {
           if (rfidReaderRef.current === reader) {
             rfidReaderRef.current = null;
           }
+          if (sharedScanRfidState.reader === reader) {
+            sharedScanRfidState.reader = null;
+          }
         }
       }
     } catch (error: any) {
@@ -201,6 +236,7 @@ export default function ScanPage() {
       await disconnectRfidReader(true);
     } finally {
       setConnectingRfid(false);
+      sharedScanRfidState.connecting = false;
     }
   };
 
@@ -490,8 +526,14 @@ export default function ScanPage() {
       const result = await applyAttendanceOnline(student.lrn, nowIso);
 
       if (result.action === 'Checked In') {
+        if (!supabase) {
+            throw new Error('Supabase client not initialized');
+          }
+
+        const client = supabase!;
+
         // Fetch the attendance status from the database
-        const { data: attendanceRecord } = await supabase
+          const { data: attendanceRecord } = await client
           .from('attendance_logs')
           .select('attendance_status')
           .eq('student_lrn', student.lrn)
@@ -547,9 +589,15 @@ export default function ScanPage() {
         const duration = result.checkInTime
           ? calculateDuration(result.checkInTime, nowIso)
           : undefined;
+
+        if (!supabase) {
+          throw new Error('Supabase client not initialized');
+        }
+
+        const client = supabase!;
         
         // Fetch the checkout record to check if there's an invalid timeout
-        const { data: attendanceRecord } = await supabase
+        const { data: attendanceRecord } = await client
           .from('attendance_logs')
           .select('attendance_status, is_invalid_timeout')
           .eq('student_lrn', student.lrn)
@@ -649,9 +697,8 @@ export default function ScanPage() {
   }, []);
 
   useEffect(() => {
-    return () => {
-      void disconnectRfidReader(true);
-    };
+    setRfidConnected(sharedScanRfidState.connected);
+    setConnectingRfid(sharedScanRfidState.connecting);
   }, []);
 
   useEffect(() => {
@@ -713,6 +760,10 @@ export default function ScanPage() {
                 try {
                   await scannerRef.current.start();
                 } catch (restartErr) {
+                  if (isMediaPlayAbortError(restartErr)) {
+                    return;
+                  }
+
                   console.error('Failed to restart camera scanner:', restartErr);
                 }
               }
@@ -728,6 +779,10 @@ export default function ScanPage() {
 
         await scannerRef.current.start();
       } catch (err) {
+        if (isMediaPlayAbortError(err)) {
+          return;
+        }
+
         console.error('Camera start failed:', err);
         setLastScan({
           status: 'error',
@@ -1049,7 +1104,14 @@ export default function ScanPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setShowManualEntry(true)}
+                onClick={() => {
+                  rfidPortRef.current = sharedScanRfidState.port;
+                  rfidReaderRef.current = sharedScanRfidState.reader;
+                  rfidReadingActiveRef.current = sharedScanRfidState.readingActive;
+                  setRfidConnected(sharedScanRfidState.connected || !!sharedScanRfidState.port);
+                  setConnectingRfid(sharedScanRfidState.connecting);
+                  setShowManualEntry(true);
+                }}
                 className="w-full gap-2 border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950/20"
               >
                 <Hash className="w-4 h-4" />
@@ -1059,6 +1121,13 @@ export default function ScanPage() {
               <Dialog
                 open={showManualEntry}
                 onOpenChange={(open) => {
+                  if (open) {
+                    rfidPortRef.current = sharedScanRfidState.port;
+                    rfidReaderRef.current = sharedScanRfidState.reader;
+                    rfidReadingActiveRef.current = sharedScanRfidState.readingActive;
+                    setRfidConnected(sharedScanRfidState.connected || !!sharedScanRfidState.port);
+                    setConnectingRfid(sharedScanRfidState.connecting);
+                  }
                   setShowManualEntry(open);
                 }}
               >

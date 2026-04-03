@@ -30,7 +30,7 @@ const allNavItems = [
   { icon: AlertTriangle, label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin", "guidance"] },
   { icon: ClipboardCheck, label: "Guidance Review", href: "/guidance-review", roles: ["guidance"] },
   { icon: School, label: "Masterlist", href: "/masterlist", roles: ["admin", "guidance"] },
-  { icon: ScanLine, label: "Attendance / QR Scan", href: "/scan", roles: ["teacher", "admin"] },
+  { icon: ScanLine, label: "QR Scan & RFID Tap", href: "/scan", roles: ["teacher", "admin"] },
   { icon: CalendarDays, label: "Attendance Logs", href: "/attendance", roles: ["teacher", "admin"] },
   { icon: Users, label: "Students", href: "/students", roles: ["teacher", "admin", "guidance"] },
   { icon: MapPinned, label: "School Heatmap", href: "/school-heatmap", roles: ["teacher", "admin", "guidance"] },
@@ -63,7 +63,7 @@ export function Sidebar() {
   }
 
   const getMobileLabel = (href: string, label: string) => {
-    if (href === "/scan") return "Scan"
+    if (href === "/scan") return "QR Scan & RFID Tap"
     if (href === "/behavioral-events") return "Behavior"
     if (href === "/masterlist") return "Masterlist"
     return label
