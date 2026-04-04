@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from '@/components/ui/textarea';
 import { GuidanceReviewPageSkeleton } from '@/components/guidance-review-skeleton';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Activity, AlertTriangle, CalendarDays, CheckCircle, Clock, Eye, Loader2, UserCircle2, Users, XCircle, ChevronDownIcon, Minus, Info } from 'lucide-react';
+import { Activity, AlertTriangle, CalendarDays, CheckCircle, Clock, Eye, Loader2, UserCircle2, Users, XCircle, ChevronDownIcon, Minus, Info, Printer, ClipboardCheck } from 'lucide-react';
 import {
   Select,
   SelectTrigger,
@@ -56,6 +56,9 @@ type BehavioralEventRecord = {
   guidance_reviewed_by: string | null;
   guidance_reviewed_at: string | null;
   guidance_intervention_notes: string | null;
+  parent_notified?: boolean;
+  follow_up_required?: boolean;
+  notes?: string | null;
   created_at: string;
   students?: {
     name: string;
@@ -123,6 +126,20 @@ function getSeverityBadgeClass(severity: string) {
   return 'bg-slate-100 text-slate-700 border-slate-200';
 }
 
+function getIncidentReportCardClass(severity: string) {
+  const normalized = String(severity || '').toLowerCase();
+  if (normalized.includes('critical')) {
+    return 'border-red-200 dark:border-red-700/60 border-l-4 border-l-red-600 bg-gradient-to-br from-red-50/80 via-white to-red-50/40 dark:from-red-950/30 dark:via-slate-800/50 dark:to-red-900/20';
+  }
+  if (normalized.includes('major') || normalized.includes('high') || normalized.includes('severe')) {
+    return 'border-amber-200 dark:border-amber-700/60 border-l-4 border-l-amber-600 bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 dark:from-amber-950/30 dark:via-slate-800/50 dark:to-amber-900/20';
+  }
+  if (normalized.includes('positive')) {
+    return 'border-emerald-200 dark:border-emerald-700/60 border-l-4 border-l-emerald-600 bg-gradient-to-br from-emerald-50/80 via-white to-emerald-50/40 dark:from-emerald-950/30 dark:via-slate-800/50 dark:to-emerald-900/20';
+  }
+  return 'border-slate-200 dark:border-slate-700/60 border-l-4 border-l-slate-500 bg-gradient-to-br from-slate-50/80 via-white to-slate-50/40 dark:from-slate-900/60 dark:via-slate-800/50 dark:to-slate-900/30';
+}
+
 function computeSuggestedBehaviorScore(event: BehavioralEventRecord) {
   const severity = event.severity.toLowerCase();
   let score = 50;
@@ -178,6 +195,7 @@ export default function GuidanceReviewPage() {
   const [studentPickerOpen, setStudentPickerOpen] = useState(false);
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
+  const [reportDate, setReportDate] = useState('');
 
   // Deselect student function
   const handleStudentSelect = (studentLrn: string) => {
@@ -230,6 +248,33 @@ export default function GuidanceReviewPage() {
   const [reviewNote, setReviewNote] = useState('');
   const [behaviorScoreInput, setBehaviorScoreInput] = useState('');
   const [suggestedBehaviorScore, setSuggestedBehaviorScore] = useState<number | null>(null);
+  const [approvedReportsOpen, setApprovedReportsOpen] = useState(false);
+  const [loadingApprovedReports, setLoadingApprovedReports] = useState(false);
+  const [approvedLogs, setApprovedLogs] = useState<BehavioralEventRecord[]>([]);
+  const [approvedDateFrom, setApprovedDateFrom] = useState('');
+  const [approvedDateTo, setApprovedDateTo] = useState('');
+  const [approvedStudentPickerOpen, setApprovedStudentPickerOpen] = useState(false);
+  const [approvedStudentQuery, setApprovedStudentQuery] = useState('');
+  const [approvedStudentSelection, setApprovedStudentSelection] = useState<string[]>([]);
+
+  const filteredApprovedStudentOptions = useMemo(() => {
+    const query = approvedStudentQuery.trim().toLowerCase();
+    if (!query) return students;
+    return students.filter(
+      (student) =>
+        student.name.toLowerCase().includes(query) ||
+        student.lrn.toLowerCase().includes(query)
+    );
+  }, [students, approvedStudentQuery]);
+
+  const toggleApprovedStudentSelection = (studentLrn: string) => {
+    setApprovedStudentSelection((prev) =>
+      prev.includes(studentLrn)
+        ? prev.filter((lrn) => lrn !== studentLrn)
+        : [...prev, studentLrn]
+    );
+  };
+
   const [isClientMounted, setIsClientMounted] = useState(false);
   const minimumInitialSkeletonMs = 1400;
 
@@ -394,6 +439,201 @@ export default function GuidanceReviewPage() {
         setLoadingPending(false);
       }
     }
+  };
+
+  const fetchApprovedLogsReport = async () => {
+    if (!supabase || !approvedReportsOpen) return;
+
+    try {
+      setLoadingApprovedReports(true);
+
+      let query = supabase
+        .from('behavioral_events')
+        .select(
+          'id, student_lrn, event_type, severity, description, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, parent_notified, follow_up_required, notes, created_at, students(name, level)'
+        )
+        .eq('guidance_status', 'approved_for_ml')
+        .order('event_date', { ascending: false })
+        .order('event_time', { ascending: false })
+        .limit(500);
+
+      if (approvedDateFrom) query = query.gte('event_date', approvedDateFrom);
+      if (approvedDateTo) query = query.lte('event_date', approvedDateTo);
+      if (approvedStudentSelection.length > 0) query = query.in('student_lrn', approvedStudentSelection);
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const normalized = ((data || []) as BehavioralEventRecord[]).map((event) => ({
+        ...event,
+        students: Array.isArray(event.students) ? event.students[0] : event.students,
+      }));
+
+      setApprovedLogs(normalized);
+    } catch (error) {
+      console.error('Failed to load approved report logs:', error);
+      toast({
+        title: 'Failed to load approved logs',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingApprovedReports(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!approvedReportsOpen) return;
+    void fetchApprovedLogsReport();
+  }, [approvedReportsOpen, approvedDateFrom, approvedDateTo, approvedStudentSelection]);
+
+  const printApprovedLogsReport = () => {
+    if (approvedLogs.length === 0) {
+      toast({
+        title: 'No logs to print',
+        description: 'Adjust date or student filters to include approved logs.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=1080,height=780');
+    if (!printWindow) {
+      toast({
+        title: 'Popup blocked',
+        description: 'Allow popups to print approved logs report.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const selectedStudentNames = approvedStudentSelection
+      .map((lrn) => students.find((student) => student.lrn === lrn)?.name || lrn)
+      .join(', ');
+
+    const cards = approvedLogs
+      .map((event) => {
+        const relationStudent = Array.isArray(event.students) ? event.students[0] : event.students;
+        const studentName = relationStudent?.name || students.find((student) => student.lrn === event.student_lrn)?.name || event.student_lrn;
+        const level = relationStudent?.level || students.find((student) => student.lrn === event.student_lrn)?.level || '-';
+        const normalizedSeverity = String(event.severity || '').toLowerCase();
+        const severityClass =
+          normalizedSeverity === 'critical'
+            ? 'critical'
+            : normalizedSeverity === 'major' || normalizedSeverity === 'high'
+              ? 'major'
+              : normalizedSeverity === 'moderate' || normalizedSeverity === 'medium'
+                ? 'moderate'
+                : normalizedSeverity === 'minor'
+                  ? 'minor'
+                  : 'positive';
+
+        return `
+          <article class="log-card ${severityClass}">
+            <div class="log-header">
+              <div>
+                <h3>${event.event_type}</h3>
+                <p class="event-date">${formatDateOnly(event.event_date)} at ${event.event_time || '-'}</p>
+              </div>
+              <span class="severity-pill ${severityClass}">${event.severity || 'N/A'}</span>
+            </div>
+            <p class="description">${event.description || '-'}</p>
+            <div class="meta-grid">
+              <div><span>Student:</span> ${studentName}</div>
+              <div><span>LRN:</span> ${event.student_lrn}</div>
+              <div><span>Level:</span> ${level}</div>
+              <div><span>Reviewed By:</span> ${event.guidance_reviewed_by || 'Guidance'}</div>
+            </div>
+          </article>
+        `;
+      })
+      .join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Approved Logs Report</title>
+          <style>
+            @page { margin: 14mm; }
+            * { box-sizing: border-box; }
+            html, body {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+            body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin: 0; color: #0f172a; background: #f8fafc; }
+            .sheet { background: #ffffff; border: 1px solid #dbe3ee; border-radius: 14px; overflow: hidden; }
+            .brand-header {
+              background-color: #1e3a5f !important;
+              background-image: linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 100%) !important;
+              border-bottom: 1px solid #1d4ed8;
+              padding: 18px 20px;
+            }
+            .brand-kicker { margin: 0; color: #93c5fd; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+            .brand-title { margin: 6px 0 0; color: #ffffff; font-size: 20px; font-weight: 700; }
+            .content { padding: 16px 20px 18px; }
+            .topline { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; margin-bottom: 10px; }
+            h1 { margin: 0; font-size: 24px; line-height: 1.15; }
+            .subtitle { margin: 5px 0 0; color: #475569; font-size: 13px; }
+            .meta { margin-top: 12px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+            .meta-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; font-size: 12px; }
+            .meta-item span { display: block; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; }
+            .summary { margin: 12px 0 14px; border: 1px solid #dbe3ee; border-radius: 10px; padding: 9px 11px; font-weight: 700; font-size: 13px; background: #f8fafc; }
+            .logs { display: grid; gap: 10px; }
+            .log-card { border: 1px solid #e2e8f0; border-left-width: 4px; border-radius: 10px; padding: 10px 12px; background: #ffffff; page-break-inside: avoid; }
+            .log-card.critical { border-left-color: #dc2626; background: #fef2f2; }
+            .log-card.major { border-left-color: #ea580c; background: #fff7ed; }
+            .log-card.moderate { border-left-color: #d97706; background: #fffbeb; }
+            .log-card.minor { border-left-color: #ca8a04; background: #fefce8; }
+            .log-card.positive { border-left-color: #16a34a; background: #f0fdf4; }
+            .log-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+            .log-header h3 { margin: 0; font-size: 15px; }
+            .event-date { margin: 3px 0 0; color: #64748b; font-size: 12px; }
+            .severity-pill { border-radius: 999px; padding: 4px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; color: #fff; display: inline-flex; align-items: center; justify-content: center; align-self: flex-start; min-width: 84px; margin-top: 1px; }
+            .severity-pill.critical { background: #dc2626; }
+            .severity-pill.major { background: #ea580c; }
+            .severity-pill.moderate { background: #d97706; }
+            .severity-pill.minor { background: #ca8a04; }
+            .severity-pill.positive { background: #16a34a; }
+            .description { margin: 8px 0; font-size: 12.5px; line-height: 1.45; }
+            .meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; font-size: 12px; color: #334155; }
+            .meta-grid span { font-weight: 700; }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="brand-header" style="background:#1e3a5f;background-image:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 100%);">
+              <p class="brand-kicker">Safe Gate Student Monitoring System</p>
+              <p class="brand-title">Approved Logs Report</p>
+            </div>
+            <div class="content">
+              <div class="topline">
+                <span>${new Date().toLocaleString()}</span>
+                <span>Guidance Review</span>
+              </div>
+              <h1>Guidance Approved Logs Report</h1>
+              <p class="subtitle">Complete approved guidance incident logs for selected filters.</p>
+
+            <div class="meta">
+              <div class="meta-item"><span>Date Generated</span>${new Date().toLocaleString()}</div>
+              <div class="meta-item"><span>Date Range</span>${approvedDateFrom ? formatDateOnly(approvedDateFrom) : 'Any'} - ${approvedDateTo ? formatDateOnly(approvedDateTo) : 'Any'}</div>
+              <div class="meta-item"><span>Students</span>${selectedStudentNames || 'All Students'}</div>
+            </div>
+
+            <div class="summary">Total Approved Logs: ${approvedLogs.length}</div>
+
+              <section class="logs">
+                ${cards}
+              </section>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   };
 
   const triggerParentAutomation = async (params: {
@@ -677,6 +917,186 @@ export default function GuidanceReviewPage() {
     });
   }, [events, attendanceLogs]);
 
+  const latestRecordDate = useMemo(() => {
+    const eventDates = events.map((event) => event.event_date).filter(Boolean);
+    const attendanceDates = attendanceLogs.map((log) => log.date).filter(Boolean);
+    const allDates = [...eventDates, ...attendanceDates];
+    if (allDates.length === 0) return '';
+    return allDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+  }, [events, attendanceLogs]);
+
+  useEffect(() => {
+    if (!selectedStudentLrn) {
+      setReportDate('');
+      return;
+    }
+
+    if (!reportDate && latestRecordDate) {
+      setReportDate(latestRecordDate);
+    }
+  }, [selectedStudentLrn, latestRecordDate, reportDate]);
+
+  const dateReport = useMemo(() => {
+    if (!reportDate) {
+      return {
+        events: [] as BehavioralEventRecord[],
+        attendance: [] as AttendanceLogRecord[],
+        pending: 0,
+        approved: 0,
+        denied: 0,
+      };
+    }
+
+    const sameDayEvents = events.filter((event) => event.event_date === reportDate);
+    const sameDayAttendance = attendanceLogs.filter((log) => log.date === reportDate);
+
+    return {
+      events: sameDayEvents,
+      attendance: sameDayAttendance,
+      pending: sameDayEvents.filter((event) => event.guidance_status === 'pending_guidance').length,
+      approved: sameDayEvents.filter((event) => event.guidance_status === 'approved_for_ml').length,
+      denied: sameDayEvents.filter((event) => event.guidance_status === 'denied_by_guidance').length,
+    };
+  }, [events, attendanceLogs, reportDate]);
+
+  const printCompactDailyReport = () => {
+    if (!displayStudent || !reportDate) {
+      toast({
+        title: 'Select date first',
+        description: 'Choose a report date before printing.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=980,height=760');
+    if (!printWindow) {
+      toast({
+        title: 'Popup blocked',
+        description: 'Allow popups to print the compact report.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const eventCards = dateReport.events
+      .map(
+        (event) => `
+          <article class="record-card">
+            <div class="row-top">
+              <strong>${event.event_type || '-'}</strong>
+              <span class="mini-pill">${event.severity || '-'}</span>
+            </div>
+            <div class="row-meta">Time: ${event.event_time || '-'} | Status: ${event.guidance_status.replaceAll('_', ' ')}</div>
+          </article>
+        `
+      )
+      .join('');
+
+    const attendanceCards = dateReport.attendance
+      .map(
+        (log) => `
+          <article class="record-card">
+            <div class="row-top">
+              <strong>${formatDateOnly(log.date)}</strong>
+              <span class="mini-pill neutral">Attendance</span>
+            </div>
+            <div class="row-meta">Check-in: ${log.check_in_time ? new Date(log.check_in_time).toLocaleTimeString() : '-'} | Check-out: ${log.check_out_time ? new Date(log.check_out_time).toLocaleTimeString() : '-'}</div>
+          </article>
+        `
+      )
+      .join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Guidance Compact Report</title>
+          <style>
+            @page { margin: 14mm; }
+            * { box-sizing: border-box; }
+            html, body {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+            body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin: 0; color: #0f172a; background: #f8fafc; }
+            .sheet { background: #ffffff; border: 1px solid #dbe3ee; border-radius: 14px; overflow: hidden; }
+            .brand-header {
+              background-color: #1e3a5f !important;
+              background-image: linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 100%) !important;
+              border-bottom: 1px solid #1d4ed8;
+              padding: 18px 20px;
+            }
+            .brand-kicker { margin: 0; color: #93c5fd; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+            .brand-title { margin: 6px 0 0; color: #ffffff; font-size: 20px; font-weight: 700; }
+            .content { padding: 16px 20px 18px; }
+            .topline { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; margin-bottom: 10px; }
+            h1 { margin: 0; font-size: 24px; line-height: 1.15; }
+            .subtitle { margin: 5px 0 0; color: #475569; font-size: 13px; }
+            .meta { margin-top: 12px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+            .meta-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; font-size: 12px; }
+            .meta-item span { display: block; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; }
+            .grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 12px 0 14px; }
+            .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; background: #f8fafc; }
+            .label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+            .value { font-size: 20px; font-weight: 700; margin-top: 3px; }
+            h2 { margin: 14px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: #334155; }
+            .records { display: grid; gap: 8px; }
+            .record-card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 11px; background: #ffffff; page-break-inside: avoid; }
+            .row-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+            .row-top strong { font-size: 13px; }
+            .mini-pill { border-radius: 999px; background: #1d4ed8; color: #fff; font-size: 10px; font-weight: 700; padding: 3px 8px; text-transform: uppercase; letter-spacing: .04em; }
+            .mini-pill.neutral { background: #475569; }
+            .row-meta { margin-top: 4px; font-size: 12px; color: #475569; }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="brand-header" style="background:#1e3a5f;background-image:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 100%);">
+              <p class="brand-kicker">Safe Gate Student Monitoring System</p>
+              <p class="brand-title">Student Daily Report</p>
+            </div>
+            <div class="content">
+              <div class="topline">
+                <span>${new Date().toLocaleString()}</span>
+                <span>Guidance Review</span>
+              </div>
+              <h1>Guidance Daily Compact Report</h1>
+              <p class="subtitle">Student daily summary from attendance and behavioral guidance logs.</p>
+              <div class="meta">
+                <div class="meta-item"><span>Student</span>${displayStudent.name} (${displayStudent.level})</div>
+                <div class="meta-item"><span>LRN</span>${displayStudent.lrn}</div>
+                <div class="meta-item"><span>Date</span>${formatDateOnly(reportDate)}</div>
+              </div>
+
+            <div class="grid">
+              <div class="card"><div class="label">Attendance Logs</div><div class="value">${dateReport.attendance.length}</div></div>
+              <div class="card"><div class="label">Total Events</div><div class="value">${dateReport.events.length}</div></div>
+              <div class="card"><div class="label">Pending</div><div class="value">${dateReport.pending}</div></div>
+              <div class="card"><div class="label">Approved</div><div class="value">${dateReport.approved}</div></div>
+              <div class="card"><div class="label">Denied</div><div class="value">${dateReport.denied}</div></div>
+            </div>
+
+              <h2>Behavioral Events</h2>
+              <section class="records">
+                ${eventCards || '<article class="record-card"><div class="row-meta">No events on selected date.</div></article>'}
+              </section>
+
+              <h2>Attendance Logs</h2>
+              <section class="records">
+                ${attendanceCards || '<article class="record-card"><div class="row-meta">No attendance logs on selected date.</div></article>'}
+              </section>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
   const isTopSummaryLoading = loadingStudents || loadingPending;
   const isSelectingStudent = Boolean(selectedStudentLrn) && loadingDetails && lastLoadedStudentLrn !== selectedStudentLrn;
   const isStudentCardsLoading = isSelectingStudent;
@@ -793,10 +1213,21 @@ export default function GuidanceReviewPage() {
 
         <Card className="border border-border/70 bg-white/80 dark:bg-slate-900/55 backdrop-blur shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Users className="w-5 h-5 text-blue-600" />
-              Students
-            </CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Users className="w-5 h-5 text-blue-600" />
+                Students
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => setApprovedReportsOpen(true)}
+              >
+                <ClipboardCheck className="w-4 h-4" />
+                Report
+              </Button>
+            </div>
             <CardDescription>Select a student to open records. You can type in the dropdown to jump to a name or filter by level.</CardDescription>
             <div className="pt-1 max-w-xl flex gap-2">
               {isClientMounted ? (
@@ -1044,72 +1475,53 @@ export default function GuidanceReviewPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-lg">
                       <UserCircle2 className="w-5 h-5 text-blue-600" />
-                      {isStudentCardsLoading ? (
-                        <span className="text-slate-900 dark:text-white">
-                          Loading {displayStudent?.name || 'student'} records...
-                        </span>
-                      ) : (
-                        <>{displayStudent ? `${displayStudent.name} (${displayStudent.level})` : 'Select a student'}</>
-                      )}
+                      <>{displayStudent ? `${displayStudent.name} (${displayStudent.level})` : 'Select a student'}</>
                     </CardTitle>
                     <CardDescription>
-                      {isStudentCardsLoading ? (
-                        <span>Fetching behavioral events, attendance logs, and timeline.</span>
-                      ) : (
-                        <>{displayStudent?.lrn || 'Choose a student from the list to begin review.'}</>
-                      )}
+                      <>{displayStudent?.lrn || 'Choose a student from the list to begin review.'}</>
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                      <div className="rounded-xl border border-blue-200/70 bg-blue-50/70 dark:bg-blue-900/20 p-3">
-                        <p className="text-xs text-blue-700 dark:text-blue-300">Attendance Logs</p>
-                        {isStudentCardsLoading ? (
-                          <Skeleton className="mt-1 h-7 w-12" />
-                        ) : (
+                    {isStudentCardsLoading ? (
+                      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <div key={`selected-summary-skeleton-${i}`} className="rounded-xl border border-border/70 bg-white/70 dark:bg-slate-900/30 p-3 space-y-2">
+                            <Skeleton className="h-3 w-20" />
+                            <Skeleton className="h-7 w-12" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                        <div className="rounded-xl border border-blue-200/70 bg-blue-50/70 dark:bg-blue-900/20 p-3">
+                          <p className="text-xs text-blue-700 dark:text-blue-300">Attendance Logs</p>
                           <p className="text-xl font-bold text-blue-700 dark:text-blue-300">{summary.attendanceCount}</p>
-                        )}
-                      </div>
-                      <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 dark:bg-slate-900/30 p-3">
-                        <p className="text-xs text-slate-500">Total Events</p>
-                        {isStudentCardsLoading ? (
-                          <Skeleton className="mt-1 h-7 w-12" />
-                        ) : (
+                        </div>
+                        <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 dark:bg-slate-900/30 p-3">
+                          <p className="text-xs text-slate-500">Total Events</p>
                           <p className="text-xl font-bold text-slate-900 dark:text-white">{summary.totalEvents}</p>
-                        )}
-                      </div>
-                      <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 dark:bg-amber-900/20 p-3">
-                        <p className="text-xs text-amber-700 dark:text-amber-300">Pending</p>
-                        {isStudentCardsLoading ? (
-                          <Skeleton className="mt-1 h-7 w-12" />
-                        ) : (
+                        </div>
+                        <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 dark:bg-amber-900/20 p-3">
+                          <p className="text-xs text-amber-700 dark:text-amber-300">Pending</p>
                           <p className="text-xl font-bold text-amber-700 dark:text-amber-300">{summary.pending}</p>
-                        )}
-                      </div>
-                      <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 dark:bg-emerald-900/20 p-3">
-                        <p className="text-xs text-emerald-700 dark:text-emerald-300">Approved</p>
-                        {isStudentCardsLoading ? (
-                          <Skeleton className="mt-1 h-7 w-12" />
-                        ) : (
+                        </div>
+                        <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 dark:bg-emerald-900/20 p-3">
+                          <p className="text-xs text-emerald-700 dark:text-emerald-300">Approved</p>
                           <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{summary.approved}</p>
-                        )}
-                      </div>
-                      <div className="rounded-xl border border-rose-200/70 bg-rose-50/70 dark:bg-rose-900/20 p-3">
-                        <p className="text-xs text-rose-700 dark:text-rose-300">Denied</p>
-                        {isStudentCardsLoading ? (
-                          <Skeleton className="mt-1 h-7 w-12" />
-                        ) : (
+                        </div>
+                        <div className="rounded-xl border border-rose-200/70 bg-rose-50/70 dark:bg-rose-900/20 p-3">
+                          <p className="text-xs text-rose-700 dark:text-rose-300">Denied</p>
                           <p className="text-xl font-bold text-rose-700 dark:text-rose-300">{summary.denied}</p>
-                        )}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
 
                 <Card className="border border-border/70 bg-white/80 dark:bg-slate-900/55 backdrop-blur shadow-sm">
                   <CardContent className="pt-6">
                     <Tabs defaultValue="events" className="space-y-4">
-                      <TabsList className="grid grid-cols-3 w-full max-w-xl">
+                      <TabsList className="grid grid-cols-4 w-full max-w-3xl">
                         <TabsTrigger value="events" className="gap-2">
                           <AlertTriangle className="w-4 h-4" />
                           Events
@@ -1121,6 +1533,10 @@ export default function GuidanceReviewPage() {
                         <TabsTrigger value="timeline" className="gap-2">
                           <Activity className="w-4 h-4" />
                           Timeline
+                        </TabsTrigger>
+                        <TabsTrigger value="report" className="gap-2">
+                          <ClipboardCheck className="w-4 h-4" />
+                          Report
                         </TabsTrigger>
                       </TabsList>
 
@@ -1288,6 +1704,135 @@ export default function GuidanceReviewPage() {
                           </div>
                         )}
                       </TabsContent>
+
+                      <TabsContent value="report">
+                        {loadingDetails ? (
+                          <div className="space-y-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                              <div className="space-y-2">
+                                <Skeleton className="h-4 w-44" />
+                                <Skeleton className="h-3 w-72" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Skeleton className="h-9 w-44" />
+                                <Skeleton className="h-9 w-28" />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <div key={`report-summary-skeleton-${i}`} className="rounded-xl border border-border/70 bg-white/70 dark:bg-slate-900/30 p-3 space-y-2">
+                                  <Skeleton className="h-3 w-20" />
+                                  <Skeleton className="h-7 w-10" />
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                              {Array.from({ length: 2 }).map((_, i) => (
+                                <div key={`report-panel-skeleton-${i}`} className="rounded-xl border border-border/70 bg-white/75 dark:bg-slate-900/30 p-3 space-y-3">
+                                  <Skeleton className="h-4 w-40" />
+                                  <div className="space-y-2">
+                                    {Array.from({ length: 4 }).map((__, j) => (
+                                      <div key={`report-item-skeleton-${i}-${j}`} className="rounded-lg border border-border/60 p-2.5 bg-slate-50/60 dark:bg-slate-800/30 space-y-1.5">
+                                        <Skeleton className="h-3.5 w-28" />
+                                        <Skeleton className="h-3 w-full" />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                              <div className="space-y-1">
+                                <p className="text-sm font-semibold text-slate-900 dark:text-white">Compact Date Report</p>
+                                <p className="text-xs text-slate-500">Select a date to generate a printable compact report for this student.</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="date"
+                                  value={reportDate}
+                                  onChange={(e) => setReportDate(e.target.value)}
+                                  className="h-9 w-44"
+                                />
+                                <Button size="sm" className="gap-2" onClick={printCompactDailyReport} disabled={!reportDate}>
+                                  <Printer className="w-4 h-4" />
+                                  Print Report
+                                </Button>
+                              </div>
+                            </div>
+
+                            {!reportDate ? (
+                              <div className="py-8 text-center text-slate-500">Select a report date to view compact records.</div>
+                            ) : (
+                              <>
+                                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                                  <div className="rounded-xl border border-blue-200/70 bg-blue-50/70 dark:bg-blue-900/20 p-3">
+                                    <p className="text-xs text-blue-700 dark:text-blue-300">Attendance Logs</p>
+                                    <p className="text-xl font-bold text-blue-700 dark:text-blue-300">{dateReport.attendance.length}</p>
+                                  </div>
+                                  <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 dark:bg-slate-900/30 p-3">
+                                    <p className="text-xs text-slate-500">Total Events</p>
+                                    <p className="text-xl font-bold text-slate-900 dark:text-white">{dateReport.events.length}</p>
+                                  </div>
+                                  <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 dark:bg-amber-900/20 p-3">
+                                    <p className="text-xs text-amber-700 dark:text-amber-300">Pending</p>
+                                    <p className="text-xl font-bold text-amber-700 dark:text-amber-300">{dateReport.pending}</p>
+                                  </div>
+                                  <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 dark:bg-emerald-900/20 p-3">
+                                    <p className="text-xs text-emerald-700 dark:text-emerald-300">Approved</p>
+                                    <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{dateReport.approved}</p>
+                                  </div>
+                                  <div className="rounded-xl border border-rose-200/70 bg-rose-50/70 dark:bg-rose-900/20 p-3">
+                                    <p className="text-xs text-rose-700 dark:text-rose-300">Denied</p>
+                                    <p className="text-xl font-bold text-rose-700 dark:text-rose-300">{dateReport.denied}</p>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                  <div className="rounded-xl border border-border/70 bg-white/75 dark:bg-slate-900/30 p-3">
+                                    <p className="text-sm font-semibold mb-2">Behavioral Events ({dateReport.events.length})</p>
+                                    {dateReport.events.length === 0 ? (
+                                      <p className="text-sm text-slate-500">No behavioral events on this date.</p>
+                                    ) : (
+                                      <div className="space-y-2 max-h-48 overflow-auto pr-1">
+                                        {dateReport.events.map((event) => (
+                                          <div key={`report-event-${event.id}`} className="rounded-lg border border-border/60 p-2.5 bg-slate-50/60 dark:bg-slate-800/30">
+                                            <p className="text-sm font-medium text-slate-900 dark:text-white">{event.event_type}</p>
+                                            <p className="text-xs text-slate-500 mt-0.5">{event.event_time} • {event.severity} • {event.guidance_status.replaceAll('_', ' ')}</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="rounded-xl border border-border/70 bg-white/75 dark:bg-slate-900/30 p-3">
+                                    <p className="text-sm font-semibold mb-2">Attendance Logs ({dateReport.attendance.length})</p>
+                                    {dateReport.attendance.length === 0 ? (
+                                      <p className="text-sm text-slate-500">No attendance logs on this date.</p>
+                                    ) : (
+                                      <div className="space-y-2 max-h-48 overflow-auto pr-1">
+                                        {dateReport.attendance.map((log) => (
+                                          <div key={`report-attendance-${log.id}`} className="rounded-lg border border-border/60 p-2.5 bg-slate-50/60 dark:bg-slate-800/30">
+                                            <p className="text-sm font-medium text-slate-900 dark:text-white">Attendance Record</p>
+                                            <p className="text-xs text-slate-500 mt-0.5">
+                                              Check-in: {formatDate(log.check_in_time)}
+                                              {log.check_out_time ? ` | Check-out: ${formatDate(log.check_out_time)}` : ' | Check-out: Not checked out'}
+                                            </p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </TabsContent>
                     </Tabs>
                   </CardContent>
                 </Card>
@@ -1295,6 +1840,173 @@ export default function GuidanceReviewPage() {
             )}
           </div>
         </div>
+
+        <Dialog open={approvedReportsOpen} onOpenChange={setApprovedReportsOpen}>
+          <DialogContent className="max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-border/70 bg-white/95 dark:bg-slate-900/95 p-4 sm:p-6">
+            <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 pr-8">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <Info className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                    <DialogTitle className="text-xl font-bold">Approved Logs Report</DialogTitle>
+                  </div>
+                  <DialogDescription className="mt-2 text-sm">
+                    Complete approved guidance logs with date and multi-student filtering.
+                  </DialogDescription>
+                </div>
+                <Badge className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg shadow-emerald-500/25 text-xs font-semibold px-3 py-1 whitespace-nowrap mr-8">
+                  {approvedLogs.length} Approved
+                </Badge>
+              </div>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+              <div className="flex items-end gap-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3">
+                <div className="space-y-1 shrink-0 w-[220px]">
+                  <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
+                  <Input
+                    type="date"
+                    value={approvedDateFrom}
+                    onChange={(e) => setApprovedDateFrom(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1 shrink-0 w-[220px]">
+                  <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">To Date</label>
+                  <Input type="date" value={approvedDateTo} onChange={(e) => setApprovedDateTo(e.target.value)} className="h-9 text-xs" />
+                </div>
+                <div className="space-y-1 shrink-0 w-[220px]">
+                  <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Students</label>
+                  <Popover open={approvedStudentPickerOpen} onOpenChange={setApprovedStudentPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between h-9 text-xs">
+                        {approvedStudentSelection.length > 0 ? `${approvedStudentSelection.length} selected` : 'All Students'}
+                        <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-90 p-0 dark:bg-slate-800 dark:border-border/40">
+                      <Command>
+                        <CommandInput
+                          placeholder="Search students..."
+                          value={approvedStudentQuery}
+                          onValueChange={setApprovedStudentQuery}
+                          className="h-9"
+                        />
+                        <CommandList>
+                          <CommandEmpty>No students found.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              onSelect={() => setApprovedStudentSelection([])}
+                              className="flex items-center justify-between"
+                            >
+                              <span>All Students</span>
+                              <Checkbox checked={approvedStudentSelection.length === 0} />
+                            </CommandItem>
+                            {filteredApprovedStudentOptions.map((student) => (
+                              <CommandItem
+                                key={`approved-filter-${student.lrn}`}
+                                onSelect={() => toggleApprovedStudentSelection(student.lrn)}
+                                className="flex items-center justify-between"
+                              >
+                                <div className="flex flex-col">
+                                  <span>{student.name}</span>
+                                  <span className="text-xs text-slate-500">{student.lrn}</span>
+                                </div>
+                                <Checkbox checked={approvedStudentSelection.includes(student.lrn)} />
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1 shrink-0 w-[120px]">
+                  <label className="text-[10px] uppercase tracking-wider text-transparent select-none">Print</label>
+                  <Button className="h-9 w-full gap-2" onClick={printApprovedLogsReport} disabled={approvedLogs.length === 0}>
+                    <Printer className="w-4 h-4" />
+                    Print
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40 overflow-hidden">
+                {loadingApprovedReports && approvedLogs.length === 0 ? (
+                  <div className="py-12 text-center text-slate-500">
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+                    Loading approved logs...
+                  </div>
+                ) : approvedLogs.length === 0 ? (
+                  <div className="py-10 text-center text-slate-500">No approved logs found for current filters.</div>
+                ) : (
+                  <div className="max-h-[52vh] overflow-y-auto relative p-3 space-y-3">
+                    {loadingApprovedReports ? (
+                      <div className="absolute top-2 right-2 z-10 rounded-full bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Updating...
+                      </div>
+                    ) : null}
+                    {approvedLogs.map((event) => {
+                      const relationStudent = Array.isArray(event.students) ? event.students[0] : event.students;
+                      const studentName = relationStudent?.name || students.find((student) => student.lrn === event.student_lrn)?.name || event.student_lrn;
+
+                      return (
+                        <div
+                          key={`approved-report-row-${event.id}`}
+                          className={`rounded-lg border p-4 hover:shadow-md transition-shadow ${getIncidentReportCardClass(event.severity)}`}
+                        >
+                          <div className="space-y-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-bold text-sm text-slate-900 dark:text-white">{event.event_type}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                  <CalendarDays className="w-3 h-3 inline mr-1" />
+                                  {new Date(event.event_date).toLocaleDateString('en-US', {
+                                    weekday: 'short',
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric',
+                                  })}{' '}
+                                  at {event.event_time}
+                                </p>
+                              </div>
+                              <Badge className={`capitalize font-semibold text-xs px-2.5 py-1 uppercase tracking-wider ${getSeverityBadgeClass(event.severity)}`}>
+                                {event.severity}
+                              </Badge>
+                            </div>
+
+                            <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">{event.description}</p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-400">
+                              <div className="flex items-center gap-2">
+                                <Users className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                                <span><span className="font-semibold">Student:</span> {studentName} ({event.student_lrn})</span>
+                              </div>
+                              {event.location ? (
+                                <div className="flex items-center gap-2">
+                                  <Activity className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                                  <span><span className="font-semibold">Location:</span> {event.location}</span>
+                                </div>
+                              ) : null}
+                              <div className="flex items-center gap-2">
+                                <Info className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                                <span><span className="font-semibold">Reviewed By:</span> {event.guidance_reviewed_by || 'Guidance'}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                                <span><span className="font-semibold">Follow-up:</span> {event.follow_up_required ? 'Required' : 'Completed'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
           <DialogContent className="w-[96vw] sm:w-[92vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto border border-border/70 bg-white/95 dark:bg-slate-900/95 p-4 sm:p-6">

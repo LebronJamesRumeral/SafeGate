@@ -31,6 +31,11 @@ function riskPriority(riskLevel: RiskLevel): number {
   return 0;
 }
 
+function isConcerningSeverity(severity: string): boolean {
+  const normalized = String(severity || '').toLowerCase();
+  return normalized === 'critical' || normalized === 'major' || normalized === 'minor' || normalized === 'moderate';
+}
+
 export async function GET(request: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -78,6 +83,32 @@ export async function GET(request: Request) {
 
     const summaryByLrn = new Map((summaries || []).map((row: any) => [row.student_lrn, row]));
 
+    // Count recent behavioral events directly so dashboard visibility is not blocked by stale RPC breakdowns.
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    const { data: recentBehavioralEvents } = await supabase
+      .from('behavioral_events')
+      .select('student_lrn, severity, event_date')
+      .in('student_lrn', studentList.map((s) => s.lrn))
+      .gte('event_date', ninetyDaysAgo.toISOString().slice(0, 10));
+
+    const eventCountsByLrn = new Map<string, { concerning: number; positive: number; total: number }>();
+    (recentBehavioralEvents || []).forEach((event: any) => {
+      const lrn = String(event.student_lrn || '');
+      if (!lrn) return;
+
+      const prev = eventCountsByLrn.get(lrn) || { concerning: 0, positive: 0, total: 0 };
+      const severity = String(event.severity || '').toLowerCase();
+      const next = {
+        concerning: prev.concerning + (isConcerningSeverity(severity) ? 1 : 0),
+        positive: prev.positive + (severity === 'positive' ? 1 : 0),
+        total: prev.total + 1,
+      };
+
+      eventCountsByLrn.set(lrn, next);
+    });
+
     const calculated = await Promise.all(
       studentList.map(async (student: any) => {
         const { data: riskRows, error: riskError } = await supabase.rpc('calculate_student_risk_score', {
@@ -90,8 +121,11 @@ export async function GET(request: Request) {
 
         const risk = riskRows[0];
         const breakdown = risk.breakdown || {};
-        const concerningEvents = Number(breakdown.negative_events || 0);
-        const positiveEvents = Number(breakdown.positive_events || 0);
+        const rpcConcerningEvents = Number(breakdown.negative_events || 0);
+        const rpcPositiveEvents = Number(breakdown.positive_events || 0);
+        const directCounts = eventCountsByLrn.get(student.lrn) || { concerning: 0, positive: 0, total: 0 };
+        const concerningEvents = Math.max(rpcConcerningEvents, directCounts.concerning);
+        const positiveEvents = Math.max(rpcPositiveEvents, directCounts.positive);
         const attendanceRate = Number(breakdown.attendance_rate || 0);
         const latePercentage = Number(breakdown.late_percentage || 0);
         let level = String(risk.risk_level || 'low') as RiskLevel;
@@ -122,6 +156,7 @@ export async function GET(request: Request) {
           behaviorStatus,
           concerningEvents,
           positiveEvents,
+          totalEvents: directCounts.total,
           patternType,
           attendanceSignal,
           nextAbsentDate: summary?.next_likely_absent_date || null,
@@ -133,10 +168,8 @@ export async function GET(request: Request) {
     const highRiskStudents = calculated
       .filter((student): student is NonNullable<typeof student> => Boolean(student))
       .filter((student) => {
-        const levelNeedsAttention = student.riskLevel === 'critical' || student.riskLevel === 'high' || student.riskLevel === 'medium';
-        const behaviorNeedsAttention = student.concerningEvents > student.positiveEvents;
-        const issueNeedsAttention = student.patternType !== 'No Issues Detected' && student.concerningEvents > 0;
-        return levelNeedsAttention || behaviorNeedsAttention || issueNeedsAttention;
+        // Focus dashboard strictly on medium/high/critical risk tiers.
+        return student.riskLevel === 'critical' || student.riskLevel === 'high' || student.riskLevel === 'medium';
       })
       .sort((a, b) => {
         const riskDiff = riskPriority(b.riskLevel) - riskPriority(a.riskLevel);

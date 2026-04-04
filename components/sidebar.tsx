@@ -84,13 +84,13 @@ export function Sidebar() {
             collapsed ? "px-2.5" : "px-6"
           )}>
             <div className="flex items-center gap-3">
-              <div className="relative h-12 w-12 rounded-xl overflow-hidden bg-white flex items-center justify-center shadow-lg hover:shadow-2xl hover:scale-110 transition-all duration-300 group shrink-0">
+              <div className="relative h-12 w-12 rounded-xl overflow-hidden bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shadow-lg hover:shadow-2xl hover:scale-110 transition-all duration-300 group shrink-0">
                 <Image 
                   src="/SGCDC.png" 
                   alt="SGCDC Logo" 
                   width={48} 
                   height={48} 
-                  className="w-full h-full object-contain p-1 group-hover:scale-110 transition-transform duration-300"
+                  className="w-full h-full object-contain p-1.5 group-hover:scale-110 transition-transform duration-300"
                   priority
                 />
               </div>
