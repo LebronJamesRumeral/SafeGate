@@ -14,6 +14,8 @@ export interface Student {
   id: number;
   lrn: string;
   rfid_uid?: string | null;
+  risk_level?: string | null;
+  riskLevel?: string | null;
   name: string;
   gender: string;
   birthday: string;

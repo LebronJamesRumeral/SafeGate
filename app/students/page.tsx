@@ -1049,6 +1049,7 @@ export default function StudentsPage() {
         const parentEmail = (student.parent_email || '').trim().toLowerCase();
         return {
           ...student,
+          riskLevel: student.risk_level || null,
           parentName: student.parent_name,
           parentContact: student.parent_contact,
           parentEmail: student.parent_email,
@@ -1198,6 +1199,7 @@ export default function StudentsPage() {
           gender: newStudentForm.gender,
           birthday: newStudentForm.birthday,
           level: newStudentForm.level,
+          risk_level: 'low',
           address: newStudentForm.address.trim() || null,
           parent_name: newStudentForm.parentName.trim(),
           parent_contact: newStudentForm.parentContact.trim(),
@@ -1260,6 +1262,8 @@ export default function StudentsPage() {
           birthday: newStudentForm.birthday,
           address: newStudentForm.address.trim() || null,
           level: newStudentForm.level,
+          risk_level: 'low',
+          riskLevel: 'low',
           parent_name: newStudentForm.parentName.trim(),
           parent_contact: newStudentForm.parentContact.trim(),
           parent_email: newStudentForm.parentEmail.trim(),
@@ -1420,6 +1424,7 @@ export default function StudentsPage() {
               gender: newStudentForm.gender,
               birthday: newStudentForm.birthday,
               level: newStudentForm.level,
+              risk_level: 'low',
               address: newStudentForm.address.trim() || null,
               parent_name: newStudentForm.parentName.trim(),
               parent_contact: newStudentForm.parentContact.trim(),
@@ -1530,6 +1535,7 @@ export default function StudentsPage() {
           gender: newStudentForm.gender,
           birthday: newStudentForm.birthday,
           level: newStudentForm.level,
+          risk_level: 'low',
           address: newStudentForm.address.trim() || null,
           parent_name: newStudentForm.parentName.trim(),
           parent_contact: newStudentForm.parentContact.trim(),
@@ -2167,7 +2173,7 @@ export default function StudentsPage() {
     const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Parent Name', 'Parent Contact', 'Parent Email', 'Address', 'Status'];
     const exportRows = filteredStudents.map((student) => {
       const age = shouldShowAge(student.level) ? calculateAgeWithDecimal(student.birthday) : 'N/A';
-      const riskLevel = riskScores[student.lrn]?.risk_level || 'Unknown';
+      const riskLevel = student.riskLevel || '';
       return {
         LRN: student.lrn || '',
         Name: student.name || '',
@@ -2175,7 +2181,7 @@ export default function StudentsPage() {
         Birthday: student.birthday || '',
         Age: age,
         Level: student.level || '',
-        'Risk Level': String(riskLevel).toUpperCase(),
+        'Risk Level': riskLevel ? String(riskLevel).toUpperCase() : '',
         'Parent Name': student.parentName || '',
         'Parent Contact': student.parentContact || '',
         'Parent Email': student.parentEmail || '',
@@ -2269,6 +2275,31 @@ export default function StudentsPage() {
         return;
       }
 
+      // Ensure parent rows exist first to satisfy students.parent_email foreign key.
+      const uniqueParents = new Map<string, { parent_email: string; full_name: string | null; contact: string | null }>();
+      parsed.rows.forEach((row) => {
+        const email = (row.parent_email || '').trim().toLowerCase();
+        if (!email) return;
+        if (!uniqueParents.has(email)) {
+          uniqueParents.set(email, {
+            parent_email: email,
+            full_name: row.parent_name?.trim() || null,
+            contact: row.parent_contact?.trim() || null,
+          });
+        }
+      });
+
+      if (uniqueParents.size > 0) {
+        const parentRows = Array.from(uniqueParents.values());
+        const { error: parentUpsertError } = await supabase
+          .from('parents')
+          .upsert(parentRows, { onConflict: 'parent_email' });
+
+        if (parentUpsertError) {
+          throw parentUpsertError;
+        }
+      }
+
       const chunkSize = 200;
       for (let i = 0; i < parsed.rows.length; i += chunkSize) {
         const chunk = parsed.rows.slice(i, i + chunkSize);
@@ -2289,9 +2320,26 @@ export default function StudentsPage() {
       });
     } catch (error) {
       console.error('Error importing students:', error);
+
+      let detail = 'Unable to import file.';
+      if (error instanceof Error && error.message) {
+        detail = error.message;
+      } else if (error && typeof error === 'object') {
+        const maybe = error as Record<string, unknown>;
+        const message = typeof maybe.message === 'string' ? maybe.message : '';
+        const details = typeof maybe.details === 'string' ? maybe.details : '';
+        const hint = typeof maybe.hint === 'string' ? maybe.hint : '';
+        const code = typeof maybe.code === 'string' ? maybe.code : '';
+
+        const parts = [message, details, hint, code ? `Code: ${code}` : ''].filter(Boolean);
+        if (parts.length > 0) {
+          detail = parts.join(' | ');
+        }
+      }
+
       toast({
         title: 'Import failed',
-        description: error instanceof Error ? error.message : String(error),
+        description: detail,
         variant: 'destructive',
       });
     } finally {

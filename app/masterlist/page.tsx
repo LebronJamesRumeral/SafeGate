@@ -92,6 +92,7 @@ export default function MasterlistPage() {
       // Map database fields to component format
       const mappedStudents = data.map(student => ({
         ...student,
+        riskLevel: student.risk_level || null,
         parentName: student.parent_name,
         parentContact: student.parent_contact,
         parentEmail: student.parent_email,
@@ -136,9 +137,10 @@ export default function MasterlistPage() {
   const undergradCount = students.filter(s => (s.status || 'active') === 'undergrad').length;
 
   const exportMasterlist = async () => {
-    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Status', 'Parent Name', 'Parent Contact', 'Parent Email', 'Address'];
+    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Status', 'Parent Name', 'Parent Contact', 'Parent Email', 'Address'];
     const exportRows = filteredStudents.map((student) => {
       const age = shouldShowAge(student.level) ? calculateAgeWithDecimal(student.birthday) : 'N/A';
+      const riskLevel = student.riskLevel || '';
       return {
         LRN: student.lrn || '',
         Name: student.name || '',
@@ -146,6 +148,7 @@ export default function MasterlistPage() {
         Birthday: student.birthday || '',
         Age: age,
         Level: student.level || '',
+        'Risk Level': riskLevel ? String(riskLevel).toUpperCase() : '',
         Status: student.status || 'active',
         'Parent Name': student.parentName || '',
         'Parent Contact': student.parentContact || '',

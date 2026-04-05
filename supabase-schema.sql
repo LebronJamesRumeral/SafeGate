@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS students (
   parent_name VARCHAR(255),
   parent_contact VARCHAR(50),
   parent_email VARCHAR(255),
+  risk_level VARCHAR(20) DEFAULT 'low',
   status VARCHAR(20) DEFAULT 'active',
   substatus VARCHAR(32),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -93,6 +94,8 @@ WHERE parent_email IS NOT NULL
 -- Backward-compatible migration for existing databases
 ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_email VARCHAR(255);
 ALTER TABLE students ADD COLUMN IF NOT EXISTS rfid_uid VARCHAR(32);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS risk_level VARCHAR(20) DEFAULT 'low';
+UPDATE students SET risk_level = 'low' WHERE risk_level IS NULL OR risk_level = '';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_students_rfid_uid_unique ON students(rfid_uid) WHERE rfid_uid IS NOT NULL;
 
 -- Create attendance_logs table (Core ML Data Source)
