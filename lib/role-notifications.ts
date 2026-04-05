@@ -14,6 +14,15 @@ export type RoleNotification = {
   created_at: string;
 };
 
+export type CreateRoleNotificationInput = {
+  title: string;
+  message: string;
+  targetRoles: string[];
+  createdBy?: string | null;
+  relatedEventId?: number | null;
+  meta?: Record<string, any> | null;
+};
+
 
 type FetchNotificationViewer = {
   id?: string | null;
@@ -53,11 +62,12 @@ function extractNotificationOwnerIdentities(meta: Record<string, any> | null): S
 }
 
 export async function createRoleNotification(input: CreateRoleNotificationInput): Promise<boolean> {
-  if (!supabase) {
+  const db = supabase as NonNullable<typeof supabase>;
+  if (!db) {
     return false;
   }
 
-  const { error } = await supabase.from('role_notifications').insert([
+  const { error } = await db.from('role_notifications').insert([
     {
       title: input.title,
       message: input.message,
@@ -76,12 +86,69 @@ export async function createRoleNotification(input: CreateRoleNotificationInput)
   return true;
 }
 
+function getFridayReminderKey(date = new Date()): string | null {
+  if (date.getDay() !== 5) {
+    return null;
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+export async function ensureFridayParentWeeklyCheckInNotification(viewer?: FetchNotificationViewer): Promise<boolean> {
+  const db = supabase as NonNullable<typeof supabase>;
+  if (!db || !viewer?.email) {
+    return false;
+  }
+
+  const reminderKey = getFridayReminderKey();
+  if (!reminderKey) {
+    return false;
+  }
+
+  const normalizedEmail = viewer.email.trim().toLowerCase();
+  const parentIdentity = `parent:${normalizedEmail}`;
+
+  const { data: existing, error: existingError } = await db
+    .from('role_notifications')
+    .select('id')
+    .or(`target_roles.cs.{parent},target_roles.cs.{${parentIdentity}}`)
+    .contains('meta', {
+      notification_kind: 'weekly_check_in_reminder',
+      reminder_key: reminderKey,
+      parent_email: normalizedEmail,
+    })
+    .limit(1);
+
+  if (existingError) {
+    console.error('Failed to check Friday parent reminder:', existingError);
+    return false;
+  }
+
+  if ((existing || []).length > 0) {
+    return false;
+  }
+
+  return createRoleNotification({
+    title: 'Weekly Check-In Reminder',
+    message: 'Please complete this week\'s parent weekly check-in before the school week ends.',
+    targetRoles: ['parent', parentIdentity],
+    createdBy: 'system',
+    meta: {
+      notification_kind: 'weekly_check_in_reminder',
+      reminder_key: reminderKey,
+      parent_email: normalizedEmail,
+      href: '/parent-behavior',
+    },
+  });
+}
+
 export async function fetchRoleNotifications(
   role: string,
   limit = 20,
   viewer?: FetchNotificationViewer
 ): Promise<RoleNotification[]> {
-  if (!supabase || !role) {
+  const db = supabase as NonNullable<typeof supabase>;
+  if (!db || !role) {
     return [];
   }
 
@@ -90,14 +157,14 @@ export async function fetchRoleNotifications(
   if (normalizedRole === 'parent' && viewer?.email) {
     // Fetch notifications for parent role and specific parent identity
     const parentIdentity = `parent:${viewer.email.trim().toLowerCase()}`;
-    ({ data, error } = await supabase
+    ({ data, error } = await db
       .from('role_notifications')
       .select('id, title, message, target_roles, read_by_roles, created_by, related_event_id, meta, created_at')
       .or(`target_roles.cs.{parent},target_roles.cs.{${parentIdentity}}`)
       .order('created_at', { ascending: false })
       .limit(limit));
   } else {
-    ({ data, error } = await supabase
+    ({ data, error } = await db
       .from('role_notifications')
       .select('id, title, message, target_roles, read_by_roles, created_by, related_event_id, meta, created_at')
       .contains('target_roles', [normalizedRole])
@@ -141,7 +208,8 @@ export async function fetchRoleNotifications(
 }
 
 export async function markRoleNotificationsAsRead(role: string, notifications: RoleNotification[]): Promise<void> {
-  if (!supabase || !role || notifications.length === 0) {
+  const db = supabase as NonNullable<typeof supabase>;
+  if (!db || !role || notifications.length === 0) {
     return;
   }
 
@@ -155,7 +223,7 @@ export async function markRoleNotificationsAsRead(role: string, notifications: R
   await Promise.all(
     unreadNotifications.map(async (item) => {
       const mergedRoles = Array.from(new Set([...(item.read_by_roles || []), normalizedRole]));
-      const { error } = await supabase
+      const { error } = await db
         .from('role_notifications')
         .update({ read_by_roles: mergedRoles })
         .eq('id', item.id);

@@ -10,7 +10,7 @@ import { useTheme } from "next-themes"
 import { useCallback, useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
-import { fetchRoleNotifications, getUnreadCount, markRoleNotificationsAsRead, RoleNotification } from "@/lib/role-notifications"
+import { ensureFridayParentWeeklyCheckInNotification, fetchRoleNotifications, getUnreadCount, markRoleNotificationsAsRead, RoleNotification } from "@/lib/role-notifications"
 
 const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
 
@@ -96,9 +96,18 @@ export function Header() {
   }, [])
 
   const loadRoleNotifications = useCallback(async () => {
-    if (!normalizedRole || !['teacher', 'admin', 'guidance'].includes(normalizedRole)) {
+    if (!normalizedRole || !['teacher', 'admin', 'guidance', 'parent'].includes(normalizedRole)) {
       setRoleNotifications([])
       return
+    }
+
+    if (normalizedRole === 'parent') {
+      await ensureFridayParentWeeklyCheckInNotification({
+        id: user?.id || null,
+        username: user?.username || null,
+        fullName: user?.full_name || null,
+        email: user?.username || null,
+      })
     }
 
     const loadedNotifications = await fetchRoleNotifications(normalizedRole, 20, {

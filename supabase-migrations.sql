@@ -3,15 +3,6 @@
 -- Pure migrations without mock data
 -- =========================
 
--- --- MIGRATION: Fix parent_email foreign key constraint issues ---
--- 1. Drop the foreign key constraint if it exists
-ALTER TABLE students DROP CONSTRAINT IF EXISTS fk_parent_email;
-
--- 2. Re-add the foreign key constraint
-ALTER TABLE students
-  ADD CONSTRAINT fk_parent_email FOREIGN KEY (parent_email)
-  REFERENCES parents(parent_email) ON DELETE SET NULL;
-
 -- Function: update_student_lrn
 -- Updates a student's LRN everywhere it is referenced, in a single transaction
 CREATE OR REPLACE FUNCTION update_student_lrn(old_lrn VARCHAR, new_lrn VARCHAR, student_id BIGINT)
@@ -89,6 +80,15 @@ CREATE TABLE IF NOT EXISTS students (
 ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_email VARCHAR(255);
 ALTER TABLE students ADD COLUMN IF NOT EXISTS rfid_uid VARCHAR(32);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_students_rfid_uid_unique ON students(rfid_uid) WHERE rfid_uid IS NOT NULL;
+
+-- --- MIGRATION: Fix parent_email foreign key constraint issues ---
+-- 1. Drop the foreign key constraint if it exists
+ALTER TABLE students DROP CONSTRAINT IF EXISTS fk_parent_email;
+
+-- 2. Re-add the foreign key constraint
+ALTER TABLE students
+  ADD CONSTRAINT fk_parent_email FOREIGN KEY (parent_email)
+  REFERENCES parents(parent_email) ON DELETE SET NULL;
 
 -- ============================================================================
 -- ATTENDANCE TABLES
