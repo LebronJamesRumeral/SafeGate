@@ -660,7 +660,7 @@ export default function AnalyticsPage() {
                     <CardDescription>Daily attendance breakdown for the last 7 days</CardDescription>
                   </CardHeader>
                   <CardContent className="p-6">
-                    <div className="h-75">
+                    <div className="h-60 sm:h-75 lg:h-96">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={stats.weeklyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
@@ -694,7 +694,7 @@ export default function AnalyticsPage() {
                     <CardDescription>Monthly behavioral event pattern</CardDescription>
                   </CardHeader>
                   <CardContent className="p-6">
-                    <div className="h-75">
+                    <div className="h-60 sm:h-75 lg:h-96">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={behavioralStats.weeklyTrend} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                           <defs>
@@ -882,7 +882,7 @@ export default function AnalyticsPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-75">
+                    <div className="h-60 sm:h-75 lg:h-96">
                       <ResponsiveContainer width="100%" height="100%">
                         <RePieChart>
                           <Pie
@@ -956,7 +956,7 @@ export default function AnalyticsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="h-75">
+                    <div className="h-60 sm:h-75 lg:h-96">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={behavioralStats.weeklyTrend}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />

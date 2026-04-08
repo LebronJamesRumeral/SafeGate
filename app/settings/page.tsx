@@ -392,7 +392,7 @@ export default function SettingsPage() {
             {activeCategory === 'school' && (
               <Card className="shadow-xl duration-200 animate-fade-in-up border-0 overflow-hidden">
                 <CardHeader className="bg-linear-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 border-b border-blue-200/50 dark:border-blue-700/40 p-5 sm:p-8">
-                  <div className="flex items-center justify-between gap-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">School Information</CardTitle>
                       <CardDescription className="text-sm mt-2">Update your school details and contact information</CardDescription>
@@ -442,7 +442,7 @@ export default function SettingsPage() {
             {activeCategory === 'account' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
                 <CardHeader className="bg-linear-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/30 border-b border-blue-200/50 dark:border-blue-700/40 p-5 sm:p-8">
-                  <div className="flex items-center gap-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Account Management</CardTitle>
                       <CardDescription className="text-sm mt-2">Add new users and manage existing accounts</CardDescription>
@@ -578,7 +578,7 @@ export default function SettingsPage() {
             {activeCategory === 'notifications' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
                 <CardHeader className="bg-linear-to-r from-orange-50 to-orange-100/50 dark:from-orange-950/40 dark:to-orange-900/30 border-b border-orange-200/50 dark:border-orange-700/40 p-5 sm:p-8">
-                  <div className="flex items-center justify-between gap-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Notifications</CardTitle>
                       <CardDescription className="text-sm mt-2">Configure how you receive alerts and updates</CardDescription>
@@ -590,7 +590,7 @@ export default function SettingsPage() {
                 </CardHeader>
                 <CardContent className="space-y-6 pt-8">
                   <div className="bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/50 rounded-xl p-6 space-y-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-bold text-slate-900 dark:text-white text-base">Push Notifications</p>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Receive push notifications for important events</p>
@@ -599,7 +599,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <div className="bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/50 rounded-xl p-6 space-y-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-bold text-slate-900 dark:text-white text-base">Email Alerts</p>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Get email notifications for daily reports</p>
@@ -622,7 +622,7 @@ export default function SettingsPage() {
             {activeCategory === 'security' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
                 <CardHeader className="bg-linear-to-r from-red-50 to-red-100/50 dark:from-red-950/40 dark:to-red-900/30 border-b border-red-200/50 dark:border-red-700/40 p-5 sm:p-8">
-                  <div className="flex items-center justify-between gap-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Security</CardTitle>
                       <CardDescription className="text-sm mt-2">Update your password and security settings</CardDescription>
@@ -665,7 +665,7 @@ export default function SettingsPage() {
             {activeCategory === 'system' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
                 <CardHeader className="bg-linear-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/30 border-b border-emerald-200/50 dark:border-emerald-700/40 p-5 sm:p-8">
-                  <div className="flex items-center justify-between gap-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">System Settings</CardTitle>
                       <CardDescription className="text-sm mt-2">Configure system behavior and preferences</CardDescription>
@@ -677,7 +677,7 @@ export default function SettingsPage() {
                 </CardHeader>
                 <CardContent className="space-y-6 pt-8">
                   <div className="bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/50 rounded-xl p-6 space-y-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-bold text-slate-900 dark:text-white text-base">Auto Check-out</p>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Automatically check out students at end of day</p>
@@ -714,7 +714,7 @@ export default function SettingsPage() {
             {activeCategory === 'ml' && (
               <Card className="shadow-xl animate-fade-in-up border-0 overflow-hidden">
                 <CardHeader className="bg-linear-to-r from-violet-50 to-violet-100/50 dark:from-violet-950/40 dark:to-violet-900/30 border-b border-violet-200/50 dark:border-violet-700/40 p-5 sm:p-8">
-                  <div className="flex items-center justify-between gap-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex-1">
                       <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">ML Prediction Settings</CardTitle>
                       <CardDescription className="text-sm mt-2">Configure machine learning and AI features</CardDescription>
@@ -726,7 +726,7 @@ export default function SettingsPage() {
                 </CardHeader>
                 <CardContent className="space-y-6 pt-8">
                   <div className="bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/50 rounded-xl p-6 space-y-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-bold text-slate-900 dark:text-white text-base">ML Risk Alerts</p>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Receive alerts for students at risk of absence</p>
@@ -735,7 +735,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <div className="bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/50 rounded-xl p-6 space-y-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-bold text-slate-900 dark:text-white text-base">Enable Predictions</p>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Use ML to predict student absences and behaviors</p>

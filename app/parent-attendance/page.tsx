@@ -264,7 +264,7 @@ export default function ParentAttendancePage() {
             </Badge>
           </Button>
         </DialogTrigger>
-        <DialogContent className="max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
@@ -595,7 +595,7 @@ export default function ParentAttendancePage() {
                             View attendance logs
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
                           <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1">
@@ -710,7 +710,7 @@ export default function ParentAttendancePage() {
                                                 {attachedNotes[String(log.id)] ? 'View Note' : 'Add Note'}
                                               </Button>
                                             </DialogTrigger>
-                                            <DialogContent className="max-w-xl w-[92vw]">
+                                            <DialogContent className="w-[96vw] sm:w-[92vw] max-w-xl">
                                               <DialogHeader>
                                                 <DialogTitle className="text-lg">Parent Feedback / Action</DialogTitle>
                                                 <DialogDescription>

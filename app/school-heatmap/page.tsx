@@ -684,7 +684,7 @@ function SchoolHeatmapContent() {
                       Behavior Patterns
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                  <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
                     <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
@@ -1119,7 +1119,7 @@ function SchoolHeatmapContent() {
                             View Recent Logs ({recentSelectedLogs.length})
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden">
+                        <DialogContent className="w-[96vw] sm:w-[92vw] sm:max-w-2xl max-h-[80vh] overflow-hidden">
                           <DialogHeader>
                             <DialogTitle>{selectedZone.zone.name} - Recent Logs</DialogTitle>
                             <DialogDescription>

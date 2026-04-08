@@ -217,7 +217,7 @@ function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: strin
           View All Incidents
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl h-auto sm:max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">

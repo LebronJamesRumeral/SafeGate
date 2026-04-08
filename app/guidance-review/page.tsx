@@ -1842,7 +1842,7 @@ export default function GuidanceReviewPage() {
         </div>
 
         <Dialog open={approvedReportsOpen} onOpenChange={setApprovedReportsOpen}>
-          <DialogContent className="max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-border/70 bg-white/95 dark:bg-slate-900/95 p-4 sm:p-6">
+          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-border/70 bg-white/95 dark:bg-slate-900/95 p-4 sm:p-6">
             <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 pr-8">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
@@ -1861,8 +1861,8 @@ export default function GuidanceReviewPage() {
             </DialogHeader>
 
             <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-              <div className="flex items-end gap-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3">
-                <div className="space-y-1 shrink-0 w-[220px]">
+              <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3">
+                <div className="space-y-1 flex-1 min-w-40">
                   <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
                   <Input
                     type="date"
@@ -1871,11 +1871,11 @@ export default function GuidanceReviewPage() {
                     className="h-9 text-xs"
                   />
                 </div>
-                <div className="space-y-1 shrink-0 w-[220px]">
+                <div className="space-y-1 flex-1 min-w-40">
                   <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">To Date</label>
                   <Input type="date" value={approvedDateTo} onChange={(e) => setApprovedDateTo(e.target.value)} className="h-9 text-xs" />
                 </div>
-                <div className="space-y-1 shrink-0 w-[220px]">
+                <div className="space-y-1 flex-1 min-w-40">
                   <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Students</label>
                   <Popover open={approvedStudentPickerOpen} onOpenChange={setApprovedStudentPickerOpen}>
                     <PopoverTrigger asChild>
@@ -1921,7 +1921,7 @@ export default function GuidanceReviewPage() {
                     </PopoverContent>
                   </Popover>
                 </div>
-                <div className="space-y-1 shrink-0 w-[120px]">
+                <div className="space-y-1 w-full sm:w-auto sm:min-w-28">
                   <label className="text-[10px] uppercase tracking-wider text-transparent select-none">Print</label>
                   <Button className="h-9 w-full gap-2" onClick={printApprovedLogsReport} disabled={approvedLogs.length === 0}>
                     <Printer className="w-4 h-4" />

@@ -903,7 +903,7 @@ export default function AttendancePage() {
         {/* Main Table Card */}
         <Card className="border-0 shadow-lg overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Users className="w-5 h-5 text-blue-500" />
@@ -913,14 +913,14 @@ export default function AttendancePage() {
                   {summaryRows.length} students • Click column headers to sort
                 </CardDescription>
               </div>
-              <Badge variant="outline" className="bg-white dark:bg-slate-800">
+              <Badge variant="outline" className="bg-white dark:bg-slate-800 self-start sm:self-auto text-xs whitespace-nowrap">
                 {schoolDays.length} school days
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <Table>
+              <Table className="min-w-210">
                 <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
                   <TableRow>
                     <TableHead 
@@ -969,7 +969,7 @@ export default function AttendancePage() {
                       </div>
                     </TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Note</TableHead>
+                    <TableHead className="hidden md:table-cell">Note</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1018,7 +1018,7 @@ export default function AttendancePage() {
                         >
                           <TableCell className="font-medium">
                             <div>
-                              <p className="text-sm text-gray-900 dark:text-white">{row.name}</p>
+                              <p className="text-sm text-gray-900 dark:text-white truncate max-w-44 sm:max-w-64" title={row.name}>{row.name}</p>
                               <p className="text-xs text-gray-500 dark:text-gray-400">{row.lrn}</p>
                             </div>
                           </TableCell>
@@ -1061,7 +1061,7 @@ export default function AttendancePage() {
                               </Badge>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="hidden md:table-cell">
                             {parentNotes[row.lrn] && parentNotes[row.lrn].length > 0 ? (
                               <Dialog open={openNotesModal === row.lrn} onOpenChange={(isOpen) => setOpenNotesModal(isOpen ? row.lrn : null)}>
                                 <DialogTrigger asChild>
@@ -1070,7 +1070,7 @@ export default function AttendancePage() {
                                     View Notes
                                   </Button>
                                 </DialogTrigger>
-                                <DialogContent className="max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                                <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
                                   <DialogHeader className="sticky top-0 bg-transparent z-10 pb-4 border-b border-slate-200 dark:border-slate-700">
                                     <DialogTitle className="text-lg">Parent Feedback Notes</DialogTitle>
                                     <DialogDescription>
@@ -1205,16 +1205,16 @@ export default function AttendancePage() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-              <Table>
+              <Table className="min-w-220">
                 <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50 sticky top-0">
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Student</TableHead>
-                    <TableHead>Level</TableHead>
+                    <TableHead className="hidden md:table-cell">Level</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Check In</TableHead>
                     <TableHead>Check Out</TableHead>
-                    <TableHead>Duration</TableHead>
+                    <TableHead className="hidden md:table-cell">Duration</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1252,7 +1252,7 @@ export default function AttendancePage() {
                               <span className="text-xs text-gray-500">{log.student_lrn}</span>
                             </div>
                           </TableCell>
-                          <TableCell>{student?.level || 'N/A'}</TableCell>
+                          <TableCell className="hidden md:table-cell">{student?.level || 'N/A'}</TableCell>
                           <TableCell>
                             {checkOut ? (
                               <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-0">
@@ -1283,7 +1283,7 @@ export default function AttendancePage() {
                               <span className="text-gray-400">--</span>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="hidden md:table-cell">
                             {duration ? (
                               <span className="text-sm">
                                 {duration} min

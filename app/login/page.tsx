@@ -360,9 +360,9 @@ export default function LoginPage() {
                   <p className="text-base text-slate-700 dark:text-slate-300 text-center leading-relaxed font-mono" style={{marginBottom: '0.5rem'}}>
                     By using this system, you agree to use it responsibly and in accordance with all school and legal guidelines. Misuse may result in account suspension.
                   </p>
-                  <div className="flex gap-4 mt-8">
-                    <Button variant="outline" onClick={handleDeclinePolicy} className="px-6 py-2 text-base font-semibold">Decline</Button>
-                    <Button variant="secondary" onClick={handleAcceptPolicy} className="px-6 py-2 text-base font-semibold">Accept</Button>
+                  <div className="flex flex-col sm:flex-row gap-4 mt-8">
+                    <Button variant="outline" onClick={handleDeclinePolicy} className="px-4 sm:px-6 py-2 text-base font-semibold">Decline</Button>
+                    <Button variant="secondary" onClick={handleAcceptPolicy} className="px-4 sm:px-6 py-2 text-base font-semibold">Accept</Button>
                   </div>
                 </div>
                 <style>{`

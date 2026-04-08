@@ -354,7 +354,7 @@ export default function ParentBehaviorPage() {
                   <span className="text-lg">+</span> Log Weekly Check-In
                 </Button>
               </DialogTrigger>
-                <DialogContent className="w-[96vw] max-w-5xl lg:max-w-4xl h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
+                <DialogContent className="w-[96vw] sm:w-[92vw] max-w-5xl lg:max-w-4xl h-auto sm:h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
                 <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40">
                   <DialogTitle className="text-2xl sm:text-3xl leading-tight">Log Weekly Check-In</DialogTitle>
                   <DialogDescription>
@@ -558,7 +558,7 @@ export default function ParentBehaviorPage() {
         </div>
 
         {/* Summary Cards Row - Updated Design */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Total Events */}
           <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
@@ -773,9 +773,9 @@ export default function ParentBehaviorPage() {
                               View behavior and achievements
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl h-auto sm:max-h-[90vh] overflow-hidden flex flex-col">
                             <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
-                              <div className="flex items-start justify-between gap-4">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2">
                                     <AlertCircle className="w-5 h-5 text-slate-600 dark:text-slate-400" />

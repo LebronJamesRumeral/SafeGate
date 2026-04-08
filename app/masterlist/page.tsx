@@ -510,7 +510,7 @@ export default function MasterlistPage() {
             </h1>
             <p className="text-muted-foreground font-medium">Complete archive of all recorded students from previous to current generations</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex w-full sm:w-auto flex-wrap gap-2">
             <input
               ref={importInputRef}
               type="file"
@@ -518,20 +518,20 @@ export default function MasterlistPage() {
               onChange={handleImportStudents}
               className="hidden"
             />
-            <Button variant="outline" className="gap-2" onClick={() => setShowFilters(!showFilters)}>
+            <Button variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={() => setShowFilters(!showFilters)}>
               <Search size={16} />
               {showFilters ? 'Hide Filters' : 'Show Filters'}
             </Button>
             <Button
               variant="outline"
-              className="gap-2"
+              className="gap-2 flex-1 sm:flex-none"
               onClick={() => importInputRef.current?.click()}
               disabled={importingStudents}
             >
               <Upload size={16} />
               {importingStudents ? 'Importing...' : 'Import'}
             </Button>
-            <Button variant="secondary" className="gap-2" onClick={exportMasterlist}>
+            <Button variant="secondary" className="gap-2 flex-1 sm:flex-none" onClick={exportMasterlist}>
               <Download size={16} />
               Export
             </Button>
@@ -663,7 +663,7 @@ export default function MasterlistPage() {
           </CardHeader>
           <CardContent>
             <div className="border border-border/50 rounded-lg overflow-hidden">
-              <Table>
+              <Table className="min-w-205">
                 <TableHeader className="bg-muted/40">
                   <TableRow className="border-border/50 hover:bg-muted/50">
                     <TableHead className="text-foreground font-semibold">LRN</TableHead>
@@ -671,7 +671,7 @@ export default function MasterlistPage() {
                     <TableHead className="text-foreground font-semibold">Gender</TableHead>
                     <TableHead className="text-foreground font-semibold">Level</TableHead>
                     <TableHead className="text-foreground font-semibold">Status</TableHead>
-                    <TableHead className="text-foreground font-semibold">Parent Info</TableHead>
+                    <TableHead className="text-foreground font-semibold hidden lg:table-cell">Parent Info</TableHead>
                     <TableHead className="text-foreground text-center font-semibold">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -706,7 +706,7 @@ export default function MasterlistPage() {
                             <Badge className="bg-muted/20 text-muted-foreground border-muted/30 font-medium">Inactive</Badge>
                           )}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-muted-foreground hidden lg:table-cell">
                           <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2 text-xs font-medium hover:text-foreground transition-colors">
                               <Mail className="h-3.5 w-3.5 text-primary" />
@@ -734,7 +734,7 @@ export default function MasterlistPage() {
                                 className="gap-1.5 hover:bg-muted hover:text-primary transition-colors"
                               >
                                 <Eye size={14} />
-                                View
+                                <span className="hidden sm:inline">View</span>
                               </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-md">

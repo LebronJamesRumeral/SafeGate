@@ -2798,7 +2798,7 @@ export default function StudentsPage() {
                   Add Student
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[96vw] max-w-5xl lg:max-w-4xl h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
+              <DialogContent className="w-[96vw] sm:w-[92vw] max-w-5xl lg:max-w-4xl h-auto sm:h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
                 <div className="flex-1 max-h-[92vh] overflow-y-auto p-6 md:p-8 space-y-4">
                   <DialogHeader>
                     <DialogTitle className="text-xl font-bold">Add New Student</DialogTitle>
@@ -2932,7 +2932,7 @@ export default function StudentsPage() {
                       )}
 
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <label className="text-sm font-medium">Daily Time Slots</label>
                           <Button type="button" variant="outline" size="sm" onClick={addScheduleSlot} className="rounded-[18px] px-5">
                             Add Slot
@@ -2940,7 +2940,7 @@ export default function StudentsPage() {
                         </div>
                         <div className="space-y-2">
                           {scheduleTimeSlots.map((slot, slotIndex) => (
-                            <div key={`${slot.label}-${slotIndex}`} className="grid grid-cols-1 items-center gap-3 rounded-[20px] border border-slate-200 bg-white/80 p-3 shadow-sm md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] dark:border-slate-700 dark:bg-slate-900/65">
+                            <div key={`${slot.label}-${slotIndex}`} className="grid grid-cols-1 items-center gap-3 rounded-[20px] border border-slate-200 bg-white/80 p-3 shadow-sm sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] dark:border-slate-700 dark:bg-slate-900/65">
                               <Input
                                 value={slot.label}
                                 onChange={(e) => updateScheduleSlot(slotIndex, 'label', e.target.value)}
@@ -3253,11 +3253,11 @@ export default function StudentsPage() {
           <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="list" className="gap-2">
               <Users className="w-4 h-4" />
-              Student List
+              <span className="text-xs sm:text-sm">Student List</span>
             </TabsTrigger>
             <TabsTrigger value="analytics" className="gap-2">
               <PieChart className="w-4 h-4" />
-              Analytics
+              <span className="text-xs sm:text-sm">Analytics</span>
             </TabsTrigger>
           </TabsList>
 
@@ -3265,7 +3265,7 @@ export default function StudentsPage() {
             {/* Students Table */}
             <Card className="border-0 shadow-lg overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2 text-lg">
                       <User className="w-5 h-5 text-blue-500" />
@@ -3275,7 +3275,7 @@ export default function StudentsPage() {
                       Complete list of enrolled students with LRN, level, and parent contact details
                     </CardDescription>
                   </div>
-                  <Badge variant="outline" className="bg-white dark:bg-slate-800">
+                    <Badge variant="outline" className="bg-white dark:bg-slate-800 self-start sm:self-auto text-xs whitespace-nowrap">
                       {{
                        lrn: 'LRN',
                        name: 'Name',
@@ -3289,11 +3289,11 @@ export default function StudentsPage() {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className="min-w-230">
                     <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
                       <TableRow>
                         <TableHead 
-                          className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
+                          className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 whitespace-nowrap"
                           onClick={() => handleSort('lrn')}
                         >
                           <div className="flex items-center gap-1">
@@ -3302,7 +3302,7 @@ export default function StudentsPage() {
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
+                          className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 whitespace-nowrap"
                           onClick={() => handleSort('name')}
                         >
                           <div className="flex items-center gap-1">
@@ -3311,7 +3311,7 @@ export default function StudentsPage() {
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
+                          className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 whitespace-nowrap"
                           onClick={() => handleSort('level')}
                         >
                           <div className="flex items-center gap-1">
@@ -3320,7 +3320,7 @@ export default function StudentsPage() {
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
+                          className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 whitespace-nowrap"
                           onClick={() => handleSort('riskLevel')}
                         >
                           <div className="flex items-center gap-1">
@@ -3328,9 +3328,9 @@ export default function StudentsPage() {
                             <ArrowUpDown className="w-3 h-3" />
                           </div>
                         </TableHead>
-                        <TableHead>Parent Info</TableHead>
-                        <TableHead>Today</TableHead>
-                        <TableHead className="text-center">Actions</TableHead>
+                        <TableHead className="hidden lg:table-cell whitespace-nowrap">Parent Info</TableHead>
+                        <TableHead className="hidden md:table-cell whitespace-nowrap">Today</TableHead>
+                        <TableHead className="text-center whitespace-nowrap">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -3378,29 +3378,20 @@ export default function StudentsPage() {
                               transition={{ delay: index * 0.03 }}
                               className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                             >
-                              <TableCell className="font-mono text-sm font-medium">{student.lrn}</TableCell>
+                              <TableCell className="font-mono text-sm font-medium whitespace-nowrap">{student.lrn}</TableCell>
                               <TableCell>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 min-w-45">
                                   <Avatar className="h-8 w-8">
                                     <AvatarFallback className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
                                       {student.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <span className="font-medium break-all whitespace-pre-line leading-tight">
-                                    {(() => {
-                                      const parts = student.name.split(' ');
-                                      if (parts.length > 1) {
-                                        return parts.map((p, i) => (
-                                          <span key={i} className="block">{p}</span>
-                                        ));
-                                      } else {
-                                        return student.name;
-                                      }
-                                    })()}
+                                  <span className="font-medium leading-tight truncate max-w-44 sm:max-w-60 md:max-w-80" title={student.name}>
+                                    {student.name}
                                   </span>
                                 </div>
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="whitespace-nowrap">
                                 <Badge
                                   variant="outline"
                                   className={`font-semibold shadow-none hover:shadow-none ${LEVEL_BADGE_STYLES[student.level] || 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-700'}`}
@@ -3408,7 +3399,7 @@ export default function StudentsPage() {
                                   {student.level}
                                 </Badge>
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="whitespace-nowrap">
                                 {riskScore ? (
                                   <Badge className={`${riskColors.bg} ${riskColors.color} border-0 gap-1`}>
                                     <RiskIcon className="w-3 h-3" />
@@ -3420,7 +3411,7 @@ export default function StudentsPage() {
                                   </Badge>
                                 )}
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="hidden lg:table-cell">
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-2 text-sm">
                                     <Mail className="h-3 w-3 text-muted-foreground" />
@@ -3447,7 +3438,7 @@ export default function StudentsPage() {
                                   </div>
                                 </div>
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="hidden md:table-cell whitespace-nowrap">
                                 {attendance ? (
                                   <div className="flex flex-col gap-1">
                                     {attendance.passedDayEnd ? (
@@ -3502,10 +3493,10 @@ export default function StudentsPage() {
                                         fetchBehavioralData(student.lrn);
                                         fetchStudentSchedule(student.lrn);
                                       }}
-                                      className="gap-1.5 hover:bg-primary/10 hover:text-primary"
+                                      className="gap-1.5 hover:bg-primary/10 hover:text-primary whitespace-nowrap"
                                     >
                                       <Eye size={14} />
-                                      View
+                                      <span className="hidden sm:inline">View</span>
                                     </Button>
                                   </DialogTrigger>
                                   <DialogContent

@@ -2013,7 +2013,7 @@ function BehavioralEventsPageContent() {
                   Log Event
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[96vw] max-w-5xl lg:max-w-4xl h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
+              <DialogContent className="w-[96vw] sm:w-[92vw] max-w-5xl lg:max-w-4xl h-auto sm:h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
                 <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40">
                   <DialogTitle className="text-3xl leading-tight">Log Student Behavior Incident</DialogTitle>
                   <DialogDescription>
@@ -2421,7 +2421,7 @@ function BehavioralEventsPageContent() {
                   Achievements
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[96vw] max-w-5xl lg:max-w-4xl h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
+              <DialogContent className="w-[96vw] sm:w-[92vw] max-w-5xl lg:max-w-4xl h-auto sm:h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
                 <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40">
                   <DialogTitle className="text-3xl leading-tight">Log Achievement</DialogTitle>
                   <DialogDescription>
@@ -2675,7 +2675,7 @@ function BehavioralEventsPageContent() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
           {/* Total Events Card */}
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
@@ -2894,7 +2894,7 @@ function BehavioralEventsPageContent() {
             {/* Events List */}
             <Card className="border-0 shadow-lg overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2 text-lg">
                       <FileText className="w-5 h-5 text-blue-500" />
@@ -2904,7 +2904,7 @@ function BehavioralEventsPageContent() {
                       Showing {groupedLogEvents.length} report entries from {filteredEvents.length} student records
                     </CardDescription>
                   </div>
-                  <Badge variant="outline" className="bg-white dark:bg-slate-800">
+                  <Badge variant="outline" className="bg-white dark:bg-slate-800 self-start sm:self-auto text-xs whitespace-nowrap">
                       {{
                        created_at: 'Logged Time',
                        event_date: 'Date',
@@ -3000,7 +3000,7 @@ function BehavioralEventsPageContent() {
                           setIsDialogOpen(true);
                         }}
                       >
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                           <div className="flex items-start gap-3 flex-1">
                             <div className="mt-1">
                               {getSeverityIcon(event.severity)}
@@ -3045,7 +3045,7 @@ function BehavioralEventsPageContent() {
                                 {event.description}
                               </p>
                               
-                              <div className="flex items-center gap-4 mt-2 text-xs text-slate-500 dark:text-slate-500">
+                              <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500 dark:text-slate-500">
                                 <span className="flex items-center gap-1">
                                   <Calendar className="w-3 h-3" />
                                   {new Date(event.event_date).toLocaleDateString()} at {event.event_time}
@@ -3062,7 +3062,7 @@ function BehavioralEventsPageContent() {
                                 </span>
                               </div>
                               
-                              <div className="flex items-center gap-2 mt-2">
+                              <div className="flex flex-wrap items-center gap-2 mt-2">
                                 {getGuidanceStatusBadge(event.guidance_status)}
                                 {event.parent_notified && (
                                   <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700 text-xs">
@@ -3079,7 +3079,7 @@ function BehavioralEventsPageContent() {
                               </div>
                             </div>
                           </div>
-                          <Button variant="ghost" size="sm" className="shrink-0">
+                          <Button variant="ghost" size="sm" className="self-end sm:self-auto shrink-0">
                             <Eye className="w-4 h-4" />
                           </Button>
                         </div>
@@ -3104,7 +3104,7 @@ function BehavioralEventsPageContent() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[300px]">
+                  <div className="h-60 sm:h-75 lg:h-96">
                     <ResponsiveContainer width="100%" height="100%">
                       <RePieChart>
                         <Pie
@@ -3137,7 +3137,7 @@ function BehavioralEventsPageContent() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[300px]">
+                  <div className="h-60 sm:h-75 lg:h-96">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={stats.categoryDistribution}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
@@ -3160,7 +3160,7 @@ function BehavioralEventsPageContent() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[300px]">
+                  <div className="h-60 sm:h-75 lg:h-96">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={stats.dailyTrend}>
                         <defs>
@@ -3255,7 +3255,7 @@ function BehavioralEventsPageContent() {
 
         {/* Event Details Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-2xl">
             {selectedEvent && (
               <>
                 <DialogHeader>

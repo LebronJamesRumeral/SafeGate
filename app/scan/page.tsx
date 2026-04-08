@@ -921,7 +921,7 @@ export default function ScanPage() {
               Scan student QR codes to automatically check in or check out
             </p>
           </div>
-          <div className="flex w-full flex-wrap items-center gap-1.5 sm:gap-2 md:w-auto">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:gap-2 md:w-auto">
             <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 px-3 py-1">
               Auto Mode
             </Badge>
