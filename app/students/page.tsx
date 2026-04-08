@@ -50,7 +50,8 @@ import {
   AlertOctagon,
   CloudUpload,
   Wifi,
-  WifiOff
+  WifiOff,
+  ArrowRightLeft
 } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
@@ -279,6 +280,12 @@ export default function StudentsPage() {
   const [dropError, setDropError] = useState('');
   const [dropValidationErrors, setDropValidationErrors] = useState<{ email?: string; password?: string }>({});
   const [droppingStudent, setDroppingStudent] = useState(false);
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [transferConfirmEmail, setTransferConfirmEmail] = useState('');
+  const [transferConfirmPassword, setTransferConfirmPassword] = useState('');
+  const [transferError, setTransferError] = useState('');
+  const [transferValidationErrors, setTransferValidationErrors] = useState<{ email?: string; password?: string }>({});
+  const [transferringStudent, setTransferringStudent] = useState(false);
   // Drop student handler
   const handleDropStudent = async () => {
     if (!selectedStudent || !user) return;
@@ -364,6 +371,98 @@ export default function StudentsPage() {
       setDropConfirmEmail('');
       setDropConfirmPassword('');
       setDropValidationErrors({});
+    }
+  };
+  const handleTransferStudent = async () => {
+    if (!selectedStudent || !user) return;
+    setTransferError('');
+
+    const missingInputs: string[] = [];
+    const validationErrors: { email?: string; password?: string } = {};
+
+    if (!transferConfirmEmail.trim()) {
+      missingInputs.push('Email');
+      validationErrors.email = 'Please provide your account email.';
+    } else if (transferConfirmEmail.trim().toLowerCase() !== user.username?.toLowerCase()) {
+      validationErrors.email = 'Account email does not match.';
+    }
+
+    if (!transferConfirmPassword.trim()) {
+      missingInputs.push('Password');
+      validationErrors.password = 'Please provide your password.';
+    }
+
+    if (missingInputs.length > 0) {
+      setTransferValidationErrors(validationErrors);
+      toast({
+        title: 'Required Inputs Missing',
+        description: `Please complete: ${missingInputs.join(', ')}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (validationErrors.email) {
+      setTransferValidationErrors(validationErrors);
+      toast({
+        title: 'Invalid Email',
+        description: validationErrors.email,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!supabase) {
+      setTransferError('Supabase client not initialized.');
+      toast({
+        title: 'Failed to Transfer Student',
+        description: 'Supabase client not initialized.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setTransferringStudent(true);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: transferConfirmEmail,
+        password: transferConfirmPassword,
+      });
+      if (signInError) {
+        setTransferError('Invalid email or password.');
+        toast({
+          title: 'Invalid Credentials',
+          description: 'Invalid email or password.',
+          variant: 'destructive',
+        });
+        setTransferringStudent(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('students')
+        .update({ status: 'inactive', substatus: 'transferred' })
+        .eq('id', selectedStudent.id);
+
+      if (error) throw error;
+
+      setTransferDialogOpen(false);
+      setSelectedStudent(null);
+      setDetailsOpen(false);
+      await fetchStudents();
+      toast({ title: 'Student transferred', description: 'Student is now marked as transferred and hidden from current students.' });
+    } catch (err) {
+      setTransferError('Failed to transfer student.');
+      toast({
+        title: 'Failed to Transfer Student',
+        description: err instanceof Error ? err.message : 'Failed to transfer student.',
+        variant: 'destructive',
+      });
+    } finally {
+      setTransferringStudent(false);
+      setTransferConfirmEmail('');
+      setTransferConfirmPassword('');
+      setTransferValidationErrors({});
     }
   };
   // State for Undo dialog
@@ -3645,6 +3744,69 @@ export default function StudentsPage() {
                                               <div className="absolute bottom-4 right-8 flex gap-2">
                                                 {isAdmin && (
                                                   <>
+                                                    <Button size="sm" variant="outline" className="min-w-[120px] border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300" onClick={() => setTransferDialogOpen(true)}>
+                                                      <ArrowRightLeft className="w-4 h-4" />
+                                                      Transfer Student
+                                                    </Button>
+                                                    <Dialog open={transferDialogOpen} onOpenChange={(open) => {
+                                                      setTransferDialogOpen(open);
+                                                      if (open) {
+                                                        setTransferConfirmEmail('');
+                                                        setTransferConfirmPassword('');
+                                                        setTransferError('');
+                                                        setTransferValidationErrors({});
+                                                      }
+                                                    }}>
+                                                      <DialogContent className="max-w-md">
+                                                        <DialogHeader>
+                                                          <DialogTitle className="text-xl font-bold">Transfer student?</DialogTitle>
+                                                          <DialogDescription>
+                                                            This will mark the student as transferred and hide them from current students.<br />
+                                                            Please enter your account email and password to confirm.
+                                                          </DialogDescription>
+                                                        </DialogHeader>
+                                                        <input type="text" name="fakeusernameremembered_transfer" autoComplete="username" style={{ display: 'none' }} tabIndex={-1} />
+                                                        <Input
+                                                          type="email"
+                                                          name="confirm_email_transfer"
+                                                          value={transferConfirmEmail}
+                                                          onChange={e => {
+                                                            setTransferConfirmEmail(e.target.value);
+                                                            if (e.target.value.trim()) {
+                                                              setTransferValidationErrors((prev) => ({ ...prev, email: undefined }));
+                                                            }
+                                                          }}
+                                                          placeholder="Enter your email"
+                                                          className="mt-2"
+                                                          autoComplete="new-password"
+                                                          disabled={transferringStudent}
+                                                        />
+                                                        {transferValidationErrors.email && <div className="text-red-600 text-sm mt-2">{transferValidationErrors.email}</div>}
+                                                        <Input
+                                                          type="password"
+                                                          name="confirm_password_transfer"
+                                                          value={transferConfirmPassword}
+                                                          onChange={e => {
+                                                            setTransferConfirmPassword(e.target.value);
+                                                            if (e.target.value.trim()) {
+                                                              setTransferValidationErrors((prev) => ({ ...prev, password: undefined }));
+                                                            }
+                                                          }}
+                                                          placeholder="Enter your password"
+                                                          className="mt-2"
+                                                          autoComplete="new-password"
+                                                          disabled={transferringStudent}
+                                                        />
+                                                        {transferValidationErrors.password && <div className="text-red-600 text-sm mt-2">{transferValidationErrors.password}</div>}
+                                                        {transferError && <div className="text-red-600 text-sm mt-2">{transferError}</div>}
+                                                        <div className="flex gap-3 justify-end mt-6">
+                                                          <Button variant="outline" onClick={() => setTransferDialogOpen(false)} disabled={transferringStudent}>Cancel</Button>
+                                                          <Button variant="default" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleTransferStudent} disabled={transferringStudent}>
+                                                            {transferringStudent ? 'Transferring...' : 'Transfer Student'}
+                                                          </Button>
+                                                        </div>
+                                                      </DialogContent>
+                                                    </Dialog>
                                                     <Button size="sm" variant="destructive" className="min-w-[120px]" onClick={() => setDropDialogOpen(true)}>
                                                       Drop Student
                                                     </Button>

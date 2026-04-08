@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Download, Search, Eye, Mail, Phone, Archive, Upload } from 'lucide-react';
+import { Download, Search, Eye, Mail, Phone, Archive, Upload, CheckCircle2 } from 'lucide-react';
 import { UserCheck, GraduationCap } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
@@ -31,6 +31,29 @@ const YEAR_LEVEL_OPTIONS = [
   'Grade 7',
   'Grade 8',
 ];
+const EARLY_LEVEL_OPTIONS = ['Toddler & Nursery', 'Pre-K', 'Kinder 1', 'Kinder 2'];
+const GRADE_LEVEL_OPTIONS = [
+  'Grade 1',
+  'Grade 2',
+  'Grade 3',
+  'Grade 4',
+  'Grade 5',
+  'Grade 6',
+  'Grade 7',
+  'Grade 8',
+];
+const WEEKDAY_OPTIONS = [
+  { label: 'Monday', dayNumber: 1 },
+  { label: 'Tuesday', dayNumber: 2 },
+  { label: 'Wednesday', dayNumber: 3 },
+  { label: 'Thursday', dayNumber: 4 },
+  { label: 'Friday', dayNumber: 5 },
+];
+const DEFAULT_SCHEDULE_SLOTS = [
+  { label: 'Session 1', startTime: '08:00', endTime: '09:30' },
+  { label: 'Session 2', startTime: '09:45', endTime: '11:15' },
+  { label: 'Session 3', startTime: '13:00', endTime: '14:30' },
+];
 import { MLDashboard } from '@/components/ml-dashboard';
 import { MasterlistPageSkeleton } from '@/components/masterlist-skeleton';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -43,6 +66,15 @@ export default function MasterlistPage() {
   const [filterGrade, setFilterGrade] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [reAdmitDialogOpen, setReAdmitDialogOpen] = useState(false);
+  const [reAdmitConfirmEmail, setReAdmitConfirmEmail] = useState('');
+  const [reAdmitConfirmPassword, setReAdmitConfirmPassword] = useState('');
+  const [reAdmitLevel, setReAdmitLevel] = useState('');
+  const [reAdmitSelectedScheduleDays, setReAdmitSelectedScheduleDays] = useState<string[]>(WEEKDAY_OPTIONS.map((d) => d.label));
+  const [reAdmitScheduleSlots, setReAdmitScheduleSlots] = useState<Array<{ label: string; startTime: string; endTime: string }>>([...DEFAULT_SCHEDULE_SLOTS]);
+  const [reAdmitError, setReAdmitError] = useState('');
+  const [reAdmitValidationErrors, setReAdmitValidationErrors] = useState<{ email?: string; password?: string; level?: string }>({});
+  const [reAdmittingStudent, setReAdmittingStudent] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(true);
@@ -191,6 +223,200 @@ export default function MasterlistPage() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const handleReAdmitStudent = async () => {
+    if (!selectedStudent) return;
+    setReAdmitError('');
+
+    const validationErrors: { email?: string; password?: string; level?: string } = {};
+    if (!reAdmitConfirmEmail.trim()) {
+      validationErrors.email = 'Please provide your account email.';
+    }
+    if (!reAdmitConfirmPassword.trim()) {
+      validationErrors.password = 'Please provide your password.';
+    }
+    if (!reAdmitLevel.trim()) {
+      validationErrors.level = 'Please select a year level.';
+    }
+
+    const isEarlyLevel = EARLY_LEVEL_OPTIONS.includes(reAdmitLevel);
+    const isGradeLevel = GRADE_LEVEL_OPTIONS.includes(reAdmitLevel);
+    const shouldCreateSchedule = isEarlyLevel || isGradeLevel;
+
+    if (isEarlyLevel && reAdmitSelectedScheduleDays.length === 0) {
+      toast({
+        title: 'Schedule days required',
+        description: 'Please select at least one weekday for the student schedule.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (shouldCreateSchedule && reAdmitScheduleSlots.length === 0) {
+      toast({
+        title: 'Schedule slots required',
+        description: 'Please add at least one schedule time slot.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (shouldCreateSchedule) {
+      const invalidSlot = reAdmitScheduleSlots.find((slot) => {
+        return !slot.startTime || !slot.endTime || slot.startTime >= slot.endTime;
+      });
+
+      if (invalidSlot) {
+        toast({
+          title: 'Invalid schedule slot',
+          description: 'Each schedule slot must have start and end time, and start must be earlier than end.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    if (Object.keys(validationErrors).length > 0) {
+      setReAdmitValidationErrors(validationErrors);
+      toast({
+        title: 'Required Inputs Missing',
+        description: 'Please provide email, password, and year level.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!supabase) {
+      setReAdmitError('Supabase client not initialized.');
+      toast({
+        title: 'Failed to Re-Admit Student',
+        description: 'Supabase client not initialized.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setReAdmittingStudent(true);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: reAdmitConfirmEmail,
+        password: reAdmitConfirmPassword,
+      });
+      if (signInError) {
+        setReAdmitError('Invalid email or password.');
+        toast({
+          title: 'Invalid Credentials',
+          description: 'Invalid email or password.',
+          variant: 'destructive',
+        });
+        setReAdmittingStudent(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('students')
+        .update({ status: 'active', substatus: null, level: reAdmitLevel, updated_at: new Date().toISOString() })
+        .eq('id', selectedStudent.id);
+
+      if (error) throw error;
+
+      const { data: currentSchoolYear } = await supabase
+        .from('school_years')
+        .select('id')
+        .eq('is_current', true)
+        .maybeSingle();
+
+      const { error: deleteScheduleError } = await supabase
+        .from('student_schedules')
+        .delete()
+        .eq('student_lrn', selectedStudent.lrn);
+
+      if (deleteScheduleError) throw deleteScheduleError;
+
+      if (shouldCreateSchedule) {
+        const scheduleDays = isEarlyLevel
+          ? reAdmitSelectedScheduleDays
+          : WEEKDAY_OPTIONS.map((day) => day.label);
+
+        const scheduleRows = scheduleDays.flatMap((day) => {
+          const dayConfig = WEEKDAY_OPTIONS.find((item) => item.label === day);
+          return reAdmitScheduleSlots.map((slot, slotIndex) => ({
+            student_lrn: selectedStudent.lrn,
+            school_year_id: currentSchoolYear?.id ?? null,
+            day_of_week: day,
+            day_number: dayConfig?.dayNumber ?? 1,
+            subject: slot.label?.trim() ? `${reAdmitLevel} ${slot.label.trim()}` : `${reAdmitLevel} Session ${slotIndex + 1}`,
+            start_time: slot.startTime,
+            end_time: slot.endTime,
+            room: null,
+            teacher_name: null,
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          }));
+        });
+
+        const { error: scheduleError } = await supabase
+          .from('student_schedules')
+          .insert(scheduleRows);
+
+        if (scheduleError) throw scheduleError;
+      }
+
+      setReAdmitDialogOpen(false);
+      setSelectedStudent(null);
+      await fetchAllStudents();
+      toast({ title: 'Student re-admitted', description: 'Student has been returned to current students with an updated level and schedule.' });
+    } catch (err) {
+      setReAdmitError('Failed to re-admit student.');
+      toast({
+        title: 'Failed to Re-Admit Student',
+        description: err instanceof Error ? err.message : 'Failed to re-admit student.',
+        variant: 'destructive',
+      });
+    } finally {
+      setReAdmittingStudent(false);
+      setReAdmitConfirmEmail('');
+      setReAdmitConfirmPassword('');
+      setReAdmitLevel('');
+      setReAdmitSelectedScheduleDays(WEEKDAY_OPTIONS.map((d) => d.label));
+      setReAdmitScheduleSlots([...DEFAULT_SCHEDULE_SLOTS]);
+      setReAdmitValidationErrors({});
+    }
+  };
+
+  const toggleReAdmitScheduleDay = (dayLabel: string) => {
+    setReAdmitSelectedScheduleDays((prev) =>
+      prev.includes(dayLabel) ? prev.filter((day) => day !== dayLabel) : [...prev, dayLabel],
+    );
+  };
+
+  const addReAdmitScheduleSlot = () => {
+    setReAdmitScheduleSlots((prev) => [
+      ...prev,
+      {
+        label: `Session ${prev.length + 1}`,
+        startTime: '08:00',
+        endTime: '09:00',
+      },
+    ]);
+  };
+
+  const updateReAdmitScheduleSlot = (index: number, key: 'label' | 'startTime' | 'endTime', value: string) => {
+    setReAdmitScheduleSlots((prev) =>
+      prev.map((slot, slotIndex) => (slotIndex === index ? { ...slot, [key]: value } : slot)),
+    );
+  };
+
+  const removeReAdmitScheduleSlot = (index: number) => {
+    setReAdmitScheduleSlots((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((_, slotIndex) => slotIndex !== index);
+    });
+  };
+
+  const isReAdmitEarlyLevel = EARLY_LEVEL_OPTIONS.includes(reAdmitLevel);
+  const isReAdmitGradeLevel = GRADE_LEVEL_OPTIONS.includes(reAdmitLevel);
+  const shouldShowReAdmitScheduleConfig = isReAdmitEarlyLevel || isReAdmitGradeLevel;
 
   const handleImportStudents = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -443,7 +669,6 @@ export default function MasterlistPage() {
                     <TableHead className="text-foreground font-semibold">LRN</TableHead>
                     <TableHead className="text-foreground font-semibold">Name</TableHead>
                     <TableHead className="text-foreground font-semibold">Gender</TableHead>
-                    <TableHead className="text-foreground font-semibold">Birthday</TableHead>
                     <TableHead className="text-foreground font-semibold">Level</TableHead>
                     <TableHead className="text-foreground font-semibold">Status</TableHead>
                     <TableHead className="text-foreground font-semibold">Parent Info</TableHead>
@@ -453,7 +678,7 @@ export default function MasterlistPage() {
                 <TableBody>
                   {filteredStudents.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No records found
                       </TableCell>
                     </TableRow>
@@ -463,22 +688,23 @@ export default function MasterlistPage() {
                         <TableCell className="font-semibold text-foreground">{student.lrn}</TableCell>
                         <TableCell className="font-semibold text-foreground">{student.name}</TableCell>
                         <TableCell className="text-foreground">{student.gender}</TableCell>
-                        <TableCell className="text-foreground">{student.birthday}</TableCell>
                         <TableCell className="text-foreground">
                           <Badge variant="outline" className="font-medium border-border/60">
                             {student.level}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-foreground">
+                        <TableCell className="text-foreground text-center">
                           {(student.status || 'active') === 'active' ? (
                             <Badge className="bg-success/20 text-success border-success/30 font-medium">Active</Badge>
-                          ) : (student.substatus === 'undergrad' ? (
+                          ) : student.substatus === 'undergrad' ? (
                             <Badge className="bg-info/20 text-info border-info/30 font-medium">Undergrad</Badge>
-                          ) : (student.substatus === 'dropped' ? (
+                          ) : student.substatus === 'transferred' ? (
+                            <Badge className="bg-blue-500/20 text-blue-700 border-blue-500/30 font-medium dark:text-blue-300">Transferred</Badge>
+                          ) : student.substatus === 'dropped' ? (
                             <Badge className="bg-destructive/20 text-destructive border-destructive/30 font-medium">Dropped</Badge>
                           ) : (
                             <Badge className="bg-muted/20 text-muted-foreground border-muted/30 font-medium">Inactive</Badge>
-                          )))}
+                          )}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           <div className="flex flex-col gap-1">
@@ -514,7 +740,9 @@ export default function MasterlistPage() {
                             <DialogContent className="max-w-md">
                               <DialogHeader>
                                 <DialogTitle className="text-2xl font-bold">{selectedStudent?.name}</DialogTitle>
-                                <DialogDescription>{selectedStudent?.lrn} • {selectedStudent?.level} • {(selectedStudent?.status || 'active') === 'active' ? 'Active' : 'Undergrad'}</DialogDescription>
+                                <DialogDescription>
+                                  {selectedStudent?.lrn} • {selectedStudent?.level} • {(selectedStudent?.status || 'active') === 'active' ? 'Active' : selectedStudent?.substatus === 'transferred' ? 'Transferred' : selectedStudent?.substatus === 'dropped' ? 'Dropped' : 'Inactive'}
+                                </DialogDescription>
                               </DialogHeader>
                               <div className="space-y-4">
                                 <div className="border-t border-border/40 pt-4">
@@ -540,7 +768,7 @@ export default function MasterlistPage() {
                                     </div>
                                     <div>
                                       <p className="text-xs text-muted-foreground font-medium">Status</p>
-                                      <p className="text-sm text-foreground capitalize">{(selectedStudent?.status || 'active')}</p>
+                                      <p className="text-sm text-foreground capitalize">{(selectedStudent?.status || 'active') === 'active' ? 'Active' : selectedStudent?.substatus === 'transferred' ? 'Transferred' : selectedStudent?.substatus === 'dropped' ? 'Dropped' : 'Inactive'}</p>
                                     </div>
                                     <div>
                                       <p className="text-xs text-muted-foreground font-medium">Parent/Guardian</p>
@@ -552,9 +780,22 @@ export default function MasterlistPage() {
                                     </div>
                                   </div>
                                 </div>
+                                  {selectedStudent?.substatus === 'transferred' && (
+                                    <div className="flex justify-end pt-2">
+                                      <Button variant="outline" className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300" onClick={() => {
+                                        setReAdmitValidationErrors({});
+                                        setReAdmitError('');
+                                        setReAdmitDialogOpen(true);
+                                      }}>
+                                        <CheckCircle2 className="w-4 h-4" />
+                                        Re-Admit Student
+                                      </Button>
+                                    </div>
+                                  )}
                               </div>
                             </DialogContent>
                           </Dialog>
+
                         </TableCell>
                       </TableRow>
                     ))
@@ -564,6 +805,166 @@ export default function MasterlistPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Dialog open={reAdmitDialogOpen} onOpenChange={(open) => {
+          setReAdmitDialogOpen(open);
+          if (open) {
+            setReAdmitConfirmEmail('');
+            setReAdmitConfirmPassword('');
+            setReAdmitLevel(selectedStudent?.level || '');
+            setReAdmitSelectedScheduleDays(WEEKDAY_OPTIONS.map((d) => d.label));
+            setReAdmitScheduleSlots([...DEFAULT_SCHEDULE_SLOTS]);
+            setReAdmitError('');
+            setReAdmitValidationErrors({});
+          }
+        }}>
+          <DialogContent className="w-[96vw] max-w-5xl lg:max-w-4xl max-h-[92vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold">Re-admit student?</DialogTitle>
+              <DialogDescription>
+                Set the new grade level and schedule details before re-admitting this student to current records.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Year Level *</label>
+                <Select
+                  value={reAdmitLevel}
+                  onValueChange={(value) => {
+                    setReAdmitLevel(value);
+                    if (value) {
+                      setReAdmitValidationErrors((prev) => ({ ...prev, level: undefined }));
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Year Level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {YEAR_LEVEL_OPTIONS.map((level) => (
+                      <SelectItem key={level} value={level}>{level}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {reAdmitValidationErrors.level && <div className="text-red-600 text-sm">{reAdmitValidationErrors.level}</div>}
+              </div>
+
+              {shouldShowReAdmitScheduleConfig && (
+                <div className="rounded-3xl border border-blue-200/70 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-950/20 p-5 space-y-5">
+                  <div>
+                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Student Schedule Setup</p>
+                    <p className="mt-1 text-xs leading-6 text-blue-700/80 dark:text-blue-400/80">
+                      {isReAdmitEarlyLevel
+                        ? 'Select weekdays (Monday to Friday). You can choose 3-4 days or fewer, and add multiple daily schedule slots.'
+                        : 'Weekdays are automatically set to Monday-Friday for Grades 1-8. Set the daily time slots below.'}
+                    </p>
+                  </div>
+
+                  {isReAdmitEarlyLevel && (
+                    <div className="grid grid-cols-2 gap-2 xl:grid-cols-5">
+                      {WEEKDAY_OPTIONS.map((day) => (
+                        <label
+                          key={day.label}
+                          className="flex items-center gap-2 rounded-[18px] border border-slate-200 bg-white/90 px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/70"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={reAdmitSelectedScheduleDays.includes(day.label)}
+                            onChange={() => toggleReAdmitScheduleDay(day.label)}
+                            className="h-4 w-4 accent-blue-600"
+                          />
+                          <span>{day.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">Daily Time Slots</label>
+                      <Button type="button" variant="outline" size="sm" onClick={addReAdmitScheduleSlot} className="rounded-[18px] px-5">
+                        Add Slot
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {reAdmitScheduleSlots.map((slot, slotIndex) => (
+                        <div key={`${slot.label}-${slotIndex}`} className="grid grid-cols-1 items-center gap-3 rounded-[20px] border border-slate-200 bg-white/80 p-3 shadow-sm md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] dark:border-slate-700 dark:bg-slate-900/65">
+                          <Input
+                            value={slot.label}
+                            onChange={(e) => updateReAdmitScheduleSlot(slotIndex, 'label', e.target.value)}
+                            placeholder={`Session ${slotIndex + 1}`}
+                            className="h-12 rounded-[18px] border-blue-200 bg-white dark:bg-slate-950"
+                          />
+                          <Input
+                            type="time"
+                            value={slot.startTime}
+                            onChange={(e) => updateReAdmitScheduleSlot(slotIndex, 'startTime', e.target.value)}
+                            className="h-12 rounded-[18px] border-blue-200 bg-white dark:bg-slate-950"
+                          />
+                          <Input
+                            type="time"
+                            value={slot.endTime}
+                            onChange={(e) => updateReAdmitScheduleSlot(slotIndex, 'endTime', e.target.value)}
+                            className="h-12 rounded-[18px] border-blue-200 bg-white dark:bg-slate-950"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={reAdmitScheduleSlots.length <= 1}
+                            onClick={() => removeReAdmitScheduleSlot(slotIndex)}
+                            className="h-12 rounded-[18px] px-4 font-medium"
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <input type="text" name="fakeusernameremembered_re_admit" autoComplete="username" style={{ display: 'none' }} tabIndex={-1} />
+              <Input
+                type="email"
+                name="confirm_email_re_admit"
+                value={reAdmitConfirmEmail}
+                onChange={e => {
+                  setReAdmitConfirmEmail(e.target.value);
+                  if (e.target.value.trim()) {
+                    setReAdmitValidationErrors((prev) => ({ ...prev, email: undefined }));
+                  }
+                }}
+                placeholder="Enter your email"
+                autoComplete="new-password"
+                disabled={reAdmittingStudent}
+              />
+              {reAdmitValidationErrors.email && <div className="text-red-600 text-sm">{reAdmitValidationErrors.email}</div>}
+              <Input
+                type="password"
+                name="confirm_password_re_admit"
+                value={reAdmitConfirmPassword}
+                onChange={e => {
+                  setReAdmitConfirmPassword(e.target.value);
+                  if (e.target.value.trim()) {
+                    setReAdmitValidationErrors((prev) => ({ ...prev, password: undefined }));
+                  }
+                }}
+                placeholder="Enter your password"
+                autoComplete="new-password"
+                disabled={reAdmittingStudent}
+              />
+              {reAdmitValidationErrors.password && <div className="text-red-600 text-sm">{reAdmitValidationErrors.password}</div>}
+              {reAdmitError && <div className="text-red-600 text-sm">{reAdmitError}</div>}
+            </div>
+            <div className="flex gap-3 justify-end mt-6">
+              <Button variant="outline" onClick={() => setReAdmitDialogOpen(false)} disabled={reAdmittingStudent}>Cancel</Button>
+              <Button variant="default" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleReAdmitStudent} disabled={reAdmittingStudent}>
+                {reAdmittingStudent ? 'Re-Admitting...' : 'Re-Admit Student'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
       )}
     </DashboardLayout>

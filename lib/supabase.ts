@@ -28,6 +28,7 @@ export interface Student {
   parentContact: string;
   parentEmail?: string | null;
   status: string;
+  substatus?: string | null;
   created_at?: string;
   updated_at?: string;
 }
