@@ -207,12 +207,12 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="flex items-center justify-center bg-white dark:bg-slate-900 p-4 lg:p-8 min-h-screen">
-        <div className="w-full max-w-md">
-          {/* Mobile Header */}
-          <div className="lg:hidden mb-6 text-center">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-blue-950 flex items-center justify-center shadow-lg">
+      <div className="flex items-start lg:items-center justify-center bg-linear-to-b from-blue-950 via-blue-900 to-slate-900 lg:bg-white lg:dark:bg-slate-900 p-0 lg:p-8 min-h-screen">
+        <div className="w-full">
+          {/* Branded Hero (Mobile Only) */}
+          <div className="lg:hidden mb-6 bg-linear-to-br from-blue-950 via-blue-900 to-blue-800 px-5 py-6 text-white">
+            <div className="flex items-center justify-start gap-3 mb-3">
+              <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-white/15 flex items-center justify-center shadow-lg border border-white/30">
                 <Image 
                   src="/SGCDC.png" 
                   alt="SGCDC Logo" 
@@ -223,10 +223,32 @@ export default function LoginPage() {
                 />
               </div>
               <div className="text-left">
-                <p className="font-bold text-blue-950 dark:text-white">SafeGate</p>
+                <p className="font-bold text-white">SafeGate</p>
+                <p className="text-xs text-blue-100">Behavior Tracking and Intervention Dashboard</p>
               </div>
             </div>
+            <p className="text-sm text-blue-100 leading-relaxed">A smarter approach to behavior visibility, intervention workflows, and daily school operations.</p>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-300/45 bg-yellow-400/20 px-2.5 py-1 text-yellow-100">
+                <Users className="h-3.5 w-3.5 text-yellow-300" />
+                TEACHERS
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-300/45 bg-orange-400/20 px-2.5 py-1 text-orange-100">
+                <UserCheck className="h-3.5 w-3.5 text-orange-300" />
+                ADMIN
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/45 bg-emerald-400/20 px-2.5 py-1 text-emerald-100">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
+                GUIDANCE
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-300/45 bg-blue-400/20 px-2.5 py-1 text-blue-100">
+                <Users className="h-3.5 w-3.5 text-blue-300" />
+                PARENT
+              </span>
+            </div>
           </div>
+
+          <div className="w-full max-w-md lg:max-w-lg mx-auto px-4 lg:px-0">
 
           {/* Form Header */}
           <div className="mb-8">
@@ -245,16 +267,16 @@ export default function LoginPage() {
           </div>
 
 
-          {/* Login Form */}
+            {/* Login Form */}
 
-          <form 
-            key="form-login"
-            onSubmit={handleSubmit} 
-            className="space-y-5"
-            style={{
-              animation: 'fadeInSlide 0.5s ease-out forwards',
-            }}
-          >
+            <form 
+              key="form-login"
+              onSubmit={handleSubmit} 
+              className="space-y-5"
+              style={{
+                animation: 'fadeInSlide 0.5s ease-out forwards',
+              }}
+            >
 
             <div className="space-y-2">
               <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 text-sm font-medium">Email</Label>
@@ -375,16 +397,16 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Copyright Only */}
-            <div className="flex flex-col items-center gap-2 mt-8">
-              <hr className="w-full border-t border-slate-200 dark:border-slate-700 mb-2" />
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 w-full text-center">© 2026 SafeGate. All rights reserved.</span>
-            </div>
-          </form>
+              {/* Copyright Only */}
+              <div className="flex flex-col items-center gap-2 mt-8">
+                <hr className="w-full border-t border-slate-200 dark:border-slate-700 mb-2" />
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 w-full text-center">© 2026 SafeGate. All rights reserved.</span>
+              </div>
+            </form>
 
           {/* Demo Credentials - Optional */}
           {process.env.NODE_ENV === 'development' && (
-            <div className="mt-8 p-4 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800/50 rounded-lg text-sm">
+            <div className="mt-5 p-4 bg-orange-50/95 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/50 rounded-xl text-sm shadow-lg lg:shadow-none">
               <p className="font-semibold text-orange-900 dark:text-orange-400 mb-2">Demo Credentials:</p>
               <div className="space-y-1 text-xs text-orange-800 dark:text-orange-300">
                 <p><strong>Teacher:</strong> teacher / teacher123</p>
@@ -392,6 +414,7 @@ export default function LoginPage() {
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>
