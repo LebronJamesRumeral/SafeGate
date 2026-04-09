@@ -262,7 +262,7 @@ export default function LoginPage() {
               <h2 className="text-3xl xl:text-4xl font-bold text-slate-900 dark:text-white mb-2">
                 Sign In
               </h2>
-              <p className="text-slate-600 dark:text-slate-300 text-base xl:text-lg">Your role is detected automatically after login</p>
+              <p className="text-slate-600 dark:text-white/90 text-base xl:text-lg">Your role is detected automatically after login</p>
             </div>
           </div>
 
@@ -279,7 +279,7 @@ export default function LoginPage() {
             >
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 text-sm font-medium">Email</Label>
+              <Label htmlFor="email" className="text-slate-700 dark:text-white text-sm font-medium">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -288,12 +288,12 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
-                className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-200"
+                className="border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/50 transition-all duration-200"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-700 dark:text-slate-300 text-sm font-medium">Password</Label>
+              <Label htmlFor="password" className="text-slate-700 dark:text-white text-sm font-medium">Password</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -303,14 +303,14 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   disabled={loading}
-                  className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-200 pr-12"
+                  className="border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/50 transition-all duration-200 pr-12"
                 />
                 <button
                   type="button"
                   tabIndex={-1}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-400 transition-transform duration-200"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-white/70 hover:text-sky-600 dark:hover:text-white rounded focus:outline-none focus:ring-2 focus:ring-sky-400 transition-transform duration-200"
                   style={{
                     transition: 'transform 0.2s, opacity 0.2s',
                     transform: showPassword ? 'scale(1.15)' : 'scale(1)',
@@ -350,13 +350,13 @@ export default function LoginPage() {
                   required
                   readOnly
                 />
-                <label htmlFor="policy" className="text-xs text-slate-600 dark:text-slate-300 select-none">
+                <label htmlFor="policy" className="text-xs text-slate-600 dark:text-white/90 select-none">
                   I agree to the{' '}
-                  <button type="button" className="underline hover:text-blue-700 dark:hover:text-blue-300" onClick={() => setShowPolicyModal(true)}>
+                  <button type="button" className="underline hover:text-blue-700 dark:hover:text-white" onClick={() => setShowPolicyModal(true)}>
                     Privacy Policy
                   </button>
                   {' '}and{' '}
-                  <button type="button" className="underline hover:text-blue-700 dark:hover:text-blue-300" onClick={() => setShowPolicyModal(true)}>
+                  <button type="button" className="underline hover:text-blue-700 dark:hover:text-white" onClick={() => setShowPolicyModal(true)}>
                     Terms of Service
                   </button>
                 </label>
@@ -400,7 +400,7 @@ export default function LoginPage() {
               {/* Copyright Only */}
               <div className="flex flex-col items-center gap-2 mt-8">
                 <hr className="w-full border-t border-slate-200 dark:border-slate-700 mb-2" />
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 w-full text-center">© 2026 SafeGate. All rights reserved.</span>
+                <span className="text-xs font-semibold text-slate-500 dark:text-white/70 w-full text-center">© 2026 SafeGate. All rights reserved.</span>
               </div>
             </form>
 
