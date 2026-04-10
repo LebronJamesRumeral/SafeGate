@@ -207,7 +207,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="flex items-start lg:items-center justify-center bg-linear-to-b from-blue-950 via-blue-900 to-slate-900 lg:bg-white lg:dark:bg-slate-900 p-0 lg:p-8 min-h-screen">
+      <div className="flex items-start lg:items-center justify-center bg-white dark:bg-slate-900 p-0 lg:p-8 min-h-screen">
         <div className="w-full">
           {/* Branded Hero (Mobile Only) */}
           <div className="lg:hidden mb-6 bg-linear-to-br from-blue-950 via-blue-900 to-blue-800 px-5 py-6 text-white">
