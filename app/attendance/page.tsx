@@ -371,7 +371,8 @@ export default function AttendancePage() {
       .filter((student) => (selectedLevel === 'all' ? true : student.level === selectedLevel))
       .filter((student) =>
         normalizedSearch
-          ? student.name.toLowerCase().includes(normalizedSearch) || student.lrn.toLowerCase().includes(normalizedSearch)
+          ? (student.name && student.name.toLowerCase().includes(normalizedSearch)) ||
+            (student.lrn && student.lrn.toLowerCase().includes(normalizedSearch))
           : true
       )
       .map((student) => {

@@ -498,7 +498,7 @@ export default function SettingsPage() {
                   </div>
 
                   {/* Gap between Add User and User List */}
-                  <div className="h-8" />
+                  <div className="h-4" />
                   {/* User List */}
                   <div className="p-6 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-slate-50/70 dark:bg-slate-800/50 shadow-sm">
                     <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">User Accounts</h3>

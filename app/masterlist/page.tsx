@@ -156,9 +156,10 @@ export default function MasterlistPage() {
     if (!YEAR_LEVEL_OPTIONS.includes(student.level)) return false;
     if (student.status === 'dropped' && filterStatus === 'all') return false; // Hide dropped from current by default
     const term = search.toLowerCase();
-    const matchesSearch = student.name.toLowerCase().includes(term) ||
-                          student.lrn.toLowerCase().includes(term) ||
-                          student.parentName.toLowerCase().includes(term);
+    const matchesSearch =
+      (student.name && student.name.toLowerCase().includes(term)) ||
+      (student.lrn && student.lrn.toLowerCase().includes(term)) ||
+      (student.parentName && student.parentName.toLowerCase().includes(term));
     const matchesLevel = filterGrade === 'all' || student.level === filterGrade;
     const matchesStatus = filterStatus === 'all' || (student.status || 'active') === filterStatus;
     return matchesSearch && matchesLevel && matchesStatus;

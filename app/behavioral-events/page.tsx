@@ -431,7 +431,7 @@ function BehavioralEventsPageContent() {
     student_lrns: [] as string[],
     category_id: '',
     event_type: '',
-    severity: 'minor',
+    severity: 'all',
     description: '',
     location: '',
     witness_names: '',
@@ -653,19 +653,24 @@ function BehavioralEventsPageContent() {
     return `Suggested levels: ${suggestedStudentLevels.join(', ')}`;
   }, [suggestedStudentLevels]);
 
+  // Filter event types by student level AND selected severity
   const levelAwareEventTypeOptions = useMemo(() => {
-    if (activeStudentLevelScopes.length === 0) {
-      return eventTypeOptions;
+    let filtered = eventTypeOptions;
+    if (activeStudentLevelScopes.length > 0) {
+      filtered = filtered.filter((option) => {
+        const scopes = option.levelScopes?.length ? option.levelScopes : ['all'];
+        if (scopes.includes('all')) {
+          return true;
+        }
+        return activeStudentLevelScopes.some((scope) => scopes.includes(scope));
+      });
     }
-
-    return eventTypeOptions.filter((option) => {
-      const scopes = option.levelScopes?.length ? option.levelScopes : ['all'];
-      if (scopes.includes('all')) {
-        return true;
-      }
-      return activeStudentLevelScopes.some((scope) => scopes.includes(scope));
-    });
-  }, [activeStudentLevelScopes, eventTypeOptions]);
+    // Filter by selected severity in the add event dialog, unless 'all' is selected
+    if (formData.severity && formData.severity !== 'all') {
+      filtered = filtered.filter((option) => option.severity === formData.severity);
+    }
+    return filtered;
+  }, [activeStudentLevelScopes, eventTypeOptions, formData.severity]);
 
   const groupedEventTypeOptions = useMemo(() => {
     if (suggestedStudentLevels.length === 0) {
@@ -768,9 +773,9 @@ function BehavioralEventsPageContent() {
     if (query) {
       filtered = filtered.filter((student) => {
         return (
-          student.name.toLowerCase().includes(query) ||
-          student.lrn.toLowerCase().includes(query) ||
-          student.level.toLowerCase().includes(query)
+          (student.name && student.name.toLowerCase().includes(query)) ||
+          (student.lrn && student.lrn.toLowerCase().includes(query)) ||
+          (student.level && student.level.toLowerCase().includes(query))
         );
       });
     }
@@ -2272,7 +2277,7 @@ function BehavioralEventsPageContent() {
                       </Label>
                       <Select value={formData.severity} onValueChange={(value) => setFormData({...formData, severity: value})}>
                         <SelectTrigger id="severity" className="w-full">
-                          <SelectValue />
+                          <SelectValue placeholder="All Severities" />
                         </SelectTrigger>
                         <SelectContent>
                           {Object.keys(SEVERITY_COLORS).map(severity => (
