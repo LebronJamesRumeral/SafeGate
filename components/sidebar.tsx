@@ -15,6 +15,7 @@ import {
   CalendarDays,
   ClipboardCheck,
   MapPinned,
+  Megaphone,
   ChevronLeft,
   ChevronRight
 } from "lucide-react"
@@ -32,6 +33,7 @@ const allNavItems = [
   { icon: School, label: "Masterlist", href: "/masterlist", roles: ["admin", "guidance"] },
   { icon: ScanLine, label: "QR Scan & RFID Tap", href: "/scan", roles: ["teacher", "admin"] },
   { icon: CalendarDays, label: "Attendance Logs", href: "/attendance", roles: ["teacher", "admin"] },
+  { icon: CalendarDays, label: "Events", href: "/events", roles: ["teacher", "admin"] },
   { icon: Users, label: "Students", href: "/students", roles: ["teacher", "admin", "guidance"] },
   { icon: MapPinned, label: "School Heatmap", href: "/school-heatmap", roles: ["teacher", "admin", "guidance"] },
   { icon: BarChart3, label: "Analytics", href: "/analytics", roles: ["admin", "guidance"] },
@@ -39,7 +41,8 @@ const allNavItems = [
   // Parent dashboard nav item
   { icon: Users, label: "Parent Dashboard", href: "/parent", roles: ["parent"] },
   { icon: CalendarDays, label: "Attendance", href: "/parent-attendance", roles: ["parent"] },
-  { icon: AlertTriangle, label: "Child's Activity", href: "/parent-behavior", roles: ["parent"] }
+  { icon: AlertTriangle, label: "Child's Activity", href: "/parent-behavior", roles: ["parent"] },
+  { icon: Megaphone, label: "School Events", href: "/parent-events", roles: ["parent"] }
 ]
 
 const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
@@ -56,7 +59,7 @@ export function Sidebar() {
   // For parent, show all parent pages in mobile nav
   let mobilePrimaryNavItems = navItems
   if (user && user.role === "parent") {
-    mobilePrimaryNavItems = navItems.filter(item => ["/parent", "/parent-attendance", "/parent-behavior"].includes(item.href))
+    mobilePrimaryNavItems = navItems.filter(item => ["/parent", "/parent-attendance", "/parent-behavior", "/parent-events"].includes(item.href))
   } else {
     mobilePrimaryNavItems = navItems.filter((item) => mobilePrimaryHrefs.includes(item.href) || item.href === "/parent")
       .sort((a, b) => mobilePrimaryHrefs.indexOf(a.href) - mobilePrimaryHrefs.indexOf(b.href))

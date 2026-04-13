@@ -32,6 +32,7 @@ DROP TABLE IF EXISTS attendance_logs CASCADE;
 DROP TABLE IF EXISTS student_schedules CASCADE;
 DROP TABLE IF EXISTS student_attendance_schedules CASCADE;
 DROP TABLE IF EXISTS school_years CASCADE;
+DROP TABLE IF EXISTS school_events CASCADE;
 DROP TABLE IF EXISTS students CASCADE;
 DROP TABLE IF EXISTS heatmap_zones CASCADE;
 
@@ -385,6 +386,22 @@ CREATE INDEX IF NOT EXISTS idx_achievements_type ON achievements(achievement_typ
 -- ============================================================================
 -- ROLE-BASED NOTIFICATIONS
 -- ============================================================================
+CREATE TABLE IF NOT EXISTS school_events (
+  id BIGSERIAL PRIMARY KEY,
+  title VARCHAR(180) NOT NULL,
+  description TEXT,
+  event_date DATE NOT NULL,
+  start_time TIME,
+  end_time TIME,
+  location VARCHAR(255),
+  created_by VARCHAR(255),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_events_event_date ON school_events(event_date);
+CREATE INDEX IF NOT EXISTS idx_school_events_active ON school_events(is_active);
+
 CREATE TABLE IF NOT EXISTS role_notifications (
   id BIGSERIAL PRIMARY KEY,
   title VARCHAR(160) NOT NULL,
@@ -407,6 +424,7 @@ CREATE INDEX IF NOT EXISTS idx_role_notifications_read_by_roles ON role_notifica
 ALTER TABLE event_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE behavioral_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE achievements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE school_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE role_notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance_patterns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE absence_predictions ENABLE ROW LEVEL SECURITY;
@@ -423,6 +441,10 @@ CREATE POLICY "Enable read for all on achievements" ON achievements FOR SELECT U
 CREATE POLICY "Enable insert for all on achievements" ON achievements FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on achievements" ON achievements FOR UPDATE USING (true);
 CREATE POLICY "Enable delete for all on achievements" ON achievements FOR DELETE USING (true);
+CREATE POLICY "Enable read for all on school events" ON school_events FOR SELECT USING (true);
+CREATE POLICY "Enable insert for all on school events" ON school_events FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for all on school events" ON school_events FOR UPDATE USING (true);
+CREATE POLICY "Enable delete for all on school events" ON school_events FOR DELETE USING (true);
 CREATE POLICY "Enable read for all on role notifications" ON role_notifications FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on role notifications" ON role_notifications FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on role notifications" ON role_notifications FOR UPDATE USING (true);
