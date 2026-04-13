@@ -59,6 +59,7 @@ type BehavioralEventRecord = {
   parent_notified?: boolean;
   follow_up_required?: boolean;
   notes?: string | null;
+  proof_image_url?: string | null;
   created_at: string;
   students?: {
     name: string;
@@ -360,7 +361,7 @@ export default function GuidanceReviewPage() {
         supabase
           .from('behavioral_events')
           .select(
-            'id, student_lrn, event_type, severity, description, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, created_at'
+            'id, student_lrn, event_type, severity, description, proof_image_url, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, created_at'
           )
           .eq('student_lrn', studentLrn)
           .order('created_at', { ascending: false })
@@ -411,7 +412,7 @@ export default function GuidanceReviewPage() {
       const { data, error } = await supabase
         .from('behavioral_events')
         .select(
-          'id, student_lrn, event_type, severity, description, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, created_at, students(name, level)'
+          'id, student_lrn, event_type, severity, description, proof_image_url, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, created_at, students(name, level)'
         )
         .eq('guidance_status', 'pending_guidance')
         .order('created_at', { ascending: false })
@@ -450,7 +451,7 @@ export default function GuidanceReviewPage() {
       let query = supabase
         .from('behavioral_events')
         .select(
-          'id, student_lrn, event_type, severity, description, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, parent_notified, follow_up_required, notes, created_at, students(name, level)'
+          'id, student_lrn, event_type, severity, description, proof_image_url, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, parent_notified, follow_up_required, notes, created_at, students(name, level)'
         )
         .eq('guidance_status', 'approved_for_ml')
         .order('event_date', { ascending: false })
@@ -1443,6 +1444,12 @@ export default function GuidanceReviewPage() {
                           </div>
                           <p className="text-sm font-medium mt-2">{event.event_type}</p>
                           <p className="text-xs text-slate-500 line-clamp-2 mt-1">{event.description}</p>
+                          {event.proof_image_url && (
+                            <div className="mt-2 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={event.proof_image_url} alt="Behavior proof" className="h-20 w-full object-cover" />
+                            </div>
+                          )}
                           <div className="flex items-center justify-between mt-3 gap-2">
                             <p className="text-xs text-slate-500 truncate">{formatDate(event.created_at)}</p>
                             <Button size="sm" variant="outline" className="gap-2 shrink-0" onClick={() => void openReviewDialog(event)}>
@@ -1588,6 +1595,12 @@ export default function GuidanceReviewPage() {
                                   <div className="min-w-0">
                                     <p className="font-semibold text-slate-900 dark:text-white">{event.event_type}</p>
                                     <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 wrap-break-word">{event.description}</p>
+                                    {event.proof_image_url && (
+                                      <div className="mt-2 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden max-w-sm">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={event.proof_image_url} alt="Behavior proof" className="max-h-44 w-full object-contain bg-slate-50 dark:bg-slate-900/40" />
+                                      </div>
+                                    )}
                                   </div>
                                   <Button size="sm" variant="outline" className="gap-2 self-start" onClick={() => void openReviewDialog(event)}>
                                     <Eye className="w-4 h-4" />
@@ -2040,6 +2053,12 @@ export default function GuidanceReviewPage() {
                     {getGuidanceBadge(reviewEvent.guidance_status)}
                   </div>
                   <p className="text-sm text-slate-700 dark:text-slate-300">{reviewEvent.description}</p>
+                  {reviewEvent.proof_image_url && (
+                    <div className="mt-3 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={reviewEvent.proof_image_url} alt="Behavior proof" className="max-h-64 w-full object-contain bg-slate-50 dark:bg-slate-900/40" />
+                    </div>
+                  )}
                   <div className="mt-3 text-xs text-slate-500 space-y-1">
                     <p>Location: {reviewEvent.location || 'Not provided'}</p>
                     <p>Reported by: {reviewEvent.reported_by}</p>

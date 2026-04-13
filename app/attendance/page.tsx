@@ -44,6 +44,8 @@ import {
 import { supabase } from '@/lib/supabase';
 import { sortByLevel } from '@/lib/level-order';
 import { toast } from '@/components/ui/use-toast';
+import { useAuth } from '@/lib/auth-context';
+import { createRoleNotification } from '@/lib/role-notifications';
 import { MLDashboard } from '@/components/ml-dashboard';
 import AttendanceSkeleton from '@/components/attendance-skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -79,6 +81,8 @@ type AttendanceLog = {
   check_in_time: string;
   check_out_time: string | null;
   date: string;
+  attendance_status?: string | null;
+  is_present?: boolean | null;
 };
 
 const weekdayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -119,6 +123,8 @@ function getSchoolDays(start: string, end: string) {
 
 // Enforce consistent layout structure for attendance page
 export default function AttendancePage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const isMobile = useIsMobile();
   const today = new Date().toISOString().split('T')[0];
   const [dateMode, setDateMode] = useState<DateMode>('all');
@@ -139,6 +145,11 @@ export default function AttendancePage() {
   const [exportLoading, setExportLoading] = useState(false);
   const [parentNotes, setParentNotes] = useState<Record<string, Array<{ studentLrn: string; parentEmail: string; noteText: string; createdAt: string; attendanceDate: string }>>>({});
   const [openNotesModal, setOpenNotesModal] = useState<string | null>(null);
+  const [cancelClassesOpen, setCancelClassesOpen] = useState(false);
+  const [cancelDateStart, setCancelDateStart] = useState(today);
+  const [cancelDateEnd, setCancelDateEnd] = useState(today);
+  const [cancelReason, setCancelReason] = useState('');
+  const [submittingCancelClasses, setSubmittingCancelClasses] = useState(false);
 
   useEffect(() => {
     if (isMobile) {
@@ -215,7 +226,7 @@ export default function AttendancePage() {
 
       let attendanceQuery = supabase
         .from('attendance_logs')
-        .select('id, student_lrn, check_in_time, check_out_time, date')
+        .select('id, student_lrn, check_in_time, check_out_time, date, attendance_status, is_present')
         .gte('date', start)
         .lte('date', end)
         .order('date', { ascending: false })
@@ -338,6 +349,19 @@ export default function AttendancePage() {
     [appliedRange]
   );
 
+  const cancelledDatesSet = useMemo(() => {
+    return new Set(
+      logs
+        .filter((log) => (log.attendance_status || '').toLowerCase() === 'cancelled_class')
+        .map((log) => log.date)
+    );
+  }, [logs]);
+
+  const effectiveSchoolDays = useMemo(
+    () => schoolDays.filter((date) => !cancelledDatesSet.has(date)),
+    [schoolDays, cancelledDatesSet]
+  );
+
   const studentMap = useMemo(() => {
     return students.reduce((acc, student) => {
       acc[student.lrn] = student;
@@ -347,6 +371,9 @@ export default function AttendancePage() {
 
   const attendanceByStudent = useMemo(() => {
     return logs.reduce((acc, log) => {
+      const isCancelled = (log.attendance_status || '').toLowerCase() === 'cancelled_class';
+      if (isCancelled) return acc;
+      if (log.is_present === false) return acc;
       if (!acc[log.student_lrn]) {
         acc[log.student_lrn] = new Set<string>();
       }
@@ -357,6 +384,9 @@ export default function AttendancePage() {
 
   const attendanceByDate = useMemo(() => {
     return logs.reduce((acc, log) => {
+      const isCancelled = (log.attendance_status || '').toLowerCase() === 'cancelled_class';
+      if (isCancelled) return acc;
+      if (log.is_present === false) return acc;
       if (!acc[log.date]) {
         acc[log.date] = new Set<string>();
       }
@@ -377,9 +407,9 @@ export default function AttendancePage() {
       )
       .map((student) => {
         const presentDays = attendanceByStudent[student.lrn]?.size || 0;
-        const absentDays = Math.max(schoolDays.length - presentDays, 0);
-        const attendanceRate = schoolDays.length
-          ? ((presentDays / schoolDays.length) * 100).toFixed(1)
+        const absentDays = Math.max(effectiveSchoolDays.length - presentDays, 0);
+        const attendanceRate = effectiveSchoolDays.length
+          ? ((presentDays / effectiveSchoolDays.length) * 100).toFixed(1)
           : '0.0';
         // Severity logic: classify by attendance rate
         let severity = 'Positive';
@@ -411,7 +441,7 @@ export default function AttendancePage() {
       return bStr.localeCompare(aStr);
     });
     return rows;
-  }, [attendanceByStudent, schoolDays.length, search, students, sortConfig, selectedLevel, severityFilter]);
+  }, [attendanceByStudent, effectiveSchoolDays.length, search, students, sortConfig, selectedLevel, severityFilter]);
 
   const handleSort = (key: string) => {
     setSortConfig(current => ({
@@ -426,19 +456,19 @@ export default function AttendancePage() {
   const absentDatesForStudent = useMemo(() => {
     if (!selectedStudentSummary) return [] as string[];
     const presentDates = attendanceByStudent[selectedStudentSummary.lrn] || new Set<string>();
-    return schoolDays.filter((date) => !presentDates.has(date));
-  }, [attendanceByStudent, schoolDays, selectedStudentSummary]);
+    return effectiveSchoolDays.filter((date) => !presentDates.has(date));
+  }, [attendanceByStudent, effectiveSchoolDays, selectedStudentSummary]);
 
   const totalAbsences = summaryRows.reduce((sum, row) => sum + row.absentDays, 0);
   const totalCheckIns = logs.length;
   const totalStudents = students.length;
-  const averageAttendance = totalStudents && schoolDays.length
-    ? ((totalCheckIns / (totalStudents * schoolDays.length)) * 100).toFixed(1)
+  const averageAttendance = totalStudents && effectiveSchoolDays.length
+    ? ((totalCheckIns / (totalStudents * effectiveSchoolDays.length)) * 100).toFixed(1)
     : '0.0';
 
   const weekdayStats = useMemo(() => {
     const map = new Map<string, { totalPresent: number; countDays: number }>();
-    schoolDays.forEach((date) => {
+    effectiveSchoolDays.forEach((date) => {
       const weekday = weekdayLabels[new Date(date).getDay()];
       const presentCount = attendanceByDate[date]?.size || 0;
       const existing = map.get(weekday) || { totalPresent: 0, countDays: 0 };
@@ -457,13 +487,13 @@ export default function AttendancePage() {
 
     stats.sort((a, b) => b.rate - a.rate);
     return stats;
-  }, [attendanceByDate, schoolDays, totalStudents]);
+  }, [attendanceByDate, effectiveSchoolDays, totalStudents]);
 
   const levelStats = useMemo(() => {
     const levelMap = new Map<string, { totalRate: number; count: number }>();
     students.forEach((student) => {
       const presentDays = attendanceByStudent[student.lrn]?.size || 0;
-      const rate = schoolDays.length ? presentDays / schoolDays.length : 0;
+      const rate = effectiveSchoolDays.length ? presentDays / effectiveSchoolDays.length : 0;
       const existing = levelMap.get(student.level) || { totalRate: 0, count: 0 };
       levelMap.set(student.level, {
         totalRate: existing.totalRate + rate,
@@ -477,10 +507,10 @@ export default function AttendancePage() {
         rate: data.count ? (data.totalRate / data.count) * 100 : 0,
       }))
       .sort((a, b) => a.rate - b.rate);
-  }, [attendanceByStudent, schoolDays.length, students]);
+  }, [attendanceByStudent, effectiveSchoolDays.length, students]);
 
-  const lastSevenDays = schoolDays.slice(-7);
-  const previousSevenDays = schoolDays.slice(-14, -7);
+  const lastSevenDays = effectiveSchoolDays.slice(-7);
+  const previousSevenDays = effectiveSchoolDays.slice(-14, -7);
 
   const trendRate = (dates: string[]) => {
     if (!dates.length || !totalStudents) return 0;
@@ -511,6 +541,99 @@ export default function AttendancePage() {
   if (loading && isInitialLoad) {
     return <AttendanceSkeleton />;
   }
+
+  const handleCancelClasses = async () => {
+    if (!isAdmin || !supabase) return;
+    const [startDate, endDate] = normalizeRange(cancelDateStart, cancelDateEnd);
+    if (!startDate || !endDate) {
+      toast({
+        title: 'Missing dates',
+        description: 'Please select start and end dates.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const datesToCancel = getSchoolDays(startDate, endDate);
+    if (datesToCancel.length === 0) {
+      toast({
+        title: 'No school days selected',
+        description: 'The selected range does not include weekday class days.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSubmittingCancelClasses(true);
+    try {
+      const { data: activeStudents, error: studentsError } = await supabase
+        .from('students')
+        .select('lrn')
+        .eq('status', 'active');
+
+      if (studentsError) throw studentsError;
+
+      const studentLrns = (activeStudents || []).map((item: { lrn: string }) => item.lrn).filter(Boolean);
+      if (studentLrns.length === 0) {
+        toast({ title: 'No active students', description: 'No active student records were found.' });
+        return;
+      }
+
+      const rows = studentLrns.flatMap((lrn) =>
+        datesToCancel.map((date) => ({
+          student_lrn: lrn,
+          date,
+          check_in_time: `${date}T00:00:00.000Z`,
+          check_out_time: null,
+          is_present: false,
+          attendance_status: 'cancelled_class',
+          is_late: false,
+          is_invalid_timeout: false,
+        }))
+      );
+
+      const { error: upsertError } = await supabase
+        .from('attendance_logs')
+        .upsert(rows, { onConflict: 'student_lrn,date' });
+
+      if (upsertError) throw upsertError;
+
+      await createRoleNotification({
+        title: 'Classes Cancelled',
+        message:
+          startDate === endDate
+            ? `Classes on ${startDate} are cancelled.`
+            : `Classes from ${startDate} to ${endDate} are cancelled.`,
+        targetRoles: ['parent'],
+        createdBy: user?.username || 'admin',
+        meta: {
+          notification_kind: 'class_cancellation',
+          cancelled_start_date: startDate,
+          cancelled_end_date: endDate,
+          cancelled_dates: datesToCancel,
+          reason: cancelReason.trim() || null,
+          href: '/parent-attendance',
+        },
+      });
+
+      toast({
+        title: 'Class cancellation saved',
+        description: `Marked ${datesToCancel.length} day(s) as cancelled and notified parents.`,
+      });
+      setCancelClassesOpen(false);
+      setCancelReason('');
+      await fetchData();
+    } catch (error) {
+      console.error('Failed to cancel classes:', error);
+      toast({
+        title: 'Failed to save cancellation',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmittingCancelClasses(false);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -553,6 +676,59 @@ export default function AttendancePage() {
               )}
               Export Data
             </Button>
+            {isAdmin && (
+              <Dialog open={cancelClassesOpen} onOpenChange={setCancelClassesOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="gap-2 bg-orange-500 hover:bg-orange-600 text-white border-0 shadow-sm rounded-full"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Cancel Classes
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-xl border-orange-200 dark:border-orange-800/60">
+                  <DialogHeader>
+                    <DialogTitle className="text-orange-700 dark:text-orange-300">Cancel Classes</DialogTitle>
+                    <DialogDescription>
+                      Mark one or multiple dates as cancelled classes. Parents will receive a notification.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">Start date</label>
+                      <Input type="date" value={cancelDateStart} onChange={(e) => setCancelDateStart(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">End date</label>
+                      <Input type="date" value={cancelDateEnd} onChange={(e) => setCancelDateEnd(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">Reason (optional)</label>
+                    <Textarea
+                      placeholder="Reason for cancellation (e.g., typhoon warning, holiday, maintenance)."
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      className="min-h-24"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" onClick={() => setCancelClassesOpen(false)} disabled={submittingCancelClasses}>
+                      Close
+                    </Button>
+                    <Button
+                      onClick={() => void handleCancelClasses()}
+                      disabled={submittingCancelClasses}
+                      className="bg-orange-600 hover:bg-orange-700 text-white"
+                    >
+                      {submittingCancelClasses ? 'Saving...' : 'Save Cancellation'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </div>
 

@@ -101,7 +101,9 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
   id BIGSERIAL PRIMARY KEY,
   student_lrn VARCHAR(50) NOT NULL REFERENCES students(lrn) ON DELETE CASCADE,
   check_in_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  check_in_temperature NUMERIC(4,1),
   check_out_time TIMESTAMP WITH TIME ZONE,
+  check_out_temperature NUMERIC(4,1),
   date DATE NOT NULL,
   is_present BOOLEAN DEFAULT true,
   attendance_status VARCHAR(30) DEFAULT 'present',
@@ -110,6 +112,9 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(student_lrn, date)
 );
+
+ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS check_in_temperature NUMERIC(4,1);
+ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS check_out_temperature NUMERIC(4,1);
 
 -- Parent-attached notes on attendance logs
 CREATE TABLE IF NOT EXISTS parent_attendance_notes (
@@ -346,6 +351,7 @@ CREATE TABLE IF NOT EXISTS behavioral_events (
   guidance_reviewed_by VARCHAR(255),
   guidance_reviewed_at TIMESTAMP WITH TIME ZONE,
   guidance_intervention_notes TEXT,
+  proof_image_url TEXT,
   action_taken TEXT,
   notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -357,6 +363,7 @@ ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_status VARCHAR(3
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_reviewed_by VARCHAR(255);
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_reviewed_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_intervention_notes TEXT;
+ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS proof_image_url TEXT;
 
 -- Positive achievements and recognitions
 CREATE TABLE IF NOT EXISTS achievements (
@@ -390,6 +397,7 @@ CREATE TABLE IF NOT EXISTS school_events (
   id BIGSERIAL PRIMARY KEY,
   title VARCHAR(180) NOT NULL,
   description TEXT,
+  image_url TEXT,
   event_date DATE NOT NULL,
   start_time TIME,
   end_time TIME,

@@ -39,6 +39,7 @@ interface ScanResult {
   checkinTime?: string;
   attendanceStatus?: 'present' | 'late' | 'invalid_timeout' | 'absent';
   statusReason?: string;
+  temperature?: number;
 }
 
 const sharedScanRfidState = {
@@ -62,6 +63,10 @@ export default function ScanPage() {
   const [syncing, setSyncing] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [offlineAttendanceState, setOfflineAttendanceState] = useState<Record<string, 'in' | 'out'>>({});
+  const [temperatureModalOpen, setTemperatureModalOpen] = useState(false);
+  const [pendingTemperatureStudent, setPendingTemperatureStudent] = useState<any | null>(null);
+  const [temperatureInput, setTemperatureInput] = useState('');
+  const [submittingTemperature, setSubmittingTemperature] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scannerRef = useRef<any>(null);
   const rfidPortRef = useRef<any>(null);
@@ -374,7 +379,7 @@ export default function ScanPage() {
     return `${hour12}:${String(minute).padStart(2, '0')} ${suffix}`;
   };
 
-  const applyAttendanceOnline = async (studentLrn: string, scanIsoTime: string) => {
+  const applyAttendanceOnline = async (studentLrn: string, scanIsoTime: string, temperature?: number) => {
     if (!supabase) {
       throw new Error('Supabase client not initialized');
     }
@@ -426,6 +431,7 @@ export default function ScanPage() {
           {
             student_lrn: studentLrn,
             check_in_time: scanIsoTime,
+            check_in_temperature: temperature ?? null,
             date,
           },
         ]);
@@ -466,7 +472,10 @@ export default function ScanPage() {
 
     const { error } = await supabase
       .from('attendance_logs')
-      .update({ check_out_time: scanIsoTime })
+      .update({
+        check_out_time: scanIsoTime,
+        check_out_temperature: temperature ?? null,
+      })
       .eq('id', existing[0].id);
 
     if (error) {
@@ -512,7 +521,7 @@ export default function ScanPage() {
     }
   };
 
-  const recordAttendance = async (student: any) => {
+  const recordAttendance = async (student: any, temperature: number) => {
     const now = new Date();
     const nowIso = now.toISOString();
     const date = nowIso.split('T')[0];
@@ -522,6 +531,7 @@ export default function ScanPage() {
         await queueAttendanceScan({
           student_lrn: student.lrn,
           scanned_at: nowIso,
+          temperature,
         });
 
         const stateKey = `${student.lrn}:${date}`;
@@ -543,6 +553,7 @@ export default function ScanPage() {
           status: 'success',
           action,
           message: 'Saved securely offline. Will sync automatically when online.',
+          temperature,
         });
 
         await refreshPendingSyncCount();
@@ -558,7 +569,7 @@ export default function ScanPage() {
     }
 
     try {
-      const result = await applyAttendanceOnline(student.lrn, nowIso);
+      const result = await applyAttendanceOnline(student.lrn, nowIso, temperature);
 
       if (result.action === 'Checked In') {
         if (!supabase) {
@@ -597,7 +608,8 @@ export default function ScanPage() {
           status: 'success',
           action: 'Checked In',
           attendanceStatus: attendanceStatus as any,
-          statusReason: statusDisplay.text
+          statusReason: statusDisplay.text,
+          temperature,
         });
 
         try {
@@ -672,7 +684,8 @@ export default function ScanPage() {
           status: 'success',
           action: 'Checked Out',
           attendanceStatus: attendanceStatus as any,
-          statusReason: statusDisplay.text
+          statusReason: statusDisplay.text,
+          temperature,
         });
       }
     } catch (error) {
@@ -681,6 +694,7 @@ export default function ScanPage() {
         await queueAttendanceScan({
           student_lrn: student.lrn,
           scanned_at: nowIso,
+          temperature,
         });
         await refreshPendingSyncCount();
         setLastScan({
@@ -692,6 +706,7 @@ export default function ScanPage() {
           status: 'success',
           action: 'Queued Offline',
           message: 'Network issue detected. Record saved offline and queued for sync.',
+          temperature,
         });
       } catch (queueError) {
         console.error('Error queueing fallback attendance:', queueError);
@@ -701,6 +716,40 @@ export default function ScanPage() {
           time: now.toLocaleTimeString(),
         });
       }
+    }
+  };
+
+  const promptTemperatureForStudent = (student: any) => {
+    // Pause continuous scanning while temperature is being encoded for this scan.
+    setScanning(false);
+    setPendingTemperatureStudent(student);
+    setTemperatureInput('');
+    setTemperatureModalOpen(true);
+  };
+
+  const submitTemperatureAndRecord = async () => {
+    if (!pendingTemperatureStudent) return;
+    const parsed = Number.parseFloat(temperatureInput);
+    if (Number.isNaN(parsed) || parsed < 30 || parsed > 45) {
+      toast({
+        title: 'Invalid temperature',
+        description: 'Please enter a temperature between 30.0 and 45.0 C.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSubmittingTemperature(true);
+    try {
+      await recordAttendance(pendingTemperatureStudent, Number(parsed.toFixed(1)));
+      setTemperatureModalOpen(false);
+      setPendingTemperatureStudent(null);
+      setTemperatureInput('');
+      setManualId('');
+      setShowManualEntry(false);
+      setScanning(true);
+    } finally {
+      setSubmittingTemperature(false);
     }
   };
 
@@ -814,7 +863,7 @@ export default function ScanPage() {
               const student = await findStudent(data);
               
               if (student) {
-                await recordAttendance(student);
+                promptTemperatureForStudent(student);
                 // Keep scanner active for continuous queue processing.
                 setScanning(true);
               } else {
@@ -888,8 +937,18 @@ export default function ScanPage() {
     
     const student = await findStudent(manualId);
     if (student) {
-      await recordAttendance(student);
+      const parsed = Number.parseFloat(temperatureInput);
+      if (Number.isNaN(parsed) || parsed < 30 || parsed > 45) {
+        toast({
+          title: 'Invalid temperature',
+          description: 'Please enter a temperature between 30.0 and 45.0 C.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+      await recordAttendance(student, Number(parsed.toFixed(1)));
       setManualId('');
+      setTemperatureInput('');
       setShowManualEntry(false);
       return true;
     } else {
@@ -1086,6 +1145,14 @@ export default function ScanPage() {
                       </div>
 
                       <div className="space-y-2">
+                        {typeof lastScan.temperature === 'number' && (
+                          <div className="flex items-center justify-between p-3 rounded-lg bg-amber-50/80 dark:bg-amber-900/20 backdrop-blur-sm border border-amber-200/40 dark:border-amber-700/30">
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Temperature</span>
+                            <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                              {lastScan.temperature.toFixed(1)} C
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50/80 dark:bg-blue-900/20 backdrop-blur-sm border border-blue-200/40 dark:border-blue-700/30">
                           <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Check In Time</span>
                           <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
@@ -1254,6 +1321,16 @@ export default function ScanPage() {
                       }}
                       className="bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500/20"
                     />
+                    <Input
+                      type="number"
+                      min="30"
+                      max="45"
+                      step="0.1"
+                      placeholder="Temperature (e.g. 36.7)"
+                      value={temperatureInput}
+                      onChange={(e) => setTemperatureInput(e.target.value)}
+                      className="bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500/20"
+                    />
 
                     <Button
                       variant="default"
@@ -1269,6 +1346,51 @@ export default function ScanPage() {
                       <kbd className="px-2 py-1 text-xs border rounded-md bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600">Enter</kbd>
                       to submit
                     </p>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Dialog
+                open={temperatureModalOpen}
+                onOpenChange={(open) => {
+                  if (!submittingTemperature) {
+                    setTemperatureModalOpen(open);
+                    if (!open) {
+                      setPendingTemperatureStudent(null);
+                      setTemperatureInput('');
+                      setScanning(true);
+                    }
+                  }
+                }}
+              >
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Record Student Temperature</DialogTitle>
+                    <DialogDescription>
+                      Enter the latest temperature for {pendingTemperatureStudent?.name || 'the scanned student'} before check-in/check-out.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <Input
+                      type="number"
+                      min="30"
+                      max="45"
+                      step="0.1"
+                      placeholder="e.g. 36.7"
+                      value={temperatureInput}
+                      onChange={(e) => setTemperatureInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          void submitTemperatureAndRecord();
+                        }
+                      }}
+                    />
+                    <Button
+                      onClick={() => void submitTemperatureAndRecord()}
+                      disabled={submittingTemperature}
+                      className="w-full"
+                    >
+                      {submittingTemperature ? 'Saving...' : 'Save Temperature & Continue'}
+                    </Button>
                   </div>
                 </DialogContent>
               </Dialog>

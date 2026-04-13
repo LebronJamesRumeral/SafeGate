@@ -44,6 +44,7 @@ async function applyAttendanceScan(supabase: SupabaseClientLike, payload: Attend
         {
           student_lrn: payload.student_lrn,
           check_in_time: payload.scanned_at,
+          check_in_temperature: payload.temperature ?? null,
           date: scanDate,
         },
       ]);
@@ -61,7 +62,10 @@ async function applyAttendanceScan(supabase: SupabaseClientLike, payload: Attend
 
   const { error: updateError } = await supabase
     .from('attendance_logs')
-    .update({ check_out_time: payload.scanned_at })
+    .update({
+      check_out_time: payload.scanned_at,
+      check_out_temperature: payload.temperature ?? null,
+    })
     .eq('id', latest.id);
 
   if (updateError) {

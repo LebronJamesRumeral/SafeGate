@@ -33,7 +33,7 @@ const allNavItems = [
   { icon: School, label: "Masterlist", href: "/masterlist", roles: ["admin", "guidance"] },
   { icon: ScanLine, label: "QR Scan & RFID Tap", href: "/scan", roles: ["teacher", "admin"] },
   { icon: CalendarDays, label: "Attendance Logs", href: "/attendance", roles: ["teacher", "admin"] },
-  { icon: CalendarDays, label: "Events", href: "/events", roles: ["teacher", "admin"] },
+  { icon: Megaphone, label: "School Events", href: "/events", roles: ["teacher", "admin"] },
   { icon: Users, label: "Students", href: "/students", roles: ["teacher", "admin", "guidance"] },
   { icon: MapPinned, label: "School Heatmap", href: "/school-heatmap", roles: ["teacher", "admin", "guidance"] },
   { icon: BarChart3, label: "Analytics", href: "/analytics", roles: ["admin", "guidance"] },

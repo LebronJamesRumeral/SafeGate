@@ -139,7 +139,7 @@ async function getScheduleFromStudentSchedules(studentLrn: string): Promise<Stud
     entry_time: selectedWindow.startRaw,
     exit_time: selectedWindow.endRaw,
     school_days: schoolDays,
-    grace_period_minutes: 0,
+    grace_period_minutes: 10,
     is_active: true,
   };
 }
@@ -251,7 +251,7 @@ export function validateAttendanceStatus(
   // Get scheduled times in minutes
   const scheduledEntry = timeToMinutes(schedule.entry_time);
   const scheduledExit = timeToMinutes(schedule.exit_time);
-  const graceperiod = schedule.grace_period_minutes || 0;
+  const graceperiod = (schedule.grace_period_minutes ?? 0) > 0 ? schedule.grace_period_minutes : 10;
 
   // Get check-in time in minutes
   const checkInMinutes = checkInTime.getHours() * 60 + checkInTime.getMinutes();

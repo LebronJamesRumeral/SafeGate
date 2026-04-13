@@ -5,6 +5,7 @@ export type SchoolEvent = {
   id: number;
   title: string;
   description: string | null;
+  image_url: string | null;
   event_date: string;
   start_time: string | null;
   end_time: string | null;
@@ -35,6 +36,7 @@ export async function fetchActiveSchoolEvents(): Promise<SchoolEvent[]> {
 export async function createSchoolEvent(input: {
   title: string;
   description?: string | null;
+  image_url?: string | null;
   event_date: string;
   start_time?: string | null;
   end_time?: string | null;
@@ -48,6 +50,7 @@ export async function createSchoolEvent(input: {
     .insert({
       title: input.title.trim(),
       description: input.description?.trim() || null,
+      image_url: input.image_url || null,
       event_date: input.event_date,
       start_time: input.start_time || null,
       end_time: input.end_time || null,

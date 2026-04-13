@@ -28,6 +28,7 @@ import {
   Calendar,
   User,
   FileText,
+  ImagePlus,
   Download,
   Eye,
   TrendingUp,
@@ -103,6 +104,7 @@ interface BehavioralEvent {
   guidance_reviewed_by?: string | null;
   guidance_reviewed_at?: string | null;
   guidance_intervention_notes?: string | null;
+  proof_image_url?: string | null;
   action_taken?: string;
   notes?: string;
   created_at?: string;
@@ -176,6 +178,20 @@ interface CategoryTemplate {
 const REPORT_GROUP_ID_PREFIX = '[GROUP_REPORT_ID:';
 const REPORT_GROUP_COUNT_PREFIX = '[GROUP_REPORT_COUNT:';
 const EARLY_LEVEL_KEYWORDS = ['kinder', 'pre-k', 'prek', 'nursery', 'toddler'];
+const SYSTEM_GRADE_LEVELS = [
+  'Toddler & Nursery',
+  'Pre-K',
+  'Kinder 1',
+  'Kinder 2',
+  'Grade 1',
+  'Grade 2',
+  'Grade 3',
+  'Grade 4',
+  'Grade 5',
+  'Grade 6',
+  'Grade 7',
+  'Grade 8',
+];
 
 const getStudentLevelScope = (level?: string | null): 'early' | 'grade' => {
   const normalized = (level || '').toLowerCase();
@@ -437,9 +453,10 @@ function BehavioralEventsPageContent() {
 
   // Form state for adding new event
   const [formData, setFormData] = useState({
-    report_mode: 'single' as 'single' | 'group',
+    report_mode: 'single' as 'single' | 'group' | 'grade',
     student_lrn: '',
     student_lrns: [] as string[],
+    selected_grade: '',
     category_id: '',
     event_type: '',
     severity: 'all',
@@ -448,7 +465,8 @@ function BehavioralEventsPageContent() {
     witness_names: '',
     action_taken: '',
     follow_up_required: true,
-    notes: ''
+    notes: '',
+    proof_image_url: ''
   });
   const [addEventValidationErrors, setAddEventValidationErrors] = useState<{
     student?: string;
@@ -562,6 +580,8 @@ function BehavioralEventsPageContent() {
     [students, formData.student_lrns]
   );
 
+  const gradeModeLevelOptions = useMemo(() => SYSTEM_GRADE_LEVELS, []);
+
   const normalizedRole = (currentUser?.role || '').toString().toLowerCase();
   const isGuidanceUser = normalizedRole === 'guidance' || normalizedRole === 'admin';
 
@@ -628,7 +648,7 @@ function BehavioralEventsPageContent() {
   }, [availableCategoryTemplates, eventCategoryFilter]);
 
   const activeStudentLevelScopes = useMemo<Array<'early' | 'grade'>>(() => {
-    if (formData.report_mode === 'group') {
+    if (formData.report_mode === 'group' || formData.report_mode === 'grade') {
       return Array.from(new Set(selectedStudents.map((student) => getStudentLevelScope(student.level))));
     }
 
@@ -640,7 +660,7 @@ function BehavioralEventsPageContent() {
   }, [formData.report_mode, selectedStudents, selectedStudent]);
 
   const suggestedStudentLevels = useMemo(() => {
-    if (formData.report_mode === 'group') {
+    if (formData.report_mode === 'group' || formData.report_mode === 'grade') {
       return Array.from(new Set(selectedStudents.map((student) => student.level))).sort((a, b) =>
         a.localeCompare(b)
       );
@@ -794,6 +814,13 @@ function BehavioralEventsPageContent() {
     return filtered;
   }, [students, studentSearchQuery, studentLevelFilter]);
 
+  const reportStudentOptions = useMemo(() => {
+    if (formData.report_mode !== 'grade' || !formData.selected_grade) {
+      return filteredStudentOptions;
+    }
+    return filteredStudentOptions.filter((student) => student.level === formData.selected_grade);
+  }, [filteredStudentOptions, formData.report_mode, formData.selected_grade]);
+
   const achievementStudentOptions = useMemo(() => {
     const query = achievementStudentSearchQuery.trim().toLowerCase();
     if (!query) {
@@ -892,6 +919,7 @@ function BehavioralEventsPageContent() {
           guidance_reviewed_by,
           guidance_reviewed_at,
           guidance_intervention_notes,
+          proof_image_url,
           action_taken,
           notes,
           created_at,
@@ -1225,7 +1253,7 @@ function BehavioralEventsPageContent() {
     }
 
     const targetStudentSelectors =
-      formData.report_mode === 'group'
+      formData.report_mode === 'group' || formData.report_mode === 'grade'
         ? Array.from(new Set(formData.student_lrns))
         : formData.student_lrn
         ? [formData.student_lrn]
@@ -1242,6 +1270,12 @@ function BehavioralEventsPageContent() {
     if (formData.report_mode === 'group' && targetStudentSelectors.length < 2) {
       missingInputs.push('At least 2 students for General Report');
       validationErrors.student = 'Please select at least 2 students for General Report.';
+    } else if (formData.report_mode === 'grade' && !formData.selected_grade) {
+      missingInputs.push('Grade Level');
+      validationErrors.student = 'Please select a grade level.';
+    } else if (formData.report_mode === 'grade' && targetStudentSelectors.length < 1) {
+      missingInputs.push('Students from selected grade');
+      validationErrors.student = 'Please select at least one student from the selected grade.';
     } else if (formData.report_mode === 'single' && targetStudentSelectors.length < 1) {
       missingInputs.push('Student');
       validationErrors.student = 'Please select a student.';
@@ -1321,7 +1355,7 @@ function BehavioralEventsPageContent() {
       const today = new Date();
       const eventDate = today.toISOString().split('T')[0];
       const eventTime = today.toTimeString().split(' ')[0];
-      const groupReportId = formData.report_mode === 'group' && targetStudentSelectors.length > 1
+      const groupReportId = (formData.report_mode === 'group' || formData.report_mode === 'grade') && targetStudentSelectors.length > 1
         ? `report-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
         : null;
 
@@ -1363,6 +1397,7 @@ function BehavioralEventsPageContent() {
         guidance_reviewed_by: null,
         guidance_reviewed_at: null,
         guidance_intervention_notes: null,
+        proof_image_url: formData.proof_image_url || null,
         notes: notesWithWitnesses,
         event_date: eventDate,
         event_time: eventTime,
@@ -1500,7 +1535,7 @@ function BehavioralEventsPageContent() {
         const fallbackTargetStudentLrns = targetStudents.map(
           (student) => (student.lrn || '').trim() || `TEMP-${student.id}`
         );
-        const fallbackGroupReportId = formData.report_mode === 'group' && fallbackTargetStudentLrns.length > 1
+        const fallbackGroupReportId = (formData.report_mode === 'group' || formData.report_mode === 'grade') && fallbackTargetStudentLrns.length > 1
           ? `report-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
           : null;
         const fallbackNotesLines: string[] = [];
@@ -1531,6 +1566,7 @@ function BehavioralEventsPageContent() {
           guidance_reviewed_by: null,
           guidance_reviewed_at: null,
           guidance_intervention_notes: null,
+          proof_image_url: formData.proof_image_url || null,
           notes: fallbackNotesLines.join('\n\n') || null,
           event_date: today.toISOString().split('T')[0],
           event_time: today.toTimeString().split(' ')[0],
@@ -1708,6 +1744,7 @@ function BehavioralEventsPageContent() {
       report_mode: 'single',
       student_lrn: '',
       student_lrns: [],
+      selected_grade: '',
       category_id: '',
       event_type: '',
       severity: 'minor',
@@ -1716,7 +1753,8 @@ function BehavioralEventsPageContent() {
       witness_names: '',
       action_taken: '',
       follow_up_required: true,
-      notes: ''
+      notes: '',
+      proof_image_url: ''
     });
     setEventTypePickerOpen(false);
     setStudentSearchQuery('');
@@ -2084,12 +2122,13 @@ function BehavioralEventsPageContent() {
                       <Select
                         value={formData.report_mode}
                         onValueChange={(value) => {
-                          const mode = value === 'group' ? 'group' : 'single';
+                          const mode = value === 'group' ? 'group' : value === 'grade' ? 'grade' : 'single';
                           setFormData((current) => ({
                             ...current,
                             report_mode: mode,
                             student_lrn: mode === 'single' ? current.student_lrn : '',
-                            student_lrns: mode === 'group' ? current.student_lrns : [],
+                            student_lrns: mode === 'single' ? [] : current.student_lrns,
+                            selected_grade: mode === 'grade' ? current.selected_grade : '',
                           }));
                           setStudentSearchQuery('');
                           setAddEventValidationErrors((prev) => ({ ...prev, student: undefined }));
@@ -2101,19 +2140,52 @@ function BehavioralEventsPageContent() {
                         <SelectContent>
                           <SelectItem value="single">Single Student Report</SelectItem>
                           <SelectItem value="group">General Report (Multiple Students)</SelectItem>
+                          <SelectItem value="grade">Grade Report</SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
                         {formData.report_mode === 'group'
                           ? 'One report appears in logs while still recording separate entries per student for scoring.'
+                          : formData.report_mode === 'grade'
+                          ? 'Pick a grade level, then select student(s) only from that grade.'
                           : 'Use single-student mode for individual incidents.'}
                       </p>
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="student_picker" className="flex items-center gap-1">
-                        {formData.report_mode === 'group' ? 'Students' : 'Student'} <span className="text-red-500">*</span>
+                        {formData.report_mode === 'single' ? 'Student' : 'Students'} <span className="text-red-500">*</span>
                       </Label>
+                      {formData.report_mode === 'grade' && (
+                        <Select
+                          value={formData.selected_grade || '__none__'}
+                          onValueChange={(value) => {
+                            const selectedGrade = value === '__none__' ? '' : value;
+                            setFormData((current) => ({
+                              ...current,
+                              selected_grade: selectedGrade,
+                              student_lrns: selectedGrade
+                                ? current.student_lrns.filter((selector) => {
+                                    const student = students.find((s) => getStudentSelectorValue(s) === selector);
+                                    return student?.level === selectedGrade;
+                                  })
+                                : [],
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select grade level" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">Select grade level</SelectItem>
+                            {gradeModeLevelOptions.map((level) => (
+                              <SelectItem key={level} value={level}>
+                                {level}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                       <Popover open={studentPickerOpen} onOpenChange={setStudentPickerOpen}>
                         <PopoverTrigger asChild>
                           <Button
@@ -2122,13 +2194,15 @@ function BehavioralEventsPageContent() {
                             role="combobox"
                             className="w-full justify-between font-normal"
                           >
-                            {formData.report_mode === 'group'
-                              ? formData.student_lrns.length > 0
+                            {formData.report_mode === 'single'
+                              ? selectedStudent
+                                ? `${selectedStudent.name} (${selectedStudent.level})`
+                                : 'Search student by name or LRN'
+                              : formData.student_lrns.length > 0
                                 ? `${formData.student_lrns.length} student${formData.student_lrns.length > 1 ? 's' : ''} selected`
-                                : 'Search and select students'
-                              : selectedStudent
-                              ? `${selectedStudent.name} (${selectedStudent.level})`
-                              : 'Search student by name or LRN'}
+                                : formData.report_mode === 'grade' && formData.selected_grade
+                                  ? `Select students from ${formData.selected_grade}`
+                                  : 'Search and select students'}
                             <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
                           </Button>
                         </PopoverTrigger>
@@ -2142,11 +2216,11 @@ function BehavioralEventsPageContent() {
                             <CommandList>
                               <CommandEmpty>No student found. Try another name.</CommandEmpty>
                               <CommandGroup>
-                                {filteredStudentOptions.map((student, index) => {
+                                {reportStudentOptions.map((student, index) => {
                                   const studentLrn = (student.lrn || '').trim();
                                   const studentSelectorValue = getStudentSelectorValue(student);
                                   const isSelected =
-                                    formData.report_mode === 'group'
+                                    formData.report_mode !== 'single'
                                       ? formData.student_lrns.includes(studentSelectorValue)
                                       : formData.student_lrn === studentSelectorValue;
                                   return (
@@ -2154,7 +2228,7 @@ function BehavioralEventsPageContent() {
                                       key={`${studentSelectorValue}-${student.name}-${index}`}
                                       value={`${student.name} ${studentLrn} ${student.level}`}
                                       onSelect={() => {
-                                        if (formData.report_mode === 'group') {
+                                        if (formData.report_mode !== 'single') {
                                           setFormData((current) => {
                                             const alreadySelected = current.student_lrns.includes(studentSelectorValue);
                                             return {
@@ -2190,7 +2264,7 @@ function BehavioralEventsPageContent() {
                           </Command>
                         </PopoverContent>
                       </Popover>
-                      {formData.report_mode === 'group' && selectedStudents.length > 0 && (
+                      {formData.report_mode !== 'single' && selectedStudents.length > 0 && (
                         <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 p-2">
                           {selectedStudents.map((student) => (
                             <Badge key={student.lrn} variant="secondary" className="gap-1 pr-1">
@@ -2365,6 +2439,49 @@ function BehavioralEventsPageContent() {
                     />
                     {addEventValidationErrors.description && (
                       <p className="text-sm text-red-600 dark:text-red-400">{addEventValidationErrors.description}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="proof_image_url">Proof Image (Optional)</Label>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="gap-2 sm:w-auto"
+                        onClick={() => document.getElementById('behavior-proof-image-input')?.click()}
+                      >
+                        <ImagePlus className="w-4 h-4" />
+                        Upload Image
+                      </Button>
+                      <Input
+                        id="proof_image_url"
+                        placeholder="or paste image URL"
+                        value={formData.proof_image_url.startsWith('data:') ? '' : formData.proof_image_url}
+                        onChange={(e) => setFormData({ ...formData, proof_image_url: e.target.value })}
+                      />
+                    </div>
+                    <input
+                      id="behavior-proof-image-input"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const value = typeof reader.result === 'string' ? reader.result : '';
+                          setFormData((prev) => ({ ...prev, proof_image_url: value }));
+                        };
+                        reader.readAsDataURL(file);
+                        e.currentTarget.value = '';
+                      }}
+                    />
+                    {formData.proof_image_url && (
+                      <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2 bg-slate-50/70 dark:bg-slate-900/30">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={formData.proof_image_url} alt="Behavior proof preview" className="max-h-40 w-auto rounded-md object-contain" />
+                      </div>
                     )}
                   </div>
 
@@ -3102,6 +3219,12 @@ function BehavioralEventsPageContent() {
                               <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
                                 {event.description}
                               </p>
+                              {event.proof_image_url && (
+                                <div className="mt-2 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden max-w-xs">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={event.proof_image_url} alt="Event proof" className="h-24 w-full object-cover" />
+                                </div>
+                              )}
                               
                               <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500 dark:text-slate-500">
                                 <span className="flex items-center gap-1">
@@ -3375,6 +3498,15 @@ function BehavioralEventsPageContent() {
                       {selectedEvent.description}
                     </p>
                   </div>
+                  {selectedEvent.proof_image_url && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Proof Image</Label>
+                      <div className="mt-2 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={selectedEvent.proof_image_url} alt="Behavior proof" className="max-h-64 w-full object-contain bg-slate-50 dark:bg-slate-900/40" />
+                      </div>
+                    </div>
+                  )}
 
                   {selectedEvent.location && (
                     <div>

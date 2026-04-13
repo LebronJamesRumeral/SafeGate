@@ -3,6 +3,7 @@ type OfflineQueueKind = 'attendance_scan' | 'behavior_event';
 export interface AttendanceScanPayload {
   student_lrn: string;
   scanned_at: string;
+  temperature?: number;
 }
 
 export interface BehaviorEventPayload {
@@ -16,6 +17,7 @@ export interface BehaviorEventPayload {
   follow_up_required: boolean;
   parent_notified: boolean;
   notes: string | null;
+  proof_image_url?: string | null;
   event_date: string;
   event_time: string;
   reported_by: string;

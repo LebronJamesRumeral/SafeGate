@@ -923,6 +923,12 @@ export default function ParentBehaviorPage() {
 
                                       {/* Description */}
                                       <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">{event.description}</p>
+                                      {event.proof_image_url && (
+                                        <div className="rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                                          <img src={event.proof_image_url} alt="Behavior proof" className="max-h-56 w-full object-contain bg-slate-50 dark:bg-slate-900/40" />
+                                        </div>
+                                      )}
 
                                       {/* Metadata Grid */}
                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-700">
