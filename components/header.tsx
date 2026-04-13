@@ -215,15 +215,6 @@ export function Header() {
           {/* Left side - Date/Time and Logo */}
           <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <div className="hidden sm:flex flex-col gap-0.5">
-              <div className="w-10 h-10 rounded-lg bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm p-1">
-                <Image 
-                  src="/SGCDC.png" 
-                  alt="SGCDC Logo" 
-                  width={40} 
-                  height={40} 
-                  className="w-full h-full object-contain"
-                />
-              </div>
             </div>
             <div className="flex min-w-0 items-center gap-2">
               <Calendar className="h-4 w-4 shrink-0 text-[#1e3a8a] dark:text-orange-400 sm:h-5 sm:w-5" />
