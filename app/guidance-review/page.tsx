@@ -550,6 +550,7 @@ export default function GuidanceReviewPage() {
       })
       .join('');
 
+    const schoolLogoUrl = '/logo.png';
     printWindow.document.write(`
       <html>
         <head>
@@ -570,6 +571,9 @@ export default function GuidanceReviewPage() {
               border-bottom: 1px solid #1d4ed8;
               padding: 18px 20px;
             }
+            .brand-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+            .brand-left { display:flex; align-items:center; gap:12px; min-width:0; }
+            .brand-logo { width:46px; height:46px; border-radius:10px; background:#fff; object-fit:contain; padding:5px; }
             .brand-kicker { margin: 0; color: #93c5fd; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
             .brand-title { margin: 6px 0 0; color: #ffffff; font-size: 20px; font-weight: 700; }
             .content { padding: 16px 20px 18px; }
@@ -604,8 +608,15 @@ export default function GuidanceReviewPage() {
         <body>
           <div class="sheet">
             <div class="brand-header" style="background:#1e3a5f;background-image:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 100%);">
-              <p class="brand-kicker">Safe Gate Student Monitoring System</p>
-              <p class="brand-title">Approved Logs Report</p>
+              <div class="brand-row">
+                <div class="brand-left">
+                  <img src="${schoolLogoUrl}" alt="SGCDC Logo" class="brand-logo" />
+                  <div>
+                    <p class="brand-kicker">SGCDC • SafeGate Student Monitoring System</p>
+                    <p class="brand-title">Approved Logs Report</p>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="content">
               <div class="topline">
@@ -1008,6 +1019,7 @@ export default function GuidanceReviewPage() {
       )
       .join('');
 
+    const schoolLogoUrl = '/logo.png';
     printWindow.document.write(`
       <html>
         <head>
@@ -1028,6 +1040,9 @@ export default function GuidanceReviewPage() {
               border-bottom: 1px solid #1d4ed8;
               padding: 18px 20px;
             }
+            .brand-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+            .brand-left { display:flex; align-items:center; gap:12px; min-width:0; }
+            .brand-logo { width:46px; height:46px; border-radius:10px; background:#fff; object-fit:contain; padding:5px; }
             .brand-kicker { margin: 0; color: #93c5fd; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
             .brand-title { margin: 6px 0 0; color: #ffffff; font-size: 20px; font-weight: 700; }
             .content { padding: 16px 20px 18px; }
@@ -1054,8 +1069,15 @@ export default function GuidanceReviewPage() {
         <body>
           <div class="sheet">
             <div class="brand-header" style="background:#1e3a5f;background-image:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 100%);">
-              <p class="brand-kicker">Safe Gate Student Monitoring System</p>
-              <p class="brand-title">Student Daily Report</p>
+              <div class="brand-row">
+                <div class="brand-left">
+                  <img src="${schoolLogoUrl}" alt="SGCDC Logo" class="brand-logo" />
+                  <div>
+                    <p class="brand-kicker">SGCDC • SafeGate Student Monitoring System</p>
+                    <p class="brand-title">Student Daily Report</p>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="content">
               <div class="topline">

@@ -129,6 +129,8 @@ function formatDisplayTime(raw: string | null | undefined): string {
 
 function buildParentEmailContent(reportPayload: any) {
   const schoolName = process.env.SCHOOL_NAME || 'SafeGate';
+  const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL || '').replace(/\/$/, '');
+  const schoolLogoUrl = process.env.SCHOOL_LOGO_URL || (appBaseUrl ? `${appBaseUrl}/logo.png` : '');
   const studentName = reportPayload.student?.name || reportPayload.student?.lrn || 'Student';
   const parentName = reportPayload.parent?.name || 'Parent/Guardian';
   const eventType = reportPayload.event?.type || 'Behavioral Event';
@@ -222,12 +224,25 @@ function buildParentEmailContent(reportPayload: any) {
 
           <!-- Header Banner -->
           <tr>
-            <td style="background:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 100%);border-radius:12px 12px 0 0;padding:32px 36px;">
+            <td style="background:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 100%);border-radius:12px 12px 0 0;padding:24px 30px;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td>
-                    <p style="margin:0;color:#93c5fd;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;">${schoolName} Student Monitoring System</p>
-                    <h1 style="margin:8px 0 0;color:#ffffff;font-size:22px;font-weight:700;line-height:1.3;">Behavioral Incident Notice</h1>
+                  <td style="vertical-align:top;">
+                    <table cellpadding="0" cellspacing="0">
+                      <tr>
+                        ${
+                          schoolLogoUrl
+                            ? `<td style="padding-right:12px;vertical-align:top;">
+                                <img src="${schoolLogoUrl}" alt="SGCDC Logo" width="48" height="48" style="display:block;border-radius:10px;background:#ffffff;padding:5px;object-fit:contain;" />
+                               </td>`
+                            : ''
+                        }
+                        <td style="vertical-align:top;">
+                          <p style="margin:0;color:#93c5fd;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;">SGCDC • ${schoolName} Student Monitoring System</p>
+                          <h1 style="margin:8px 0 0;color:#ffffff;font-size:22px;font-weight:700;line-height:1.3;">Behavioral Incident Notice</h1>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                   <td align="right" valign="top">
                     <span style="display:inline-block;background:${severityInfo.color};color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:0.5px;text-transform:uppercase;">${severityInfo.label} Severity</span>
