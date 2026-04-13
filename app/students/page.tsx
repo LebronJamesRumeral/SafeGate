@@ -85,6 +85,11 @@ import {
   Cell
 } from 'recharts';
 
+const toDisplayLrn = (lrn?: string | null): string => {
+  const value = (lrn || '').trim();
+  return /^temp-\d+$/i.test(value) ? '' : value;
+};
+
 const QRCodeCanvas = dynamic(() => import('qrcode.react').then(mod => ({ default: mod.QRCodeCanvas })), { ssr: false });
 
 // Helper function to get risk level colors
@@ -898,6 +903,15 @@ export default function StudentsPage() {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [behavioralData, setBehavioralData] = useState<any>(null);
   const [loadingBehavioral, setLoadingBehavioral] = useState(false);
+  const [excuseLettersByLrn, setExcuseLettersByLrn] = useState<Record<string, Array<{
+    id: number;
+    title: string;
+    message: string;
+    created_at: string;
+    created_by: string | null;
+    meta: Record<string, any> | null;
+  }>>>({});
+  const [loadingExcuseLetters, setLoadingExcuseLetters] = useState(false);
   const [attendanceByLrn, setAttendanceByLrn] = useState<Record<string, { checkInTime?: string; checkOutTime?: string; passedDayEnd?: boolean; scheduledEndTime?: string }>>({});
   const [riskScores, setRiskScores] = useState<Record<string, RiskScore | null>>({});
   const [studentSchedules, setStudentSchedules] = useState<Record<string, Array<{
@@ -1145,14 +1159,16 @@ export default function StudentsPage() {
 
       // Map students and compute linkage
       const mappedStudents = (studentsData || []).map((student: any) => {
-        const parentEmail = (student.parent_email || '').trim().toLowerCase();
+        const normalizedParentEmail = (student.parent_email || student.parentEmail || '').trim().toLowerCase();
         return {
           ...student,
+          lrn: toDisplayLrn(student.lrn),
           riskLevel: student.risk_level || null,
           parentName: student.parent_name,
           parentContact: student.parent_contact,
-          parentEmail: student.parent_email,
-          isLinked: !!(parentEmail && parentEmailSet.has(parentEmail)),
+          parent_email: normalizedParentEmail || null,
+          parentEmail: normalizedParentEmail || null,
+          isLinked: !!(normalizedParentEmail && parentEmailSet.has(normalizedParentEmail)),
         };
       });
       setStudents(sortByLevel(mappedStudents));
@@ -1290,6 +1306,23 @@ export default function StudentsPage() {
     }
     setAddingStudent(true);
     try {
+      const normalizedParentEmail = newStudentForm.parentEmail.trim().toLowerCase();
+      if (normalizedParentEmail) {
+        const { error: parentUpsertError } = await supabase
+          .from('parents')
+          .upsert(
+            [{
+              parent_email: normalizedParentEmail,
+              full_name: newStudentForm.parentName.trim() || null,
+              contact: newStudentForm.parentContact.trim() || null,
+            }],
+            { onConflict: 'parent_email' }
+          );
+        if (parentUpsertError) {
+          throw parentUpsertError;
+        }
+      }
+
       const { error } = await supabase
         .from('students')
         .insert({
@@ -1302,7 +1335,7 @@ export default function StudentsPage() {
           address: newStudentForm.address.trim() || null,
           parent_name: newStudentForm.parentName.trim(),
           parent_contact: newStudentForm.parentContact.trim(),
-          parent_email: newStudentForm.parentEmail.trim(),
+          parent_email: normalizedParentEmail,
           status: newStudentForm.status,
           updated_at: new Date().toISOString(),
         });
@@ -1515,6 +1548,23 @@ export default function StudentsPage() {
         setAddingStudent(true);
 
         try {
+          const normalizedParentEmail = newStudentForm.parentEmail.trim().toLowerCase();
+          if (normalizedParentEmail) {
+            const { error: parentUpsertError } = await supabase
+              .from('parents')
+              .upsert(
+                [{
+                  parent_email: normalizedParentEmail,
+                  full_name: newStudentForm.parentName.trim() || null,
+                  contact: newStudentForm.parentContact.trim() || null,
+                }],
+                { onConflict: 'parent_email' }
+              );
+            if (parentUpsertError) {
+              throw parentUpsertError;
+            }
+          }
+
           const { error } = await supabase
             .from('students')
             .insert({
@@ -1527,7 +1577,7 @@ export default function StudentsPage() {
               address: newStudentForm.address.trim() || null,
               parent_name: newStudentForm.parentName.trim(),
               parent_contact: newStudentForm.parentContact.trim(),
-              parent_email: newStudentForm.parentEmail.trim(),
+              parent_email: normalizedParentEmail,
               status: newStudentForm.status,
               updated_at: new Date().toISOString(),
             });
@@ -1626,6 +1676,23 @@ export default function StudentsPage() {
     setAddingStudent(true);
 
     try {
+      const normalizedParentEmail = newStudentForm.parentEmail.trim().toLowerCase();
+      if (normalizedParentEmail) {
+        const { error: parentUpsertError } = await supabase
+          .from('parents')
+          .upsert(
+            [{
+              parent_email: normalizedParentEmail,
+              full_name: newStudentForm.parentName.trim() || null,
+              contact: newStudentForm.parentContact.trim() || null,
+            }],
+            { onConflict: 'parent_email' }
+          );
+        if (parentUpsertError) {
+          throw parentUpsertError;
+        }
+      }
+
       const { error } = await supabase
         .from('students')
         .insert({
@@ -1638,7 +1705,7 @@ export default function StudentsPage() {
           address: newStudentForm.address.trim() || null,
           parent_name: newStudentForm.parentName.trim(),
           parent_contact: newStudentForm.parentContact.trim(),
-          parent_email: newStudentForm.parentEmail.trim(),
+          parent_email: normalizedParentEmail,
           status: newStudentForm.status,
           updated_at: new Date().toISOString(),
         });
@@ -1830,6 +1897,45 @@ export default function StudentsPage() {
       }));
     } finally {
       setLoadingSchedule(false);
+    }
+  };
+
+  const fetchExcuseLetters = async (studentLrn: string) => {
+    if (!supabase || !studentLrn) return;
+
+    try {
+      setLoadingExcuseLetters(true);
+      const { data, error } = await supabase
+        .from('role_notifications')
+        .select('id, title, message, created_at, created_by, meta')
+        .contains('meta', {
+          notification_kind: 'parent_excuse_letter',
+          student_lrn: studentLrn,
+        })
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      setExcuseLettersByLrn((prev) => ({
+        ...prev,
+        [studentLrn]: (data || []) as Array<{
+          id: number;
+          title: string;
+          message: string;
+          created_at: string;
+          created_by: string | null;
+          meta: Record<string, any> | null;
+        }>,
+      }));
+    } catch (error) {
+      console.error('Error fetching excuse letters:', error);
+      setExcuseLettersByLrn((prev) => ({
+        ...prev,
+        [studentLrn]: [],
+      }));
+    } finally {
+      setLoadingExcuseLetters(false);
     }
   };
 
@@ -3415,7 +3521,7 @@ export default function StudentsPage() {
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-2 text-sm">
                                     <Mail className="h-3 w-3 text-muted-foreground" />
-                                    <span className="text-xs">{student.parentEmail || <span className="italic text-gray-400">No Email</span>}</span>
+                                    <span className="text-xs">{(student.parent_email || student.parentEmail || '').trim() || <span className="italic text-gray-400">No Email</span>}</span>
                                   </div>
                                   <div className="flex items-center gap-2 mt-1">
                                     {student.isLinked ? (
@@ -3429,7 +3535,7 @@ export default function StudentsPage() {
                                           await handleValidateParentAccount(student);
                                           fetchStudents();
                                         }}
-                                        disabled={validatedParentEmails.includes((student.parentEmail || '').toLowerCase())}
+                                        disabled={validatedParentEmails.includes(((student.parent_email || student.parentEmail || '')).toLowerCase())}
                                         title="Link parent account"
                                       >
                                         Link
@@ -3492,6 +3598,7 @@ export default function StudentsPage() {
                                         setScheduleDraft([]);
                                         fetchBehavioralData(student.lrn);
                                         fetchStudentSchedule(student.lrn);
+                                        fetchExcuseLetters(student.lrn);
                                       }}
                                       className="gap-1.5 hover:bg-primary/10 hover:text-primary whitespace-nowrap"
                                     >
@@ -3565,9 +3672,10 @@ export default function StudentsPage() {
                                         </DialogHeader>
 
                                         <Tabs defaultValue="overview" className="mt-6 space-y-4">
-                                          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-5">
+                                          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-6">
                                             <TabsTrigger value="overview">Overview</TabsTrigger>
                                             <TabsTrigger value="attendance">Attendance</TabsTrigger>
+                                            <TabsTrigger value="excuse-letters">Excuse Letters</TabsTrigger>
                                             <TabsTrigger value="schedule">Schedule</TabsTrigger>
                                             <TabsTrigger value="behavioral">Behavioral</TabsTrigger>
                                             <TabsTrigger value="qr">QR Code</TabsTrigger>
@@ -4099,6 +4207,51 @@ export default function StudentsPage() {
                                               <div className="text-center py-8 text-muted-foreground">
                                                 <Clock className="w-12 h-12 mx-auto mb-2 opacity-50" />
                                                 <p>No attendance record for today</p>
+                                              </div>
+                                            )}
+                                          </TabsContent>
+
+                                          <TabsContent value="excuse-letters" className="space-y-4 mt-4">
+                                            {loadingExcuseLetters ? (
+                                              <div className="flex justify-center py-8">
+                                                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                                              </div>
+                                            ) : (excuseLettersByLrn[selectedStudent.lrn] || []).length > 0 ? (
+                                              <div className="space-y-3">
+                                                {(excuseLettersByLrn[selectedStudent.lrn] || []).map((letter) => {
+                                                  const meta = letter.meta || {};
+                                                  const excuseType = String(meta.excuse_status || '').toLowerCase();
+                                                  const excuseDate = String(meta.excuse_date || '').slice(0, 10);
+                                                  const parentName = String(meta.parent_name || letter.created_by || 'Parent');
+                                                  const reason = String(meta.excuse_reason || '').trim();
+
+                                                  return (
+                                                    <div key={letter.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-4 space-y-2">
+                                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <div>
+                                                          <p className="font-semibold text-slate-900 dark:text-white">{letter.title || 'Parent Excuse Letter'}</p>
+                                                          <p className="text-xs text-muted-foreground">
+                                                            Submitted by {parentName} on {new Date(letter.created_at).toLocaleString()}
+                                                          </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                          <Badge className={excuseType === 'late' ? 'bg-amber-100 text-amber-700 border-0' : 'bg-red-100 text-red-700 border-0'}>
+                                                            {excuseType === 'late' ? 'Late' : 'Absent'}
+                                                          </Badge>
+                                                          <Badge variant="outline">{excuseDate || 'No date'}</Badge>
+                                                        </div>
+                                                      </div>
+                                                      <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
+                                                        {reason || letter.message || 'No explanation provided.'}
+                                                      </p>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            ) : (
+                                              <div className="text-center py-8 text-muted-foreground">
+                                                <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                                <p>No excuse letters submitted for this student.</p>
                                               </div>
                                             )}
                                           </TabsContent>

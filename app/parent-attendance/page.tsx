@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { getParentStudents } from '@/lib/parent-data';
 import { supabase } from '@/lib/supabase';
+import { createRoleNotification } from '@/lib/role-notifications';
 import { Users, CheckCircle2, Clock3, XCircle, TrendingUp, AlertTriangle, Star, MinusCircle, FileText, CalendarDays, Shield, MapPin, UserRound, Bell } from 'lucide-react';
 import { motion } from "framer-motion";
 
@@ -31,6 +32,17 @@ export default function ParentAttendancePage() {
   const [dateFilterByChild, setDateFilterByChild] = useState<Record<string, string>>({});
   const [statusFilterByChild, setStatusFilterByChild] = useState<Record<string, string>>({});
   const [behaviorFilterByChild, setBehaviorFilterByChild] = useState<Record<string, string>>({});
+  const [excuseModalOpen, setExcuseModalOpen] = useState(false);
+  const [excuseStudentLrn, setExcuseStudentLrn] = useState('');
+  const [excuseDate, setExcuseDate] = useState('');
+  const [excuseStatus, setExcuseStatus] = useState<'absent' | 'late'>('absent');
+  const [excuseReason, setExcuseReason] = useState('');
+  const [savingExcuse, setSavingExcuse] = useState(false);
+  const tomorrowIsoDate = (() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 1);
+    return date.toISOString().slice(0, 10);
+  })();
 
   useEffect(() => {
     if (authLoading) return;
@@ -160,6 +172,59 @@ export default function ParentAttendancePage() {
       setOpenNoteModal(null);
     } finally {
       setSavingNoteId(null);
+    }
+  };
+
+  const resetExcuseForm = () => {
+    setExcuseStudentLrn('');
+    setExcuseDate('');
+    setExcuseStatus('absent');
+    setExcuseReason('');
+  };
+
+  const handleSubmitExcuseLetter = async () => {
+    if (!user?.username || !supabase) return;
+
+    const selectedChild = children.find((child) => child.lrn === excuseStudentLrn);
+    const trimmedReason = excuseReason.trim();
+
+    if (!selectedChild || !excuseDate || !trimmedReason) {
+      return;
+    }
+
+    if (excuseDate < tomorrowIsoDate) {
+      return;
+    }
+
+    setSavingExcuse(true);
+    try {
+      const parentDisplayName = user.full_name || user.display_name || user.username;
+      const title = `Parent Excuse Letter (${excuseStatus === 'late' ? 'Late' : 'Absence'})`;
+      const message = `${parentDisplayName} submitted an excuse letter for ${selectedChild.name} on ${excuseDate}.`;
+
+      await createRoleNotification({
+        title,
+        message,
+        targetRoles: ['teacher', 'admin'],
+        createdBy: user.username,
+        meta: {
+          notification_kind: 'parent_excuse_letter',
+          student_lrn: selectedChild.lrn,
+          student_name: selectedChild.name,
+          student_level: selectedChild.level,
+          parent_email: user.username,
+          parent_name: parentDisplayName,
+          excuse_date: excuseDate,
+          excuse_status: excuseStatus,
+          excuse_reason: trimmedReason,
+          href: '/students',
+        },
+      });
+
+      setExcuseModalOpen(false);
+      resetExcuseForm();
+    } finally {
+      setSavingExcuse(false);
     }
   };
 
@@ -426,6 +491,95 @@ export default function ParentAttendancePage() {
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white font-mono mb-1">Parent Attendance</h1>
             <p className="text-slate-600 dark:text-slate-400 font-mono text-base">View your linked children and attendance logs.</p>
           </div>
+          <Dialog
+            open={excuseModalOpen}
+            onOpenChange={(open) => {
+              setExcuseModalOpen(open);
+              if (open && children.length > 0 && !excuseStudentLrn) {
+                setExcuseStudentLrn(children[0].lrn);
+              }
+              if (!open) {
+                resetExcuseForm();
+              }
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button className="gap-2 bg-linear-to-r from-blue-600 to-cyan-600 text-white">
+                <FileText className="w-4 h-4" />
+                Submit Excuse Letter
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="w-[96vw] sm:w-[92vw] max-w-xl">
+              <DialogHeader>
+                <DialogTitle>Submit Excuse Letter</DialogTitle>
+                <DialogDescription>
+                  Send an advance excuse for absence or late arrival. Teachers and admins will be notified.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">Student</label>
+                  <Select value={excuseStudentLrn} onValueChange={setExcuseStudentLrn}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Select child" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {children.map((child) => (
+                        <SelectItem key={child.id} value={child.lrn}>
+                          {child.name} ({child.level})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">Excuse Date</label>
+                    <input
+                      type="date"
+                      value={excuseDate}
+                      onChange={(e) => setExcuseDate(e.target.value)}
+                      min={tomorrowIsoDate}
+                      className="w-full h-10 px-2.5 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">Type</label>
+                    <Select value={excuseStatus} onValueChange={(value) => setExcuseStatus(value as 'absent' | 'late')}>
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="absent">Absent</SelectItem>
+                        <SelectItem value="late">Late</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">Explanation</label>
+                  <Textarea
+                    value={excuseReason}
+                    onChange={(e) => setExcuseReason(e.target.value)}
+                    placeholder="Explain the reason for this excuse."
+                    className="min-h-32 text-sm"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setExcuseModalOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSubmitExcuseLetter}
+                    disabled={savingExcuse || !excuseStudentLrn || !excuseDate || !excuseReason.trim() || excuseDate < tomorrowIsoDate}
+                    className="bg-linear-to-r from-blue-600 to-cyan-600 text-white"
+                  >
+                    {savingExcuse ? 'Submitting...' : 'Submit Letter'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Attendance Summary */}

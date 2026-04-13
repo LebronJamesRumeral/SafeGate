@@ -131,6 +131,7 @@ interface EventCategory {
 }
 
 interface StudentRecord {
+  id: number;
   lrn: string;
   name: string;
   level: string;
@@ -179,6 +180,16 @@ const EARLY_LEVEL_KEYWORDS = ['kinder', 'pre-k', 'prek', 'nursery', 'toddler'];
 const getStudentLevelScope = (level?: string | null): 'early' | 'grade' => {
   const normalized = (level || '').toLowerCase();
   return EARLY_LEVEL_KEYWORDS.some((keyword) => normalized.includes(keyword)) ? 'early' : 'grade';
+};
+
+const getStudentSelectorValue = (student: Pick<StudentRecord, 'id' | 'lrn'>): string => {
+  const lrn = (student.lrn || '').trim();
+  return lrn || `id:${student.id}`;
+};
+
+const toDisplayLrn = (lrn?: string | null): string => {
+  const value = (lrn || '').trim();
+  return /^temp-\d+$/i.test(value) ? '' : value;
 };
 
 const extractReportGroupId = (notes?: string | null): string | null => {
@@ -540,13 +551,14 @@ function BehavioralEventsPageContent() {
     filterEvents();
   }, [events, searchQuery, severityFilter, categoryFilter, dateFilter, sortConfig]);
 
-  const selectedStudent = useMemo(
-    () => students.find((student) => student.lrn === formData.student_lrn) || null,
-    [students, formData.student_lrn]
-  );
+  const selectedStudent = useMemo(() => {
+    const selectedValue = (formData.student_lrn || '').trim();
+    if (!selectedValue) return null;
+    return students.find((student) => getStudentSelectorValue(student) === selectedValue) || null;
+  }, [students, formData.student_lrn]);
 
   const selectedStudents = useMemo(
-    () => students.filter((student) => formData.student_lrns.includes(student.lrn)),
+    () => students.filter((student) => formData.student_lrns.includes(getStudentSelectorValue(student))),
     [students, formData.student_lrns]
   );
 
@@ -964,7 +976,7 @@ function BehavioralEventsPageContent() {
       // Fetch students for dropdown
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
-        .select('lrn, name, level, status, parent_name, parent_contact, parent_email')
+        .select('id, lrn, name, level, status, parent_name, parent_contact, parent_email')
         .eq('status', 'active')
         .order('name');
 
@@ -977,7 +989,11 @@ function BehavioralEventsPageContent() {
         });
         throw new Error(studentsError.message || 'Failed to fetch students');
       }
-      setStudents(studentsData || []);
+      const normalizedStudents = (studentsData || []).map((student) => ({
+        ...student,
+        lrn: toDisplayLrn(student.lrn),
+      }));
+      setStudents(normalizedStudents);
 
       await fetchTeacherAccounts();
 
@@ -1208,7 +1224,7 @@ function BehavioralEventsPageContent() {
       return;
     }
 
-    const targetStudentLrns =
+    const targetStudentSelectors =
       formData.report_mode === 'group'
         ? Array.from(new Set(formData.student_lrns))
         : formData.student_lrn
@@ -1219,13 +1235,14 @@ function BehavioralEventsPageContent() {
     const validationErrors: {
       student?: string;
       event_type?: string;
+      severity?: string;
       description?: string;
     } = {};
 
-    if (formData.report_mode === 'group' && targetStudentLrns.length < 2) {
+    if (formData.report_mode === 'group' && targetStudentSelectors.length < 2) {
       missingInputs.push('At least 2 students for General Report');
       validationErrors.student = 'Please select at least 2 students for General Report.';
-    } else if (formData.report_mode === 'single' && targetStudentLrns.length < 1) {
+    } else if (formData.report_mode === 'single' && targetStudentSelectors.length < 1) {
       missingInputs.push('Student');
       validationErrors.student = 'Please select a student.';
     }
@@ -1233,6 +1250,11 @@ function BehavioralEventsPageContent() {
     if (!formData.event_type) {
       missingInputs.push('Event Type');
       validationErrors.event_type = 'Please select an event type.';
+    }
+
+    if (!formData.severity || formData.severity === 'all') {
+      missingInputs.push('Severity');
+      validationErrors.severity = 'Please select a severity.';
     }
 
     if (!trimmedDescription) {
@@ -1261,8 +1283,10 @@ function BehavioralEventsPageContent() {
       return;
     }
 
-    const targetStudents = students.filter((student) => targetStudentLrns.includes(student.lrn));
-    if (targetStudents.length !== targetStudentLrns.length) {
+    const targetStudents = students.filter((student) =>
+      targetStudentSelectors.includes(getStudentSelectorValue(student))
+    );
+    if (targetStudents.length !== targetStudentSelectors.length) {
       toast({
         title: 'Student Not Found',
         description: 'Please select valid students from records.',
@@ -1273,17 +1297,38 @@ function BehavioralEventsPageContent() {
 
     setReportSubmitting(true);
     try {
+      const ensuredStudentLrnMap = new Map<number, string>();
+      for (const student of targetStudents) {
+        const existingLrn = (student.lrn || '').trim();
+        if (existingLrn) {
+          ensuredStudentLrnMap.set(student.id, existingLrn);
+          continue;
+        }
+
+        const provisionalLrn = `TEMP-${student.id}`;
+        const { error: lrnUpdateError } = await supabase
+          .from('students')
+          .update({ lrn: provisionalLrn, updated_at: new Date().toISOString() })
+          .eq('id', student.id);
+
+        if (lrnUpdateError) {
+          throw new Error(`Failed to assign temporary LRN for ${student.name}: ${lrnUpdateError.message}`);
+        }
+
+        ensuredStudentLrnMap.set(student.id, provisionalLrn);
+      }
+
       const today = new Date();
       const eventDate = today.toISOString().split('T')[0];
       const eventTime = today.toTimeString().split(' ')[0];
-      const groupReportId = formData.report_mode === 'group' && targetStudentLrns.length > 1
+      const groupReportId = formData.report_mode === 'group' && targetStudentSelectors.length > 1
         ? `report-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
         : null;
 
       const notesLines: string[] = [];
       if (groupReportId) {
         notesLines.push(`${REPORT_GROUP_ID_PREFIX}${groupReportId}]`);
-        notesLines.push(`${REPORT_GROUP_COUNT_PREFIX}${targetStudentLrns.length}]`);
+        notesLines.push(`${REPORT_GROUP_COUNT_PREFIX}${targetStudentSelectors.length}]`);
       }
       if (formData.witness_names.trim()) {
         notesLines.push(`Witnesses: ${formData.witness_names.trim()}`);
@@ -1304,8 +1349,8 @@ function BehavioralEventsPageContent() {
         currentUser?.username ||
         'Admin';
 
-      const insertPayloads = targetStudentLrns.map((studentLrn) => ({
-        student_lrn: studentLrn,
+      const insertPayloads = targetStudents.map((student) => ({
+        student_lrn: ensuredStudentLrnMap.get(student.id) || (student.lrn || '').trim(),
         category_id: matchedCategory ? Number(matchedCategory.id) : null,
         event_type: formData.event_type,
         severity: formData.severity,
@@ -1362,7 +1407,8 @@ function BehavioralEventsPageContent() {
       // Create heatmap data points for each behavioral event
       await Promise.all(
         targetStudents.map(async (student) => {
-          const eventId = eventIdByStudentLrn.get(student.lrn);
+          const studentLrn = ensuredStudentLrnMap.get(student.id) || (student.lrn || '').trim();
+          const eventId = eventIdByStudentLrn.get(studentLrn);
           if (eventId && formData.location) {
             try {
               // Find matching zone by name
@@ -1372,7 +1418,7 @@ function BehavioralEventsPageContent() {
                   zone_id: matchingZone.id,
                   event_type: 'behavioral',
                   event_id: eventId,
-                  student_lrn: student.lrn,
+                  student_lrn: studentLrn,
                   intensity_value: formData.severity === 'critical' ? 3.0 : formData.severity === 'major' ? 2.5 : formData.severity === 'minor' ? 1.5 : 1.0,
                   metadata: {
                     event_type: formData.event_type,
@@ -1393,17 +1439,18 @@ function BehavioralEventsPageContent() {
 
       await Promise.all(
         targetStudents.map(async (student) => {
-          const eventId = eventIdByStudentLrn.get(student.lrn);
+          const studentLrn = ensuredStudentLrnMap.get(student.id) || (student.lrn || '').trim();
+          const eventId = eventIdByStudentLrn.get(studentLrn);
           if (eventId) {
             await createRoleNotification({
               title: 'New Log For Guidance Review',
               message: `${student.name} has a new behavioral log pending review.`,
               targetRoles: ['guidance'],
               createdBy: reporterName,
-              relatedEventId: eventIdByStudentLrn.get(student.lrn) || null,
+              relatedEventId: eventId,
               meta: {
                 href: '/guidance-review',
-                student_lrn: student.lrn,
+                student_lrn: studentLrn,
                 event_type: formData.event_type,
                 report_group_id: groupReportId,
                 prevention_note: buildEarlyPreventionNote({
@@ -1427,7 +1474,8 @@ function BehavioralEventsPageContent() {
 
       // Broadcast ML refresh so dashboards update instantly without page refresh.
       if (typeof window !== 'undefined') {
-        targetStudentLrns.forEach((studentLrn) => {
+        targetStudents.forEach((student) => {
+          const studentLrn = ensuredStudentLrnMap.get(student.id) || (student.lrn || '').trim();
           window.dispatchEvent(
             new CustomEvent('ml-risk-refresh', {
               detail: { studentLrn, source: 'behavioral-events-log' },
@@ -1449,12 +1497,9 @@ function BehavioralEventsPageContent() {
 
       try {
         const today = new Date();
-        const fallbackTargetStudentLrns =
-          formData.report_mode === 'group'
-            ? Array.from(new Set(formData.student_lrns))
-            : formData.student_lrn
-            ? [formData.student_lrn]
-            : [];
+        const fallbackTargetStudentLrns = targetStudents.map(
+          (student) => (student.lrn || '').trim() || `TEMP-${student.id}`
+        );
         const fallbackGroupReportId = formData.report_mode === 'group' && fallbackTargetStudentLrns.length > 1
           ? `report-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
           : null;
@@ -2097,24 +2142,26 @@ function BehavioralEventsPageContent() {
                             <CommandList>
                               <CommandEmpty>No student found. Try another name.</CommandEmpty>
                               <CommandGroup>
-                                {filteredStudentOptions.map((student) => {
+                                {filteredStudentOptions.map((student, index) => {
+                                  const studentLrn = (student.lrn || '').trim();
+                                  const studentSelectorValue = getStudentSelectorValue(student);
                                   const isSelected =
                                     formData.report_mode === 'group'
-                                      ? formData.student_lrns.includes(student.lrn)
-                                      : formData.student_lrn === student.lrn;
+                                      ? formData.student_lrns.includes(studentSelectorValue)
+                                      : formData.student_lrn === studentSelectorValue;
                                   return (
                                     <CommandItem
-                                      key={student.lrn}
-                                      value={`${student.name} ${student.lrn} ${student.level}`}
+                                      key={`${studentSelectorValue}-${student.name}-${index}`}
+                                      value={`${student.name} ${studentLrn} ${student.level}`}
                                       onSelect={() => {
                                         if (formData.report_mode === 'group') {
                                           setFormData((current) => {
-                                            const alreadySelected = current.student_lrns.includes(student.lrn);
+                                            const alreadySelected = current.student_lrns.includes(studentSelectorValue);
                                             return {
                                               ...current,
                                               student_lrns: alreadySelected
-                                                ? current.student_lrns.filter((lrn) => lrn !== student.lrn)
-                                                : [...current.student_lrns, student.lrn],
+                                                ? current.student_lrns.filter((lrn) => lrn !== studentSelectorValue)
+                                                : [...current.student_lrns, studentSelectorValue],
                                             };
                                           });
                                           return;
@@ -2122,7 +2169,7 @@ function BehavioralEventsPageContent() {
                                         // Single mode: deselect if already selected
                                         setFormData((current) => ({
                                           ...current,
-                                          student_lrn: current.student_lrn === student.lrn ? '' : student.lrn,
+                                          student_lrn: current.student_lrn === studentSelectorValue ? '' : studentSelectorValue,
                                         }));
                                         setAddEventValidationErrors((prev) => ({ ...prev, student: undefined }));
                                         setStudentPickerOpen(false);
@@ -2132,7 +2179,7 @@ function BehavioralEventsPageContent() {
                                       <div className="flex flex-col">
                                         <span className="font-medium">{student.name}</span>
                                         <span className="text-xs text-muted-foreground">
-                                          {student.lrn} • {student.level}
+                                          {studentLrn || 'No LRN assigned'} • {student.level}
                                         </span>
                                       </div>
                                     </CommandItem>
@@ -2154,7 +2201,9 @@ function BehavioralEventsPageContent() {
                                 onClick={() =>
                                   setFormData((current) => ({
                                     ...current,
-                                    student_lrns: current.student_lrns.filter((lrn) => lrn !== student.lrn),
+                                    student_lrns: current.student_lrns.filter(
+                                      (lrn) => lrn !== getStudentSelectorValue(student)
+                                    ),
                                   }))
                                 }
                               >
@@ -2280,6 +2329,7 @@ function BehavioralEventsPageContent() {
                           <SelectValue placeholder="All Severities" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="all">All Severities</SelectItem>
                           {Object.keys(SEVERITY_COLORS).map(severity => (
                             <SelectItem key={severity} value={severity}>
                               <div className="flex items-center gap-2">
@@ -2290,6 +2340,9 @@ function BehavioralEventsPageContent() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {addEventValidationErrors.severity && (
+                        <p className="text-sm text-red-600 dark:text-red-400">{addEventValidationErrors.severity}</p>
+                      )}
                     </div>
                   </div>
 
