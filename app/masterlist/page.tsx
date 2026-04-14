@@ -13,7 +13,7 @@ import { UserCheck, GraduationCap } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
 import { supabase, type Student } from '@/lib/supabase';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { sortByLevel } from '@/lib/level-order';
 
 // Only these levels are considered current students

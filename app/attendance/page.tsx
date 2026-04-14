@@ -43,7 +43,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { sortByLevel } from '@/lib/level-order';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth-context';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { MLDashboard } from '@/components/ml-dashboard';
@@ -326,7 +326,9 @@ export default function AttendancePage() {
           schoolDays: schoolDays.length,
           totalCheckIns,
           totalAbsences,
-          averageAttendance: ((totalCheckIns / (totalStudents * schoolDays.length)) * 100).toFixed(1)
+          averageAttendance: totalStudents && effectiveSchoolDays.length
+            ? ((totalCheckIns / (totalStudents * effectiveSchoolDays.length)) * 100).toFixed(1)
+            : '0.0'
         }
       };
 
@@ -460,7 +462,10 @@ export default function AttendancePage() {
   }, [attendanceByStudent, effectiveSchoolDays, selectedStudentSummary]);
 
   const totalAbsences = summaryRows.reduce((sum, row) => sum + row.absentDays, 0);
-  const totalCheckIns = logs.length;
+  const totalCheckIns = logs.filter((log) => {
+    const isCancelled = (log.attendance_status || '').toLowerCase() === 'cancelled_class';
+    return !isCancelled && log.is_present !== false;
+  }).length;
   const totalStudents = students.length;
   const averageAttendance = totalStudents && effectiveSchoolDays.length
     ? ((totalCheckIns / (totalStudents * effectiveSchoolDays.length)) * 100).toFixed(1)
@@ -565,6 +570,10 @@ export default function AttendancePage() {
     }
 
     setSubmittingCancelClasses(true);
+    const cancelToast = toast({
+      title: 'Saving class cancellation...',
+      description: 'Please wait while class records are updated.',
+    });
     try {
       const { data: activeStudents, error: studentsError } = await supabase
         .from('students')
@@ -616,7 +625,8 @@ export default function AttendancePage() {
         },
       });
 
-      toast({
+      cancelToast.update({
+        id: cancelToast.id,
         title: 'Class cancellation saved',
         description: `Marked ${datesToCancel.length} day(s) as cancelled and notified parents.`,
       });
@@ -625,7 +635,8 @@ export default function AttendancePage() {
       await fetchData();
     } catch (error) {
       console.error('Failed to cancel classes:', error);
-      toast({
+      cancelToast.update({
+        id: cancelToast.id,
         title: 'Failed to save cancellation',
         description: error instanceof Error ? error.message : 'Unknown error',
         variant: 'destructive',
@@ -1407,13 +1418,15 @@ export default function AttendancePage() {
                   ) : (
                     logs.map((log) => {
                       const student = studentMap[log.student_lrn];
+                      const normalizedStatus = String(log.attendance_status || '').toLowerCase();
+                      const isCancelled = normalizedStatus === 'cancelled_class';
                       const checkIn = new Date(log.check_in_time);
                       const checkOut = log.check_out_time ? new Date(log.check_out_time) : null;
                       const duration = checkOut 
                         ? Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60)) 
                         : null;
                       
-                      const isLate = checkIn.getHours() > 8 || (checkIn.getHours() === 8 && checkIn.getMinutes() > 30);
+                      const isLate = !isCancelled && (checkIn.getHours() > 8 || (checkIn.getHours() === 8 && checkIn.getMinutes() > 30));
 
                       return (
                         <TableRow key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
@@ -1431,7 +1444,11 @@ export default function AttendancePage() {
                           </TableCell>
                           <TableCell className="hidden md:table-cell">{student?.level || 'N/A'}</TableCell>
                           <TableCell>
-                            {checkOut ? (
+                            {isCancelled ? (
+                              <Badge className="bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0">
+                                Cancelled
+                              </Badge>
+                            ) : checkOut ? (
                               <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-0">
                                 Completed
                               </Badge>
@@ -1443,9 +1460,7 @@ export default function AttendancePage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col">
-                              <span className="text-sm">
-                                {checkIn.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
+                              <span className="text-sm">{isCancelled ? '--' : checkIn.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                               {isLate && (
                                 <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0 text-xs mt-1">
                                   Late
@@ -1454,14 +1469,16 @@ export default function AttendancePage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {checkOut ? (
+                            {isCancelled ? (
+                              <span className="text-gray-400">--</span>
+                            ) : checkOut ? (
                               checkOut.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                             ) : (
                               <span className="text-gray-400">--</span>
                             )}
                           </TableCell>
                           <TableCell className="hidden md:table-cell">
-                            {duration ? (
+                            {!isCancelled && duration ? (
                               <span className="text-sm">
                                 {duration} min
                               </span>

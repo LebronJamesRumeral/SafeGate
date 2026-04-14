@@ -37,7 +37,6 @@ const allNavItems = [
   { icon: Users, label: "Students", href: "/students", roles: ["teacher", "admin", "guidance"] },
   { icon: MapPinned, label: "School Heatmap", href: "/school-heatmap", roles: ["teacher", "admin", "guidance"] },
   { icon: BarChart3, label: "Analytics", href: "/analytics", roles: ["admin", "guidance"] },
-  { icon: Settings, label: "Settings", href: "/settings", roles: ["admin"] },
   // Parent dashboard nav item
   { icon: Users, label: "Parent Dashboard", href: "/parent", roles: ["parent"] },
   { icon: CalendarDays, label: "Attendance", href: "/parent-attendance", roles: ["parent"] },

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ import { CalendarDays, MapPin, Clock, Pencil, Trash2, ImagePlus, Megaphone, Info
 import { fetchActiveSchoolEvents, createSchoolEvent, ensureUpcomingSchoolEventReminders, type SchoolEvent } from '@/lib/school-events';
 import { supabase } from '@/lib/supabase';
 import { motion } from 'framer-motion';
+import { toast } from '@/hooks/use-toast';
 
 type EventJoinIntent = {
   id: number;
@@ -26,6 +28,7 @@ type EventJoinIntent = {
 export default function EventsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const searchParams = useSearchParams();
 
   const [events, setEvents] = useState<SchoolEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +39,7 @@ export default function EventsPage() {
   const [selectedEvent, setSelectedEvent] = useState<SchoolEvent | null>(null);
   const [joinIntents, setJoinIntents] = useState<EventJoinIntent[]>([]);
   const [loadingJoinIntents, setLoadingJoinIntents] = useState(false);
+  const [notificationDeepLinkHandled, setNotificationDeepLinkHandled] = useState(false);
   const [formErrors, setFormErrors] = useState<{
     title?: string;
     description?: string;
@@ -118,6 +122,27 @@ export default function EventsPage() {
     void loadJoinIntents();
   }, [detailsOpen, selectedEvent]);
 
+  useEffect(() => {
+    if (notificationDeepLinkHandled || loading || events.length === 0) {
+      return;
+    }
+
+    const targetEventId = Number(searchParams.get('eventId') || '');
+    if (!Number.isFinite(targetEventId) || targetEventId <= 0) {
+      return;
+    }
+
+    const targetEvent = events.find((event) => event.id === targetEventId);
+    if (!targetEvent) {
+      setNotificationDeepLinkHandled(true);
+      return;
+    }
+
+    setSelectedEvent(targetEvent);
+    setDetailsOpen(true);
+    setNotificationDeepLinkHandled(true);
+  }, [events, loading, notificationDeepLinkHandled, searchParams]);
+
   const resetForm = () => {
     setEditingEvent(null);
     setFormErrors({});
@@ -160,6 +185,11 @@ export default function EventsPage() {
     if (!form.event_date) errors.event_date = 'Please select event date.';
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
+      toast({
+        title: 'Missing required fields',
+        description: 'Please complete the event title, description, and date.',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -169,7 +199,7 @@ export default function EventsPage() {
     try {
       if (editingEvent) {
         if (!supabase) return;
-        await supabase
+        const { error } = await supabase
           .from('school_events')
           .update({
             title: form.title.trim(),
@@ -182,8 +212,9 @@ export default function EventsPage() {
             updated_at: new Date().toISOString(),
           })
           .eq('id', editingEvent.id);
+        if (error) throw error;
       } else {
-        await createSchoolEvent({
+        const created = await createSchoolEvent({
           title: form.title,
           description: form.description,
           image_url: form.image_url || null,
@@ -193,11 +224,26 @@ export default function EventsPage() {
           location: form.location,
           created_by: user?.username || 'admin',
         });
+        if (!created) {
+          throw new Error('Unable to create school event');
+        }
       }
 
       setDialogOpen(false);
       resetForm();
       await loadEvents();
+      toast({
+        title: editingEvent ? 'Event updated' : 'Event created',
+        description: editingEvent
+          ? 'School event details were updated successfully.'
+          : 'School event was created and notifications were sent.',
+      });
+    } catch (error) {
+      toast({
+        title: editingEvent ? 'Failed to update event' : 'Failed to create event',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setSaving(false);
     }
@@ -216,14 +262,28 @@ export default function EventsPage() {
   const handleDelete = async (eventId: number) => {
     if (!isAdmin) return;
     if (!supabase) return;
-    await supabase
-      .from('school_events')
-      .update({
-        is_active: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', eventId);
-    await loadEvents();
+    try {
+      const { error } = await supabase
+        .from('school_events')
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', eventId);
+      if (error) throw error;
+
+      await loadEvents();
+      toast({
+        title: 'Event removed',
+        description: 'The event was archived successfully.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to remove event',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (

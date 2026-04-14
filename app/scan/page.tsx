@@ -15,7 +15,7 @@ import { QrCode, Camera, CheckCircle, XCircle, User, Clock, Hash, Wifi, WifiOff,
 import { useState, useRef, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 import { getOfflineQueueCount } from '@/lib/offline-secure-queue';
 import { queueAttendanceScan, syncOfflineQueue } from '@/lib/offline-sync';

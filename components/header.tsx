@@ -10,7 +10,7 @@ import { useTheme } from "next-themes"
 import { useCallback, useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
-import { ensureFridayParentWeeklyCheckInNotification, fetchRoleNotifications, getUnreadCount, markRoleNotificationsAsRead, RoleNotification } from "@/lib/role-notifications"
+import { ensureFridayParentWeeklyCheckInNotification, fetchRoleNotifications, getUnreadCount, markRoleNotificationsAsRead, resolveRoleNotificationHref, RoleNotification } from "@/lib/role-notifications"
 
 const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
 
@@ -64,7 +64,7 @@ export function Header() {
       return
     }
 
-    const href = typeof notification.meta?.href === 'string' ? notification.meta.href : '/'
+    const href = resolveRoleNotificationHref(notification, normalizedRole)
     const preventionNote = typeof notification.meta?.prevention_note === 'string' ? notification.meta.prevention_note : ''
     const notificationBody = preventionNote
       ? `${notification.message}\nEarly prevention: ${preventionNote}`
@@ -285,7 +285,7 @@ export function Header() {
                   )}
                   {roleNotifications.map((item) => {
                     const isUnread = !(item.read_by_roles || []).includes(normalizedRole)
-                    const href = typeof item.meta?.href === 'string' ? item.meta.href : '/'
+                    const href = resolveRoleNotificationHref(item, normalizedRole)
                     const preventionNote = typeof item.meta?.prevention_note === 'string' ? item.meta.prevention_note : null
 
                     return (
@@ -369,14 +369,22 @@ export function Header() {
                   )
                 })}
                 {mobileOverflowItems.length > 0 && <DropdownMenuSeparator className="my-1 sm:hidden dark:bg-slate-800" />}
-                <DropdownMenuItem asChild className="mx-2 hidden cursor-pointer rounded-xl px-3 py-2 transition-all duration-150 hover:bg-orange-100 dark:hover:bg-slate-800 sm:flex">
-                  <Link href="/settings">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </Link>
-                </DropdownMenuItem>
+                {normalizedRole === "admin" && (
+                  <DropdownMenuItem asChild className="mx-2 hidden cursor-pointer rounded-xl px-3 py-2 transition-all duration-150 hover:bg-orange-100 dark:hover:bg-slate-800 sm:flex">
+                    <Link href="/settings">
+                      <Settings className="mr-2 h-4 w-4" />
+                      Settings
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator className="my-1 dark:bg-slate-800" />
-                <DropdownMenuItem className="mx-2 mb-2 cursor-pointer rounded-xl px-3 py-2 text-red-600 transition-all duration-150 hover:bg-red-100 dark:text-red-400 dark:hover:bg-slate-800" onClick={logout}>
+                <DropdownMenuItem
+                  className="mx-2 mb-2 cursor-pointer rounded-xl px-3 py-2 text-red-600 transition-all duration-150 hover:bg-red-100 dark:text-red-400 dark:hover:bg-slate-800"
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    logout()
+                  }}
+                >
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </DropdownMenuItem>
