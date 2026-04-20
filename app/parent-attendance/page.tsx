@@ -17,6 +17,17 @@ import { createRoleNotification } from '@/lib/role-notifications';
 import { Users, CheckCircle2, Clock3, XCircle, TrendingUp, AlertTriangle, Star, MinusCircle, FileText, CalendarDays, Shield, MapPin, UserRound, Bell } from 'lucide-react';
 import { motion } from "framer-motion";
 
+type StudentScheduleRow = {
+  id: number;
+  day_of_week: string;
+  day_number: number;
+  subject: string;
+  start_time: string;
+  end_time: string;
+  room: string | null;
+  teacher_name: string | null;
+};
+
 export default function ParentAttendancePage() {
   const { user, loading: authLoading } = useAuth();
   const [children, setChildren] = useState<any[]>([]);
@@ -32,6 +43,8 @@ export default function ParentAttendancePage() {
   const [dateFilterByChild, setDateFilterByChild] = useState<Record<string, string>>({});
   const [statusFilterByChild, setStatusFilterByChild] = useState<Record<string, string>>({});
   const [behaviorFilterByChild, setBehaviorFilterByChild] = useState<Record<string, string>>({});
+  const [childSchedules, setChildSchedules] = useState<Record<string, StudentScheduleRow[]>>({});
+  const [loadingScheduleByChild, setLoadingScheduleByChild] = useState<Record<string, boolean>>({});
   const [excuseModalOpen, setExcuseModalOpen] = useState(false);
   const [excuseStudentLrn, setExcuseStudentLrn] = useState('');
   const [excuseDate, setExcuseDate] = useState('');
@@ -225,6 +238,35 @@ export default function ParentAttendancePage() {
       resetExcuseForm();
     } finally {
       setSavingExcuse(false);
+    }
+  };
+
+  const fetchChildSchedule = async (studentLrn: string) => {
+    if (!supabase || !studentLrn) return;
+    if (loadingScheduleByChild[studentLrn]) return;
+    if ((childSchedules[studentLrn] || []).length > 0) return;
+
+    setLoadingScheduleByChild((prev) => ({ ...prev, [studentLrn]: true }));
+    try {
+      const { data, error } = await supabase
+        .from('student_schedules')
+        .select('id, day_of_week, day_number, subject, start_time, end_time, room, teacher_name')
+        .eq('student_lrn', studentLrn)
+        .eq('is_active', true)
+        .order('day_number', { ascending: true })
+        .order('start_time', { ascending: true });
+
+      if (error) throw error;
+
+      setChildSchedules((prev) => ({
+        ...prev,
+        [studentLrn]: (data || []) as StudentScheduleRow[],
+      }));
+    } catch (error) {
+      console.warn('Failed to load child schedule.', error);
+      setChildSchedules((prev) => ({ ...prev, [studentLrn]: [] }));
+    } finally {
+      setLoadingScheduleByChild((prev) => ({ ...prev, [studentLrn]: false }));
     }
   };
 
@@ -655,14 +697,15 @@ export default function ParentAttendancePage() {
                 const presentCount = logs.filter((log: any) => String(log.attendance_status).toLowerCase() === 'present').length;
                 const lateCount = logs.filter((log: any) => String(log.attendance_status).toLowerCase() === 'late').length;
                 const absentCount = logs.filter((log: any) => String(log.attendance_status).toLowerCase() === 'absent').length;
-                const totalCount = logs.length;
+                const totalCount = presentCount + lateCount + absentCount;
                 const selectedDateFilter = dateFilterByChild[child.lrn] || '';
                 const selectedStatusFilter = statusFilterByChild[child.lrn] || 'all';
                 const selectedBehaviorFilter = behaviorFilterByChild[child.lrn] || 'all';
 
                 const filteredLogs = logs.filter((log: any) => {
                   const logDate = String(log.date || '').slice(0, 10);
-                  const status = String(log.attendance_status || '').toLowerCase();
+                  const statusRaw = String(log.attendance_status || '').toLowerCase();
+                  const status = statusRaw === 'cancelled_class' ? 'cancelled' : statusRaw;
                   const stats = behaviorIndicators[child.lrn]?.[logDate];
                   const hasBehavior = Boolean(stats && stats.total > 0);
                   const positiveCount = stats?.positive || 0;
@@ -681,8 +724,9 @@ export default function ParentAttendancePage() {
                   return matchDate && matchStatus && matchBehavior;
                 });
 
-                const attendanceRate = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
+                const attendanceRate = totalCount > 0 ? Math.round(((presentCount + lateCount) / totalCount) * 100) : 0;
                 const trendGood = absentCount === 0 && lateCount <= 2;
+                const scheduleRows = childSchedules[child.lrn] || [];
 
                 const colors = trendGood
                   ? {
@@ -799,6 +843,7 @@ export default function ParentAttendancePage() {
                                     <SelectItem value="present">Present</SelectItem>
                                     <SelectItem value="late">Late</SelectItem>
                                     <SelectItem value="absent">Absent</SelectItem>
+                                    <SelectItem value="cancelled">Cancelled</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -852,8 +897,20 @@ export default function ParentAttendancePage() {
                                         <TableCell className="py-3 px-4 text-sm">{log.check_in_time ? new Date(log.check_in_time).toLocaleTimeString() : '-'}</TableCell>
                                         <TableCell className="py-3 px-4 text-sm">{log.check_out_time ? new Date(log.check_out_time).toLocaleTimeString() : '-'}</TableCell>
                                         <TableCell className="py-3 px-4 text-sm">
-                                          <Badge className={String(log.attendance_status).toLowerCase() === 'present' ? 'bg-emerald-100 text-emerald-700 border-0 text-xs' : String(log.attendance_status).toLowerCase() === 'late' ? 'bg-orange-100 text-orange-700 border-0 text-xs' : 'bg-red-100 text-red-700 border-0 text-xs'}>
-                                            {String(log.attendance_status || '').charAt(0).toUpperCase() + String(log.attendance_status || '').slice(1)}
+                                          <Badge
+                                            className={
+                                              String(log.attendance_status).toLowerCase() === 'present'
+                                                ? 'bg-emerald-100 text-emerald-700 border-0 text-xs'
+                                                : String(log.attendance_status).toLowerCase() === 'late'
+                                                ? 'bg-orange-100 text-orange-700 border-0 text-xs'
+                                                : String(log.attendance_status).toLowerCase() === 'cancelled_class'
+                                                ? 'bg-slate-200 text-slate-700 border-0 text-xs'
+                                                : 'bg-red-100 text-red-700 border-0 text-xs'
+                                            }
+                                          >
+                                            {String(log.attendance_status).toLowerCase() === 'cancelled_class'
+                                              ? 'Cancelled'
+                                              : String(log.attendance_status || '').charAt(0).toUpperCase() + String(log.attendance_status || '').slice(1)}
                                           </Badge>
                                         </TableCell>
                                         <TableCell className="py-3 px-4 text-sm">
@@ -912,6 +969,74 @@ export default function ParentAttendancePage() {
                                 </TableBody>
                               </Table>
                             </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+
+                      <Dialog
+                        onOpenChange={(open) => {
+                          if (open) {
+                            void fetchChildSchedule(child.lrn);
+                          }
+                        }}
+                      >
+                        <DialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                          >
+                            View child schedule
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                          <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <DialogTitle className="text-xl font-bold">Class Schedule</DialogTitle>
+                                <DialogDescription className="mt-2 text-sm">
+                                  Weekly class schedule for <span className="font-semibold text-slate-900 dark:text-white">{child.name}</span> ({child.lrn})
+                                </DialogDescription>
+                              </div>
+                              <Badge className="bg-linear-to-r from-blue-600 to-cyan-600 text-white text-xs font-semibold px-3 py-1 whitespace-nowrap mr-8">
+                                {scheduleRows.length} Slot{scheduleRows.length !== 1 ? 's' : ''}
+                              </Badge>
+                            </div>
+                          </DialogHeader>
+
+                          <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+                            {loadingScheduleByChild[child.lrn] ? (
+                              <div className="py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                                Loading child schedule...
+                              </div>
+                            ) : scheduleRows.length === 0 ? (
+                              <div className="py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                                No class schedule configured yet for this child.
+                              </div>
+                            ) : (
+                              scheduleRows.map((row) => (
+                                <div
+                                  key={row.id}
+                                  className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-4 hover:shadow-md transition-shadow"
+                                >
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div className="space-y-1">
+                                      <p className="text-sm font-bold text-slate-900 dark:text-white">{row.subject || 'Class Session'}</p>
+                                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        {row.day_of_week} - {(row.start_time || '').slice(0, 5)} to {(row.end_time || '').slice(0, 5)}
+                                      </p>
+                                    </div>
+                                    <Badge variant="outline" className="text-xs">
+                                      Day {row.day_number}
+                                    </Badge>
+                                  </div>
+                                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                    <div>Room: {row.room || 'Not set'}</div>
+                                    <div>Teacher: {row.teacher_name || 'Not assigned'}</div>
+                                  </div>
+                                </div>
+                              ))
+                            )}
                           </div>
                         </DialogContent>
                       </Dialog>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,7 +28,7 @@ import {
   SelectSeparator
 } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { buildEarlyPreventionNote } from '@/lib/prevention-notes';
 import { motion } from 'framer-motion';
@@ -183,6 +183,7 @@ function stripBehavioralScoreFromNotes(notes: string) {
 
 export default function GuidanceReviewPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [authChecked, setAuthChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loadingStudents, setLoadingStudents] = useState(true);
@@ -246,6 +247,7 @@ export default function GuidanceReviewPage() {
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLogRecord[]>([]);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reviewEvent, setReviewEvent] = useState<BehavioralEventRecord | null>(null);
+  const [notificationDeepLinkHandled, setNotificationDeepLinkHandled] = useState(false);
   const [reviewNote, setReviewNote] = useState('');
   const [behaviorScoreInput, setBehaviorScoreInput] = useState('');
   const [suggestedBehaviorScore, setSuggestedBehaviorScore] = useState<number | null>(null);
@@ -684,6 +686,37 @@ export default function GuidanceReviewPage() {
       await fetchStudentDetails(event.student_lrn);
     }
   };
+
+  useEffect(() => {
+    if (!authChecked || notificationDeepLinkHandled || pendingQueue.length === 0) {
+      return;
+    }
+
+    const notificationType = (searchParams.get('notification') || '').trim().toLowerCase();
+    const targetEventId = Number(searchParams.get('eventId') || '');
+    if (notificationType !== 'new_guidance_log' || !Number.isFinite(targetEventId) || targetEventId <= 0) {
+      return;
+    }
+
+    const targetEvent = pendingQueue.find((event) => event.id === targetEventId);
+    if (!targetEvent) {
+      return;
+    }
+
+    const suggestedScore = computeSuggestedBehaviorScore(targetEvent);
+    const savedScore = parseBehavioralScoreFromNotes(targetEvent.guidance_intervention_notes);
+    setReviewEvent(targetEvent);
+    setReviewNote(targetEvent.guidance_intervention_notes || '');
+    setSuggestedBehaviorScore(suggestedScore);
+    setBehaviorScoreInput(String(savedScore?.value ?? suggestedScore));
+    setReviewDialogOpen(true);
+
+    if (selectedStudentLrn !== targetEvent.student_lrn) {
+      setSelectedStudentLrn(targetEvent.student_lrn);
+      void fetchStudentDetails(targetEvent.student_lrn);
+    }
+    setNotificationDeepLinkHandled(true);
+  }, [authChecked, notificationDeepLinkHandled, pendingQueue, searchParams, selectedStudentLrn]);
 
   const handleGuidanceDecision = async (decision: 'approved_for_ml' | 'denied_by_guidance') => {
     if (!supabase || !reviewEvent || guidanceSubmitting) {

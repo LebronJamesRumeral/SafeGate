@@ -426,6 +426,7 @@ function BehavioralEventsPageContent() {
   const [dateFilter, setDateFilter] = useState('all');
   const [selectedEvent, setSelectedEvent] = useState<BehavioralEvent | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [notificationDeepLinkHandled, setNotificationDeepLinkHandled] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isAchievementDialogOpen, setIsAchievementDialogOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -531,6 +532,28 @@ function BehavioralEventsPageContent() {
       setActiveTab('list');
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (loading || notificationDeepLinkHandled || events.length === 0) {
+      return;
+    }
+
+    const targetEventId = Number(searchParams.get('eventId') || '');
+    if (!Number.isFinite(targetEventId) || targetEventId <= 0) {
+      return;
+    }
+
+    const targetEvent = events.find((event) => event.id === targetEventId);
+    if (!targetEvent) {
+      setNotificationDeepLinkHandled(true);
+      return;
+    }
+
+    setSelectedEvent(targetEvent);
+    setIsDialogOpen(true);
+    setActiveTab('list');
+    setNotificationDeepLinkHandled(true);
+  }, [events, loading, notificationDeepLinkHandled, searchParams]);
 
   useEffect(() => {
     void refreshPendingSyncCount();

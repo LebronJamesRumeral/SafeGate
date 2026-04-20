@@ -55,6 +55,7 @@ import {
 } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import { useSearchParams } from 'next/navigation';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
 import { supabase, type Student as BaseStudent } from '@/lib/supabase';
 
@@ -279,6 +280,7 @@ export default function StudentsPage() {
   // Auth context for role-based UI
   const { user } = useAuth ? useAuth() : { user: null };
   const isAdmin = user?.role === 'admin';
+  const searchParams = useSearchParams();
   const [dropDialogOpen, setDropDialogOpen] = useState(false);
   const [dropConfirmEmail, setDropConfirmEmail] = useState('');
   const [dropConfirmPassword, setDropConfirmPassword] = useState('');
@@ -571,6 +573,9 @@ export default function StudentsPage() {
   const [filterRisk, setFilterRisk] = useState('all');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsTab, setDetailsTab] = useState('overview');
+  const [highlightExcuseDate, setHighlightExcuseDate] = useState('');
+  const [notificationDeepLinkHandled, setNotificationDeepLinkHandled] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentSchoolYearLabel, setCurrentSchoolYearLabel] = useState('');
@@ -1210,6 +1215,38 @@ export default function StudentsPage() {
   useEffect(() => {
     fetchStudents();
   }, []);
+
+  useEffect(() => {
+    if (notificationDeepLinkHandled || loading || students.length === 0) {
+      return;
+    }
+
+    const notificationType = (searchParams.get('notification') || '').trim().toLowerCase();
+    const studentLrn = (searchParams.get('studentLrn') || '').trim();
+    if (notificationType !== 'parent_excuse_letter' || !studentLrn) {
+      return;
+    }
+
+    const targetStudent = students.find(
+      (student) => (student.lrn || '').trim().toLowerCase() === studentLrn.toLowerCase()
+    );
+    if (!targetStudent) {
+      setNotificationDeepLinkHandled(true);
+      return;
+    }
+
+    const excuseDate = (searchParams.get('excuseDate') || '').trim();
+    setSelectedStudent(targetStudent);
+    setDetailsOpen(true);
+    setEditingSchedule(false);
+    setScheduleDraft([]);
+    setDetailsTab('excuse-letters');
+    setHighlightExcuseDate(excuseDate);
+    fetchBehavioralData(targetStudent.lrn);
+    fetchStudentSchedule(targetStudent.lrn);
+    fetchExcuseLetters(targetStudent.lrn);
+    setNotificationDeepLinkHandled(true);
+  }, [loading, notificationDeepLinkHandled, searchParams, students]);
 
   const resetAddStudentForm = () => {
     setNewStudentForm({
@@ -1937,6 +1974,18 @@ export default function StudentsPage() {
     } finally {
       setLoadingExcuseLetters(false);
     }
+  };
+
+  const openStudentDetails = (student: Student, options?: { tab?: string; highlightDate?: string }) => {
+    setSelectedStudent(student);
+    setDetailsOpen(true);
+    setEditingSchedule(false);
+    setScheduleDraft([]);
+    setDetailsTab(options?.tab || 'overview');
+    setHighlightExcuseDate(options?.highlightDate || '');
+    fetchBehavioralData(student.lrn);
+    fetchStudentSchedule(student.lrn);
+    fetchExcuseLetters(student.lrn);
   };
 
   const startEditingSchedule = () => {
@@ -3606,6 +3655,8 @@ export default function StudentsPage() {
                                       setDetailsOpen(false);
                                       setEditingSchedule(false);
                                       setScheduleDraft([]);
+                                      setDetailsTab('overview');
+                                      setHighlightExcuseDate('');
                                     }
                                   }}
                                 >
@@ -3614,13 +3665,7 @@ export default function StudentsPage() {
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => {
-                                        setSelectedStudent(student);
-                                        setDetailsOpen(false);
-                                        setEditingSchedule(false);
-                                        setScheduleDraft([]);
-                                        fetchBehavioralData(student.lrn);
-                                        fetchStudentSchedule(student.lrn);
-                                        fetchExcuseLetters(student.lrn);
+                                        openStudentDetails(student, { tab: 'overview' });
                                       }}
                                       className="gap-1.5 hover:bg-primary/10 hover:text-primary whitespace-nowrap"
                                     >
@@ -3693,6 +3738,7 @@ export default function StudentsPage() {
                                           </div>
                                         </DialogHeader>
 
+<<<<<<< HEAD
                                         <Tabs defaultValue="overview" className="mt-6 space-y-4">
                                           <TabsList
                                             className="
@@ -3710,6 +3756,16 @@ export default function StudentsPage() {
                                             <TabsTrigger value="schedule" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Schedule</TabsTrigger>
                                             <TabsTrigger value="behavioral" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Behavioral</TabsTrigger>
                                             <TabsTrigger value="qr" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">QR Code</TabsTrigger>
+=======
+                                        <Tabs value={detailsTab} onValueChange={setDetailsTab} className="mt-6 space-y-4">
+                                          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-6">
+                                            <TabsTrigger value="overview">Overview</TabsTrigger>
+                                            <TabsTrigger value="attendance">Attendance</TabsTrigger>
+                                            <TabsTrigger value="excuse-letters">Excuse Letters</TabsTrigger>
+                                            <TabsTrigger value="schedule">Schedule</TabsTrigger>
+                                            <TabsTrigger value="behavioral">Behavioral</TabsTrigger>
+                                            <TabsTrigger value="qr">QR Code</TabsTrigger>
+>>>>>>> 610d1408e1e3e2f7ec87af61a7ec8e77b8bfc9bf
                                           </TabsList>
 
                                           {savingStudentInfo && (
@@ -4256,9 +4312,17 @@ export default function StudentsPage() {
                                                   const excuseDate = String(meta.excuse_date || '').slice(0, 10);
                                                   const parentName = String(meta.parent_name || letter.created_by || 'Parent');
                                                   const reason = String(meta.excuse_reason || '').trim();
+                                                  const isHighlighted = Boolean(highlightExcuseDate) && excuseDate === highlightExcuseDate.slice(0, 10);
 
                                                   return (
-                                                    <div key={letter.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-4 space-y-2">
+                                                    <div
+                                                      key={letter.id}
+                                                      className={`rounded-xl border p-4 space-y-2 ${
+                                                        isHighlighted
+                                                          ? 'border-blue-400 bg-blue-50/80 dark:border-blue-500 dark:bg-blue-950/30'
+                                                          : 'border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40'
+                                                      }`}
+                                                    >
                                                       <div className="flex flex-wrap items-center justify-between gap-2">
                                                         <div>
                                                           <p className="font-semibold text-slate-900 dark:text-white">{letter.title || 'Parent Excuse Letter'}</p>

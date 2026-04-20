@@ -14,6 +14,97 @@ export type RoleNotification = {
   created_at: string;
 };
 
+export function resolveRoleNotificationHref(notification: RoleNotification, role?: string): string {
+  const buildHref = (basePath: string, params?: Record<string, string | number | null | undefined>): string => {
+    const query = new URLSearchParams();
+    Object.entries(params || {}).forEach(([key, value]) => {
+      if (value === null || value === undefined) return;
+      const normalized = String(value).trim();
+      if (!normalized) return;
+      query.set(key, normalized);
+    });
+
+    const queryString = query.toString();
+    return queryString ? `${basePath}?${queryString}` : basePath;
+  };
+
+  const normalizedRole = (role || '').toLowerCase();
+  const notificationMeta = notification.meta || {};
+  const notificationKind =
+    typeof notificationMeta.notification_kind === 'string'
+      ? notificationMeta.notification_kind.toLowerCase()
+      : '';
+  const normalizedTitle = notification.title.toLowerCase();
+  const explicitHref = typeof notificationMeta.href === 'string' ? notificationMeta.href.trim() : '';
+  const eventId =
+    typeof notificationMeta.event_id === 'number'
+      ? notificationMeta.event_id
+      : typeof notification.related_event_id === 'number'
+      ? notification.related_event_id
+      : undefined;
+  const studentLrn =
+    typeof notificationMeta.student_lrn === 'string' ? notificationMeta.student_lrn : undefined;
+  const excuseDate =
+    typeof notificationMeta.excuse_date === 'string' ? notificationMeta.excuse_date : undefined;
+
+  if (explicitHref) {
+    const hasQuery = explicitHref.includes('?');
+    if (hasQuery) return explicitHref;
+  }
+
+  if (notificationKind === 'weekly_check_in_reminder') return '/parent-behavior';
+  if (notificationKind === 'school_event_posted' || notificationKind === 'school_event_reminder') return '/parent-events';
+  if (notificationKind === 'class_cancellation') return '/parent-attendance';
+  if (notificationKind === 'parent_excuse_letter') {
+    return buildHref('/students', {
+      notification: 'parent_excuse_letter',
+      studentLrn,
+      excuseDate,
+    });
+  }
+  if (notificationKind === 'school_event_join_intent') {
+    return buildHref('/events', {
+      notification: 'school_event_join_intent',
+      eventId,
+    });
+  }
+
+  if (normalizedTitle.includes('new log for guidance review')) {
+    return buildHref('/guidance-review', {
+      notification: 'new_guidance_log',
+      eventId,
+      studentLrn,
+    });
+  }
+  if (normalizedTitle.includes('log reviewed by guidance')) {
+    return normalizedRole === 'parent'
+      ? '/parent-behavior'
+      : buildHref('/behavioral-events', {
+          notification: 'guidance_reviewed_log',
+          eventId,
+          studentLrn,
+        });
+  }
+  if (normalizedTitle.includes('parent event attendance confirmation')) {
+    return buildHref('/events', {
+      notification: 'school_event_join_intent',
+      eventId,
+    });
+  }
+  if (normalizedTitle.includes('parent excuse letter')) {
+    return buildHref('/students', {
+      notification: 'parent_excuse_letter',
+      studentLrn,
+      excuseDate,
+    });
+  }
+
+  if (explicitHref) return explicitHref;
+  if (normalizedRole === 'parent') return '/parent';
+  if (normalizedRole === 'guidance') return '/guidance-review';
+  return '/';
+}
+
 export type CreateRoleNotificationInput = {
   title: string;
   message: string;
