@@ -465,6 +465,31 @@ export default function MasterlistPage() {
         return;
       }
 
+      // Ensure parent rows exist first to satisfy students.parent_email foreign key.
+      const uniqueParents = new Map<string, { parent_email: string; full_name: string | null; contact: string | null }>();
+      parsed.rows.forEach((row) => {
+        const email = (row.parent_email || '').trim().toLowerCase();
+        if (!email) return;
+        if (!uniqueParents.has(email)) {
+          uniqueParents.set(email, {
+            parent_email: email,
+            full_name: row.parent_name?.trim() || null,
+            contact: row.parent_contact?.trim() || null,
+          });
+        }
+      });
+
+      if (uniqueParents.size > 0) {
+        const parentRows = Array.from(uniqueParents.values());
+        const { error: parentUpsertError } = await supabase
+          .from('parents')
+          .upsert(parentRows, { onConflict: 'parent_email' });
+
+        if (parentUpsertError) {
+          throw parentUpsertError;
+        }
+      }
+
       const chunkSize = 200;
       for (let i = 0; i < parsed.rows.length; i += chunkSize) {
         const chunk = parsed.rows.slice(i, i + chunkSize);

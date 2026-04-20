@@ -2480,17 +2480,31 @@ export default function StudentsPage() {
         return;
       }
 
-      // Ensure parent rows exist first to satisfy students.parent_email foreign key.
-      const uniqueParents = new Map<string, { parent_email: string; full_name: string | null; contact: string | null }>();
+
+      // Strictly clean/validate parent emails and ensure required fields
+      const uniqueParents = new Map();
       parsed.rows.forEach((row) => {
-        const email = (row.parent_email || '').trim().toLowerCase();
-        if (!email) return;
+        // Clean and validate parent email
+        let email = (row.parent_email || '').toString().trim().toLowerCase();
+        if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
         if (!uniqueParents.has(email)) {
           uniqueParents.set(email, {
             parent_email: email,
-            full_name: row.parent_name?.trim() || null,
-            contact: row.parent_contact?.trim() || null,
+            full_name: (row.parent_name || '').toString().trim() || email,
+            contact: (row.parent_contact || '').toString().trim() || null,
           });
+        }
+        // Also update the row to use the cleaned email
+        row.parent_email = email;
+
+        // Convert gender 'f'/'m' to 'Female'/'Male' and capitalize first letter
+        if (row.gender) {
+          let g = row.gender.toString().trim().toLowerCase();
+          if (g === 'f') g = 'female';
+          else if (g === 'm') g = 'male';
+          if (g === 'female' || g === 'male') {
+            row.gender = g.charAt(0).toUpperCase() + g.slice(1);
+          }
         }
       });
 
@@ -2501,7 +2515,14 @@ export default function StudentsPage() {
           .upsert(parentRows, { onConflict: 'parent_email' });
 
         if (parentUpsertError) {
-          throw parentUpsertError;
+          toast({
+            title: 'Parent import failed',
+            description: parentUpsertError.message || 'Unable to import parent records. Please check your Excel file for missing or invalid parent emails.',
+            variant: 'destructive',
+          });
+          setImportingStudents(false);
+          event.target.value = '';
+          return;
         }
       }
 
@@ -2615,6 +2636,7 @@ export default function StudentsPage() {
               Active students enrolled in {currentSchoolYearLabel} • {filteredStudents.length} students
             </p>
           </div>
+          
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <input
               ref={importInputRef}
@@ -3607,9 +3629,9 @@ export default function StudentsPage() {
                                     </Button>
                                   </DialogTrigger>
                                   <DialogContent
-                                    className="w-[96vw] max-w-5xl lg:max-w-5xl p-0 flex flex-col"
+                                    className="w-full max-w-5xl lg:max-w-5xl p-0 flex flex-col sm:w-[96vw]"
                                   >
-                                    <div className="relative h-full p-6 md:p-8">
+                                    <div className="relative h-full p-2 sm:p-6 md:p-8 max-h-[90vh] overflow-y-auto">
                                     {selectedStudent && (
                                       <>
                                         <DialogHeader>
@@ -3672,13 +3694,22 @@ export default function StudentsPage() {
                                         </DialogHeader>
 
                                         <Tabs defaultValue="overview" className="mt-6 space-y-4">
-                                          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-6">
-                                            <TabsTrigger value="overview">Overview</TabsTrigger>
-                                            <TabsTrigger value="attendance">Attendance</TabsTrigger>
-                                            <TabsTrigger value="excuse-letters">Excuse Letters</TabsTrigger>
-                                            <TabsTrigger value="schedule">Schedule</TabsTrigger>
-                                            <TabsTrigger value="behavioral">Behavioral</TabsTrigger>
-                                            <TabsTrigger value="qr">QR Code</TabsTrigger>
+                                          <TabsList
+                                            className="
+                                              grid grid-cols-2 grid-rows-3 gap-1 w-full p-1
+                                              sm:flex sm:flex-row sm:overflow-x-auto sm:whitespace-nowrap sm:text-base
+                                              text-xs
+                                              relative z-10 bg-white/90 dark:bg-slate-900/80
+                                              mb-3 sm:mb-4
+                                            "
+                                            style={{ boxShadow: '0 2px 8px 0 rgba(0,0,0,0.03)' }}
+                                          >
+                                            <TabsTrigger value="overview" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Overview</TabsTrigger>
+                                            <TabsTrigger value="attendance" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Attendance</TabsTrigger>
+                                            <TabsTrigger value="excuse-letters" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Excuse Letters</TabsTrigger>
+                                            <TabsTrigger value="schedule" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Schedule</TabsTrigger>
+                                            <TabsTrigger value="behavioral" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Behavioral</TabsTrigger>
+                                            <TabsTrigger value="qr" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">QR Code</TabsTrigger>
                                           </TabsList>
 
                                           {savingStudentInfo && (
@@ -3698,7 +3729,7 @@ export default function StudentsPage() {
                                           <TabsContent value="overview" className="space-y-4 mt-4">
 
                                             {/* Student Info Grid */}
-                                            <div className="grid grid-cols-2 gap-3 relative">
+                                            <div className="grid grid-cols-1 gap-3 relative sm:grid-cols-2">
                                               {/* Name Section - Only Last Name Editable */}
                                               {(() => {
                                                 // Split name into parts
@@ -3706,30 +3737,30 @@ export default function StudentsPage() {
                                                 const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
                                                 const firstMiddle = nameParts.slice(0, -1).join(' ');
                                                 return (
-                                                  <div className="col-span-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
+                                                  <div className="col-span-2 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
                                                     <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                       <User className="w-3 h-3" />
                                                       Name
                                                     </p>
-                                                    <div className="flex gap-2 w-full max-w-md">
+                                                    <div className="flex flex-col sm:flex-row gap-2 w-full max-w-md">
                                                       <Input
                                                         value={firstMiddle}
                                                         disabled
-                                                        className="font-medium w-1/2 bg-slate-100 dark:bg-slate-800/50"
+                                                        className="font-medium w-full sm:w-1/2 bg-slate-100 dark:bg-slate-800/50 text-sm sm:text-base"
                                                         placeholder="First & Middle Name"
                                                       />
                                                       <Input
                                                         value={editLastName !== null ? editLastName : lastName}
                                                         onChange={e => setEditLastName(e.target.value)}
                                                         placeholder="Last Name"
-                                                        className="font-medium w-1/2"
+                                                        className="font-medium w-full sm:w-1/2 text-sm sm:text-base"
                                                         disabled={!editingStudentInfo}
                                                       />
                                                     </div>
                                                   </div>
                                                 );
                                               })()}
-                                              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
                                                 <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                   <Calendar className="w-3 h-3" />
                                                   Birthday
@@ -3741,14 +3772,14 @@ export default function StudentsPage() {
                                                   </p>
                                                 )}
                                               </div>
-                                              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
                                                 <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                   <User className="w-3 h-3" />
                                                   Gender
                                                 </p>
                                                 <p className="font-medium">{selectedStudent.gender}</p>
                                               </div>
-                                              <div className="col-span-2 md:col-span-1 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
+                                              <div className="col-span-2 md:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
                                                 <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                   <MapPin className="w-3 h-3" />
                                                   Address
@@ -3761,22 +3792,23 @@ export default function StudentsPage() {
                                                   disabled={!editingStudentInfo}
                                                 />
                                               </div>
-                                              <div className="col-span-2 md:col-span-1 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
+                                              <div className="col-span-2 md:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
                                                 <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                   <QrCode className="w-3 h-3" />
                                                   RFID UID
                                                 </p>
                                                 <div className="w-full space-y-1.5">
-                                                  <div className="flex flex-col gap-1.5 sm:flex-row">
+                                                    <div className="flex flex-col gap-1.5 sm:flex-row">
                                                     <Input
                                                       value={selectedStudent.rfid_uid || ''}
                                                       onChange={e => setSelectedStudent({ ...selectedStudent, rfid_uid: normalizeRfidUid(e.target.value) })}
                                                       placeholder="e.g. A1B2C3D4"
-                                                      className="font-medium w-full"
+                                                      className="font-medium w-full text-sm sm:text-base"
                                                       disabled={!editingStudentInfo}
                                                     />
                                                     <Button
                                                       type="button"
+                                                      className="w-full sm:w-auto text-xs sm:text-base"
                                                       variant={rfidConnected ? 'outline' : 'default'}
                                                       onClick={() => {
                                                         if (rfidConnected) {
@@ -3840,10 +3872,10 @@ export default function StudentsPage() {
                                               </div>
 
                                               {/* Edit/Confirm Button */}
-                                              <div className="absolute bottom-4 right-8 flex gap-2">
+                                              <div className="absolute bottom-4 right-4 flex flex-col gap-2 w-[calc(100%-2rem)] sm:static sm:flex-row sm:gap-2 sm:w-auto">
                                                 {isAdmin && (
                                                   <>
-                                                    <Button size="sm" variant="outline" className="min-w-[120px] border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300" onClick={() => setTransferDialogOpen(true)}>
+                                                    <Button size="sm" variant="outline" className="min-w-[120px] border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 w-full sm:w-auto" onClick={() => setTransferDialogOpen(true)}>
                                                       <ArrowRightLeft className="w-4 h-4" />
                                                       Transfer Student
                                                     </Button>
@@ -3906,7 +3938,7 @@ export default function StudentsPage() {
                                                         </div>
                                                       </DialogContent>
                                                     </Dialog>
-                                                    <Button size="sm" variant="destructive" className="min-w-[120px]" onClick={() => setDropDialogOpen(true)}>
+                                                    <Button size="sm" variant="destructive" className="min-w-[120px] w-full sm:w-auto" onClick={() => setDropDialogOpen(true)}>
                                                       Drop Student
                                                     </Button>
                                                     <Dialog open={dropDialogOpen} onOpenChange={(open) => {
@@ -3972,7 +4004,7 @@ export default function StudentsPage() {
                                                   </>
                                                 )}
                                                 {isAdmin && !editingStudentInfo ? (
-                                                  <Button size="sm" variant="outline" className="min-w-[100px]" onClick={() => {
+                                                  <Button size="sm" variant="outline" className="min-w-[100px] w-full sm:w-auto" onClick={() => {
                                                     // When entering edit mode, buffer the last name
                                                     const nameParts = selectedStudent.name.trim().split(' ');
                                                     setEditLastName(nameParts.length > 1 ? nameParts[nameParts.length - 1] : '');
@@ -3982,7 +4014,7 @@ export default function StudentsPage() {
                                                   </Button>
                                                 ) : null}
                                                 {isAdmin && editingStudentInfo && (
-                                                  <Button size="sm" variant="default" className="min-w-[100px] gap-2" onClick={handleConfirmStudentInfo} disabled={savingStudentInfo}>
+                                                  <Button size="sm" variant="default" className="min-w-[100px] gap-2 w-full sm:w-auto" onClick={handleConfirmStudentInfo} disabled={savingStudentInfo}>
                                                     {savingStudentInfo ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                                                     {savingStudentInfo ? 'Saving...' : 'Confirm'}
                                                   </Button>
