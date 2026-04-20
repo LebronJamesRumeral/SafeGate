@@ -3738,7 +3738,6 @@ export default function StudentsPage() {
                                           </div>
                                         </DialogHeader>
 
-<<<<<<< HEAD
                                         <Tabs defaultValue="overview" className="mt-6 space-y-4">
                                           <TabsList
                                             className="
@@ -3756,16 +3755,6 @@ export default function StudentsPage() {
                                             <TabsTrigger value="schedule" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Schedule</TabsTrigger>
                                             <TabsTrigger value="behavioral" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Behavioral</TabsTrigger>
                                             <TabsTrigger value="qr" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">QR Code</TabsTrigger>
-=======
-                                        <Tabs value={detailsTab} onValueChange={setDetailsTab} className="mt-6 space-y-4">
-                                          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-6">
-                                            <TabsTrigger value="overview">Overview</TabsTrigger>
-                                            <TabsTrigger value="attendance">Attendance</TabsTrigger>
-                                            <TabsTrigger value="excuse-letters">Excuse Letters</TabsTrigger>
-                                            <TabsTrigger value="schedule">Schedule</TabsTrigger>
-                                            <TabsTrigger value="behavioral">Behavioral</TabsTrigger>
-                                            <TabsTrigger value="qr">QR Code</TabsTrigger>
->>>>>>> 610d1408e1e3e2f7ec87af61a7ec8e77b8bfc9bf
                                           </TabsList>
 
                                           {savingStudentInfo && (
