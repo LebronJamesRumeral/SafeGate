@@ -3917,7 +3917,7 @@ export default function StudentsPage() {
                                               </div>
 
                                               {/* Edit/Confirm Button */}
-                                              <div className="absolute bottom-4 right-4 flex flex-col gap-2 w-[calc(100%-2rem)] sm:static sm:flex-row sm:gap-2 sm:w-auto">
+                                              <div className="absolute bottom-4 right-4 flex flex-row gap-2 w-full sm:static sm:flex-row sm:gap-2 sm:w-auto">
                                                 {isAdmin && (
                                                   <>
                                                     <Button size="sm" variant="outline" className="min-w-[120px] border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 w-full sm:w-auto" onClick={() => setTransferDialogOpen(true)}>
