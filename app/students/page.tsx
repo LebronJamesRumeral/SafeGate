@@ -3880,10 +3880,10 @@ export default function StudentsPage() {
                                                   </p>
                                                 </div>
                                               </div>
-                                              <div className="col-span-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
-                                                <p className="text-xs text-muted-foreground mb-1">Parent/Guardian Information</p>
+                                              <div className="col-span-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col sm:flex-row justify-between items-start gap-4">
                                                 <div className="space-y-1.5 w-full max-w-md">
-                                                  <div className="flex items-center gap-1.5">
+                                                  <p className="text-xs text-muted-foreground mb-1">Parent/Guardian Information</p>
+                                                  <div className="flex items-center gap-2 w-full">
                                                     <User className="w-4 h-4 text-muted-foreground" />
                                                     <Input
                                                       value={selectedStudent.parentName || ''}
@@ -3914,10 +3914,9 @@ export default function StudentsPage() {
                                                     />
                                                   </div>
                                                 </div>
-                                              </div>
 
-                                              {/* Edit/Confirm Button */}
-                                              <div className="absolute bottom-4 right-4 flex flex-row gap-2 w-full sm:static sm:flex-row sm:gap-2 sm:w-auto">
+                                                {/* Edit/Confirm Button */}
+                                              <div className="flex flex-wrap gap-2 sm:ml-4 shrink-0">
                                                 {isAdmin && (
                                                   <>
                                                     <Button size="sm" variant="outline" className="min-w-[120px] border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 w-full sm:w-auto" onClick={() => setTransferDialogOpen(true)}>
@@ -4065,7 +4064,8 @@ export default function StudentsPage() {
                                                   </Button>
                                                 )}
                                               </div>
-                                            </div>
+                                            </div>                                           
+                                          </div>
                                           </TabsContent>
 
                                           <TabsContent value="schedule" className="space-y-4 mt-4">
