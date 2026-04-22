@@ -1,146 +1,80 @@
+
 # SafeGate - Attendance & Behavior Analytics Platform
 
-A modern, production-ready platform combining a responsive Next.js frontend with a robust FastAPI backend for comprehensive attendance tracking and behavioral analytics with intelligent schedule-based attendance validation.
+A modern, production-ready platform combining a responsive Next.js frontend with a robust FastAPI backend for comprehensive attendance tracking and behavioral analytics, including intelligent schedule-based attendance validation and ML risk scoring.
 
-**Status:** ✅ Production-Ready | **Version:** 2.0 (Schedule System Integrated)
+**Status:** Production-Ready | **Version:** 2.0 (Schedule System Integrated)
+**Last Updated:** April 2026
 
 ---
 
-## 📋 Quick Navigation
+## Quick Navigation
 
-### 🚀 Getting Started
-- [Quick Start (1 Minute)](#-1-minute-quick-start) - For experienced developers
-- [Complete Setup Guide](#-complete-setup-guide) - Step-by-step for any device
+- [Quick Start](#1-minute-quick-start)
+- [Complete Setup Guide](#complete-setup-guide)
 - [System Requirements](#system-requirements)
-
-### 📖 Documentation by Role
-- [For School Administrators](#-for-school-administrators) - Managing schedules
-- [For Scanning Officers](#-for-scanning-officers) - Understanding scan results
-- [For Dashboard Users](#-for-dashboard-users) - Viewing data
-- [For Developers](#-for-developers) - API integration & customization
-
-### 📚 Technical Documentation
-- [System Architecture](#-system-architecture)
-- [Attendance Schedule System](#-attendance-schedule-system)
-- [Database Schema](#-database-schema)
-- [API Endpoints](#-api-endpoints)
-- [Frontend Integration](#-frontend-integration)
-
-### 🔧 Operations
-- [Running the System](#-running-the-system)
-- [Testing & Verification](#-testing--verification)
-- [Troubleshooting](#-troubleshooting)
-- [Deployment Guide](#-deployment-guide)
+- [User Role Guides](#user-role-guides)
+- [System Architecture](#system-architecture)
+- [Project Structure](#project-structure)
+- [API Endpoints](#api-endpoints)
+- [Frontend Integration](#frontend-integration)
+- [Testing & Verification](#testing--verification)
+- [Troubleshooting](#troubleshooting)
+- [Deployment Guide](#deployment-guide)
+- [Performance & Security](#performance-monitoring)
+- [Development Workflow](#development-workflow)
+- [Support](#support)
 
 ---
 
-## 🚀 1-Minute Quick Start
 
-### Prerequisites
+## 1-Minute Quick Start
+
+**Prerequisites:**
 - Node.js 16+, Python 3.8+, PostgreSQL (Supabase account)
-- [Download Node.js](https://nodejs.org) | [Download Python](https://python.org) | [Create Supabase Account](https://supabase.com)
 
-### One Command
-
-**Windows (PowerShell):**
+**Windows:**
 ```powershell
 .\start-dev.bat
 ```
-
-**macOS/Linux (Bash):**
+**macOS/Linux:**
 ```bash
 chmod +x start-dev.sh
 ./start-dev.sh
 ```
 
-### Access Points
-- **Frontend**: http://localhost:3000
-- **API Docs**: http://localhost:8000/api/docs
-- **All Tests Pass**: Run `python test_api.py` in backend
+- Frontend: http://localhost:3000
+- API Docs: http://localhost:8000/api/docs
 
 ---
 
-## 📋 Complete Setup Guide
+## User Role Guides
 
-### System Requirements
+### School Administrators
+- Manage schedules, configure attendance rules, and review analytics.
+- Add/modify student schedules via dashboard or API.
+- Monitor chronic lateness and absences.
 
-**Windows:**
-- Windows 10/11
-- PowerShell 5.0 or higher
-- Node.js 16+
-- Python 3.8+
+### Scanning Officers
+- Use QR scanner interface for real-time attendance.
+- Interpret status badges: Present, Late, Invalid Timeout, Absent.
+- Report persistent issues to administration.
 
-**macOS:**
-- macOS 10.15+
-- Bash shell
-- Homebrew (optional but recommended)
-- Node.js 16+
-- Python 3.8+
+### Parents
+- Access the parent portal for daily/weekly/monthly attendance summaries.
+- Receive notifications for late/absent events.
+- View risk and behavioral trends.
 
-**Linux (Ubuntu/Debian):**
-- Ubuntu 18.04+ or Debian 10+
-- Bash shell
-- Node.js 16+
-- Python 3.8+
+### Dashboard Users
+- Generate and export attendance/behavior reports.
+- Visualize trends and identify at-risk students.
 
-### Installation Steps
+### Developers
+- Integrate with REST API.
+- Extend backend/ML logic or frontend components.
+- See Development Workflow section.
 
-#### Step 1: Verify Prerequisites
-
-**Check Node.js:**
-```bash
-node --version  # Should be v16.0.0 or higher
-npm --version   # Should be v8.0.0 or higher
-```
-
-**Check Python:**
-```bash
-python --version        # Windows
-# or
-python3 --version       # macOS/Linux
-# Should be Python 3.8 or higher
-```
-
-#### Step 2: Navigate to Project
-
-```bash
-# If you extracted from zip
-cd safe-gate-pwa-design
-
-# If you cloned from git
-cd safe-gate-pwa-design
-```
-
-#### Step 3: Backend Setup
-
-**Change to backend directory:**
-```bash
-cd backend
-```
-
-**Create Python virtual environment:**
-
-**Windows (PowerShell):**
-```powershell
-python -m venv venv
-```
-
-**macOS/Linux:**
-```bash
-python3 -m venv venv
-```
-
-**Activate virtual environment:**
-
-**This is the MOST IMPORTANT STEP - do this EVERY time you work on the project!**
-
-**Windows (PowerShell):**
-```powershell
-& venv\Scripts\Activate.ps1
-# Your prompt should now show (venv) at the start:
-# (venv) PS C:\Users\USERNAME\path\to\safe-gate-pwa-design\backend>
-```
-
+---
 **macOS/Linux (Bash):**
 ```bash
 source venv/bin/activate
