@@ -124,7 +124,7 @@ export function Sidebar() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto px-2 py-6 space-y-2">
+          <nav className="flex-1 px-2 py-6 space-y-2 overflow-y-auto lg:overflow-y-hidden scrollbar-hide">
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href
