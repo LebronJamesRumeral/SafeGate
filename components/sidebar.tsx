@@ -29,14 +29,13 @@ export const SidebarContext = createContext<{ collapsed: boolean; setCollapsed: 
 const allNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/", roles: ["admin", "teacher", "guidance"] },
   { icon: AlertTriangle, label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin", "guidance"] },
-  { icon: ClipboardCheck, label: "Guidance Review", href: "/guidance-review", roles: ["guidance"] },
-  { icon: School, label: "Masterlist", href: "/masterlist", roles: ["admin", "guidance"] },
   { icon: ScanLine, label: "QR Scan & RFID Tap", href: "/scan", roles: ["teacher", "admin"] },
   { icon: CalendarDays, label: "Attendance Logs", href: "/attendance", roles: ["teacher", "admin"] },
-  { icon: Megaphone, label: "School Events", href: "/events", roles: ["teacher", "admin"] },
+  { icon: School, label: "Masterlist", href: "/masterlist", roles: ["admin", "guidance"] },
   { icon: Users, label: "Students", href: "/students", roles: ["teacher", "admin", "guidance"] },
   { icon: MapPinned, label: "School Heatmap", href: "/school-heatmap", roles: ["teacher", "admin", "guidance"] },
   { icon: BarChart3, label: "Analytics", href: "/analytics", roles: ["admin", "guidance"] },
+  { icon: Megaphone, label: "School Events", href: "/events", roles: ["teacher", "admin"] },
   // Parent dashboard nav item
   { icon: Users, label: "Parent Dashboard", href: "/parent", roles: ["parent"] },
   { icon: CalendarDays, label: "Attendance", href: "/parent-attendance", roles: ["parent"] },
