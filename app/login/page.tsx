@@ -379,9 +379,9 @@ export default function LoginPage() {
                     Your privacy is important to us. We do not share your data with third parties. All information is handled securely and in accordance with applicable laws.
                   </p>
                   <h3 className="text-2xl font-bold mb-8 text-slate-900 dark:text-white font-mono text-center">Terms of Service</h3>
-                  <p className="text-base text-slate-700 dark:text-slate-300 text-center leading-relaxed font-mono" style={{marginBottom: '0.5rem'}}>
-                    By using this system, you agree to use it responsibly and in accordance with all school and legal guidelines. Misuse may result in account suspension.
-                  </p>
+                    <p className="text-base text-slate-700 dark:text-slate-300 text-center leading-relaxed font-mono" style={{marginBottom: '0.5rem'}}>
+                      By using SafeGate, you agree to use the app solely for its intended purpose of managing and monitoring school attendance, behavioral events, and related activities. All actions within the app must comply with school policies and applicable laws. Unauthorized access, data misuse, or attempts to disrupt the service are strictly prohibited and may result in suspension or legal action. SafeGate is designed to protect student privacy and ensure a safe school environment.
+                    </p>
                   <div className="flex flex-col sm:flex-row gap-4 mt-8">
                     <Button variant="outline" onClick={handleDeclinePolicy} className="px-4 sm:px-6 py-2 text-base font-semibold">Decline</Button>
                     <Button variant="secondary" onClick={handleAcceptPolicy} className="px-4 sm:px-6 py-2 text-base font-semibold">Accept</Button>
