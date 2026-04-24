@@ -2546,13 +2546,15 @@ export default function StudentsPage() {
         // Also update the row to use the cleaned email
         row.parent_email = email;
 
-        // Convert gender 'f'/'m' to 'Female'/'Male' and capitalize first letter
+        // Robust gender normalization: accept 'f', 'female', 'm', 'male' (case-insensitive, trimmed)
         if (row.gender) {
           let g = row.gender.toString().trim().toLowerCase();
-          if (g === 'f') g = 'female';
-          else if (g === 'm') g = 'male';
-          if (g === 'female' || g === 'male') {
-            row.gender = g.charAt(0).toUpperCase() + g.slice(1);
+          if (g === 'f' || g === 'female') {
+            row.gender = 'Female';
+          } else if (g === 'm' || g === 'male') {
+            row.gender = 'Male';
+          } else {
+            row.gender = '';
           }
         }
       });
