@@ -586,7 +586,7 @@ export default function EventsPage() {
               </Card>
             ) : (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <Card className="relative overflow-hidden border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl">
                     <CardContent className="p-4 sm:p-5 flex items-center justify-between relative z-10">
                       <div>
