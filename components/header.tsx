@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Sun, Moon, Bell, Lock, User as UserIcon, LogOut, Settings, Calendar, AlertTriangle, BarChart3, ClipboardCheck, MapPinned } from "lucide-react"
+import { Sun, Moon, Bell, Lock, User as UserIcon, LogOut, Settings, Calendar, AlertTriangle, BarChart3, ClipboardCheck, MapPinned, Megaphone } from "lucide-react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
@@ -19,6 +19,7 @@ const headerNavItems = [
   { label: "Guidance Review", href: "/guidance-review", roles: ["guidance"], icon: ClipboardCheck },
   { label: "School Heatmap", href: "/school-heatmap", roles: ["teacher", "admin", "guidance"], icon: MapPinned },
   { label: "Analytics", href: "/analytics", roles: ["admin"], icon: BarChart3 },
+  { label: "School Events", href: "/events", roles: ["teacher", "admin"], icon: Megaphone },
   { label: "Settings", href: "/settings", roles: ["admin"], icon: Settings },
 ]
 
