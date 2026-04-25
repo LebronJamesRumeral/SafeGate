@@ -465,17 +465,32 @@ export default function MasterlistPage() {
         return;
       }
 
-      // Ensure parent rows exist first to satisfy students.parent_email foreign key.
-      const uniqueParents = new Map<string, { parent_email: string; full_name: string | null; contact: string | null }>();
+      // Strictly clean/validate parent emails and ensure required fields
+      const uniqueParents = new Map();
       parsed.rows.forEach((row) => {
-        const email = (row.parent_email || '').trim().toLowerCase();
-        if (!email) return;
+        // Clean and validate parent email
+        let email = (row.parent_email || '').toString().trim().toLowerCase();
+        if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
         if (!uniqueParents.has(email)) {
           uniqueParents.set(email, {
             parent_email: email,
-            full_name: row.parent_name?.trim() || null,
-            contact: row.parent_contact?.trim() || null,
+            full_name: (row.parent_name || '').toString().trim() || email,
+            contact: (row.parent_contact || '').toString().trim() || null,
           });
+        }
+        // Also update the row to use the cleaned email
+        row.parent_email = email;
+
+        // Robust gender normalization: accept 'f', 'female', 'm', 'male' (case-insensitive, trimmed)
+        if (row.gender) {
+          let g = row.gender.toString().trim().toLowerCase();
+          if (g === 'f' || g === 'female') {
+            row.gender = 'Female';
+          } else if (g === 'm' || g === 'male') {
+            row.gender = 'Male';
+          } else {
+            row.gender = '';
+          }
         }
       });
 
@@ -486,7 +501,14 @@ export default function MasterlistPage() {
           .upsert(parentRows, { onConflict: 'parent_email' });
 
         if (parentUpsertError) {
-          throw parentUpsertError;
+          toast({
+            title: 'Parent import failed',
+            description: parentUpsertError.message || 'Unable to import parent records. Please check your Excel file for missing or invalid parent emails.',
+            variant: 'destructive',
+          });
+          setImportingStudents(false);
+          event.target.value = '';
+          return;
         }
       }
 
@@ -506,13 +528,30 @@ export default function MasterlistPage() {
 
       toast({
         title: 'Import completed',
-        description: `Imported ${parsed.rows.length} student records. Skipped ${parsed.skippedMissingRequired} missing required and ${parsed.skippedEmpty} empty rows.`,
+        description: `Imported ${parsed.rows.length} student records. Skipped ${parsed.skippedMissingRequired} missing required and ${parsed.skippedEmpty} empty rows. Masterlist is now updated.`,
       });
     } catch (error) {
       console.error('Error importing students:', error);
+
+      let detail = 'Unable to import file.';
+      if (error instanceof Error && error.message) {
+        detail = error.message;
+      } else if (error && typeof error === 'object') {
+        const maybe = error as Record<string, unknown>;
+        const message = typeof maybe.message === 'string' ? maybe.message : '';
+        const details = typeof maybe.details === 'string' ? maybe.details : '';
+        const hint = typeof maybe.hint === 'string' ? maybe.hint : '';
+        const code = typeof maybe.code === 'string' ? maybe.code : '';
+
+        const parts = [message, details, hint, code ? `Code: ${code}` : ''].filter(Boolean);
+        if (parts.length > 0) {
+          detail = parts.join(' | ');
+        }
+      }
+
       toast({
         title: 'Import failed',
-        description: error instanceof Error ? error.message : String(error),
+        description: detail,
         variant: 'destructive',
       });
     } finally {
