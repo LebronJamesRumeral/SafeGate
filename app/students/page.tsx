@@ -874,7 +874,8 @@ export default function StudentsPage() {
   const [scheduleTimeSlots, setScheduleTimeSlots] = useState<Array<{ label: string; startTime: string; endTime: string }>>([...DEFAULT_SCHEDULE_SLOTS]);
   const [newStudentForm, setNewStudentForm] = useState({
     lrn: '',
-    name: '',
+    lastName: '',
+    firstMiddleName: '',
     gender: '',
     birthday: '',
     level: '',
@@ -885,7 +886,8 @@ export default function StudentsPage() {
     status: 'active',
   });
   const [addStudentValidationErrors, setAddStudentValidationErrors] = useState<{
-    name?: string;
+    lastName?: string;
+    firstMiddleName?: string;
     gender?: string;
     birthday?: string;
     level?: string;
@@ -1259,7 +1261,8 @@ export default function StudentsPage() {
   const resetAddStudentForm = () => {
     setNewStudentForm({
       lrn: '',
-      name: '',
+      lastName: '',
+      firstMiddleName: '',
       gender: '',
       birthday: '',
       level: '',
@@ -1350,7 +1353,14 @@ export default function StudentsPage() {
       }
     }
     // Use student's name as temporary LRN if LRN is missing
-    const tempLrn = newStudentForm.lrn.trim() || newStudentForm.name.trim();
+      // Capitalize each word in lastName and firstMiddleName
+      function capitalizeWords(str: string) {
+        return str.replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\B\w/g, (c) => c.toLowerCase());
+      }
+      const capitalizedLastName = capitalizeWords(newStudentForm.lastName.trim());
+      const capitalizedFirstMiddle = capitalizeWords(newStudentForm.firstMiddleName.trim());
+      const fullName = `${capitalizedLastName}, ${capitalizedFirstMiddle}`;
+    const tempLrn = newStudentForm.lrn.trim() || fullName;
     setAddingStudent(true);
     try {
       const normalizedParentEmail = newStudentForm.parentEmail.trim().toLowerCase();
@@ -1374,7 +1384,7 @@ export default function StudentsPage() {
         .from('students')
         .insert({
           lrn: newStudentForm.lrn.trim() === '' ? generateTemporaryLrn() : newStudentForm.lrn.trim(),
-          name: newStudentForm.name.trim(),
+          name: fullName,
           gender: newStudentForm.gender,
           birthday: newStudentForm.birthday,
           level: newStudentForm.level,
@@ -1427,7 +1437,7 @@ export default function StudentsPage() {
       }
       toast({
         title: 'Student added',
-        description: `${newStudentForm.name} was added successfully.`,
+        description: `${fullName} was added successfully.`,
         variant: 'default',
       });
       setAddStudentOpen(false);
@@ -1436,7 +1446,7 @@ export default function StudentsPage() {
         {
           id: -1, // temporary id for optimistic UI
           lrn: newStudentForm.lrn.trim(),
-          name: newStudentForm.name.trim(),
+          name: fullName,
           gender: newStudentForm.gender,
           birthday: newStudentForm.birthday,
           address: newStudentForm.address.trim() || null,
@@ -1502,9 +1512,13 @@ export default function StudentsPage() {
       parentEmail?: string;
     } = {};
 
-    if (!newStudentForm.name.trim()) {
-      missingInputs.push('Full Name');
-      validationErrors.name = 'Please provide full name.';
+    if (!newStudentForm.lastName.trim()) {
+      missingInputs.push('Last Name');
+      validationErrors.lastName = 'Please provide last name.';
+    }
+    if (!newStudentForm.firstMiddleName.trim()) {
+      missingInputs.push('First/Middle Name');
+      validationErrors.firstMiddleName = 'Please provide first/middle name.';
     }
     if (!newStudentForm.gender) {
       missingInputs.push('Gender');
@@ -3046,20 +3060,38 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Full Name *</label>
+                    <label className="text-sm font-medium">Last Name *</label>
                     <Input
-                      value={newStudentForm.name}
+                      value={newStudentForm.lastName}
                       onChange={(e) => {
-                        setNewStudentForm((prev) => ({ ...prev, name: e.target.value }));
+                        setNewStudentForm((prev) => ({ ...prev, lastName: e.target.value }));
                         if (e.target.value.trim()) {
-                          setAddStudentValidationErrors((prev) => ({ ...prev, name: undefined }));
+                          setAddStudentValidationErrors((prev) => ({ ...prev, lastName: undefined }));
                         }
                       }}
-                      placeholder="Student Full Name"
+                      placeholder="Student Last Name"
                       className="capitalize"
                     />
-                    {addStudentValidationErrors.name && (
-                      <p className="text-sm text-red-600 dark:text-red-400">{addStudentValidationErrors.name}</p>
+                    {addStudentValidationErrors.lastName && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{addStudentValidationErrors.lastName}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">First/Middle Name *</label>
+                    <Input
+                      value={newStudentForm.firstMiddleName}
+                      onChange={(e) => {
+                        setNewStudentForm((prev) => ({ ...prev, firstMiddleName: e.target.value }));
+                        if (e.target.value.trim()) {
+                          setAddStudentValidationErrors((prev) => ({ ...prev, firstMiddleName: undefined }));
+                        }
+                      }}
+                      placeholder="Student First and Middle Name"
+                      className="capitalize"
+                    />
+                    {addStudentValidationErrors.firstMiddleName && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{addStudentValidationErrors.firstMiddleName}</p>
                     )}
                   </div>
 
