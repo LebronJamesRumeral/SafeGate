@@ -127,6 +127,14 @@ function getRiskLevelColor(riskLevel: string): { color: string; bg: string; bord
       };
   }
 }
+// Utility to generate a random temporary LRN
+function generateTemporaryLrn() {
+  // Example: TEMP-20260428-XXXXXX (date + random 6 digits)
+  const date = new Date();
+  const ymd = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+  const rand = Math.floor(100000 + Math.random() * 900000);
+  return `TEMP-${ymd}-${rand}`;
+}
 
 function getBehaviorEventVisuals(severity?: string) {
   const normalized = (severity || '').toLowerCase();
@@ -1341,6 +1349,8 @@ export default function StudentsPage() {
         return;
       }
     }
+    // Use student's name as temporary LRN if LRN is missing
+    const tempLrn = newStudentForm.lrn.trim() || newStudentForm.name.trim();
     setAddingStudent(true);
     try {
       const normalizedParentEmail = newStudentForm.parentEmail.trim().toLowerCase();
@@ -1363,7 +1373,7 @@ export default function StudentsPage() {
       const { error } = await supabase
         .from('students')
         .insert({
-          lrn: newStudentForm.lrn.trim() === '' ? null : newStudentForm.lrn.trim(),
+          lrn: newStudentForm.lrn.trim() === '' ? generateTemporaryLrn() : newStudentForm.lrn.trim(),
           name: newStudentForm.name.trim(),
           gender: newStudentForm.gender,
           birthday: newStudentForm.birthday,
@@ -1391,7 +1401,7 @@ export default function StudentsPage() {
         const scheduleRows = scheduleDays.flatMap((day) => {
           const dayConfig = WEEKDAY_OPTIONS.find((item) => item.label === day);
           return scheduleTimeSlots.map((slot, slotIndex) => ({
-            student_lrn: newStudentForm.lrn.trim(),
+            student_lrn: tempLrn,
             school_year_id: currentSchoolYear?.id ?? null,
             day_of_week: day,
             day_number: dayConfig?.dayNumber ?? 1,
@@ -1887,6 +1897,22 @@ export default function StudentsPage() {
   const fetchStudentSchedule = async (studentLrn: string) => {
     if (!supabase || studentSchedules[studentLrn]) return;
 
+    // If the studentLrn is blank, generate and assign a temporary LRN
+    if (!studentLrn || studentLrn.trim() === '') {
+      if (selectedStudent && (!selectedStudent.lrn || selectedStudent.lrn.trim() === '')) {
+        const tempLrn = generateTemporaryLrn();
+        // Update in DB
+        await supabase
+          .from('students')
+          .update({ lrn: tempLrn })
+          .eq('id', selectedStudent.id);
+        // Update in UI state
+        setSelectedStudent({ ...selectedStudent, lrn: tempLrn });
+        // Use the new tempLrn for fetching schedule
+        studentLrn = tempLrn;
+      }
+    }
+
     try {
       setLoadingSchedule(true);
       const { data, error } = await supabase
@@ -1978,6 +2004,12 @@ export default function StudentsPage() {
 
   const openStudentDetails = (student: Student, options?: { tab?: string; highlightDate?: string }) => {
     setSelectedStudent(student);
+    // If the LRN is temporary, pre-fill the pendingLrn input for editing
+    if (student.lrn && student.lrn.startsWith('TEMP-')) {
+      setPendingLrn(student.lrn);
+    } else {
+      setPendingLrn('');
+    }
     setDetailsOpen(true);
     setEditingSchedule(false);
     setScheduleDraft([]);
@@ -2113,6 +2145,10 @@ export default function StudentsPage() {
     setSavingScheduleChanges(true);
 
     try {
+
+      // Use student's name as temporary LRN if LRN is missing
+      const tempLrn = selectedStudent.lrn?.trim() || selectedStudent.name.trim();
+
       const { data: currentSchoolYear } = await supabase
         .from('school_years')
         .select('id')
@@ -2122,7 +2158,7 @@ export default function StudentsPage() {
       const { error: deleteError } = await supabase
         .from('student_schedules')
         .delete()
-        .eq('student_lrn', selectedStudent.lrn)
+        .eq('student_lrn', tempLrn)
         .eq('is_active', true);
 
       if (deleteError) {
@@ -2132,7 +2168,7 @@ export default function StudentsPage() {
       const rowsToInsert = scheduleDraft.flatMap((row) => {
         const uniqueDays = Array.from(new Set(row.days_of_week.filter((day) => weekdayMap.has(day))));
         return uniqueDays.map((day) => ({
-          student_lrn: selectedStudent.lrn,
+          student_lrn: tempLrn,
           school_year_id: currentSchoolYear?.id ?? null,
           day_of_week: day,
           day_number: weekdayMap.get(day) || 1,
@@ -2157,7 +2193,7 @@ export default function StudentsPage() {
 
       setStudentSchedules((prev) => ({
         ...prev,
-        [selectedStudent.lrn]: insertedRows || [],
+        [tempLrn]: insertedRows || [],
       }));
 
       setScheduleDraft(
@@ -2212,10 +2248,24 @@ export default function StudentsPage() {
         variant: 'default',
       });
     } catch (error) {
+      let errorMsg = '';
+      if (error && typeof error === 'object') {
+        if ('message' in error) {
+          errorMsg = error.message;
+        } else if ('details' in error) {
+          errorMsg = error.details;
+        } else if ('code' in error) {
+          errorMsg = `Error code: ${error.code}`;
+        } else {
+          errorMsg = JSON.stringify(error);
+        }
+      } else {
+        errorMsg = String(error);
+      }
       console.error('Error saving schedule changes:', error);
       toast({
         title: 'Failed to save schedule',
-        description: error instanceof Error ? error.message : String(error),
+        description: errorMsg,
         variant: 'destructive',
       });
     } finally {
@@ -3691,7 +3741,7 @@ export default function StudentsPage() {
                                             <div>
                                               <DialogTitle className="text-2xl">{selectedStudent.name}</DialogTitle>
                                               <DialogDescription>
-                                                {selectedStudent.lrn === '' ? (
+                                                {selectedStudent.lrn && selectedStudent.lrn.startsWith('TEMP-') ? (
                                                   <span className="flex items-center gap-2">
                                                     <Input
                                                       value={pendingLrn}
@@ -3710,6 +3760,7 @@ export default function StudentsPage() {
                                                     >
                                                       Confirm
                                                     </Button>
+                                                    <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-2">Temporary LRN</span>
                                                   </span>
                                                 ) : (
                                                   <Input
