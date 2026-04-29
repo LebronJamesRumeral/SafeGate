@@ -1548,343 +1548,223 @@ export default function StudentsPage() {
   };
 
   const handleAddStudent = async () => {
-    if (!supabase) {
+  if (!supabase) {
+    toast({
+      title: 'Database not connected',
+      description: 'Supabase client is not initialized.',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  const missingInputs: string[] = [];
+  const validationErrors: {
+    lastName?: string;
+    firstMiddleName?: string;
+    gender?: string;
+    birthday?: string;
+    level?: string;
+    parentName?: string;
+    parentContact?: string;
+    parentEmail?: string;
+  } = {};
+
+  if (!newStudentForm.lastName.trim()) {
+    missingInputs.push('Last Name');
+    validationErrors.lastName = 'Please provide last name.';
+  }
+  if (!newStudentForm.firstMiddleName.trim()) {
+    missingInputs.push('First/Middle Name');
+    validationErrors.firstMiddleName = 'Please provide first/middle name.';
+  }
+  if (!newStudentForm.gender) {
+    missingInputs.push('Gender');
+    validationErrors.gender = 'Please select gender.';
+  }
+  if (!newStudentForm.birthday) {
+    missingInputs.push('Birthday');
+    validationErrors.birthday = 'Please select birthday.';
+  }
+  if (!newStudentForm.level) {
+    missingInputs.push('Year Level');
+    validationErrors.level = 'Please select year level.';
+  }
+  if (!newStudentForm.parentName.trim()) {
+    missingInputs.push('Parent/Guardian Name');
+    validationErrors.parentName = 'Please provide parent/guardian name.';
+  }
+  if (!newStudentForm.parentContact.trim()) {
+    missingInputs.push('Parent Contact');
+    validationErrors.parentContact = 'Please provide parent contact.';
+  }
+  if (!newStudentForm.parentEmail.trim()) {
+    missingInputs.push('Parent Email');
+    validationErrors.parentEmail = 'Please provide parent email.';
+  }
+
+  if (missingInputs.length > 0) {
+    setAddStudentValidationErrors(validationErrors);
+    toast({
+      title: 'Required Inputs Missing',
+      description: `Please complete: ${missingInputs.join(', ')}`,
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  setAddStudentValidationErrors({});
+
+  // Capitalize name
+  function capitalizeWords(str: string) {
+    return str.replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\B\w/g, (c) => c.toLowerCase());
+  }
+  const capitalizedLastName = capitalizeWords(newStudentForm.lastName.trim());
+  const capitalizedFirstMiddle = capitalizeWords(newStudentForm.firstMiddleName.trim());
+  const fullName = `${capitalizedLastName}, ${capitalizedFirstMiddle}`;
+
+  // Check for missing LRN
+  if (!newStudentForm.lrn.trim()) {
+    setConfirmNoLrnOpen(true);
+    setPendingAddStudent(true);
+    return;
+  }
+
+  const isEarlyLevel = EARLY_LEVEL_OPTIONS.includes(newStudentForm.level);
+  const isGradeLevel = GRADE_LEVEL_OPTIONS.includes(newStudentForm.level);
+  const shouldCreateSchedule = isEarlyLevel || isGradeLevel;
+
+  if (isEarlyLevel && selectedScheduleDays.length === 0) {
+    toast({
+      title: 'Schedule days required',
+      description: 'Please select at least one weekday for the student schedule.',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  if (shouldCreateSchedule && scheduleTimeSlots.length === 0) {
+    toast({
+      title: 'Schedule slots required',
+      description: 'Please add at least one schedule time slot.',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  if (shouldCreateSchedule) {
+    const invalidSlot = scheduleTimeSlots.find((slot) => {
+      return !slot.startTime || !slot.endTime || slot.startTime >= slot.endTime;
+    });
+
+    if (invalidSlot) {
       toast({
-        title: 'Database not connected',
-        description: 'Supabase client is not initialized.',
+        title: 'Invalid schedule slot',
+        description: 'Each schedule slot must have start and end time, and start must be earlier than end.',
         variant: 'destructive',
       });
       return;
     }
+  }
 
-    const missingInputs: string[] = [];
-    const validationErrors: {
-      name?: string;
-      gender?: string;
-      birthday?: string;
-      level?: string;
-      parentName?: string;
-      parentContact?: string;
-      parentEmail?: string;
-    } = {};
+  setAddingStudent(true);
 
-    if (!newStudentForm.lastName.trim()) {
-      missingInputs.push('Last Name');
-      validationErrors.lastName = 'Please provide last name.';
-    }
-    if (!newStudentForm.firstMiddleName.trim()) {
-      missingInputs.push('First/Middle Name');
-      validationErrors.firstMiddleName = 'Please provide first/middle name.';
-    }
-    if (!newStudentForm.gender) {
-      missingInputs.push('Gender');
-      validationErrors.gender = 'Please select gender.';
-    }
-    if (!newStudentForm.birthday) {
-      missingInputs.push('Birthday');
-      validationErrors.birthday = 'Please select birthday.';
-    }
-    if (!newStudentForm.level) {
-      missingInputs.push('Year Level');
-      validationErrors.level = 'Please select year level.';
-    }
-    if (!newStudentForm.parentName.trim()) {
-      missingInputs.push('Parent/Guardian Name');
-      validationErrors.parentName = 'Please provide parent/guardian name.';
-    }
-    if (!newStudentForm.parentContact.trim()) {
-      missingInputs.push('Parent Contact');
-      validationErrors.parentContact = 'Please provide parent contact.';
-    }
-    if (!newStudentForm.parentEmail.trim()) {
-      missingInputs.push('Parent Email');
-      validationErrors.parentEmail = 'Please provide parent email.';
+  try {
+    const normalizedParentEmail = newStudentForm.parentEmail.trim().toLowerCase();
+    if (normalizedParentEmail) {
+      const { error: parentUpsertError } = await supabase
+        .from('parents')
+        .upsert(
+          [{
+            parent_email: normalizedParentEmail,
+            full_name: newStudentForm.parentName.trim() || null,
+            contact: newStudentForm.parentContact.trim() || null,
+          }],
+          { onConflict: 'parent_email' }
+        );
+      if (parentUpsertError) {
+        throw parentUpsertError;
+      }
     }
 
-    if (missingInputs.length > 0) {
-      setAddStudentValidationErrors(validationErrors);
-      toast({
-        title: 'Required Inputs Missing',
-        description: `Please complete: ${missingInputs.join(', ')}`,
-        variant: 'destructive',
+    const studentLrn = newStudentForm.lrn.trim();
+
+    const { error } = await supabase
+      .from('students')
+      .insert({
+        lrn: studentLrn,
+        name: fullName,
+        gender: newStudentForm.gender,
+        birthday: newStudentForm.birthday,
+        level: newStudentForm.level,
+        risk_level: 'low',
+        address: newStudentForm.address.trim() || null,
+        parent_name: newStudentForm.parentName.trim(),
+        parent_contact: newStudentForm.parentContact.trim(),
+        parent_email: normalizedParentEmail,
+        status: newStudentForm.status,
+        updated_at: new Date().toISOString(),
       });
-      return;
+
+    if (error) {
+      throw error;
     }
-
-    setAddStudentValidationErrors({});
-
-    if (!newStudentForm.lrn.trim()) {
-      setConfirmNoLrnOpen(true);
-      setPendingAddStudent(true);
-      return; // Prevent auto-saving until user confirms
-    }
-
-    const isEarlyLevel = EARLY_LEVEL_OPTIONS.includes(newStudentForm.level);
-    const isGradeLevel = GRADE_LEVEL_OPTIONS.includes(newStudentForm.level);
-    const shouldCreateSchedule = isEarlyLevel || isGradeLevel;
-
-    // ...existing save logic...
-      // Confirm dialog for missing LRN
-      const handleConfirmNoLrn = async () => {
-        setConfirmNoLrnOpen(false);
-        setPendingAddStudent(false);
-        // Actually proceed to save student with blank LRN
-        // Copy the save logic from handleAddStudent here, skipping the LRN check
-        const isEarlyLevel = EARLY_LEVEL_OPTIONS.includes(newStudentForm.level);
-        const isGradeLevel = GRADE_LEVEL_OPTIONS.includes(newStudentForm.level);
-        const shouldCreateSchedule = isEarlyLevel || isGradeLevel;
-        if (isEarlyLevel && selectedScheduleDays.length === 0) {
-          toast({
-            title: 'Schedule days required',
-            description: 'Please select at least one weekday for the student schedule.',
-            variant: 'destructive',
-          });
-          return;
-        }
-        if (shouldCreateSchedule && scheduleTimeSlots.length === 0) {
-          toast({
-            title: 'Schedule slots required',
-            description: 'Please add at least one schedule time slot.',
-            variant: 'destructive',
-          });
-          return;
-        }
-        if (shouldCreateSchedule) {
-          const invalidSlot = scheduleTimeSlots.find((slot) => {
-            return !slot.startTime || !slot.endTime || slot.startTime >= slot.endTime;
-          });
-          if (invalidSlot) {
-            toast({
-              title: 'Invalid schedule slot',
-              description: 'Each schedule slot must have start and end time, and start must be earlier than end.',
-              variant: 'destructive',
-            });
-            return;
-          }
-        }
-        setAddingStudent(true);
-
-        try {
-          const normalizedParentEmail = newStudentForm.parentEmail.trim().toLowerCase();
-          if (normalizedParentEmail) {
-            const { error: parentUpsertError } = await supabase
-              .from('parents')
-              .upsert(
-                [{
-                  parent_email: normalizedParentEmail,
-                  full_name: newStudentForm.parentName.trim() || null,
-                  contact: newStudentForm.parentContact.trim() || null,
-                }],
-                { onConflict: 'parent_email' }
-              );
-            if (parentUpsertError) {
-              throw parentUpsertError;
-            }
-          }
-
-          const { error } = await supabase
-            .from('students')
-            .insert({
-              lrn: newStudentForm.lrn.trim(),
-              name: newStudentForm.name.trim(),
-              gender: newStudentForm.gender,
-              birthday: newStudentForm.birthday,
-              level: newStudentForm.level,
-              risk_level: 'low',
-              address: newStudentForm.address.trim() || null,
-              parent_name: newStudentForm.parentName.trim(),
-              parent_contact: newStudentForm.parentContact.trim(),
-              parent_email: normalizedParentEmail,
-              status: newStudentForm.status,
-              updated_at: new Date().toISOString(),
-            });
-
-          if (error) {
-            throw error;
-          }
-          if (shouldCreateSchedule) {
-            const { data: currentSchoolYear } = await supabase
-              .from('school_years')
-              .select('id')
-              .eq('is_current', true)
-              .maybeSingle();
-            const scheduleDays = isEarlyLevel
-              ? selectedScheduleDays
-              : WEEKDAY_OPTIONS.map((day) => day.label);
-            const scheduleRows = scheduleDays.flatMap((day) => {
-              const dayConfig = WEEKDAY_OPTIONS.find((item) => item.label === day);
-              return scheduleTimeSlots.map((slot, slotIndex) => ({
-                student_lrn: newStudentForm.lrn.trim(),
-                school_year_id: currentSchoolYear?.id ?? null,
-                day_of_week: day,
-                day_number: dayConfig?.dayNumber ?? 1,
-                subject: slot.label?.trim() ? `${newStudentForm.level} ${slot.label.trim()}` : `${newStudentForm.level} Session ${slotIndex + 1}`,
-                start_time: slot.startTime,
-                end_time: slot.endTime,
-                room: null,
-                teacher_name: null,
-                is_active: true,
-                updated_at: new Date().toISOString(),
-              }));
-            });
-            const { error: scheduleError } = await supabase
-              .from('student_schedules')
-              .insert(scheduleRows);
-            if (scheduleError) {
-              toast({
-                title: 'Student added, schedule failed',
-                description: scheduleError.message,
-                variant: 'destructive',
-              });
-            }
-          }
-          toast({
-            title: 'Student added',
-            description: `${newStudentForm.name} was added successfully.`,
-            variant: 'default',
-          });
-          setAddStudentOpen(false);
-          resetAddStudentForm();
-          await fetchStudents();
-        } catch (error) {
-          console.error('Error adding student:', error);
-          toast({
-            title: 'Failed to add student',
-            description: error instanceof Error ? error.message : String(error),
-            variant: 'destructive',
-          });
-        } finally {
-          setAddingStudent(false);
-        }
-      };
-    if (isEarlyLevel && selectedScheduleDays.length === 0) {
-      toast({
-        title: 'Schedule days required',
-        description: 'Please select at least one weekday for the student schedule.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (shouldCreateSchedule && scheduleTimeSlots.length === 0) {
-      toast({
-        title: 'Schedule slots required',
-        description: 'Please add at least one schedule time slot.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+    
     if (shouldCreateSchedule) {
-      const invalidSlot = scheduleTimeSlots.find((slot) => {
-        return !slot.startTime || !slot.endTime || slot.startTime >= slot.endTime;
+      const { data: currentSchoolYear } = await supabase
+        .from('school_years')
+        .select('id')
+        .eq('is_current', true)
+        .maybeSingle();
+      const scheduleDays = isEarlyLevel
+        ? selectedScheduleDays
+        : WEEKDAY_OPTIONS.map((day) => day.label);
+      const scheduleRows = scheduleDays.flatMap((day) => {
+        const dayConfig = WEEKDAY_OPTIONS.find((item) => item.label === day);
+        return scheduleTimeSlots.map((slot, slotIndex) => ({
+          student_lrn: studentLrn,
+          school_year_id: currentSchoolYear?.id ?? null,
+          day_of_week: day,
+          day_number: dayConfig?.dayNumber ?? 1,
+          subject: slot.label?.trim() ? `${newStudentForm.level} ${slot.label.trim()}` : `${newStudentForm.level} Session ${slotIndex + 1}`,
+          start_time: slot.startTime,
+          end_time: slot.endTime,
+          room: null,
+          teacher_name: null,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        }));
       });
-
-      if (invalidSlot) {
+      const { error: scheduleError } = await supabase
+        .from('student_schedules')
+        .insert(scheduleRows);
+      if (scheduleError) {
         toast({
-          title: 'Invalid schedule slot',
-          description: 'Each schedule slot must have start and end time, and start must be earlier than end.',
+          title: 'Student added, schedule failed',
+          description: scheduleError.message,
           variant: 'destructive',
         });
-        return;
       }
     }
-
-    setAddingStudent(true);
-
-    try {
-      const normalizedParentEmail = newStudentForm.parentEmail.trim().toLowerCase();
-      if (normalizedParentEmail) {
-        const { error: parentUpsertError } = await supabase
-          .from('parents')
-          .upsert(
-            [{
-              parent_email: normalizedParentEmail,
-              full_name: newStudentForm.parentName.trim() || null,
-              contact: newStudentForm.parentContact.trim() || null,
-            }],
-            { onConflict: 'parent_email' }
-          );
-        if (parentUpsertError) {
-          throw parentUpsertError;
-        }
-      }
-
-      const { error } = await supabase
-        .from('students')
-        .insert({
-          lrn: newStudentForm.lrn.trim(),
-          name: newStudentForm.name.trim(),
-          gender: newStudentForm.gender,
-          birthday: newStudentForm.birthday,
-          level: newStudentForm.level,
-          risk_level: 'low',
-          address: newStudentForm.address.trim() || null,
-          parent_name: newStudentForm.parentName.trim(),
-          parent_contact: newStudentForm.parentContact.trim(),
-          parent_email: normalizedParentEmail,
-          status: newStudentForm.status,
-          updated_at: new Date().toISOString(),
-        });
-
-      if (error) {
-        throw error;
-      }
-      if (shouldCreateSchedule) {
-        const { data: currentSchoolYear } = await supabase
-          .from('school_years')
-          .select('id')
-          .eq('is_current', true)
-          .maybeSingle();
-        const scheduleDays = isEarlyLevel
-          ? selectedScheduleDays
-          : WEEKDAY_OPTIONS.map((day) => day.label);
-        const scheduleRows = scheduleDays.flatMap((day) => {
-          const dayConfig = WEEKDAY_OPTIONS.find((item) => item.label === day);
-          return scheduleTimeSlots.map((slot, slotIndex) => ({
-            student_lrn: newStudentForm.lrn.trim(),
-            school_year_id: currentSchoolYear?.id ?? null,
-            day_of_week: day,
-            day_number: dayConfig?.dayNumber ?? 1,
-            subject: slot.label?.trim() ? `${newStudentForm.level} ${slot.label.trim()}` : `${newStudentForm.level} Session ${slotIndex + 1}`,
-            start_time: slot.startTime,
-            end_time: slot.endTime,
-            room: null,
-            teacher_name: null,
-            is_active: true,
-            updated_at: new Date().toISOString(),
-          }));
-        });
-        const { error: scheduleError } = await supabase
-          .from('student_schedules')
-          .insert(scheduleRows);
-        if (scheduleError) {
-          toast({
-            title: 'Student added, schedule failed',
-            description: scheduleError.message,
-            variant: 'destructive',
-          });
-        }
-      }
-      toast({
-        title: 'Student added',
-        description: `${newStudentForm.name} was added successfully.`,
-        variant: 'default',
-      });
-      setAddStudentOpen(false);
-      resetAddStudentForm();
-      await fetchStudents();
-    } catch (error) {
-      console.error('Error adding student:', error);
-      toast({
-        title: 'Failed to add student',
-        description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
-      });
-    } finally {
-      setAddingStudent(false);
-    }
-  };
+    
+    toast({
+      title: 'Student added',
+      description: `${fullName} was added successfully.`,
+      variant: 'default',
+    });
+    setAddStudentOpen(false);
+    resetAddStudentForm();
+    await fetchStudents();
+  } catch (error) {
+    console.error('Error adding student:', error);
+    toast({
+      title: 'Failed to add student',
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive',
+    });
+  } finally {
+    setAddingStudent(false);
+  }
+};
 
   const handleSort = (key: string) => {
     setSortConfig(current => ({
