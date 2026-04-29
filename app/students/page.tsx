@@ -1226,6 +1226,54 @@ export default function StudentsPage() {
     fetchStudents();
   }, []);
 
+  // Fetch today's attendance separately so cards update immediately
+  const fetchTodaysAttendance = async () => {
+    if (!supabase) return;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { data: attendance, error: attendanceError } = await supabase
+        .from('attendance_logs')
+        .select('student_lrn, check_in_time, check_out_time')
+        .eq('date', today);
+      if (attendanceError) throw attendanceError;
+
+      const attendanceMap: Record<string, { checkInTime?: string; checkOutTime?: string }> = {};
+      (attendance || []).forEach((entry: any) => {
+        attendanceMap[entry.student_lrn] = {
+          checkInTime: entry.check_in_time,
+          checkOutTime: entry.check_out_time || undefined,
+        };
+      });
+
+      setAttendanceByLrn(attendanceMap);
+    } catch (err) {
+      console.error('Failed to fetch today\'s attendance:', err);
+    }
+  };
+
+  // Load today's attendance once and subscribe to realtime changes
+  useEffect(() => {
+    void fetchTodaysAttendance();
+
+    if (!supabase) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const channel = supabase
+      .channel('attendance_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'attendance_logs', filter: `date=eq.${today}` },
+        () => {
+          void fetchTodaysAttendance();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase]);
+
   useEffect(() => {
     if (notificationDeepLinkHandled || loading || students.length === 0) {
       return;
