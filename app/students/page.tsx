@@ -811,9 +811,17 @@ export default function StudentsPage() {
 
     let updatedName = selectedStudent.name;
     if (editLastName !== null) {
-      const nameParts = selectedStudent.name.trim().split(' ');
-      const firstMiddle = nameParts.slice(0, -1).join(' ');
-      updatedName = `${firstMiddle}${firstMiddle ? ' ' : ''}${editLastName}`.trim();
+      const raw = selectedStudent.name.trim();
+      if (raw.includes(',')) {
+        // Format: Last, First Middle
+        const parts = raw.split(',');
+        const firstMiddle = (parts[1] || '').trim();
+        updatedName = `${editLastName}, ${firstMiddle}`.trim();
+      } else {
+        const nameParts = raw.split(' ');
+        const firstMiddle = nameParts.slice(0, -1).join(' ');
+        updatedName = `${firstMiddle}${firstMiddle ? ' ' : ''}${editLastName}`.trim();
+      }
     }
 
     const normalizedRfid = normalizeRfidUid(selectedStudent.rfid_uid || '');
@@ -3910,10 +3918,20 @@ export default function StudentsPage() {
                                             <div className="grid grid-cols-1 gap-3 relative sm:grid-cols-2">
                                               {/* Name Section - Only Last Name Editable */}
                                               {(() => {
-                                                // Split name into parts
-                                                const nameParts = selectedStudent.name.trim().split(' ');
-                                                const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
-                                                const firstMiddle = nameParts.slice(0, -1).join(' ');
+                                                // Support both "Last, First Middle" and "First Middle Last" formats
+                                                const raw = selectedStudent.name.trim();
+                                                let lastName = '';
+                                                let firstMiddle = '';
+                                                if (raw.includes(',')) {
+                                                  const parts = raw.split(',');
+                                                  lastName = parts[0].trim();
+                                                  firstMiddle = (parts[1] || '').trim();
+                                                } else {
+                                                  const nameParts = raw.split(' ');
+                                                  lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+                                                  firstMiddle = nameParts.slice(0, -1).join(' ');
+                                                }
+
                                                 return (
                                                   <div className="col-span-2 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
                                                     <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
@@ -4182,10 +4200,18 @@ export default function StudentsPage() {
                                                 )}
                                                 {isAdmin && !editingStudentInfo ? (
                                                   <Button size="sm" variant="outline" className="min-w-[100px] w-full sm:w-auto" onClick={() => {
-                                                    // When entering edit mode, buffer the last name
-                                                    const nameParts = selectedStudent.name.trim().split(' ');
-                                                    setEditLastName(nameParts.length > 1 ? nameParts[nameParts.length - 1] : '');
-                                                    setEditingStudentInfo(true);
+                                                    // When entering edit mode, buffer the last name (support comma format)
+                                                        const raw = selectedStudent.name.trim();
+                                                        let bufLast = '';
+                                                        if (raw.includes(',')) {
+                                                          const parts = raw.split(',');
+                                                          bufLast = parts[0].trim();
+                                                        } else {
+                                                          const nameParts = raw.split(' ');
+                                                          bufLast = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+                                                        }
+                                                        setEditLastName(bufLast);
+                                                        setEditingStudentInfo(true);
                                                   }}>
                                                     Edit Info
                                                   </Button>
