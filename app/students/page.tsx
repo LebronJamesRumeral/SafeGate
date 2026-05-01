@@ -3342,7 +3342,7 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Name (optional)</label>
+                    <label className="text-sm font-medium"> Parent/Guardian Name (optional)</label>
                     <Input
                       value={newStudentForm.parent2Name}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parent2Name: e.target.value }))}
@@ -3352,7 +3352,7 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Contact (optional)</label>
+                    <label className="text-sm font-medium">Parent Contact (optional)</label>
                     <Input
                       value={newStudentForm.parent2Contact}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parent2Contact: e.target.value }))}
