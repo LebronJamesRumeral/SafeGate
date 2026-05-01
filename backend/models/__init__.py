@@ -32,6 +32,8 @@ class Student(Base):
     class_level = Column(String(50))
     is_active = Column(Boolean, default=True)
     parent_email = Column(String(255), index=True)
+    parent2_name = Column(String(255), nullable=True)
+    parent2_contact = Column(String(50), nullable=True)
     
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

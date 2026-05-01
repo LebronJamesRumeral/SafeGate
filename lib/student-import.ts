@@ -22,6 +22,8 @@ export type ImportableStudentRow = {
   level: string;
   parent_name: string;
   parent_contact: string;
+  parent2_name?: string;
+  parent2_contact?: string;
   parent_email: string;
   status: string;
   substatus?: string;
@@ -45,6 +47,8 @@ const FIELD_ALIASES: Record<string, string[]> = {
   address: ['address', 'home address', 'residence'],
   parent_name: ['parent name', 'guardian name', 'parent/guardian', 'parent guardian', 'guardian'],
   parent_contact: ['parent contact', 'parent phone', 'guardian contact', 'contact', 'contact number', 'mobile', 'phone'],
+  parent2_name: ['parent2 name', 'parent 2 name', 'second parent', 'second guardian', 'additional parent', 'additional parent name'],
+  parent2_contact: ['parent2 contact', 'parent 2 contact', 'second parent contact', 'second guardian contact', 'additional parent contact'],
   parent_email: ['parent email', 'guardian email', 'email', 'e-mail'],
   status: ['status', 'enrollment status'],
 };
@@ -147,6 +151,8 @@ export function parseStudentImportRows(rawRows: Record<string, unknown>[]): Stud
     const name = pickValue(rowMap, FIELD_ALIASES.name);
     const parentName = pickValue(rowMap, FIELD_ALIASES.parent_name);
     const parentContact = pickValue(rowMap, FIELD_ALIASES.parent_contact);
+    const parent2Name = pickValue(rowMap, FIELD_ALIASES.parent2_name || []);
+    const parent2Contact = pickValue(rowMap, FIELD_ALIASES.parent2_contact || []);
     const parentEmail = pickValue(rowMap, FIELD_ALIASES.parent_email);
 
     if (!name || !parentName || !parentContact || !parentEmail) {
@@ -173,6 +179,8 @@ export function parseStudentImportRows(rawRows: Record<string, unknown>[]): Stud
         level,
         parent_name: parentName,
         parent_contact: parentContact,
+        parent2_name: parent2Name || undefined,
+        parent2_contact: parent2Contact || undefined,
         parent_email: parentEmail,
         status,
         updated_at: new Date().toISOString(),
@@ -187,6 +195,8 @@ export function parseStudentImportRows(rawRows: Record<string, unknown>[]): Stud
         level,
         parent_name: parentName,
         parent_contact: parentContact,
+        parent2_name: parent2Name || undefined,
+        parent2_contact: parent2Contact || undefined,
         parent_email: parentEmail,
         status: 'inactive',
         substatus: 'undergrad',

@@ -831,6 +831,8 @@ export default function StudentsPage() {
       address: (selectedStudent.address || '').trim() || null,
       parent_name: (selectedStudent.parentName || '').trim() || null,
       parent_contact: (selectedStudent.parentContact || '').trim() || null,
+      parent2_name: (selectedStudent.parent2Name || '').trim() || null,
+      parent2_contact: (selectedStudent.parent2Contact || '').trim() || null,
       parent_email: (selectedStudent.parentEmail || '').trim() || null,
       rfid_uid: normalizedRfid || null,
       updated_at: new Date().toISOString(),
@@ -862,9 +864,31 @@ export default function StudentsPage() {
         address: payload.address || '',
         parentName: payload.parent_name || '',
         parentContact: payload.parent_contact || '',
+        parent2Name: payload.parent2_name || '',
+        parent2Contact: payload.parent2_contact || '',
         parentEmail: payload.parent_email || '',
         rfid_uid: payload.rfid_uid,
       });
+      // If LRN was edited while in edit mode, attempt to update it via RPC
+      if (pendingLrn && pendingLrn.trim() && pendingLrn.trim() !== selectedStudent.lrn) {
+        try {
+          const newLrn = pendingLrn.trim();
+          const { error: lrnError } = await supabase.rpc('update_student_lrn', {
+            old_lrn: selectedStudent.lrn,
+            new_lrn: newLrn,
+            student_id: selectedStudent.id,
+          });
+          if (lrnError) {
+            toast({ title: 'Failed to update LRN', description: lrnError.message || String(lrnError), variant: 'destructive' });
+          } else {
+            setSelectedStudent((prev) => prev ? { ...prev, lrn: newLrn } : prev);
+            toast({ title: 'LRN updated', description: 'Student LRN was updated.' });
+          }
+        } catch (err) {
+          console.error('Failed to update LRN during save:', err);
+          toast({ title: 'Failed to update LRN', description: String(err), variant: 'destructive' });
+        }
+      }
       setEditLastName(null);
       setEditingStudentInfo(false);
       await fetchStudents();
@@ -890,6 +914,8 @@ export default function StudentsPage() {
     address: '',
     parentName: '',
     parentContact: '',
+    parent2Name: '',
+    parent2Contact: '',
     parentEmail: '',
     status: 'active',
   });
@@ -902,6 +928,8 @@ export default function StudentsPage() {
     parentName?: string;
     parentContact?: string;
     parentEmail?: string;
+    parent2Name?: string;
+    parent2Contact?: string;
   }>({});
   const isEarlyLevelSelected = EARLY_LEVEL_OPTIONS.includes(newStudentForm.level);
   const isGradeLevelSelected = GRADE_LEVEL_OPTIONS.includes(newStudentForm.level);
@@ -1189,6 +1217,8 @@ export default function StudentsPage() {
           riskLevel: student.risk_level || null,
           parentName: student.parent_name,
           parentContact: student.parent_contact,
+          parent2Name: student.parent2_name || null,
+          parent2Contact: student.parent2_contact || null,
           parent_email: normalizedParentEmail || null,
           parentEmail: normalizedParentEmail || null,
           isLinked: !!(normalizedParentEmail && parentEmailSet.has(normalizedParentEmail)),
@@ -1741,6 +1771,8 @@ export default function StudentsPage() {
         address: newStudentForm.address.trim() || null,
         parent_name: newStudentForm.parentName.trim(),
         parent_contact: newStudentForm.parentContact.trim(),
+        parent2_name: newStudentForm.parent2Name.trim() || null,
+        parent2_contact: newStudentForm.parent2Contact.trim() || null,
         parent_email: normalizedParentEmail,
         status: newStudentForm.status,
         updated_at: new Date().toISOString(),
@@ -1995,12 +2027,8 @@ export default function StudentsPage() {
 
   const openStudentDetails = (student: Student, options?: { tab?: string; highlightDate?: string }) => {
     setSelectedStudent(student);
-    // If the LRN is temporary, pre-fill the pendingLrn input for editing
-    if (student.lrn && student.lrn.startsWith('TEMP-')) {
-      setPendingLrn(student.lrn);
-    } else {
-      setPendingLrn('');
-    }
+    // Prefill the pendingLrn input for editing (allow edits when entering Edit Info)
+    setPendingLrn(student.lrn || '');
     setDetailsOpen(true);
     setEditingSchedule(false);
     setScheduleDraft([]);
@@ -2476,7 +2504,7 @@ export default function StudentsPage() {
   }, [filteredStudents, riskScores, attendanceByLrn]);
 
   const exportToCSV = async () => {
-    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Parent Name', 'Parent Contact', 'Parent Email', 'Address', 'Status'];
+    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Parent Name', 'Parent Contact', 'Parent Email', 'Additional Parent Name', 'Additional Parent Contact', 'Address', 'Status'];
     const exportRows = filteredStudents.map((student) => {
       const age = shouldShowAge(student.level) ? calculateAgeWithDecimal(student.birthday) : 'N/A';
       const riskLevel = student.riskLevel || '';
@@ -2491,6 +2519,8 @@ export default function StudentsPage() {
         'Parent Name': student.parentName || '',
         'Parent Contact': student.parentContact || '',
         'Parent Email': student.parentEmail || '',
+        'Additional Parent Name': (student as any).parent2Name || '',
+        'Additional Parent Contact': (student as any).parent2Contact || '',
         Address: student.address || '',
         Status: student.status || 'active',
       };
@@ -3306,6 +3336,29 @@ export default function StudentsPage() {
                       <p className="text-sm text-red-600 dark:text-red-400">{addStudentValidationErrors.parentEmail}</p>
                     )}
                   </div>
+
+                  <div className="md:col-span-2 space-y-1 pt-2 border-t border-gray-200 dark:border-gray-700 mt-2">
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Additional Parent/Guardian (optional)</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Name (optional)</label>
+                    <Input
+                      value={newStudentForm.parent2Name}
+                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parent2Name: e.target.value }))}
+                      placeholder="Additional Parent/Guardian Full Name"
+                      className="capitalize"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Contact (optional)</label>
+                    <Input
+                      value={newStudentForm.parent2Contact}
+                      onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parent2Contact: e.target.value }))}
+                      placeholder="E.g., 0917-555-0117"
+                    />
+                  </div>
                   </div>
                 </div>
                 {/* Sticky footer for actions */}
@@ -3745,6 +3798,8 @@ export default function StudentsPage() {
                                       setScheduleDraft([]);
                                       setDetailsTab('overview');
                                       setHighlightExcuseDate('');
+                                      setPendingLrn('');
+                                      setEditingStudentInfo(false);
                                     }
                                   }}
                                 >
@@ -3777,34 +3832,19 @@ export default function StudentsPage() {
                                             <div>
                                               <DialogTitle className="text-2xl">{selectedStudent.name}</DialogTitle>
                                               <DialogDescription>
-                                                {selectedStudent.lrn && selectedStudent.lrn.startsWith('TEMP-') ? (
-                                                  <span className="flex items-center gap-2">
-                                                    <Input
-                                                      value={pendingLrn}
-                                                      onChange={e => setPendingLrn(e.target.value)}
-                                                      placeholder="Enter LRN"
-                                                      className="capitalize w-48"
-                                                    />
-                                                    <Button
-                                                      size="sm"
-                                                      variant="default"
-                                                      disabled={!pendingLrn.trim()}
-                                                      onClick={() => {
-                                                        setLrnToSave(pendingLrn.trim());
-                                                        setConfirmLrnOpen(true);
-                                                      }}
-                                                    >
-                                                      Confirm
-                                                    </Button>
-                                                    <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-2">Temporary LRN</span>
-                                                  </span>
-                                                ) : (
+                                                <span className="flex items-center gap-2">
                                                   <Input
-                                                    value={selectedStudent.lrn}
-                                                    disabled
-                                                    className="capitalize w-48 bg-slate-100 dark:bg-slate-800/50"
+                                                    value={pendingLrn}
+                                                    onChange={e => setPendingLrn(e.target.value)}
+                                                    placeholder="Enter LRN"
+                                                    className="capitalize w-48"
+                                                    disabled={!editingStudentInfo}
                                                   />
-                                                )}
+                                                  {/* LRN update is now handled via main Confirm button */}
+                                                  {selectedStudent.lrn && selectedStudent.lrn.startsWith('TEMP-') && (
+                                                    <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-2">Temporary LRN</span>
+                                                  )}
+                                                </span>
                                                 <span className="ml-2">• {selectedStudent.level}</span>
                                               </DialogDescription>
                                                   {/* Confirmation Dialog for LRN update */}
@@ -4011,6 +4051,29 @@ export default function StudentsPage() {
                                                       className="text-sm"
                                                       disabled={!editingStudentInfo}
                                                     />
+                                                  </div>
+                                                  <div className="border-t border-gray-200 dark:border-gray-600 mt-3 pt-3">
+                                                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Additional Parent/Guardian (optional)</p>
+                                                    <div className="flex items-center gap-2">
+                                                      <User className="w-4 h-4 text-muted-foreground" />
+                                                      <Input
+                                                        value={selectedStudent.parent2Name || ''}
+                                                        onChange={e => setSelectedStudent({ ...selectedStudent, parent2Name: e.target.value })}
+                                                        placeholder="Additional Parent/Guardian Name"
+                                                        className="text-sm"
+                                                        disabled={!editingStudentInfo}
+                                                      />
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 mt-2">
+                                                      <Phone className="w-4 h-4 text-muted-foreground" />
+                                                      <Input
+                                                        value={selectedStudent.parent2Contact || ''}
+                                                        onChange={e => setSelectedStudent({ ...selectedStudent, parent2Contact: e.target.value })}
+                                                        placeholder="Additional Parent Contact"
+                                                        className="text-sm"
+                                                        disabled={!editingStudentInfo}
+                                                      />
+                                                    </div>
                                                   </div>
                                                 </div>
 

@@ -69,6 +69,8 @@ CREATE TABLE IF NOT EXISTS students (
   level VARCHAR(50) NOT NULL,
   parent_name VARCHAR(255),
   parent_contact VARCHAR(50),
+  parent2_name VARCHAR(255),
+  parent2_contact VARCHAR(50),
   parent_email VARCHAR(255),
   risk_level VARCHAR(20) DEFAULT 'low',
   status VARCHAR(20) DEFAULT 'active',
@@ -80,6 +82,9 @@ CREATE TABLE IF NOT EXISTS students (
 
 -- Backward-compatible migration for existing databases
 ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_email VARCHAR(255);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_contact VARCHAR(50);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS parent2_name VARCHAR(255);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS parent2_contact VARCHAR(50);
 ALTER TABLE students ADD COLUMN IF NOT EXISTS rfid_uid VARCHAR(32);
 ALTER TABLE students ADD COLUMN IF NOT EXISTS risk_level VARCHAR(20) DEFAULT 'low';
 UPDATE students SET risk_level = 'low' WHERE risk_level IS NULL OR risk_level = '';

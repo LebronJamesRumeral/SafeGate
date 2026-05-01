@@ -14,6 +14,8 @@ class StudentBase(BaseModel):
     class_level: str = Field(..., min_length=1, max_length=50)
     student_id: str = Field(..., min_length=1, max_length=50)
     parent_email: str = Field(None, max_length=255)
+    parent2_name: Optional[str] = None
+    parent2_contact: Optional[str] = None
 
 
 class StudentCreate(StudentBase):
@@ -29,6 +31,8 @@ class StudentUpdate(BaseModel):
     class_level: Optional[str] = None
     is_active: Optional[bool] = None
     parent_email: Optional[str] = None
+    parent2_name: Optional[str] = None
+    parent2_contact: Optional[str] = None
 
 
 
@@ -51,6 +55,8 @@ class StudentWithParentLink(BaseModel):
     class_level: str
     student_id: str
     parent_email: Optional[str]
+    parent2_name: Optional[str]
+    parent2_contact: Optional[str]
     isLinked: bool
 
     class Config:

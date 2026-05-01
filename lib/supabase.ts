@@ -23,9 +23,13 @@ export interface Student {
   level: string;
   parent_name: string;
   parent_contact: string;
-  parent_email?: string | null;
-  parentName: string;
-  parentContact: string;
+  parent2_name?: string | null,
+  parent2_contact?: string | null,
+  parent_email?: string | null,
+  parentName: string,
+  parentContact: string,
+  parent2Name?: string | null,
+  parent2Contact?: string | null,
   parentEmail?: string | null;
   status: string;
   substatus?: string | null;
