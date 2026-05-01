@@ -1246,20 +1246,55 @@ export default function StudentsPage() {
       const today = new Date().toISOString().split('T')[0];
       const { data: attendance, error: attendanceError } = await supabase
         .from('attendance_logs')
-        .select('student_lrn, check_in_time, check_out_time, attendance_status')
+        .select('student_lrn, check_in_time, check_out_time, attendance_status, is_present')
         .eq('date', today);
       if (attendanceError) throw attendanceError;
 
-      const attendanceMap: Record<string, { checkInTime?: string; checkOutTime?: string; attendanceStatus?: string; scheduledEndTime?: string }> = {};
+      const attendanceMap: Record<string, { checkInTime?: string; checkOutTime?: string; attendanceStatus?: string; scheduledEndTime?: string; isPresent?: boolean }> = {};
       (attendance || []).forEach((entry: any) => {
         attendanceMap[entry.student_lrn] = {
           checkInTime: entry.check_in_time,
           checkOutTime: entry.check_out_time || undefined,
           attendanceStatus: entry.attendance_status || entry.attendanceStatus || undefined,
+          isPresent: entry.is_present === true || entry.isPresent === true ? true : false,
         };
       });
 
-      setAttendanceByLrn(attendanceMap);
+      // Detect if today is marked as a school holiday or cancelled class for the whole school
+      const { data: noClassRows } = await supabase
+        .from('attendance_logs')
+        .select('attendance_status')
+        .eq('date', today)
+        .in('attendance_status', ['holiday', 'cancelled_class'])
+        .limit(1);
+
+      let todayNoClassStatus: string | null = null;
+      if (noClassRows && noClassRows.length > 0) {
+        // Prefer 'holiday' when present
+        const { data: holidayCheck } = await supabase
+          .from('attendance_logs')
+          .select('attendance_status')
+          .eq('date', today)
+          .eq('attendance_status', 'holiday')
+          .limit(1);
+        todayNoClassStatus = (holidayCheck && holidayCheck.length > 0) ? 'holiday' : 'cancelled_class';
+      }
+
+      // If the whole day is a no-class day, ensure each active student shows that status (override any check-ins)
+      if (todayNoClassStatus && students && students.length > 0) {
+        const overridden: Record<string, any> = { ...attendanceMap };
+        students.forEach((s) => {
+          overridden[s.lrn] = {
+            checkInTime: undefined,
+            checkOutTime: undefined,
+            attendanceStatus: todayNoClassStatus,
+            isPresent: false,
+          };
+        });
+        setAttendanceByLrn(overridden);
+      } else {
+        setAttendanceByLrn(attendanceMap);
+      }
     } catch (err) {
       console.error('Failed to fetch today\'s attendance:', err);
     }
@@ -2414,8 +2449,19 @@ export default function StudentsPage() {
     ].filter(item => item.count > 0);
 
     // Today's attendance stats
-    const checkedIn = Object.keys(attendanceByLrn).length;
-    const checkedOut = Object.values(attendanceByLrn).filter(a => a.checkOutTime).length;
+    const checkedIn = Object.values(attendanceByLrn).filter(a => {
+      const status = String(a.attendanceStatus || '').toLowerCase();
+      if (isNoClassStatus(status)) return false;
+      if ((a as any).isPresent !== undefined) return !!(a as any).isPresent;
+      if ((a as any).is_present !== undefined) return !!(a as any).is_present;
+      // Fallback: consider a check-in time as checked in
+      return Boolean(a.checkInTime);
+    }).length;
+    const checkedOut = Object.values(attendanceByLrn).filter(a => {
+      const status = String(a.attendanceStatus || '').toLowerCase();
+      if (isNoClassStatus(status)) return false;
+      return Boolean(a.checkOutTime);
+    }).length;
 
     return {
       total,
