@@ -935,7 +935,7 @@ export default function StudentsPage() {
     meta: Record<string, any> | null;
   }>>>({});
   const [loadingExcuseLetters, setLoadingExcuseLetters] = useState(false);
-  const [attendanceByLrn, setAttendanceByLrn] = useState<Record<string, { checkInTime?: string; checkOutTime?: string; passedDayEnd?: boolean; scheduledEndTime?: string }>>({});
+  const [attendanceByLrn, setAttendanceByLrn] = useState<Record<string, { checkInTime?: string; checkOutTime?: string; passedDayEnd?: boolean; scheduledEndTime?: string; attendanceStatus?: string }>>({});
   const [riskScores, setRiskScores] = useState<Record<string, RiskScore | null>>({});
   const [studentSchedules, setStudentSchedules] = useState<Record<string, Array<{
     id: number;
@@ -1235,21 +1235,27 @@ export default function StudentsPage() {
   }, []);
 
   // Fetch today's attendance separately so cards update immediately
+  const isNoClassStatus = (s?: string) => {
+    const v = (s || '').toLowerCase();
+    return v === 'holiday' || v === 'cancelled_class';
+  };
+
   const fetchTodaysAttendance = async () => {
     if (!supabase) return;
     try {
       const today = new Date().toISOString().split('T')[0];
       const { data: attendance, error: attendanceError } = await supabase
         .from('attendance_logs')
-        .select('student_lrn, check_in_time, check_out_time')
+        .select('student_lrn, check_in_time, check_out_time, attendance_status')
         .eq('date', today);
       if (attendanceError) throw attendanceError;
 
-      const attendanceMap: Record<string, { checkInTime?: string; checkOutTime?: string }> = {};
+      const attendanceMap: Record<string, { checkInTime?: string; checkOutTime?: string; attendanceStatus?: string; scheduledEndTime?: string }> = {};
       (attendance || []).forEach((entry: any) => {
         attendanceMap[entry.student_lrn] = {
           checkInTime: entry.check_in_time,
           checkOutTime: entry.check_out_time || undefined,
+          attendanceStatus: entry.attendance_status || entry.attendanceStatus || undefined,
         };
       });
 
@@ -3637,29 +3643,45 @@ export default function StudentsPage() {
                               </TableCell>
                               <TableCell className="hidden md:table-cell whitespace-nowrap">
                                 {attendance ? (
-                                  <div className="flex flex-col gap-1">
-                                    {attendance.passedDayEnd ? (
-                                      <Badge className="bg-gray-200 text-gray-800 border-0 text-xs">
-                                        No Check Out
-                                      </Badge>
-                                    ) : attendance.checkOutTime ? (
-                                      <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs">
-                                        Checked Out
-                                      </Badge>
-                                    ) : (
-                                      <Badge className="bg-blue-100 text-blue-700 border-0 text-xs">
-                                        Checked In
-                                      </Badge>
-                                    )}
-                                    <span className="text-[10px] text-muted-foreground">
-                                      {attendance.checkInTime ? new Date(attendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
-                                    </span>
-                                    {attendance.scheduledEndTime && (
-                                      <span className="text-[10px] text-muted-foreground">
-                                        Until {attendance.scheduledEndTime.slice(0, 5)}
-                                      </span>
-                                    )}
-                                  </div>
+                                  (() => {
+                                    const status = attendance.attendanceStatus;
+                                    if (status && isNoClassStatus(status)) {
+                                      const normalized = status.toLowerCase();
+                                      const label = normalized === 'holiday' ? 'Holiday' : 'Cancelled';
+                                      const badgeClass = normalized === 'holiday' ? 'bg-sky-100 text-sky-700 border-0 text-xs' : 'bg-slate-100 text-slate-700 border-0 text-xs';
+                                      return (
+                                        <div className="flex flex-col gap-1">
+                                          <Badge className={badgeClass}>{label}</Badge>
+                                        </div>
+                                      );
+                                    }
+
+                                    return (
+                                      <div className="flex flex-col gap-1">
+                                        {attendance.passedDayEnd ? (
+                                          <Badge className="bg-gray-200 text-gray-800 border-0 text-xs">
+                                            No Check Out
+                                          </Badge>
+                                        ) : attendance.checkOutTime ? (
+                                          <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs">
+                                            Checked Out
+                                          </Badge>
+                                        ) : (
+                                          <Badge className="bg-blue-100 text-blue-700 border-0 text-xs">
+                                            Checked In
+                                          </Badge>
+                                        )}
+                                        <span className="text-[10px] text-muted-foreground">
+                                          {attendance.checkInTime ? new Date(attendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
+                                        </span>
+                                        {attendance.scheduledEndTime && (
+                                          <span className="text-[10px] text-muted-foreground">
+                                            Until {attendance.scheduledEndTime.slice(0, 5)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })()
                                 ) : (
                                   <Badge variant="outline" className="border-border/60 text-muted-foreground text-xs">
                                     Not Checked In
@@ -4283,46 +4305,52 @@ export default function StudentsPage() {
                                           </TabsContent>
 
                                           <TabsContent value="attendance" className="space-y-4 mt-4">
-                                            {attendanceByLrn[selectedStudent.lrn] ? (
-                                              <div className="border border-blue-200 dark:border-blue-900/50 rounded-lg p-6 bg-blue-50/60 dark:bg-blue-950/30">
+                                            {behavioralData && Array.isArray(behavioralData.attendance) && behavioralData.attendance.length > 0 ? (
+                                              <div className="rounded-lg border border-slate-200/60 dark:border-slate-800/50 p-4 bg-white/60 dark:bg-slate-900/30">
                                                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                                                   <Clock className="w-5 h-5 text-blue-600" />
-                                                  Today's Attendance
+                                                  Attendance History
                                                 </h3>
-                                                <div className="grid grid-cols-3 gap-4">
-                                                  <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
-                                                    <p className="text-xs text-muted-foreground">Check In</p>
-                                                    <p className="font-bold text-xl mt-1">
-                                                      {attendanceByLrn[selectedStudent.lrn].checkInTime ? new Date(attendanceByLrn[selectedStudent.lrn].checkInTime as string).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
-                                                    </p>
-                                                  </div>
-                                                  {attendanceByLrn[selectedStudent.lrn].checkOutTime && (
-                                                    <>
-                                                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
-                                                        <p className="text-xs text-muted-foreground">Check Out</p>
-                                                        <p className="font-bold text-xl mt-1">
-                                                          {attendanceByLrn[selectedStudent.lrn].checkOutTime ? new Date(attendanceByLrn[selectedStudent.lrn].checkOutTime as string).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
-                                                        </p>
-                                                      </div>
-                                                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
-                                                        <p className="text-xs text-muted-foreground">Duration</p>
-                                                        <p className="font-bold text-xl mt-1 text-blue-600">
-                                                          {attendanceByLrn[selectedStudent.lrn].checkInTime && attendanceByLrn[selectedStudent.lrn].checkOutTime
-                                                            ? calculateDuration(
-                                                                attendanceByLrn[selectedStudent.lrn].checkInTime as string,
-                                                                attendanceByLrn[selectedStudent.lrn].checkOutTime as string
-                                                              )
-                                                            : '--'}
-                                                        </p>
-                                                      </div>
-                                                    </>
-                                                  )}
+                                                <div className="overflow-x-auto">
+                                                  <table className="w-full text-sm">
+                                                    <thead>
+                                                      <tr className="text-left text-xs text-muted-foreground">
+                                                        <th className="px-3 py-2">Date</th>
+                                                        <th className="px-3 py-2">Status</th>
+                                                        <th className="px-3 py-2">Check In</th>
+                                                        <th className="px-3 py-2">Check Out</th>
+                                                      </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                      {behavioralData.attendance
+                                                        .slice()
+                                                        .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                                        .map((entry: any) => {
+                                                          const rawStatus = (entry.attendance_status || '').toLowerCase();
+                                                          const statusLabel = rawStatus
+                                                            ? (rawStatus === 'present' ? 'Present' : rawStatus === 'absent' ? 'Absent' : rawStatus === 'holiday' ? 'Holiday' : rawStatus === 'cancelled_class' ? 'Cancelled' : rawStatus)
+                                                            : (entry.is_present ? 'Present' : 'Absent');
+                                                          const noClass = isNoClassStatus(entry.attendance_status || entry.attendanceStatus);
+                                                          const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700';
+                                                          return (
+                                                            <tr key={`${entry.date}-${entry.student_lrn}`} className="border-t border-slate-100 dark:border-slate-800">
+                                                              <td className="px-3 py-2">{new Date(entry.date).toLocaleDateString()}</td>
+                                                              <td className="px-3 py-2">
+                                                                <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
+                                                              </td>
+                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_in_time ? new Date(entry.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--')}</td>
+                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_out_time ? new Date(entry.check_out_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--')}</td>
+                                                            </tr>
+                                                          );
+                                                        })}
+                                                    </tbody>
+                                                  </table>
                                                 </div>
                                               </div>
                                             ) : (
                                               <div className="text-center py-8 text-muted-foreground">
                                                 <Clock className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                                                <p>No attendance record for today</p>
+                                                <p>No attendance records available</p>
                                               </div>
                                             )}
                                           </TabsContent>

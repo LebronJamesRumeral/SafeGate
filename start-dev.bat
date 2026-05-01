@@ -18,6 +18,11 @@ timeout /t 3 /nobreak
 
 REM Start Next.js Frontend in a new window
 echo [2/2] Starting Next.js Frontend on port 3000...
+REM If dependencies are not installed, run install first so `next` is available
+if not exist node_modules (
+	echo node_modules not found — installing npm dependencies...
+	npm install
+)
 start cmd /k "npm run dev"
 
 echo.

@@ -3459,171 +3459,20 @@ function BehavioralEventsPageContent() {
 
         {/* Event Details Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-2xl">
+          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-5xl lg:max-w-4xl h-auto sm:h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
             {selectedEvent && (
               <>
-                <DialogHeader>
-                  <div className="flex items-center gap-2">
+                <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2 mb-2">
                     {getSeverityIcon(selectedEvent.severity)}
-                    <DialogTitle className="text-xl">{selectedEvent.event_type}</DialogTitle>
+                    <DialogTitle className="text-2xl">{selectedEvent.event_type}</DialogTitle>
                   </div>
                   <DialogDescription>
                     {selectedEvent.report_group_id
                       ? `General report details for ${selectedEvent.report_student_count || 1} students`
                       : `Event details for ${selectedEvent.students?.name || selectedEvent.student_lrn}`}
                   </DialogDescription>
-                </DialogHeader>
-                
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-4"
-                >
-                  <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        {selectedEvent.report_group_id ? 'Students Included' : 'Student'}
-                      </Label>
-                      {selectedEvent.report_group_id ? (
-                        <p className="font-medium text-sm mt-1">
-                          {selectedEvent.report_student_names?.join(', ') || selectedEvent.students?.name || selectedEvent.student_lrn}
-                        </p>
-                      ) : (
-                        <>
-                          <p className="font-medium text-lg">{selectedEvent.students?.name}</p>
-                          <p className="text-sm text-muted-foreground">{selectedEvent.student_lrn}</p>
-                        </>
-                      )}
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Level</Label>
-                      <p className="font-medium">{selectedEvent.report_group_id ? 'Multiple Levels' : selectedEvent.students?.level}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Date & Time</Label>
-                      <p className="font-medium">
-                        {new Date(selectedEvent.event_date).toLocaleDateString()}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{selectedEvent.event_time}</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Severity</Label>
-                      <div className="mt-1">{getSeverityBadge(selectedEvent.severity)}</div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Description</Label>
-                    <p className="mt-1 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                      {selectedEvent.description}
-                    </p>
-                  </div>
-                  {selectedEvent.proof_image_url && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Proof Image</Label>
-                      <div className="mt-2 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={selectedEvent.proof_image_url} alt="Behavior proof" className="max-h-64 w-full object-contain bg-slate-50 dark:bg-slate-900/40" />
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedEvent.location && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Location</Label>
-                      <p className="mt-1 flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-muted-foreground" />
-                        {selectedEvent.location}
-                      </p>
-                    </div>
-                  )}
-
-                  {selectedEvent.action_taken && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Action Taken</Label>
-                      <p className="mt-1 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                        {selectedEvent.action_taken}
-                      </p>
-                    </div>
-                  )}
-
-                  {removeReportMetadataFromNotes(selectedEvent.notes) && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Additional Notes</Label>
-                      <p className="mt-1 text-sm whitespace-pre-wrap">{removeReportMetadataFromNotes(selectedEvent.notes)}</p>
-                    </div>
-                  )}
-
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Reported By</Label>
-                    <p className="mt-1 flex items-center gap-2">
-                      <User className="w-4 h-4 text-muted-foreground" />
-                      {selectedEvent.reported_by}
-                    </p>
-                  </div>
-
-                  <div className="space-y-3 pt-2">
-                    {isGuidanceUser && (
-                      <div className="space-y-2">
-                        <Label htmlFor="guidance-note" className="text-xs text-muted-foreground">
-                          Guidance Intervention Notes
-                        </Label>
-                        <Textarea
-                          id="guidance-note"
-                          value={guidanceReviewNote}
-                          onChange={(e) => setGuidanceReviewNote(e.target.value)}
-                          placeholder="Record intervention details, counseling notes, and recommendation."
-                          rows={3}
-                          className="resize-none"
-                        />
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap gap-2">
-                      {selectedEvent.follow_up_required && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => handleFollowUp(selectedEvent)}
-                          className="gap-2 bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          Mark Follow-up Complete
-                        </Button>
-                      )}
-
-                      {isGuidanceUser && selectedEvent.guidance_status !== 'approved_for_ml' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={guidanceSubmitting}
-                          onClick={() => void handleGuidanceDecision('approved_for_ml')}
-                          className="gap-2 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          {guidanceSubmitting ? 'Submitting...' : 'Approve and Run ML'}
-                        </Button>
-                      )}
-
-                      {isGuidanceUser && selectedEvent.guidance_status !== 'denied_by_guidance' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={guidanceSubmitting}
-                          onClick={() => void handleGuidanceDecision('denied_by_guidance')}
-                          className="gap-2 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
-                        >
-                          <XCircle className="w-4 h-4" />
-                          {guidanceSubmitting ? 'Submitting...' : 'Deny Escalation'}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 pt-2">
+                  <div className="flex flex-wrap gap-2 mt-3">
                     {getGuidanceStatusBadge(selectedEvent.guidance_status)}
                     {selectedEvent.parent_notified && (
                       <Badge className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-0 gap-1">
@@ -3637,13 +3486,185 @@ function BehavioralEventsPageContent() {
                         Follow-up Required
                       </Badge>
                     )}
-                    {selectedEvent.guidance_reviewed_by && (
-                      <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-0 gap-1">
-                        <User className="w-3 h-3" />
-                        Reviewed by {selectedEvent.guidance_reviewed_by}
-                      </Badge>
-                    )}
                   </div>
+                </DialogHeader>
+                
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-4 overflow-y-auto flex-1 px-6 py-5"
+                >
+                  {/* Student & Event Info Section */}
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-900/50">
+                    <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      Student & Event Information
+                    </h3>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">
+                          {selectedEvent.report_group_id ? 'Students Included' : 'Student'}
+                        </Label>
+                        {selectedEvent.report_group_id ? (
+                          <p className="font-medium text-sm mt-1">
+                            {selectedEvent.report_student_names?.join(', ') || selectedEvent.students?.name || selectedEvent.student_lrn}
+                          </p>
+                        ) : (
+                          <>
+                            <p className="font-medium mt-1">{selectedEvent.students?.name}</p>
+                            <p className="text-xs text-muted-foreground">{selectedEvent.student_lrn}</p>
+                          </>
+                        )}
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Level</Label>
+                        <p className="font-medium mt-1">{selectedEvent.report_group_id ? 'Multiple Levels' : selectedEvent.students?.level}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Date & Time</Label>
+                        <p className="font-medium mt-1">{new Date(selectedEvent.event_date).toLocaleDateString()}</p>
+                        <p className="text-xs text-muted-foreground">{selectedEvent.event_time}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Severity</Label>
+                        <div className="mt-1">{getSeverityBadge(selectedEvent.severity)}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Description Section */}
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-900/50">
+                    <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      Event Description
+                    </h3>
+                    <p className="text-sm whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">
+                      {selectedEvent.description}
+                    </p>
+                  </div>
+
+                  {/* Image & Location Section */}
+                  {(selectedEvent.proof_image_url || selectedEvent.location) && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {selectedEvent.proof_image_url && (
+                        <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-900/50">
+                          <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3">Proof Image</h3>
+                          <div className="rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={selectedEvent.proof_image_url} alt="Behavior proof" className="max-h-48 w-full object-contain bg-slate-50 dark:bg-slate-900/40" />
+                          </div>
+                        </div>
+                      )}
+                      {selectedEvent.location && (
+                        <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-900/50">
+                          <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                            <MapPin className="w-4 h-4" />
+                            Location
+                          </h3>
+                          <p className="text-sm">{selectedEvent.location}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action & Notes Section */}
+                  {(selectedEvent.action_taken || removeReportMetadataFromNotes(selectedEvent.notes)) && (
+                    <div className="space-y-4">
+                      {selectedEvent.action_taken && (
+                        <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-900/50">
+                          <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3">Action Taken</h3>
+                          <p className="text-sm whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">
+                            {selectedEvent.action_taken}
+                          </p>
+                        </div>
+                      )}
+                      {removeReportMetadataFromNotes(selectedEvent.notes) && (
+                        <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-900/50">
+                          <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3">Additional Notes</h3>
+                          <p className="text-sm whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">
+                            {removeReportMetadataFromNotes(selectedEvent.notes)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Reported By Section */}
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-900/50">
+                    <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      Reported By
+                    </h3>
+                    <p className="text-sm">{selectedEvent.reported_by}</p>
+                  </div>
+
+                  {/* Guidance Section */}
+                  <div className="border border-amber-200 dark:border-amber-800/50 rounded-lg p-4 bg-amber-50/40 dark:bg-amber-950/20">
+                    <h3 className="font-semibold text-sm text-amber-900 dark:text-amber-200 mb-3 flex items-center gap-2">
+                      <BookOpen className="w-4 h-4" />
+                      Guidance Intervention Notes
+                    </h3>
+                    <div className="p-3 bg-white dark:bg-slate-900/50 rounded-lg border border-amber-100 dark:border-amber-900/30 min-h-[100px] text-sm whitespace-pre-wrap">
+                      {selectedEvent.guidance_intervention_notes || <span className="text-muted-foreground italic">No guidance notes recorded yet</span>}
+                    </div>
+                  </div>
+
+                  {/* Actions Section */}
+                  {(selectedEvent.follow_up_required || isGuidanceUser) && (
+                    <div className="border border-blue-200 dark:border-blue-800/50 rounded-lg p-4 bg-blue-50/40 dark:bg-blue-950/20">
+                      <h3 className="font-semibold text-sm text-blue-900 dark:text-blue-200 mb-4 flex items-center gap-2">
+                        <Zap className="w-4 h-4" />
+                        Actions
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedEvent.follow_up_required && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleFollowUp(selectedEvent)}
+                            className="gap-2 bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100 dark:bg-orange-950/30 dark:text-orange-200 dark:border-orange-800"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Mark Follow-up Complete
+                          </Button>
+                        )}
+
+                        {isGuidanceUser && selectedEvent.guidance_status !== 'approved_for_ml' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={guidanceSubmitting}
+                            onClick={() => void handleGuidanceDecision('approved_for_ml')}
+                            className="gap-2 bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-800"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            {guidanceSubmitting ? 'Submitting...' : 'Approve and Run ML'}
+                          </Button>
+                        )}
+
+                        {isGuidanceUser && selectedEvent.guidance_status !== 'denied_by_guidance' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={guidanceSubmitting}
+                            onClick={() => void handleGuidanceDecision('denied_by_guidance')}
+                            className="gap-2 bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-200 dark:border-rose-800"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            {guidanceSubmitting ? 'Submitting...' : 'Deny Escalation'}
+                          </Button>
+                        )}
+                      </div>
+                      {selectedEvent.guidance_reviewed_by && (
+                        <div className="mt-4 pt-4 border-t border-blue-100 dark:border-blue-800/30">
+                          <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                            <User className="w-3 h-3" />
+                            Reviewed by {selectedEvent.guidance_reviewed_by}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               </>
             )}
