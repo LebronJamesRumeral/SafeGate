@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { 
   CalendarDays, 
   CheckCircle, 
@@ -87,6 +88,11 @@ type AttendanceLog = {
 
 const weekdayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
+const NO_CLASS_STATUSES = new Set(['cancelled_class', 'holiday']);
+
+function isNoClassStatus(status?: string | null) {
+  return NO_CLASS_STATUSES.has(String(status || '').toLowerCase());
+}
 
 function normalizeRange(start: string, end: string) {
   if (!start || !end) return [end, end];
@@ -149,6 +155,7 @@ export default function AttendancePage() {
   const [cancelDateStart, setCancelDateStart] = useState(today);
   const [cancelDateEnd, setCancelDateEnd] = useState(today);
   const [cancelReason, setCancelReason] = useState('');
+  const [cancelAsHoliday, setCancelAsHoliday] = useState(false);
   const [submittingCancelClasses, setSubmittingCancelClasses] = useState(false);
 
   useEffect(() => {
@@ -354,7 +361,7 @@ export default function AttendancePage() {
   const cancelledDatesSet = useMemo(() => {
     return new Set(
       logs
-        .filter((log) => (log.attendance_status || '').toLowerCase() === 'cancelled_class')
+        .filter((log) => isNoClassStatus(log.attendance_status))
         .map((log) => log.date)
     );
   }, [logs]);
@@ -373,7 +380,7 @@ export default function AttendancePage() {
 
   const attendanceByStudent = useMemo(() => {
     return logs.reduce((acc, log) => {
-      const isCancelled = (log.attendance_status || '').toLowerCase() === 'cancelled_class';
+      const isCancelled = isNoClassStatus(log.attendance_status);
       if (isCancelled) return acc;
       if (log.is_present === false) return acc;
       if (!acc[log.student_lrn]) {
@@ -386,7 +393,7 @@ export default function AttendancePage() {
 
   const attendanceByDate = useMemo(() => {
     return logs.reduce((acc, log) => {
-      const isCancelled = (log.attendance_status || '').toLowerCase() === 'cancelled_class';
+      const isCancelled = isNoClassStatus(log.attendance_status);
       if (isCancelled) return acc;
       if (log.is_present === false) return acc;
       if (!acc[log.date]) {
@@ -463,7 +470,7 @@ export default function AttendancePage() {
 
   const totalAbsences = summaryRows.reduce((sum, row) => sum + row.absentDays, 0);
   const totalCheckIns = logs.filter((log) => {
-    const isCancelled = (log.attendance_status || '').toLowerCase() === 'cancelled_class';
+    const isCancelled = isNoClassStatus(log.attendance_status);
     return !isCancelled && log.is_present !== false;
   }).length;
   const totalStudents = students.length;
@@ -570,9 +577,14 @@ export default function AttendancePage() {
     }
 
     setSubmittingCancelClasses(true);
+    const attendanceStatus = cancelAsHoliday ? 'holiday' : 'cancelled_class';
+    const operationLabel = cancelAsHoliday ? 'holiday schedule' : 'class cancellation';
+    const notificationTitle = cancelAsHoliday ? 'School Holiday' : 'Classes Cancelled';
+    const notificationKind = cancelAsHoliday ? 'school_holiday' : 'class_cancellation';
+
     const cancelToast = toast({
-      title: 'Saving class cancellation...',
-      description: 'Please wait while class records are updated.',
+      title: `Saving ${operationLabel}...`,
+      description: 'Please wait while attendance records are updated.',
     });
     try {
       const { data: activeStudents, error: studentsError } = await supabase
@@ -595,7 +607,7 @@ export default function AttendancePage() {
           check_in_time: `${date}T00:00:00.000Z`,
           check_out_time: null,
           is_present: false,
-          attendance_status: 'cancelled_class',
+          attendance_status: attendanceStatus,
           is_late: false,
           is_invalid_timeout: false,
         }))
@@ -608,18 +620,23 @@ export default function AttendancePage() {
       if (upsertError) throw upsertError;
 
       await createRoleNotification({
-        title: 'Classes Cancelled',
+        title: notificationTitle,
         message:
           startDate === endDate
-            ? `Classes on ${startDate} are cancelled.`
-            : `Classes from ${startDate} to ${endDate} are cancelled.`,
+            ? cancelAsHoliday
+              ? `${startDate} is marked as a school holiday.`
+              : `Classes on ${startDate} are cancelled.`
+            : cancelAsHoliday
+              ? `${startDate} to ${endDate} are marked as school holidays.`
+              : `Classes from ${startDate} to ${endDate} are cancelled.`,
         targetRoles: ['parent'],
         createdBy: user?.username || 'admin',
         meta: {
-          notification_kind: 'class_cancellation',
+          notification_kind: notificationKind,
           cancelled_start_date: startDate,
           cancelled_end_date: endDate,
           cancelled_dates: datesToCancel,
+          attendance_status: attendanceStatus,
           reason: cancelReason.trim() || null,
           href: '/parent-attendance',
         },
@@ -627,17 +644,18 @@ export default function AttendancePage() {
 
       cancelToast.update({
         id: cancelToast.id,
-        title: 'Class cancellation saved',
-        description: `Marked ${datesToCancel.length} day(s) as cancelled and notified parents.`,
+        title: `${cancelAsHoliday ? 'Holiday' : 'Class cancellation'} saved`,
+        description: `Marked ${datesToCancel.length} day(s) as ${cancelAsHoliday ? 'holiday' : 'cancelled'} and notified parents.`,
       });
       setCancelClassesOpen(false);
       setCancelReason('');
+      setCancelAsHoliday(false);
       await fetchData();
     } catch (error) {
       console.error('Failed to cancel classes:', error);
       cancelToast.update({
         id: cancelToast.id,
-        title: 'Failed to save cancellation',
+        title: `Failed to save ${cancelAsHoliday ? 'holiday' : 'cancellation'}`,
         description: error instanceof Error ? error.message : 'Unknown error',
         variant: 'destructive',
       });
@@ -699,42 +717,79 @@ export default function AttendancePage() {
                     Cancel Classes
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-xl border-orange-200 dark:border-orange-800/60">
-                  <DialogHeader>
-                    <DialogTitle className="text-orange-700 dark:text-orange-300">Cancel Classes</DialogTitle>
-                    <DialogDescription>
-                      Mark one or multiple dates as cancelled classes. Parents will receive a notification.
+                <DialogContent className="max-w-2xl overflow-hidden border-orange-200 dark:border-orange-800/60 p-0">
+                  <DialogHeader className="border-b border-orange-200/70 dark:border-orange-800/60 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-900/30 px-6 py-5">
+                    <DialogTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
+                      <Calendar className="h-5 w-5" />
+                      Cancel Classes
+                    </DialogTitle>
+                    <DialogDescription className="text-slate-600 dark:text-slate-300">
+                      Set a date range and choose whether this should be recorded as a regular class cancellation or as a holiday.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">Start date</label>
-                      <Input type="date" value={cancelDateStart} onChange={(e) => setCancelDateStart(e.target.value)} />
+
+                  <div className="space-y-5 px-6 py-5">
+                    <div className="rounded-lg border border-blue-200/70 dark:border-blue-800/60 bg-blue-50/60 dark:bg-blue-950/20 px-4 py-3">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Mark as holiday</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-400">Turn this on to save status as holiday. Turn off to save as cancelled class.</p>
+                        </div>
+                        <Switch
+                          checked={cancelAsHoliday}
+                          onCheckedChange={setCancelAsHoliday}
+                          className="h-7 w-14 border border-slate-300 dark:border-slate-600 data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-slate-300 dark:data-[state=unchecked]:bg-slate-700"
+                        />
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <Badge className={cancelAsHoliday ? 'bg-blue-600 text-white border-0' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0'}>
+                          {cancelAsHoliday ? 'Holiday Mode' : 'Cancellation Mode'}
+                        </Badge>
+                        <span className="text-xs text-slate-600 dark:text-slate-400">
+                          Saved status: <span className="font-semibold text-slate-900 dark:text-slate-100">{cancelAsHoliday ? 'Holiday' : 'Cancelled'}</span>
+                        </span>
+                      </div>
                     </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">Start date</label>
+                        <Input type="date" value={cancelDateStart} onChange={(e) => setCancelDateStart(e.target.value)} className="border-orange-200/80 dark:border-orange-800/70" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">End date</label>
+                        <Input type="date" value={cancelDateEnd} onChange={(e) => setCancelDateEnd(e.target.value)} className="border-orange-200/80 dark:border-orange-800/70" />
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">End date</label>
-                      <Input type="date" value={cancelDateEnd} onChange={(e) => setCancelDateEnd(e.target.value)} />
+                      <label className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">Reason (optional)</label>
+                      <Textarea
+                        placeholder={cancelAsHoliday ? 'Reason for holiday declaration (e.g., national holiday, local ordinance).' : 'Reason for cancellation (e.g., typhoon warning, maintenance).'}
+                        value={cancelReason}
+                        onChange={(e) => setCancelReason(e.target.value)}
+                        className="min-h-24 border-orange-200/80 dark:border-orange-800/70"
+                      />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">Reason (optional)</label>
-                    <Textarea
-                      placeholder="Reason for cancellation (e.g., typhoon warning, holiday, maintenance)."
-                      value={cancelReason}
-                      onChange={(e) => setCancelReason(e.target.value)}
-                      className="min-h-24"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button variant="outline" onClick={() => setCancelClassesOpen(false)} disabled={submittingCancelClasses}>
+
+                  <div className="flex justify-end gap-2 border-t border-orange-200/70 dark:border-orange-800/60 bg-slate-50/70 dark:bg-slate-900/40 px-6 py-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setCancelClassesOpen(false);
+                        setCancelAsHoliday(false);
+                      }}
+                      disabled={submittingCancelClasses}
+                    >
                       Close
                     </Button>
                     <Button
                       onClick={() => void handleCancelClasses()}
                       disabled={submittingCancelClasses}
-                      className="bg-orange-600 hover:bg-orange-700 text-white"
+                      className={cancelAsHoliday ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-orange-600 hover:bg-orange-700 text-white'}
                     >
-                      {submittingCancelClasses ? 'Saving...' : 'Save Cancellation'}
+                      {submittingCancelClasses ? 'Saving...' : cancelAsHoliday ? 'Save Holiday' : 'Save Cancellation'}
                     </Button>
                   </div>
                 </DialogContent>
@@ -1419,7 +1474,8 @@ export default function AttendancePage() {
                     logs.map((log) => {
                       const student = studentMap[log.student_lrn];
                       const normalizedStatus = String(log.attendance_status || '').toLowerCase();
-                      const isCancelled = normalizedStatus === 'cancelled_class';
+                      const isHoliday = normalizedStatus === 'holiday';
+                      const isCancelled = normalizedStatus === 'cancelled_class' || isHoliday;
                       const checkIn = new Date(log.check_in_time);
                       const checkOut = log.check_out_time ? new Date(log.check_out_time) : null;
                       const duration = checkOut 
@@ -1445,8 +1501,8 @@ export default function AttendancePage() {
                           <TableCell className="hidden md:table-cell">{student?.level || 'N/A'}</TableCell>
                           <TableCell>
                             {isCancelled ? (
-                              <Badge className="bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0">
-                                Cancelled
+                              <Badge className={isHoliday ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0'}>
+                                {isHoliday ? 'Holiday' : 'Cancelled'}
                               </Badge>
                             ) : checkOut ? (
                               <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-0">

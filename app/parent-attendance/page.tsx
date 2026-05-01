@@ -705,7 +705,7 @@ export default function ParentAttendancePage() {
                 const filteredLogs = logs.filter((log: any) => {
                   const logDate = String(log.date || '').slice(0, 10);
                   const statusRaw = String(log.attendance_status || '').toLowerCase();
-                  const status = statusRaw === 'cancelled_class' ? 'cancelled' : statusRaw;
+                  const status = statusRaw === 'cancelled_class' ? 'cancelled' : statusRaw === 'holiday' ? 'holiday' : statusRaw;
                   const stats = behaviorIndicators[child.lrn]?.[logDate];
                   const hasBehavior = Boolean(stats && stats.total > 0);
                   const positiveCount = stats?.positive || 0;
@@ -844,6 +844,7 @@ export default function ParentAttendancePage() {
                                     <SelectItem value="late">Late</SelectItem>
                                     <SelectItem value="absent">Absent</SelectItem>
                                     <SelectItem value="cancelled">Cancelled</SelectItem>
+                                    <SelectItem value="holiday">Holiday</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -903,12 +904,16 @@ export default function ParentAttendancePage() {
                                                 ? 'bg-emerald-100 text-emerald-700 border-0 text-xs'
                                                 : String(log.attendance_status).toLowerCase() === 'late'
                                                 ? 'bg-orange-100 text-orange-700 border-0 text-xs'
+                                                : String(log.attendance_status).toLowerCase() === 'holiday'
+                                                ? 'bg-blue-100 text-blue-700 border-0 text-xs'
                                                 : String(log.attendance_status).toLowerCase() === 'cancelled_class'
                                                 ? 'bg-slate-200 text-slate-700 border-0 text-xs'
                                                 : 'bg-red-100 text-red-700 border-0 text-xs'
                                             }
                                           >
-                                            {String(log.attendance_status).toLowerCase() === 'cancelled_class'
+                                            {String(log.attendance_status).toLowerCase() === 'holiday'
+                                              ? 'Holiday'
+                                              : String(log.attendance_status).toLowerCase() === 'cancelled_class'
                                               ? 'Cancelled'
                                               : String(log.attendance_status || '').charAt(0).toUpperCase() + String(log.attendance_status || '').slice(1)}
                                           </Badge>
