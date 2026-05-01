@@ -74,6 +74,24 @@ const COLORS = {
   }
 };
 
+function normalizeText(value: string | null | undefined) {
+  return (value || '').toLowerCase().trim();
+}
+
+function getSingleRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? value[0] || null : value;
+}
+
+function resolveBehaviorSeverity(event: any) {
+  const category = getSingleRelation(event.event_categories);
+  const resolved = normalizeText(event.severity || category?.severity_level || null);
+  if (resolved === 'positive' || resolved === 'minor' || resolved === 'major' || resolved === 'critical' || resolved === 'neutral') {
+    return resolved;
+  }
+  return 'other';
+}
+
 // Enforce consistent layout structure for analytics
 export default function AnalyticsPage() {
   const today = new Date().toISOString().split('T')[0];
@@ -195,11 +213,19 @@ export default function AnalyticsPage() {
       const dateRange = buildDateRange(normalizedStart, normalizedEnd);
       const last7Days = dateRange.slice(-7);
 
-      const { data: attendance, error: attendanceError } = await supabase
+      // Fetch attendance logs with specific fields (matching attendance page pattern)
+      let attendanceQuery = supabase
         .from('attendance_logs')
-        .select('*, students!inner(*)')
+        .select('id, student_lrn, check_in_time, check_out_time, date, attendance_status, is_present')
         .gte('date', dateRange[0])
         .lte('date', dateRange[dateRange.length - 1]);
+
+      if (selectedLevel !== 'all' && students && students.length > 0) {
+        const levelStudentLrns = students.map(s => s.lrn);
+        attendanceQuery = attendanceQuery.in('student_lrn', levelStudentLrns);
+      }
+
+      const { data: attendance, error: attendanceError } = await attendanceQuery;
 
       if (attendanceError) {
         setLoading(false);
@@ -211,44 +237,71 @@ export default function AnalyticsPage() {
         return;
       }
 
-      // Calculate weekly stats (last 7 days)
+      // Calculate weekly stats (last 7 days) — include cancelled and holiday counts
       const weeklyData = last7Days.map(date => {
         const dayAttendance = attendance?.filter(a => a.date === date) || [];
+
+        const holidayCount = dayAttendance.filter(a => String(a.attendance_status || '').toLowerCase() === 'holiday').length;
+        const cancelledCount = dayAttendance.filter(a => String(a.attendance_status || '').toLowerCase() === 'cancelled_class').length;
+
+        const presentCount = dayAttendance.filter(a => {
+          const status = String(a.attendance_status || '').toLowerCase();
+          const isNoClass = status === 'holiday' || status === 'cancelled_class';
+          return !isNoClass && (a.is_present !== false);
+        }).length;
+
         const lateCount = dayAttendance.filter(a => {
+          const status = String(a.attendance_status || '').toLowerCase();
+          const isNoClass = status === 'holiday' || status === 'cancelled_class';
+          if (isNoClass) return false;
+          if (!a.check_in_time) return false;
           const checkInTime = new Date(a.check_in_time);
           const cutoffTime = new Date(checkInTime);
           cutoffTime.setHours(8, 30, 0, 0);
           return checkInTime > cutoffTime;
         }).length;
 
+        const effectiveTotal = Math.max(totalStudents - cancelledCount - holidayCount, 0);
+        const attendanceRate = effectiveTotal > 0 ? (presentCount / effectiveTotal) * 100 : 0;
+
         return {
           day: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
           date,
-          present: dayAttendance.length,
-          absent: totalStudents - dayAttendance.length,
+          present: presentCount,
+          absent: Math.max(effectiveTotal - presentCount, 0),
           late: lateCount,
-          attendanceRate: totalStudents > 0 ? (dayAttendance.length / totalStudents) * 100 : 0
+          cancelled: cancelledCount,
+          holiday: holidayCount,
+          attendanceRate
         };
       });
 
-      // Calculate monthly trend
+      // Calculate monthly trend with cancelled/holiday adjustment
       const monthlyTrend = dateRange.map(date => {
         const dayAttendance = attendance?.filter(a => a.date === date) || [];
+        const holidayCount = dayAttendance.filter(a => String(a.attendance_status || '').toLowerCase() === 'holiday').length;
+        const cancelledCount = dayAttendance.filter(a => String(a.attendance_status || '').toLowerCase() === 'cancelled_class').length;
+        const presentCount = dayAttendance.filter(a => {
+          const status = String(a.attendance_status || '').toLowerCase();
+          const isNoClass = status === 'holiday' || status === 'cancelled_class';
+          return !isNoClass && (a.is_present !== false);
+        }).length;
+        const effectiveTotal = Math.max(totalStudents - cancelledCount - holidayCount, 0);
+        const attendancePct = effectiveTotal > 0 ? (presentCount / effectiveTotal) * 100 : 0;
         return {
           date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          attendance: totalStudents > 0 ? (dayAttendance.length / totalStudents) * 100 : 0,
-          present: dayAttendance.length
+          attendance: attendancePct,
+          present: presentCount
         };
       });
 
-      // Calculate average attendance
-      const totalPresent = weeklyData.reduce((sum, day) => sum + day.present, 0);
-      const averageAttendance = totalStudents > 0 ? (totalPresent / (totalStudents * weeklyData.length)) * 100 : 0;
+      // Calculate average attendance (average of daily effective rates)
+      const averageAttendance = weeklyData.length > 0 ? (weeklyData.reduce((sum, day) => sum + (day.attendanceRate || 0), 0) / weeklyData.length) : 0;
 
       // Calculate total late arrivals this week
-      const lateArrivals = weeklyData.reduce((sum, day) => sum + day.late, 0);
+      const lateArrivals = weeklyData.reduce((sum, day) => sum + (day.late || 0), 0);
 
-      // Calculate level stats
+      // Calculate level stats and include cancelled/holiday counts for badges
       const levels = [...new Set(students?.map(s => s.level))];
       const levelStats = await Promise.all(levels.map(async level => {
         const levelStudents = students?.filter(s => s.level === level) || [];
@@ -257,21 +310,42 @@ export default function AnalyticsPage() {
         const { data: levelAttendance } = supabase
           ? await supabase
               .from('attendance_logs')
-              .select('student_lrn')
+              .select('student_lrn, attendance_status, date, is_present')
               .in('student_lrn', levelStudents.map(s => s.lrn))
               .gte('date', last7Days[0])
               .lte('date', last7Days[last7Days.length - 1])
           : { data: [] };
 
-        const uniqueAttendances = new Set(levelAttendance?.map(a => a.student_lrn)).size;
-        const attendance = levelTotal > 0 ? (uniqueAttendances / levelTotal) * 100 : 0;
+        const presentSet = new Set();
+        const cancelledDates = new Set();
+        const holidayDates = new Set();
+
+        (levelAttendance || []).forEach(a => {
+          const status = String(a.attendance_status || '').toLowerCase();
+          if (status === 'cancelled_class') {
+            if (a.date) cancelledDates.add(a.date);
+            return;
+          }
+          if (status === 'holiday') {
+            if (a.date) holidayDates.add(a.date);
+            return;
+          }
+          if (a.is_present !== false) {
+            presentSet.add(a.student_lrn);
+          }
+        });
+
+        const uniquePresent = presentSet.size;
+        const attendancePct = levelTotal > 0 ? (uniquePresent / levelTotal) * 100 : 0;
 
         return {
           grade: level,
           total: levelTotal,
-          present: uniqueAttendances,
-          attendance: parseFloat(attendance.toFixed(1)),
-          trend: attendance > 75 ? 'up' : attendance < 50 ? 'down' : 'stable'
+          present: uniquePresent,
+          attendance: parseFloat(attendancePct.toFixed(1)),
+          trend: attendancePct > 75 ? 'up' : attendancePct < 50 ? 'down' : 'stable',
+          cancelledDays: cancelledDates.size,
+          holidayDays: holidayDates.size
         };
       }));
 
@@ -285,24 +359,36 @@ export default function AnalyticsPage() {
         attendanceByHour: generateHourlyData(attendance || [])
       });
 
-      // Fetch behavioral data
+      // Fetch behavioral data (matching behavioral-events page pattern)
       let behavioralQuery = supabase
         .from('behavioral_events')
-        .select('*, event_categories(category_type), students!inner(*)')
+        .select(`
+          id,
+          student_lrn,
+          event_type,
+          severity,
+          event_date,
+          event_time,
+          created_at,
+          students(name, level),
+          event_categories(name, category_type, color_code, severity_level)
+        `)
         .gte('event_date', dateRange[0])
         .lte('event_date', dateRange[dateRange.length - 1]);
 
-      if (students && students.length > 0) {
-        behavioralQuery = behavioralQuery.in('student_lrn', students.map(s => s.lrn));
+      if (selectedLevel !== 'all' && students && students.length > 0) {
+        const levelStudentLrns = students.map(s => s.lrn);
+        behavioralQuery = behavioralQuery.in('student_lrn', levelStudentLrns);
       }
 
       const { data: behavioralEvents, error: behavioralError } = await behavioralQuery;
 
       if (!behavioralError && behavioralEvents) {
-        const positiveEvents = behavioralEvents.filter(e => e.severity === 'positive').length;
-        const negativeEvents = behavioralEvents.filter(e => 
-          e.severity === 'major' || e.severity === 'critical'
-        ).length;
+        const positiveEvents = behavioralEvents.filter(e => resolveBehaviorSeverity(e) === 'positive').length;
+        const negativeEvents = behavioralEvents.filter(e => {
+          const severity = resolveBehaviorSeverity(e);
+          return severity === 'major' || severity === 'critical';
+        }).length;
 
 
         // Type breakdown (use event_type field)
@@ -327,13 +413,21 @@ export default function AnalyticsPage() {
           count
         }));
 
-        // Weekly trend
+        // Weekly trend (detailed by severity)
         const weeklyTrend = last7Days.map(date => {
           const dayEvents = behavioralEvents.filter(e => e.event_date === date);
+          const positive = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'positive').length;
+          const minor = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'minor').length;
+          const major = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'major').length;
+          const critical = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'critical').length;
+          const other = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'other').length;
           return {
             date: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
-            positive: dayEvents.filter(e => e.severity === 'positive').length,
-            negative: dayEvents.filter(e => e.severity === 'major' || e.severity === 'critical').length,
+            positive,
+            minor,
+            major,
+            critical,
+            other,
             total: dayEvents.length
           };
         });
@@ -346,9 +440,10 @@ export default function AnalyticsPage() {
             studentEventMap.set(lrn, { positive: 0, negative: 0 });
           }
           const stats = studentEventMap.get(lrn);
-          if (event.severity === 'positive') {
+          const severity = resolveBehaviorSeverity(event);
+          if (severity === 'positive') {
             stats.positive++;
-          } else if (event.severity === 'major' || event.severity === 'critical') {
+          } else if (severity === 'major' || severity === 'critical') {
             stats.negative++;
           }
         });
@@ -1139,8 +1234,10 @@ export default function AnalyticsPage() {
                           />
                           <Legend />
                           <Bar dataKey="present" fill="#10b981" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="absent" fill="#ef4444" radius={[4, 4, 0, 0]} />
                           <Bar dataKey="late" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="absent" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="cancelled" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="holiday" fill="#60a5fa" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1160,12 +1257,6 @@ export default function AnalyticsPage() {
                     <div className="h-60 sm:h-75 lg:h-96">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={behavioralStats.weeklyTrend} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                          <defs>
-                            <linearGradient id="behavioralGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-                              <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
                           <XAxis dataKey="date" stroke="#6B7280" />
                           <YAxis stroke="#6B7280" />
@@ -1177,13 +1268,12 @@ export default function AnalyticsPage() {
                               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                             }}
                           />
-                          <Area
-                            type="monotone"
-                            dataKey="total"
-                            stroke="#ef4444"
-                            strokeWidth={2}
-                            fill="url(#behavioralGradient)"
-                          />
+                          <Legend />
+                          <Area type="monotone" dataKey="positive" stackId="a" stroke="#10b981" fill="#a7f3d0" />
+                          <Area type="monotone" dataKey="minor" stackId="a" stroke="#f59e0b" fill="#fde68a" />
+                          <Area type="monotone" dataKey="major" stackId="a" stroke="#fb923c" fill="#ffedd5" />
+                          <Area type="monotone" dataKey="critical" stackId="a" stroke="#ef4444" fill="#fecaca" />
+                          <Area type="monotone" dataKey="other" stackId="a" stroke="#6B7280" fill="#e6e7ea" />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
@@ -1212,13 +1302,22 @@ export default function AnalyticsPage() {
                       >
                         <div className="flex items-center justify-between mb-3">
                           <span className="font-semibold text-slate-900 dark:text-white">{grade.grade}</span>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            grade.trend === 'up' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                            grade.trend === 'down' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
-                            'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                          }`}>
-                            {grade.trend === 'up' ? '↑' : grade.trend === 'down' ? '↓' : '→'} {grade.attendance}%
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              grade.trend === 'up' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                              grade.trend === 'down' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
+                              'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                            }`}>
+                              {grade.trend === 'up' ? '↑' : grade.trend === 'down' ? '↓' : '→'} {grade.attendance}%
+                            </span>
+
+                            {grade.holidayDays > 0 && (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-sky-100 text-sky-700 border-0">Holiday {grade.holidayDays}</span>
+                            )}
+                            {grade.cancelledDays > 0 && (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border-0">Cancelled {grade.cancelledDays}</span>
+                            )}
+                          </div>
                         </div>
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
@@ -1419,18 +1518,27 @@ export default function AnalyticsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="h-60 sm:h-75 lg:h-96">
+                  <div className="h-60 sm:h-75 lg:h-96">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={behavioralStats.weeklyTrend}>
+                      <AreaChart data={behavioralStats.weeklyTrend} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
                         <XAxis dataKey="date" stroke="#6B7280" />
                         <YAxis stroke="#6B7280" />
-                        <Tooltip />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            borderRadius: '8px',
+                            border: 'none',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
                         <Legend />
-                        <Line type="monotone" dataKey="positive" stroke="#10b981" strokeWidth={2} />
-                        <Line type="monotone" dataKey="negative" stroke="#ef4444" strokeWidth={2} />
-                        <Line type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2} />
-                      </LineChart>
+                        <Area type="monotone" dataKey="positive" stackId="a" stroke="#10b981" fill="#a7f3d0" />
+                        <Area type="monotone" dataKey="minor" stackId="a" stroke="#f59e0b" fill="#fde68a" />
+                        <Area type="monotone" dataKey="major" stackId="a" stroke="#fb923c" fill="#ffedd5" />
+                        <Area type="monotone" dataKey="critical" stackId="a" stroke="#ef4444" fill="#fecaca" />
+                        <Area type="monotone" dataKey="other" stackId="a" stroke="#6B7280" fill="#e6e7ea" />
+                      </AreaChart>
                     </ResponsiveContainer>
                   </div>
                 </CardContent>
