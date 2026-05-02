@@ -145,6 +145,17 @@ CREATE TABLE IF NOT EXISTS school_years (
   CONSTRAINT school_year_dates_valid CHECK (start_date <= end_date)
 );
 
+-- Summer class enrollments for students attending during summer break
+CREATE TABLE IF NOT EXISTS summer_enrollments (
+  id BIGSERIAL PRIMARY KEY,
+  student_lrn VARCHAR(50) UNIQUE NOT NULL REFERENCES students(lrn) ON DELETE CASCADE,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT summer_dates_valid CHECK (start_date <= end_date)
+);
+
 -- Student attendance schedules (entry/exit times and school days by year level)
 CREATE TABLE IF NOT EXISTS student_attendance_schedules (
   id BIGSERIAL PRIMARY KEY,
@@ -209,6 +220,8 @@ CREATE INDEX IF NOT EXISTS idx_attendance_schedules_lrn ON student_attendance_sc
 CREATE INDEX IF NOT EXISTS idx_attendance_schedules_active ON student_attendance_schedules(is_active);
 CREATE INDEX IF NOT EXISTS idx_attendance_schedules_year_level ON student_attendance_schedules(year_level);
 CREATE INDEX IF NOT EXISTS idx_school_years_current ON school_years(is_current);
+CREATE INDEX IF NOT EXISTS idx_summer_enrollments_lrn ON summer_enrollments(student_lrn);
+CREATE INDEX IF NOT EXISTS idx_summer_enrollments_dates ON summer_enrollments(start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_student_schedules_lrn ON student_schedules(student_lrn);
 CREATE INDEX IF NOT EXISTS idx_student_schedules_day_time ON student_schedules(day_number, start_time);
 CREATE INDEX IF NOT EXISTS idx_student_schedules_active ON student_schedules(is_active);
@@ -217,6 +230,7 @@ CREATE INDEX IF NOT EXISTS idx_student_schedules_active ON student_schedules(is_
 -- ROW LEVEL SECURITY (RLS) FOR SCHEDULE TABLES
 -- ============================================================================
 ALTER TABLE school_years ENABLE ROW LEVEL SECURITY;
+ALTER TABLE summer_enrollments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_attendance_schedules ENABLE ROW LEVEL SECURITY;
 
@@ -224,6 +238,10 @@ ALTER TABLE student_attendance_schedules ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Enable read for all on school years" ON school_years FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on school years" ON school_years FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on school years" ON school_years FOR UPDATE USING (true);
+CREATE POLICY "Enable read for all on summer enrollments" ON summer_enrollments FOR SELECT USING (true);
+CREATE POLICY "Enable insert for all on summer enrollments" ON summer_enrollments FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for all on summer enrollments" ON summer_enrollments FOR UPDATE USING (true);
+CREATE POLICY "Enable delete for all on summer enrollments" ON summer_enrollments FOR DELETE USING (true);
 CREATE POLICY "Enable read for all on student schedules" ON student_schedules FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on student schedules" ON student_schedules FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on student schedules" ON student_schedules FOR UPDATE USING (true);
