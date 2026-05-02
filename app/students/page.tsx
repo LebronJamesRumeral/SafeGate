@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -854,6 +855,7 @@ export default function StudentsPage() {
       parent2_contact: (selectedStudent.parent2Contact || '').trim() || null,
       parent_email: (selectedStudent.parentEmail || '').trim() || null,
       rfid_uid: normalizedRfid || null,
+      is_special_case: !!selectedStudent.is_special_case,
       updated_at: new Date().toISOString(),
     };
 
@@ -887,6 +889,7 @@ export default function StudentsPage() {
         parent2Contact: payload.parent2_contact || '',
         parentEmail: payload.parent_email || '',
         rfid_uid: payload.rfid_uid,
+        is_special_case: payload.is_special_case || false,
       });
       // If LRN was edited while in edit mode, attempt to update it via RPC
       if (pendingLrn && pendingLrn.trim() && pendingLrn.trim() !== selectedStudent.lrn) {
@@ -937,6 +940,7 @@ export default function StudentsPage() {
     parent2Contact: '',
     parentEmail: '',
     status: 'active',
+    is_special_case: false,
   });
   const [addStudentValidationErrors, setAddStudentValidationErrors] = useState<{
     lastName?: string;
@@ -1509,6 +1513,7 @@ export default function StudentsPage() {
       parentContact: '',
       parentEmail: '',
       status: 'active',
+      is_special_case: false,
     });
     setAddStudentValidationErrors({});
     setSelectedScheduleDays(WEEKDAY_OPTIONS.map((d) => d.label));
@@ -1886,6 +1891,7 @@ export default function StudentsPage() {
         parent2_contact: newStudentForm.parent2Contact.trim() || null,
         parent_email: normalizedParentEmail,
         status: newStudentForm.status,
+        is_special_case: newStudentForm.is_special_case ?? false,
         updated_at: new Date().toISOString(),
       });
 
@@ -3503,19 +3509,30 @@ export default function StudentsPage() {
                   )}
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Status</label>
-                    <Select
-                      value={newStudentForm.status}
-                      onValueChange={(value) => setNewStudentForm((prev) => ({ ...prev, status: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-start gap-6">
+                      <div className="space-y-2 w-48">
+                        <label className="text-sm font-medium">Status</label>
+                        <Select
+                          value={newStudentForm.status}
+                          onValueChange={(value) => setNewStudentForm((prev) => ({ ...prev, status: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="inactive">Inactive</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Special Case</label>
+                        <div className="flex items-center gap-2">
+                          <Switch checked={!!newStudentForm.is_special_case} onCheckedChange={(v) => setNewStudentForm((prev) => ({ ...prev, is_special_case: !!v }))} />
+                          <span className="text-sm text-muted-foreground">Has case</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="md:col-span-2 space-y-2">
@@ -3952,6 +3969,9 @@ export default function StudentsPage() {
                                     <span className="font-medium leading-tight truncate max-w-44 sm:max-w-60 md:max-w-80" title={student.name}>
                                       {student.name}
                                     </span>
+                                    {student.is_special_case && (
+                                      <img src="/Helping-Hand.png" alt="Special Case" className="w-4 h-4 ml-2" />
+                                    )}
                                     {summerEnrollment && (
                                       <Sun className="w-4 h-4 text-orange-500 dark:text-orange-400 flex-shrink-0" title="Summer Class" />
                                     )}
@@ -4091,14 +4111,19 @@ export default function StudentsPage() {
                                     {selectedStudent && (
                                       <>
                                         <DialogHeader>
-                                          <div className="flex items-center gap-3">
+                                              <div className="flex items-center gap-3">
                                             <Avatar className="h-12 w-12">
                                               <AvatarFallback className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 text-lg">
                                                 {selectedStudent.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                                               </AvatarFallback>
                                             </Avatar>
                                             <div>
-                                              <DialogTitle className="text-2xl">{selectedStudent.name}</DialogTitle>
+                                              <DialogTitle className="text-2xl">
+                                                {selectedStudent.name}
+                                                {selectedStudent.is_special_case && (
+                                                  <img src="/Helping-Hand.png" alt="Special Case" className="w-5 h-5 inline-block ml-3" />
+                                                )}
+                                              </DialogTitle>
                                               <DialogDescription>
                                                 <span className="flex items-center gap-2">
                                                   <Input
@@ -4196,27 +4221,41 @@ export default function StudentsPage() {
                                                 }
 
                                                 return (
-                                                  <div className="col-span-2 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
-                                                    <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
-                                                      <User className="w-3 h-3" />
-                                                      Name
-                                                    </p>
-                                                    <div className="flex flex-col sm:flex-row gap-2 w-full max-w-md">
-                                                      <Input
-                                                        value={firstMiddle}
-                                                        disabled
-                                                        className="font-medium w-full sm:w-1/2 bg-slate-100 dark:bg-slate-800/50 text-sm sm:text-base"
-                                                        placeholder="First & Middle Name"
-                                                      />
-                                                      <Input
-                                                        value={editLastName !== null ? editLastName : lastName}
-                                                        onChange={e => setEditLastName(e.target.value)}
-                                                        placeholder="Last Name"
-                                                        className="font-medium w-full sm:w-1/2 text-sm sm:text-base"
-                                                        disabled={!editingStudentInfo}
-                                                      />
+                                                  <>
+                                                    <div className="col-span-2 sm:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                                      <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                        <User className="w-3 h-3" />
+                                                        Name
+                                                      </p>
+                                                      <div className="flex flex-col sm:flex-row gap-2 w-full max-w-md items-start">
+                                                        <div className="flex-1">
+                                                          <div className="flex flex-col sm:flex-row gap-2">
+                                                            <Input
+                                                              value={firstMiddle}
+                                                              disabled
+                                                              className="font-medium w-full sm:w-1/2 bg-slate-100 dark:bg-slate-800/50 text-sm sm:text-base"
+                                                              placeholder="First & Middle Name"
+                                                            />
+                                                            <Input
+                                                              value={editLastName !== null ? editLastName : lastName}
+                                                              onChange={e => setEditLastName(e.target.value)}
+                                                              placeholder="Last Name"
+                                                              className="font-medium w-full sm:w-1/2 text-sm sm:text-base"
+                                                              disabled={!editingStudentInfo}
+                                                            />
+                                                          </div>
+                                                        </div>
+                                                      </div>
                                                     </div>
-                                                  </div>
+                                                    <div className="col-span-2 sm:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex items-start justify-start pl-4">
+                                                      <div className="flex flex-col items-start ml-2">
+                                                        <div className="flex items-center gap-2">
+                                                          <Switch checked={!!selectedStudent.is_special_case} onCheckedChange={(v) => setSelectedStudent({ ...selectedStudent, is_special_case: !!v })} disabled={!editingStudentInfo} />
+                                                          <span className="text-sm text-muted-foreground">Has case</span>
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  </>
                                                 );
                                               })()}
                                               <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
@@ -5271,14 +5310,19 @@ export default function StudentsPage() {
                                     {selectedStudent && (
                                       <>
                                         <DialogHeader>
-                                          <div className="flex items-center gap-3">
+                                              <div className="flex items-center gap-3">
                                             <Avatar className="h-12 w-12">
                                               <AvatarFallback className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 text-lg">
                                                 {selectedStudent.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                                               </AvatarFallback>
                                             </Avatar>
                                             <div>
-                                              <DialogTitle className="text-2xl">{selectedStudent.name}</DialogTitle>
+                                              <DialogTitle className="text-2xl">
+                                                {selectedStudent.name}
+                                                {selectedStudent.is_special_case && (
+                                                  <img src="/Helping-Hand.png" alt="Special Case" className="w-5 h-5 inline-block ml-3" />
+                                                )}
+                                              </DialogTitle>
                                               <DialogDescription>
                                                 <span className="flex items-center gap-2">
                                                   <Input
@@ -5294,6 +5338,12 @@ export default function StudentsPage() {
                                                 </span>
                                                 <span className="ml-2">• {selectedStudent.level}</span>
                                               </DialogDescription>
+                                              <div className="mt-2 flex items-center gap-4">
+                                                <div className="flex items-center gap-2">
+                                                  <Switch checked={!!selectedStudent.is_special_case} onCheckedChange={(v) => setSelectedStudent({ ...selectedStudent, is_special_case: !!v })} disabled={!editingStudentInfo} />
+                                                  <span className="text-sm">Special Case</span>
+                                                </div>
+                                              </div>
                                             </div>
                                           </div>
                                         </DialogHeader>

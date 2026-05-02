@@ -87,6 +87,7 @@ ALTER TABLE students ADD COLUMN IF NOT EXISTS parent2_name VARCHAR(255);
 ALTER TABLE students ADD COLUMN IF NOT EXISTS parent2_contact VARCHAR(50);
 ALTER TABLE students ADD COLUMN IF NOT EXISTS rfid_uid VARCHAR(32);
 ALTER TABLE students ADD COLUMN IF NOT EXISTS risk_level VARCHAR(20) DEFAULT 'low';
+ALTER TABLE students ADD COLUMN IF NOT EXISTS is_special_case BOOLEAN DEFAULT false;
 UPDATE students SET risk_level = 'low' WHERE risk_level IS NULL OR risk_level = '';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_students_rfid_uid_unique ON students(rfid_uid) WHERE rfid_uid IS NOT NULL;
 
@@ -225,6 +226,7 @@ CREATE INDEX IF NOT EXISTS idx_summer_enrollments_dates ON summer_enrollments(st
 CREATE INDEX IF NOT EXISTS idx_student_schedules_lrn ON student_schedules(student_lrn);
 CREATE INDEX IF NOT EXISTS idx_student_schedules_day_time ON student_schedules(day_number, start_time);
 CREATE INDEX IF NOT EXISTS idx_student_schedules_active ON student_schedules(is_active);
+CREATE INDEX IF NOT EXISTS idx_students_is_special_case ON students(is_special_case);
 
 -- ============================================================================
 -- ROW LEVEL SECURITY (RLS) FOR SCHEDULE TABLES

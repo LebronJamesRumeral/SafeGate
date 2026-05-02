@@ -781,11 +781,10 @@ export default function AttendancePage() {
                           <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Mark as holiday</p>
                           <p className="text-xs text-slate-600 dark:text-slate-400">Turn this on to save status as holiday. Turn off to save as cancelled class.</p>
                         </div>
-                        <Switch
-                          checked={cancelAsHoliday}
-                          onCheckedChange={setCancelAsHoliday}
-                          className="h-7 w-14 border border-slate-300 dark:border-slate-600 data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-slate-300 dark:data-[state=unchecked]:bg-slate-700"
-                        />
+                        <div className="flex items-center gap-2">
+                          <Switch checked={cancelAsHoliday} onCheckedChange={setCancelAsHoliday} />
+                          <span className="text-sm text-muted-foreground">{cancelAsHoliday ? 'Holiday' : 'Cancelled'}</span>
+                        </div>
                       </div>
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <Badge className={cancelAsHoliday ? 'bg-blue-600 text-white border-0' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0'}>
