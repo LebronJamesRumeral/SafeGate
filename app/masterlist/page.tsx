@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Download, Search, Eye, Mail, Phone, Archive, Upload, CheckCircle2 } from 'lucide-react';
+import { Download, Search, Eye, Mail, Phone, Archive, Upload, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { UserCheck, GraduationCap } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
@@ -78,8 +78,14 @@ export default function MasterlistPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
   const [importingStudents, setImportingStudents] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterGrade, filterStatus]);
 
   useEffect(() => {
     if (isMobile) {
@@ -152,18 +158,31 @@ export default function MasterlistPage() {
   };
 
   // Only show students whose level is in YEAR_LEVEL_OPTIONS
-  const filteredStudents = students.filter(student => {
-    if (!YEAR_LEVEL_OPTIONS.includes(student.level)) return false;
-    if (student.status === 'dropped' && filterStatus === 'all') return false; // Hide dropped from current by default
-    const term = search.toLowerCase();
-    const matchesSearch =
-      (student.name && student.name.toLowerCase().includes(term)) ||
-      (student.lrn && student.lrn.toLowerCase().includes(term)) ||
-      (student.parentName && student.parentName.toLowerCase().includes(term));
-    const matchesLevel = filterGrade === 'all' || student.level === filterGrade;
-    const matchesStatus = filterStatus === 'all' || (student.status || 'active') === filterStatus;
-    return matchesSearch && matchesLevel && matchesStatus;
-  });
+  const filteredStudents = students
+    .filter(student => {
+      if (!YEAR_LEVEL_OPTIONS.includes(student.level)) return false;
+      if (student.status === 'dropped' && filterStatus === 'all') return false; // Hide dropped from current by default
+      const term = search.toLowerCase();
+      const matchesSearch =
+        (student.name && student.name.toLowerCase().includes(term)) ||
+        (student.lrn && student.lrn.toLowerCase().includes(term)) ||
+        (student.parentName && student.parentName.toLowerCase().includes(term));
+      const matchesLevel = filterGrade === 'all' || student.level === filterGrade;
+      const matchesStatus = filterStatus === 'all' || (student.status || 'active') === filterStatus;
+      return matchesSearch && matchesLevel && matchesStatus;
+    })
+    .sort((a, b) => {
+      const aName = (a.name || '').toLowerCase();
+      const bName = (b.name || '').toLowerCase();
+      const byName = aName.localeCompare(bName);
+      if (byName !== 0) return byName;
+      return (a.lrn || '').localeCompare(b.lrn || '');
+    });
+
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE));
+  const paginatedStudents = filteredStudents.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const showingFrom = filteredStudents.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const showingTo = Math.min(currentPage * PAGE_SIZE, filteredStudents.length);
 
   // Count statistics
   const activeCount = students.filter(s => (s.status || 'active') === 'active').length;
@@ -748,7 +767,7 @@ export default function MasterlistPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredStudents.map((student, index) => (
+                    paginatedStudents.map((student, index) => (
                       <TableRow key={student.id} className="border-border/50 hover:bg-muted/50 transition-colors animate-fade-in-up" style={{ animationDelay: `${0.3 + index * 0.05}s` }}>
                         <TableCell className="font-semibold text-foreground">{student.lrn}</TableCell>
                         <TableCell className="font-semibold text-foreground">{student.name}</TableCell>
@@ -867,6 +886,30 @@ export default function MasterlistPage() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+            <div className="flex flex-col gap-2 border-t border-border/40 px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                Showing <span className="font-semibold text-foreground">{showingFrom}</span> - <span className="font-semibold text-foreground">{showingTo}</span> of <span className="font-semibold text-foreground">{filteredStudents.length}</span> records
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="min-w-20 text-center">Page {currentPage} / {totalPages}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

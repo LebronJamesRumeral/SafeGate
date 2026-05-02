@@ -40,7 +40,9 @@ import {
   Info,
   AlertTriangle,
   XCircle,
-  FileText
+  FileText,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { sortByLevel } from '@/lib/level-order';
@@ -147,7 +149,7 @@ export default function AttendancePage() {
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [appliedRange, setAppliedRange] = useState<{ start: string; end: string }>({ start: today, end: today });
   const [showFilters, setShowFilters] = useState(true);
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'absentDays', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
   const [exportLoading, setExportLoading] = useState(false);
   const [parentNotes, setParentNotes] = useState<Record<string, Array<{ studentLrn: string; parentEmail: string; noteText: string; createdAt: string; attendanceDate: string }>>>({});
   const [openNotesModal, setOpenNotesModal] = useState<string | null>(null);
@@ -157,6 +159,10 @@ export default function AttendancePage() {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelAsHoliday, setCancelAsHoliday] = useState(false);
   const [submittingCancelClasses, setSubmittingCancelClasses] = useState(false);
+  const [summaryPage, setSummaryPage] = useState(1);
+  const [logPage, setLogPage] = useState(1);
+  const SUMMARY_PAGE_SIZE = 10;
+  const LOG_PAGE_SIZE = 10;
 
   useEffect(() => {
     if (isMobile) {
@@ -167,6 +173,14 @@ export default function AttendancePage() {
   useEffect(() => {
     fetchData();
   }, [dateMode, rangeStart, rangeEnd, singleDate, monthValue, selectedLevel, severityFilter]);
+
+  useEffect(() => {
+    setSummaryPage(1);
+  }, [search, selectedLevel, severityFilter, sortConfig]);
+
+  useEffect(() => {
+    setLogPage(1);
+  }, [dateMode, rangeStart, rangeEnd, singleDate, monthValue, selectedLevel, severityFilter, search]);
 
   const fetchData = async () => {
     if (!supabase) {
@@ -404,6 +418,29 @@ export default function AttendancePage() {
     }, {} as Record<string, Set<string>>);
   }, [logs]);
 
+  const sortedLogs = useMemo(() => {
+    return [...logs].sort((a, b) => {
+      const nameA = String(studentMap[a.student_lrn]?.name || a.student_lrn || '').toLowerCase();
+      const nameB = String(studentMap[b.student_lrn]?.name || b.student_lrn || '').toLowerCase();
+      const byName = nameA.localeCompare(nameB);
+      if (byName !== 0) return byName;
+
+      const byDate = String(b.date || '').localeCompare(String(a.date || ''));
+      if (byDate !== 0) return byDate;
+
+      return String(b.check_in_time || '').localeCompare(String(a.check_in_time || ''));
+    });
+  }, [logs, studentMap]);
+
+  const totalLogPages = Math.max(1, Math.ceil(sortedLogs.length / LOG_PAGE_SIZE));
+  const paginatedLogs = sortedLogs.slice((logPage - 1) * LOG_PAGE_SIZE, logPage * LOG_PAGE_SIZE);
+  const logShowingFrom = sortedLogs.length === 0 ? 0 : (logPage - 1) * LOG_PAGE_SIZE + 1;
+  const logShowingTo = Math.min(logPage * LOG_PAGE_SIZE, sortedLogs.length);
+
+  useEffect(() => {
+    setLogPage((currentPage) => Math.min(Math.max(currentPage, 1), totalLogPages));
+  }, [totalLogPages]);
+
   const summaryRows = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     let rows = students
@@ -451,6 +488,15 @@ export default function AttendancePage() {
     });
     return rows;
   }, [attendanceByStudent, effectiveSchoolDays.length, search, students, sortConfig, selectedLevel, severityFilter]);
+
+  const totalSummaryPages = Math.max(1, Math.ceil(summaryRows.length / SUMMARY_PAGE_SIZE));
+  const paginatedSummaryRows = summaryRows.slice((summaryPage - 1) * SUMMARY_PAGE_SIZE, summaryPage * SUMMARY_PAGE_SIZE);
+  const summaryShowingFrom = summaryRows.length === 0 ? 0 : (summaryPage - 1) * SUMMARY_PAGE_SIZE + 1;
+  const summaryShowingTo = Math.min(summaryPage * SUMMARY_PAGE_SIZE, summaryRows.length);
+
+  useEffect(() => {
+    setSummaryPage((currentPage) => Math.min(Math.max(currentPage, 1), totalSummaryPages));
+  }, [totalSummaryPages]);
 
   const handleSort = (key: string) => {
     setSortConfig(current => ({
@@ -1244,7 +1290,7 @@ export default function AttendancePage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    summaryRows.map((row, index) => {
+                    paginatedSummaryRows.map((row, index) => {
                       const attendanceColor = 
                         row.attendanceRate >= 90 ? 'text-emerald-600' :
                         row.attendanceRate >= 75 ? 'text-blue-600' :
@@ -1369,6 +1415,30 @@ export default function AttendancePage() {
                 </TableBody>
               </Table>
             </div>
+            <div className="flex flex-col gap-2 border-t border-slate-200/60 px-4 py-3 text-sm text-muted-foreground dark:border-slate-700/40 sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                Showing <span className="font-semibold text-foreground">{summaryShowingFrom}</span> - <span className="font-semibold text-foreground">{summaryShowingTo}</span> of <span className="font-semibold text-foreground">{summaryRows.length}</span> students
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSummaryPage((page) => Math.max(1, page - 1))}
+                  disabled={summaryPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="min-w-20 text-center">Page {summaryPage} / {totalSummaryPages}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSummaryPage((page) => Math.min(totalSummaryPages, page + 1))}
+                  disabled={summaryPage === totalSummaryPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -1471,7 +1541,7 @@ export default function AttendancePage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    logs.map((log) => {
+                    paginatedLogs.map((log) => {
                       const student = studentMap[log.student_lrn];
                       const normalizedStatus = String(log.attendance_status || '').toLowerCase();
                       const isHoliday = normalizedStatus === 'holiday';
@@ -1548,6 +1618,30 @@ export default function AttendancePage() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+            <div className="flex flex-col gap-2 border-t border-slate-200/60 px-4 py-3 text-sm text-muted-foreground dark:border-slate-700/40 sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                Showing <span className="font-semibold text-foreground">{logShowingFrom}</span> - <span className="font-semibold text-foreground">{logShowingTo}</span> of <span className="font-semibold text-foreground">{sortedLogs.length}</span> records
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLogPage((page) => Math.max(1, page - 1))}
+                  disabled={logPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="min-w-20 text-center">Page {logPage} / {totalLogPages}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLogPage((page) => Math.min(totalLogPages, page + 1))}
+                  disabled={logPage === totalLogPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
