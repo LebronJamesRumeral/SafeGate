@@ -51,6 +51,10 @@ const sharedScanRfidState = {
   reader: null as any,
 };
 
+const allowWeekendQrInDev =
+  process.env.NODE_ENV === 'development' &&
+  process.env.NEXT_PUBLIC_ALLOW_WEEKEND_QR_TEST === 'true';
+
 export default function ScanPage() {
   const [scanning, setScanning] = useState(false);
   const [qrText, setQrText] = useState<string | null>(null);
@@ -67,6 +71,11 @@ export default function ScanPage() {
   const [pendingTemperatureStudent, setPendingTemperatureStudent] = useState<any | null>(null);
   const [temperatureInput, setTemperatureInput] = useState('');
   const [submittingTemperature, setSubmittingTemperature] = useState(false);
+  const [earlyOutModalOpen, setEarlyOutModalOpen] = useState(false);
+  const [pendingEarlyOutStudent, setPendingEarlyOutStudent] = useState<any | null>(null);
+  const [pendingEarlyOutTemperature, setPendingEarlyOutTemperature] = useState<number | null>(null);
+  const [earlyOutReasonInput, setEarlyOutReasonInput] = useState('');
+  const [submittingEarlyOut, setSubmittingEarlyOut] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scannerRef = useRef<any>(null);
   const rfidPortRef = useRef<any>(null);
@@ -379,7 +388,14 @@ export default function ScanPage() {
     return `${hour12}:${String(minute).padStart(2, '0')} ${suffix}`;
   };
 
-  const applyAttendanceOnline = async (studentLrn: string, scanIsoTime: string, temperature?: number) => {
+  const applyAttendanceOnline = async (
+    studentLrn: string,
+    scanIsoTime: string,
+    temperature?: number,
+    options?: {
+      earlyOutReason?: string;
+    }
+  ) => {
     if (!supabase) {
       throw new Error('Supabase client not initialized');
     }
@@ -393,7 +409,7 @@ export default function ScanPage() {
     }
 
     const scanTime = new Date(scanIsoTime);
-    if (!isScheduledSchoolDay(schedule, scanTime)) {
+    if (!isScheduledSchoolDay(schedule, scanTime) && !allowWeekendQrInDev) {
       return {
         action: 'Blocked' as const,
         message: 'No class schedule for today.',
@@ -463,18 +479,28 @@ export default function ScanPage() {
       };
     }
 
-    if (nowMinutes < exitMinutes) {
+    const normalizedEarlyOutReason = options?.earlyOutReason?.trim();
+    const isEarlyOut = nowMinutes < exitMinutes;
+
+    if (isEarlyOut && !normalizedEarlyOutReason) {
       return {
-        action: 'Blocked' as const,
-        message: `Too early to check out. Check-out starts at ${formatTimeLabel(schedule.exit_time)}.`,
+        action: 'NeedsEarlyOutReason' as const,
+        message: `Early Out requires a reason. Scheduled dismissal is ${formatTimeLabel(schedule.exit_time)}.`,
       };
     }
+
+    const validation = validateAttendanceStatus(schedule, new Date(existing[0].check_in_time), scanTime);
 
     const { error } = await supabase
       .from('attendance_logs')
       .update({
         check_out_time: scanIsoTime,
         check_out_temperature: temperature ?? null,
+        attendance_status: validation.attendance_status,
+        is_late: validation.is_late,
+        is_invalid_timeout: validation.is_invalid_timeout,
+        is_early_out: isEarlyOut,
+        early_out_reason: isEarlyOut ? normalizedEarlyOutReason : null,
       })
       .eq('id', existing[0].id);
 
@@ -485,7 +511,10 @@ export default function ScanPage() {
     return {
       action: 'Checked Out' as const,
       checkInTime: existing[0].check_in_time as string,
-      message: `Checked out after scheduled end (${formatTimeLabel(schedule.exit_time)}).`,
+      isEarlyOut,
+      message: isEarlyOut
+        ? `Early Out recorded. Reason: ${normalizedEarlyOutReason}`
+        : `Checked out after scheduled end (${formatTimeLabel(schedule.exit_time)}).`,
     };
   };
 
@@ -521,7 +550,7 @@ export default function ScanPage() {
     }
   };
 
-  const recordAttendance = async (student: any, temperature: number) => {
+  const recordAttendance = async (student: any, temperature: number, earlyOutReason?: string) => {
     const now = new Date();
     const nowIso = now.toISOString();
     const date = nowIso.split('T')[0];
@@ -532,6 +561,7 @@ export default function ScanPage() {
           student_lrn: student.lrn,
           scanned_at: nowIso,
           temperature,
+          early_out_reason: earlyOutReason,
         });
 
         const stateKey = `${student.lrn}:${date}`;
@@ -557,6 +587,7 @@ export default function ScanPage() {
         });
 
         await refreshPendingSyncCount();
+        return 'completed' as const;
       } catch (error) {
         console.error('Failed to save offline attendance:', error);
         setLastScan({
@@ -564,12 +595,23 @@ export default function ScanPage() {
           message: 'Unable to save attendance offline',
           time: now.toLocaleTimeString(),
         });
+        return 'completed' as const;
       }
-      return;
+      return 'completed' as const;
     }
 
     try {
-      const result = await applyAttendanceOnline(student.lrn, nowIso, temperature);
+      const result = await applyAttendanceOnline(student.lrn, nowIso, temperature, {
+        earlyOutReason,
+      });
+
+      if (result.action === 'NeedsEarlyOutReason') {
+        setPendingEarlyOutStudent(student);
+        setPendingEarlyOutTemperature(temperature);
+        setEarlyOutReasonInput('');
+        setEarlyOutModalOpen(true);
+        return 'needs_early_out_reason' as const;
+      }
 
       if (result.action === 'Checked In') {
         if (!supabase) {
@@ -621,6 +663,7 @@ export default function ScanPage() {
         } catch (mlError) {
           console.error('ML scan logging error:', mlError);
         }
+        return 'completed' as const;
       } else if (result.action === 'Already Checked Out') {
           setLastScan({
             student: student.name,
@@ -632,6 +675,7 @@ export default function ScanPage() {
             message: 'Student already checked out today',
             action: 'Check Out'
           });
+          return 'completed' as const;
       } else if (result.action === 'Blocked') {
           setLastScan({
             student: student.name,
@@ -642,6 +686,7 @@ export default function ScanPage() {
             status: 'error',
             message: result.message,
           });
+          return 'completed' as const;
       } else {
         const duration = result.checkInTime
           ? calculateDuration(result.checkInTime, nowIso)
@@ -682,11 +727,12 @@ export default function ScanPage() {
           date: now.toLocaleDateString(),
           duration: duration,
           status: 'success',
-          action: 'Checked Out',
+          action: result.isEarlyOut ? 'Early Out' : 'Checked Out',
           attendanceStatus: attendanceStatus as any,
-          statusReason: statusDisplay.text,
+          statusReason: result.isEarlyOut ? result.message : statusDisplay.text,
           temperature,
         });
+        return 'completed' as const;
       }
     } catch (error) {
       console.error('Error recording attendance online, queueing offline fallback:', error);
@@ -695,6 +741,7 @@ export default function ScanPage() {
           student_lrn: student.lrn,
           scanned_at: nowIso,
           temperature,
+          early_out_reason: earlyOutReason,
         });
         await refreshPendingSyncCount();
         setLastScan({
@@ -708,6 +755,7 @@ export default function ScanPage() {
           message: 'Network issue detected. Record saved offline and queued for sync.',
           temperature,
         });
+        return 'completed' as const;
       } catch (queueError) {
         console.error('Error queueing fallback attendance:', queueError);
         setLastScan({
@@ -715,6 +763,7 @@ export default function ScanPage() {
           message: 'Failed to record attendance',
           time: now.toLocaleTimeString(),
         });
+        return 'completed' as const;
       }
     }
   };
@@ -741,15 +790,50 @@ export default function ScanPage() {
 
     setSubmittingTemperature(true);
     try {
-      await recordAttendance(pendingTemperatureStudent, Number(parsed.toFixed(1)));
+      const outcome = await recordAttendance(pendingTemperatureStudent, Number(parsed.toFixed(1)));
       setTemperatureModalOpen(false);
       setPendingTemperatureStudent(null);
       setTemperatureInput('');
       setManualId('');
       setShowManualEntry(false);
-      setScanning(true);
+      if (outcome === 'completed') {
+        setScanning(true);
+      }
     } finally {
       setSubmittingTemperature(false);
+    }
+  };
+
+  const submitEarlyOutAndRecord = async () => {
+    if (!pendingEarlyOutStudent || pendingEarlyOutTemperature === null) return;
+
+    const trimmedReason = earlyOutReasonInput.trim();
+    if (!trimmedReason) {
+      toast({
+        title: 'Early Out reason required',
+        description: 'Please enter the reason for early check-out.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSubmittingEarlyOut(true);
+    try {
+      const outcome = await recordAttendance(
+        pendingEarlyOutStudent,
+        pendingEarlyOutTemperature,
+        trimmedReason
+      );
+
+      if (outcome === 'completed') {
+        setEarlyOutModalOpen(false);
+        setPendingEarlyOutStudent(null);
+        setPendingEarlyOutTemperature(null);
+        setEarlyOutReasonInput('');
+        setScanning(true);
+      }
+    } finally {
+      setSubmittingEarlyOut(false);
     }
   };
 
@@ -992,6 +1076,11 @@ export default function ScanPage() {
               <CloudUpload className="w-3 h-3 mr-1" />
               Pending Sync: {pendingSyncCount}
             </Badge>
+            {allowWeekendQrInDev && (
+              <Badge className="bg-violet-100 text-violet-700">
+                Dev Weekend QR Test Enabled
+              </Badge>
+            )}
             {syncing && (
               <Badge className="bg-indigo-100 text-indigo-700">Syncing...</Badge>
             )}
@@ -1159,7 +1248,7 @@ export default function ScanPage() {
                             {lastScan.checkinTime || lastScan.time}
                           </span>
                         </div>
-                        {lastScan.action === 'Checked Out' && (
+                        {(lastScan.action === 'Checked Out' || lastScan.action === 'Early Out') && (
                           <>
                             <div className="flex items-center justify-between p-3 rounded-lg bg-orange-50/80 dark:bg-orange-900/20 backdrop-blur-sm border border-orange-200/40 dark:border-orange-700/30">
                               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Check Out Time</span>
@@ -1186,6 +1275,8 @@ export default function ScanPage() {
                         <Badge className={`${
                           lastScan.action === 'Checked In'
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                            : lastScan.action === 'Early Out'
+                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                             : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                         } px-3 py-1`}>
                           {lastScan.action}
@@ -1390,6 +1481,48 @@ export default function ScanPage() {
                       className="w-full"
                     >
                       {submittingTemperature ? 'Saving...' : 'Save Temperature & Continue'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Dialog
+                open={earlyOutModalOpen}
+                onOpenChange={(open) => {
+                  if (!submittingEarlyOut) {
+                    setEarlyOutModalOpen(open);
+                    if (!open) {
+                      setPendingEarlyOutStudent(null);
+                      setPendingEarlyOutTemperature(null);
+                      setEarlyOutReasonInput('');
+                      setScanning(true);
+                    }
+                  }
+                }}
+              >
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Early Out Reason</DialogTitle>
+                    <DialogDescription>
+                      {pendingEarlyOutStudent?.name || 'This student'} is checking out before the scheduled dismissal. Reason is required.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <Input
+                      placeholder="Enter reason for early check-out"
+                      value={earlyOutReasonInput}
+                      onChange={(e) => setEarlyOutReasonInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          void submitEarlyOutAndRecord();
+                        }
+                      }}
+                    />
+                    <Button
+                      onClick={() => void submitEarlyOutAndRecord()}
+                      disabled={submittingEarlyOut}
+                      className="w-full"
+                    >
+                      {submittingEarlyOut ? 'Saving...' : 'Save Early Out'}
                     </Button>
                   </div>
                 </DialogContent>

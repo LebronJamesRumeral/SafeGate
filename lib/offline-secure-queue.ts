@@ -4,6 +4,7 @@ export interface AttendanceScanPayload {
   student_lrn: string;
   scanned_at: string;
   temperature?: number;
+  early_out_reason?: string;
 }
 
 export interface BehaviorEventPayload {

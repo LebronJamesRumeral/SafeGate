@@ -24,6 +24,7 @@ export async function queueBehaviorEvent(payload: BehaviorEventPayload): Promise
 
 async function applyAttendanceScan(supabase: SupabaseClientLike, payload: AttendanceScanPayload): Promise<void> {
   const scanDate = payload.scanned_at.split('T')[0];
+  const normalizedEarlyOutReason = payload.early_out_reason?.trim();
 
   const { data: existing, error: existingError } = await supabase
     .from('attendance_logs')
@@ -65,6 +66,8 @@ async function applyAttendanceScan(supabase: SupabaseClientLike, payload: Attend
     .update({
       check_out_time: payload.scanned_at,
       check_out_temperature: payload.temperature ?? null,
+      is_early_out: Boolean(normalizedEarlyOutReason),
+      early_out_reason: normalizedEarlyOutReason || null,
     })
     .eq('id', latest.id);
 

@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
 
 ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS check_in_temperature NUMERIC(4,1);
 ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS check_out_temperature NUMERIC(4,1);
+ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS is_early_out BOOLEAN DEFAULT false;
+ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS early_out_reason TEXT;
 
 -- Parent-attached notes on attendance logs
 CREATE TABLE IF NOT EXISTS parent_attendance_notes (

@@ -86,6 +86,8 @@ type AttendanceLog = {
   date: string;
   attendance_status?: string | null;
   is_present?: boolean | null;
+  is_early_out?: boolean | null;
+  early_out_reason?: string | null;
 };
 
 const weekdayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -247,7 +249,7 @@ export default function AttendancePage() {
 
       let attendanceQuery = supabase
         .from('attendance_logs')
-        .select('id, student_lrn, check_in_time, check_out_time, date, attendance_status, is_present')
+        .select('id, student_lrn, check_in_time, check_out_time, date, attendance_status, is_present, is_early_out, early_out_reason')
         .gte('date', start)
         .lte('date', end)
         .order('date', { ascending: false })
@@ -1526,13 +1528,14 @@ export default function AttendancePage() {
                     <TableHead>Status</TableHead>
                     <TableHead>Check In</TableHead>
                     <TableHead>Check Out</TableHead>
+                    <TableHead>Early Out Note</TableHead>
                     <TableHead className="hidden md:table-cell">Duration</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {logs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12">
+                      <TableCell colSpan={8} className="text-center py-12">
                         <div className="flex flex-col items-center gap-2">
                           <ClipboardList className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 dark:text-gray-400">No attendance logs found</p>
@@ -1573,6 +1576,10 @@ export default function AttendancePage() {
                               <Badge className={isHoliday ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0'}>
                                 {isHoliday ? 'Holiday' : 'Cancelled'}
                               </Badge>
+                            ) : checkOut && log.is_early_out ? (
+                              <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-0">
+                                Early Out
+                              </Badge>
                             ) : checkOut ? (
                               <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-0">
                                 Completed
@@ -1598,6 +1605,17 @@ export default function AttendancePage() {
                               <span className="text-gray-400">--</span>
                             ) : checkOut ? (
                               checkOut.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            ) : (
+                              <span className="text-gray-400">--</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            {!isCancelled && log.is_early_out ? (
+                              log.early_out_reason ? (
+                                <p className="text-sm truncate" title={log.early_out_reason}>{log.early_out_reason}</p>
+                              ) : (
+                                <span className="text-xs text-amber-600 dark:text-amber-400">Reason missing</span>
+                              )
                             ) : (
                               <span className="text-gray-400">--</span>
                             )}
