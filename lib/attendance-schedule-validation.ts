@@ -269,7 +269,7 @@ export function validateAttendanceStatus(
     statusReason = `Late by ${minutesEarlyOrLate - graceperiod} minutes`;
   }
 
-  // Check invalid timeout if check-out time provided
+  // Check check-out time if provided
   let minutesOvertime = 0;
 
   if (checkOutTime) {
@@ -277,9 +277,7 @@ export function validateAttendanceStatus(
     minutesOvertime = checkOutMinutes - scheduledExit;
 
     if (minutesOvertime > 0) {
-      isInvalidTimeout = true;
-      attendanceStatus = 'invalid_timeout';
-      statusReason = `Invalid timeout: ${minutesOvertime} minutes after ${schedule.exit_time}`;
+      statusReason = `Checked out ${minutesOvertime} minutes after ${schedule.exit_time}`;
     }
   }
 

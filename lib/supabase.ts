@@ -33,6 +33,7 @@ export interface Student {
   parentEmail?: string | null;
   status: string;
   substatus?: string | null;
+  is_special_case?: boolean;
   created_at?: string;
   updated_at?: string;
 }

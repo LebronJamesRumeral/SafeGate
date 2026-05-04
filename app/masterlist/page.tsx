@@ -774,7 +774,7 @@ export default function MasterlistPage() {
                           <div className="flex items-center gap-2">
                             <span>{student.name}</span>
                             {student.is_special_case && (
-                              <img src="/Helping-Hand.png" alt="Special Education needs" className="w-4 h-4 flex-shrink-0" />
+                              <img src="/Helping-Hand.png" alt="Special Education needs" className="w-4 h-4 shrink-0" />
                             )}
                           </div>
                         </TableCell>
@@ -830,7 +830,18 @@ export default function MasterlistPage() {
                             </DialogTrigger>
                             <DialogContent className="max-w-md">
                               <DialogHeader>
-                                <DialogTitle className="text-2xl font-bold">{selectedStudent?.name}</DialogTitle>
+                                <DialogTitle className="text-2xl font-bold">
+                                  <div className="flex items-center gap-2">
+                                    <span>{selectedStudent?.name}</span>
+                                    {selectedStudent?.is_special_case && (
+                                      <img
+                                        src="/Helping-Hand.png"
+                                        alt="Special Education needs"
+                                        className="h-5 w-5 shrink-0"
+                                      />
+                                    )}
+                                  </div>
+                                </DialogTitle>
                                 <DialogDescription>
                                   {selectedStudent?.lrn} • {selectedStudent?.level} • {(selectedStudent?.status || 'active') === 'active' ? 'Active' : selectedStudent?.substatus === 'transferred' ? 'Transferred' : selectedStudent?.substatus === 'dropped' ? 'Dropped' : 'Inactive'}
                                 </DialogDescription>

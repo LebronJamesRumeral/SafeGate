@@ -207,7 +207,7 @@ class AttendanceScheduleService:
             attendance_status = 'late'
             status_reason = f'Late by {minutes_diff - grace_period} minutes'
         
-        # Check invalid timeout if check_out_time provided
+        # Check check-out time if provided
         is_invalid_timeout = False
         minutes_overtime = 0
         
@@ -217,13 +217,8 @@ class AttendanceScheduleService:
             check_out_datetime = datetime.combine(check_in_date, check_out_time_only)
             minutes_overtime = int((check_out_datetime - exit_datetime).total_seconds() / 60)
             
-            # If timeout is after scheduled exit time, it's treated as invalid
             if minutes_overtime > 0:
-                is_invalid_timeout = True
-                if attendance_status == 'present':
-                    # If was marked present but has invalid timeout, keep as invalid
-                    attendance_status = 'invalid_timeout'
-                    status_reason = f'Invalid timeout: {minutes_overtime} minutes after exit time'
+                status_reason = f'Checked out {minutes_overtime} minutes after exit time'
         
         return {
             'attendance_status': attendance_status,
