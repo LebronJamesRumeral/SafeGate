@@ -156,12 +156,13 @@ export default function ScanPage() {
         toast({
           title: 'RFID Reader Disconnected',
           description: 'Manual serial input has been disconnected.',
+        });
       }
     }
   };
 
   const connectRfidReader = async () => {
-                  time: formatTime12h(new Date()),
+    if (typeof navigator === 'undefined' || !(navigator as any).serial) {
       toast({
         title: 'Web Serial Not Supported',
         description: 'Use Chrome/Edge and open the app over localhost or HTTPS.',
@@ -578,7 +579,7 @@ export default function ScanPage() {
           student: student.name,
           studentId: student.lrn,
           grade: student.level,
-            time: formatTime12h(now),
+          time: formatTime12h(now),
           date: now.toLocaleDateString(),
           status: 'success',
           action,
@@ -593,11 +594,10 @@ export default function ScanPage() {
         setLastScan({
           status: 'error',
           message: 'Unable to save attendance offline',
-            time: formatTime12h(now),
+          time: formatTime12h(now),
         });
         return 'completed' as const;
       }
-      return 'completed' as const;
     }
 
     try {
@@ -655,7 +655,7 @@ export default function ScanPage() {
         });
 
         try {
-          const response = await fetch('/api/ml/scan', {
+          await fetch('/api/ml/scan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ studentLrn: student.lrn }),
@@ -935,7 +935,7 @@ export default function ScanPage() {
             const lastScan = lastScanRef.current;
             if (recordingRef.current) return;
             if (lastScan && lastScan.value === data && now - lastScan.time < 3000) return;
-            time: formatTime12h(now),
+            
             recordingRef.current = true;
             lastScanRef.current = { value: data, time: now };
             if (scannerRef.current) {
@@ -950,7 +950,6 @@ export default function ScanPage() {
                 promptTemperatureForStudent(student);
                 // Keep scanner active for continuous queue processing.
                 setScanning(true);
-            time: formatTime12h(now),
                 setLastScan({
                   status: 'error',
                   message: 'Student not found',
@@ -1028,7 +1027,7 @@ export default function ScanPage() {
           description: 'Please enter a temperature between 30.0 and 45.0 C.',
           variant: 'destructive',
         });
-              date: now.toLocaleDateString(),
+        return false;
       }
       await recordAttendance(student, Number(parsed.toFixed(1)));
       setManualId('');
