@@ -19,10 +19,11 @@ import { toast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 import { getOfflineQueueCount } from '@/lib/offline-secure-queue';
 import { queueAttendanceScan, syncOfflineQueue } from '@/lib/offline-sync';
-import { 
-  getStudentSchedule, 
-  validateAttendanceStatus, 
-  getAttendanceStatusDisplay 
+import { formatTime12h } from '@/lib/time-format';
+import {
+  getStudentSchedule,
+  validateAttendanceStatus,
+  getAttendanceStatusDisplay,
 } from '@/lib/attendance-schedule-validation';
 
 interface ScanResult {
@@ -155,13 +156,12 @@ export default function ScanPage() {
         toast({
           title: 'RFID Reader Disconnected',
           description: 'Manual serial input has been disconnected.',
-        });
       }
     }
   };
 
   const connectRfidReader = async () => {
-    if (typeof navigator === 'undefined' || !(navigator as any).serial) {
+                  time: formatTime12h(new Date()),
       toast({
         title: 'Web Serial Not Supported',
         description: 'Use Chrome/Edge and open the app over localhost or HTTPS.',
@@ -578,7 +578,7 @@ export default function ScanPage() {
           student: student.name,
           studentId: student.lrn,
           grade: student.level,
-          time: now.toLocaleTimeString(),
+            time: formatTime12h(now),
           date: now.toLocaleDateString(),
           status: 'success',
           action,
@@ -593,7 +593,7 @@ export default function ScanPage() {
         setLastScan({
           status: 'error',
           message: 'Unable to save attendance offline',
-          time: now.toLocaleTimeString(),
+            time: formatTime12h(now),
         });
         return 'completed' as const;
       }
@@ -644,8 +644,8 @@ export default function ScanPage() {
           student: student.name,
           studentId: student.lrn,
           grade: student.level,
-          checkinTime: now.toLocaleTimeString(),
-          time: now.toLocaleTimeString(),
+          checkinTime: formatTime12h(now),
+          time: formatTime12h(now),
           date: now.toLocaleDateString(),
           status: 'success',
           action: 'Checked In',
@@ -669,7 +669,7 @@ export default function ScanPage() {
             student: student.name,
             studentId: student.lrn,
             grade: student.level,
-            time: now.toLocaleTimeString(),
+            time: formatTime12h(now),
             date: now.toLocaleDateString(),
             status: 'error',
             message: 'Student already checked out today',
@@ -681,7 +681,7 @@ export default function ScanPage() {
             student: student.name,
             studentId: student.lrn,
             grade: student.level,
-            time: now.toLocaleTimeString(),
+            time: formatTime12h(now),
             date: now.toLocaleDateString(),
             status: 'error',
             message: result.message,
@@ -722,8 +722,8 @@ export default function ScanPage() {
           student: student.name,
           studentId: student.lrn,
           grade: student.level,
-          checkinTime: result.checkInTime ? new Date(result.checkInTime).toLocaleTimeString() : undefined,
-          time: now.toLocaleTimeString(),
+          checkinTime: result.checkInTime ? formatTime12h(result.checkInTime) : undefined,
+          time: formatTime12h(now),
           date: now.toLocaleDateString(),
           duration: duration,
           status: 'success',
@@ -748,7 +748,7 @@ export default function ScanPage() {
           student: student.name,
           studentId: student.lrn,
           grade: student.level,
-          time: now.toLocaleTimeString(),
+          time: formatTime12h(now),
           date: now.toLocaleDateString(),
           status: 'success',
           action: 'Queued Offline',
@@ -761,7 +761,7 @@ export default function ScanPage() {
         setLastScan({
           status: 'error',
           message: 'Failed to record attendance',
-          time: now.toLocaleTimeString(),
+          time: formatTime12h(now),
         });
         return 'completed' as const;
       }
@@ -890,7 +890,7 @@ export default function ScanPage() {
           ...current,
           status: 'error',
           message: 'RFID reader disconnected. Reconnect to continue tap input.',
-          time: new Date().toLocaleTimeString(),
+          time: formatTime12h(new Date()),
         }));
       };
 
@@ -935,7 +935,7 @@ export default function ScanPage() {
             const lastScan = lastScanRef.current;
             if (recordingRef.current) return;
             if (lastScan && lastScan.value === data && now - lastScan.time < 3000) return;
-
+            time: formatTime12h(now),
             recordingRef.current = true;
             lastScanRef.current = { value: data, time: now };
             if (scannerRef.current) {
@@ -950,12 +950,12 @@ export default function ScanPage() {
                 promptTemperatureForStudent(student);
                 // Keep scanner active for continuous queue processing.
                 setScanning(true);
-              } else {
+            time: formatTime12h(now),
                 setLastScan({
                   status: 'error',
                   message: 'Student not found',
                   scannedText: data,
-                  time: new Date().toLocaleTimeString(),
+                  time: formatTime12h(new Date()),
                 });
                 // Resume scanner even for unknown QR values.
                 setScanning(true);
@@ -992,7 +992,7 @@ export default function ScanPage() {
         setLastScan({
           status: 'error',
           message: 'Failed to start camera. Please check permissions.',
-          time: new Date().toLocaleTimeString(),
+          time: formatTime12h(new Date()),
         });
         setScanning(false);
       }
@@ -1028,7 +1028,7 @@ export default function ScanPage() {
           description: 'Please enter a temperature between 30.0 and 45.0 C.',
           variant: 'destructive',
         });
-        return false;
+              date: now.toLocaleDateString(),
       }
       await recordAttendance(student, Number(parsed.toFixed(1)));
       setManualId('');
@@ -1040,7 +1040,7 @@ export default function ScanPage() {
         status: 'error',
         message: 'Student not found by LRN or RFID UID',
         scannedText: manualId,
-        time: new Date().toLocaleTimeString(),
+        time: formatTime12h(new Date()),
       });
       return false;
     }

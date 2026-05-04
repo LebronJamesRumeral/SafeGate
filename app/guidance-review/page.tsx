@@ -28,6 +28,7 @@ import {
   SelectSeparator
 } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
+import { formatTime12h } from '@/lib/time-format';
 import { toast } from '@/hooks/use-toast';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { buildEarlyPreventionNote } from '@/lib/prevention-notes';
@@ -1046,7 +1047,7 @@ export default function GuidanceReviewPage() {
               <strong>${formatDateOnly(log.date)}</strong>
               <span class="mini-pill neutral">Attendance</span>
             </div>
-            <div class="row-meta">Check-in: ${log.check_in_time ? new Date(log.check_in_time).toLocaleTimeString() : '-'} | Check-out: ${log.check_out_time ? new Date(log.check_out_time).toLocaleTimeString() : '-'}</div>
+            <div class="row-meta">Check-in: ${log.check_in_time ? formatTime12h(log.check_in_time) : '-'} | Check-out: ${log.check_out_time ? formatTime12h(log.check_out_time) : '-'}</div>
           </article>
         `
       )

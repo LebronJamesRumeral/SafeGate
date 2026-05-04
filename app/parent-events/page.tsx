@@ -12,6 +12,7 @@ import { CalendarDays, MapPin, Clock, Megaphone, BellRing, CheckCircle2 } from '
 import { fetchActiveSchoolEvents, ensureUpcomingSchoolEventReminders, type SchoolEvent } from '@/lib/school-events';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { supabase } from '@/lib/supabase';
+import { formatTime12h } from '@/lib/time-format';
 
 export default function ParentEventsPage() {
   const { user } = useAuth();
@@ -213,7 +214,7 @@ export default function ParentEventsPage() {
                   </p>
                   <p className="text-sm text-slate-700 dark:text-slate-200 flex items-center gap-2">
                     <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    {event.start_time || '--:--'} - {event.end_time || '--:--'}
+                    {formatTime12h(event.start_time)} - {formatTime12h(event.end_time)}
                   </p>
                   <p className="text-sm text-slate-700 dark:text-slate-200 flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -279,7 +280,7 @@ export default function ParentEventsPage() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Time</label>
-                    <p className="text-sm flex items-center gap-2"><Clock className="w-4 h-4" /> {selectedEvent.start_time || '--:--'} - {selectedEvent.end_time || '--:--'}</p>
+                    <p className="text-sm flex items-center gap-2"><Clock className="w-4 h-4" /> {formatTime12h(selectedEvent.start_time)} - {formatTime12h(selectedEvent.end_time)}</p>
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Location</label>

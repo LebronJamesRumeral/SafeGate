@@ -18,6 +18,7 @@ import { toast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 import { getOfflineQueueCount } from '@/lib/offline-secure-queue';
 import { queueAttendanceScan, syncOfflineQueue } from '@/lib/offline-sync';
+import { formatTime12h } from '@/lib/time-format';
 
 interface ScanResult {
   status: 'success' | 'error';
@@ -254,7 +255,7 @@ export default function ScanPage() {
           student: student.name,
           studentId: student.lrn,
           grade: student.level,
-          time: now.toLocaleTimeString(),
+          time: formatTime12h(now),
           date: now.toLocaleDateString(),
           status: 'success',
           action,
@@ -267,7 +268,7 @@ export default function ScanPage() {
         setLastScan({
           status: 'error',
           message: 'Unable to save attendance offline',
-          time: now.toLocaleTimeString(),
+          time: formatTime12h(now),
         });
       }
       return;
@@ -282,8 +283,8 @@ export default function ScanPage() {
           student: student.name,
           studentId: student.lrn,
           grade: student.level,
-          checkinTime: now.toLocaleTimeString(),
-          time: now.toLocaleTimeString(),
+          checkinTime: formatTime12h(now),
+          time: formatTime12h(now),
           date: now.toLocaleDateString(),
           status: 'success',
           action: 'Checked In'
@@ -303,7 +304,7 @@ export default function ScanPage() {
             student: student.name,
             studentId: student.lrn,
             grade: student.level,
-            time: now.toLocaleTimeString(),
+            time: formatTime12h(now),
             date: now.toLocaleDateString(),
             status: 'error',
             message: 'Student already checked out today',
@@ -318,8 +319,8 @@ export default function ScanPage() {
           student: student.name,
           studentId: student.lrn,
           grade: student.level,
-          checkinTime: result.checkInTime ? new Date(result.checkInTime).toLocaleTimeString() : undefined,
-          time: now.toLocaleTimeString(),
+          checkinTime: result.checkInTime ? formatTime12h(result.checkInTime) : undefined,
+          time: formatTime12h(now),
           date: now.toLocaleDateString(),
           duration: duration,
           status: 'success',
@@ -338,7 +339,7 @@ export default function ScanPage() {
           student: student.name,
           studentId: student.lrn,
           grade: student.level,
-          time: now.toLocaleTimeString(),
+          time: formatTime12h(now),
           date: now.toLocaleDateString(),
           status: 'success',
           action: 'Queued Offline',
@@ -349,7 +350,7 @@ export default function ScanPage() {
         setLastScan({
           status: 'error',
           message: 'Failed to record attendance',
-          time: now.toLocaleTimeString(),
+          time: formatTime12h(now),
         });
       }
     }
@@ -437,7 +438,7 @@ export default function ScanPage() {
                   status: 'error',
                   message: 'Student not found',
                   scannedText: data,
-                  time: new Date().toLocaleTimeString(),
+                  time: formatTime12h(new Date()),
                 });
                 // Resume scanner even for unknown QR values.
                 setScanning(true);
@@ -474,7 +475,7 @@ export default function ScanPage() {
         setLastScan({
           status: 'error',
           message: 'Failed to start camera. Please check permissions.',
-          time: new Date().toLocaleTimeString(),
+          time: formatTime12h(new Date()),
         });
         setScanning(false);
       }
@@ -512,7 +513,7 @@ export default function ScanPage() {
         status: 'error',
         message: 'Student ID not found',
         scannedText: manualId,
-        time: new Date().toLocaleTimeString(),
+        time: formatTime12h(new Date()),
       });
       return false;
     }

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
+import { formatTime12h } from '@/lib/time-format';
 
 interface AchievementAutomationRequest {
   achievementId: number;
@@ -14,13 +15,7 @@ function formatDisplayDate(raw: string | null | undefined): string {
 }
 
 function formatDisplayTime(raw: string | null | undefined): string {
-  if (!raw) return 'N/A';
-  const normalized = raw.replace(/\./g, ':');
-  const [h, m] = normalized.split(':').map(Number);
-  if (Number.isNaN(h) || Number.isNaN(m)) return raw;
-  const suffix = h >= 12 ? 'PM' : 'AM';
-  const hour12 = h % 12 || 12;
-  return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;
+  return raw ? formatTime12h(raw, 'N/A') : 'N/A';
 }
 
 function buildAchievementEmailContent(payload: {

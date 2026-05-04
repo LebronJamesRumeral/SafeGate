@@ -67,6 +67,7 @@ import { supabase, type Student as BaseStudent } from '@/lib/supabase';
 // Extend Student type to include isLinked for local use
 type Student = BaseStudent & { isLinked?: boolean };
 import { toast } from '@/hooks/use-toast';
+import { formatTime12h } from '@/lib/time-format';
 import { sortByLevel } from '@/lib/level-order';
 import { calculateStudentRiskScore, getActionRecommendations, type RiskScore } from '@/lib/ml-risk-calculator';
 import { StudentRiskCard } from '@/components/ml-dashboard';
@@ -4206,11 +4207,11 @@ export default function StudentsPage() {
                                           </Badge>
                                         )}
                                         <span className="text-[10px] text-muted-foreground">
-                                          {attendance.checkInTime ? new Date(attendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
+                                          {attendance.checkInTime ? formatTime12h(attendance.checkInTime) : '--'}
                                         </span>
                                         {attendance.scheduledEndTime && (
                                           <span className="text-[10px] text-muted-foreground">
-                                            Until {attendance.scheduledEndTime.slice(0, 5)}
+                                            Until {formatTime12h(attendance.scheduledEndTime)}
                                           </span>
                                         )}
                                       </div>
@@ -4883,7 +4884,7 @@ export default function StudentsPage() {
                                                           </div>
                                                           <div>
                                                             <p className="text-xs font-medium text-muted-foreground">Time</p>
-                                                            <p className="mt-1 font-medium">{`${schedule.start_time} - ${schedule.end_time}`}</p>
+                                                            <p className="mt-1 font-medium">{`${formatTime12h(schedule.start_time)} - ${formatTime12h(schedule.end_time)}`}</p>
                                                           </div>
                                                           <div>
                                                             <p className="text-xs font-medium text-muted-foreground">Room</p>
@@ -4946,8 +4947,8 @@ export default function StudentsPage() {
                                                               <td className="px-3 py-2">
                                                                 <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
                                                               </td>
-                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_in_time ? new Date(entry.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--')}</td>
-                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_out_time ? new Date(entry.check_out_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--')}</td>
+                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_in_time ? formatTime12h(entry.check_in_time) : '--')}</td>
+                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_out_time ? formatTime12h(entry.check_out_time) : '--')}</td>
                                                             </tr>
                                                           );
                                                         })}
@@ -6079,7 +6080,7 @@ export default function StudentsPage() {
                                                           </div>
                                                           <div>
                                                             <p className="text-xs font-medium text-muted-foreground">Time</p>
-                                                            <p className="mt-1 font-medium">{`${schedule.start_time} - ${schedule.end_time}`}</p>
+                                                            <p className="mt-1 font-medium">{`${formatTime12h(schedule.start_time)} - ${formatTime12h(schedule.end_time)}`}</p>
                                                           </div>
                                                           <div>
                                                             <p className="text-xs font-medium text-muted-foreground">Room</p>
@@ -6142,8 +6143,8 @@ export default function StudentsPage() {
                                                               <td className="px-3 py-2">
                                                                 <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
                                                               </td>
-                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_in_time ? new Date(entry.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--')}</td>
-                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_out_time ? new Date(entry.check_out_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--')}</td>
+                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_in_time ? formatTime12h(entry.check_in_time) : '--')}</td>
+                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_out_time ? formatTime12h(entry.check_out_time) : '--')}</td>
                                                             </tr>
                                                           );
                                                         })}

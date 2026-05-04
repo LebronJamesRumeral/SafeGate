@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { CalendarDays, MapPin, Clock, Pencil, Trash2, ImagePlus, Megaphone, Info } from 'lucide-react';
 import { fetchActiveSchoolEvents, createSchoolEvent, ensureUpcomingSchoolEventReminders, type SchoolEvent } from '@/lib/school-events';
 import { supabase } from '@/lib/supabase';
+import { formatTime12h } from '@/lib/time-format';
 import { motion } from 'framer-motion';
 import { toast } from '@/hooks/use-toast';
 
@@ -478,7 +479,7 @@ export default function EventsPage() {
                   </div>
                   <div className="space-y-1 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
                     <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Time</label>
-                    <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><Clock className="w-4 h-4 text-slate-500 dark:text-slate-400" /> {selectedEvent.start_time || '--:--'} - {selectedEvent.end_time || '--:--'}</p>
+                    <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><Clock className="w-4 h-4 text-slate-500 dark:text-slate-400" /> {formatTime12h(selectedEvent.start_time)} - {formatTime12h(selectedEvent.end_time)}</p>
                   </div>
                   <div className="space-y-1 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
                     <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Location</label>
@@ -667,7 +668,7 @@ export default function EventsPage() {
                   </CardHeader>
                   <CardContent className="space-y-2">
                     <p className="text-sm flex items-center gap-2"><CalendarDays className="w-4 h-4" /> {event.event_date}</p>
-                    <p className="text-sm flex items-center gap-2"><Clock className="w-4 h-4" /> {event.start_time || '--:--'} - {event.end_time || '--:--'}</p>
+                    <p className="text-sm flex items-center gap-2"><Clock className="w-4 h-4" /> {formatTime12h(event.start_time)} - {formatTime12h(event.end_time)}</p>
                     <p className="text-sm flex items-center gap-2"><MapPin className="w-4 h-4" /> {event.location || 'School campus'}</p>
                     <Button size="sm" variant="outline" className="w-full mt-2" onClick={() => { setSelectedEvent(event); setDetailsOpen(true); }}>
                       View Details

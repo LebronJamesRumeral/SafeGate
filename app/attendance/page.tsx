@@ -47,6 +47,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { sortByLevel } from '@/lib/level-order';
 import { toast } from '@/hooks/use-toast';
+import { formatTime12h } from '@/lib/time-format';
 import { useAuth } from '@/lib/auth-context';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { MLDashboard } from '@/components/ml-dashboard';
@@ -1387,7 +1388,7 @@ export default function AttendancePage() {
                                               </p>
                                               <p className="text-xs text-slate-500 dark:text-slate-500 mt-1 flex items-center gap-1">
                                                 <Clock3 className="w-3 h-3" />
-                                                Submitted: {new Date(note.createdAt).toLocaleDateString()} at {new Date(note.createdAt).toLocaleTimeString()}
+                                                Submitted: {new Date(note.createdAt).toLocaleDateString()} at {formatTime12h(new Date(note.createdAt))}
                                               </p>
                                             </div>
                                             <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-semibold text-xs px-2.5 py-1 uppercase tracking-wider border-0">
@@ -1592,7 +1593,7 @@ export default function AttendancePage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col">
-                              <span className="text-sm">{isCancelled ? '--' : checkIn.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className="text-sm">{isCancelled ? '--' : formatTime12h(checkIn)}</span>
                               {isLate && (
                                 <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0 text-xs mt-1">
                                   Late
@@ -1604,7 +1605,7 @@ export default function AttendancePage() {
                             {isCancelled ? (
                               <span className="text-gray-400">--</span>
                             ) : checkOut ? (
-                              checkOut.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                              formatTime12h(checkOut)
                             ) : (
                               <span className="text-gray-400">--</span>
                             )}

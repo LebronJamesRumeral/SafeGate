@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
+import { formatTime12h } from '@/lib/time-format';
 
 type TriggerSource = 'behavior_event_logged' | 'manual_recheck' | 'guidance_approved';
 
@@ -110,13 +111,7 @@ const RISK_LABELS: Record<string, { label: string; color: string; description: s
 };
 
 function formatDisplayDate(raw: string | null | undefined): string {
-  if (!raw) return 'N/A';
-  const d = new Date(raw);
-  if (isNaN(d.getTime())) return raw;
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-}
-
-function formatDisplayTime(raw: string | null | undefined): string {
+  return raw ? formatTime12h(raw, 'N/A') : 'N/A';
   if (!raw) return 'N/A';
   // Handle "HH:MM:SS" or "HH.MM.SS" formats
   const normalised = raw.replace(/\./g, ':');

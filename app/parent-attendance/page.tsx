@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getParentStudents } from '@/lib/parent-data';
 import { supabase } from '@/lib/supabase';
 import { createRoleNotification } from '@/lib/role-notifications';
+import { formatTime12h } from '@/lib/time-format';
 import { Users, CheckCircle2, Clock3, XCircle, TrendingUp, AlertTriangle, Star, MinusCircle, FileText, CalendarDays, Shield, MapPin, UserRound, Bell } from 'lucide-react';
 import { motion } from "framer-motion";
 
@@ -895,8 +896,8 @@ export default function ParentAttendancePage() {
                                     filteredLogs.slice(0, 30).map((log: any) => (
                                       <TableRow key={log.id} className="border-border/50 hover:bg-muted/50 transition-colors animate-fade-in-up">
                                         <TableCell className="py-3 px-4 text-sm">{log.date}</TableCell>
-                                        <TableCell className="py-3 px-4 text-sm">{log.check_in_time ? new Date(log.check_in_time).toLocaleTimeString() : '-'}</TableCell>
-                                        <TableCell className="py-3 px-4 text-sm">{log.check_out_time ? new Date(log.check_out_time).toLocaleTimeString() : '-'}</TableCell>
+                                        <TableCell className="py-3 px-4 text-sm">{log.check_in_time ? formatTime12h(log.check_in_time) : '-'}</TableCell>
+                                        <TableCell className="py-3 px-4 text-sm">{log.check_out_time ? formatTime12h(log.check_out_time) : '-'}</TableCell>
                                         <TableCell className="py-3 px-4 text-sm">
                                           <Badge
                                             className={
@@ -1028,7 +1029,7 @@ export default function ParentAttendancePage() {
                                     <div className="space-y-1">
                                       <p className="text-sm font-bold text-slate-900 dark:text-white">{row.subject || 'Class Session'}</p>
                                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                                        {row.day_of_week} - {(row.start_time || '').slice(0, 5)} to {(row.end_time || '').slice(0, 5)}
+                                        {row.day_of_week} - {formatTime12h(row.start_time)} to {formatTime12h(row.end_time)}
                                       </p>
                                     </div>
                                     <Badge variant="outline" className="text-xs">
