@@ -207,7 +207,7 @@ export default function SettingsPage() {
       if (data.success) {
         toast({
           title: 'User added',
-          description: `${newUser.full_name || newUser.email} was added successfully.`,
+          description: `${newUser.full_name || newUser.email} was added successfully. Password: ${newUser.password}`,
           variant: 'default',
         });
         setNewUser({ email: '', password: '', full_name: '', role: 'teacher' });

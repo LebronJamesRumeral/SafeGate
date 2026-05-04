@@ -527,7 +527,8 @@ export default function StudentsPage() {
         return;
       }
       // 2. Prepare password: parent's last name (lowercase) + 'Safegate'
-      const nameParts = student.name.trim().split(' ');
+      const sourceForLastName = parentName && parentName.trim() ? parentName.trim() : (student.name || '').trim();
+      const nameParts = sourceForLastName.split(' ');
       const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1].toLowerCase() : nameParts[0].toLowerCase();
       const password = `${lastName}Safegate`;
       // 3. Create user
@@ -552,7 +553,7 @@ export default function StudentsPage() {
         }
         toast({
           title: 'Parent Account Created',
-          description: `Account for ${parentEmail} created and linked successfully.`,
+          description: `Account for ${parentEmail} created successfully. Password: ${password}`,
           variant: 'default',
         });
         // Update validated emails state so button disappears
@@ -570,6 +571,55 @@ export default function StudentsPage() {
       toast({
         title: 'Error',
         description: err.message || 'Failed to validate/create account',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Handler for unlinking parent account
+  const handleUnlinkParentAccount = async (student: Student) => {
+    const parentEmail = (student.parentEmail || student.parent_email || '').trim().toLowerCase();
+    if (!parentEmail) {
+      toast({
+        title: 'No Parent Email',
+        description: 'Cannot unlink without a parent email.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      if (supabase) {
+        const { error } = await supabase
+          .from('parents')
+          .update({ user_id: null })
+          .eq('parent_email', parentEmail);
+        
+        if (error) {
+          toast({
+            title: 'Failed to Unlink',
+            description: error.message || 'Could not unlink parent account',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
+      toast({
+        title: 'Parent Account Unlinked',
+        description: `Account for ${parentEmail} has been unlinked.`,
+        variant: 'default',
+      });
+
+      // Remove from validated emails state
+      setValidatedParentEmails((prev) => prev.filter((email) => email !== parentEmail.toLowerCase()));
+      
+      // Refetch students to update UI
+      await fetchStudents();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to unlink account',
         variant: 'destructive',
       });
     }
@@ -625,6 +675,7 @@ export default function StudentsPage() {
   const rfidDisconnectingRef = useRef(false);
 
   // Buffer for last name editing
+  const [editFirstMiddleName, setEditFirstMiddleName] = useState<string | null>(null);
   const [editLastName, setEditLastName] = useState<string | null>(null);
 
   const normalizeRfidUid = (value: string) => value.trim().toUpperCase().replace(/[^A-F0-9]/g, '');
@@ -829,18 +880,54 @@ export default function StudentsPage() {
       return;
     }
 
+    // Check if parent email is being changed and if account exists
+    const oldParentEmail = (selectedStudent.parent_email || selectedStudent.parentEmail || '').toLowerCase().trim();
+    const newParentEmail = (selectedStudent.parentEmail || '').toLowerCase().trim();
+    
+    if (oldParentEmail && newParentEmail && oldParentEmail !== newParentEmail) {
+      // Email is being changed - check if parent account exists
+      try {
+        const { data: existingParent, error: checkError } = await supabase
+          .from('parents')
+          .select('user_id')
+          .eq('parent_email', oldParentEmail)
+          .single();
+        
+        if (existingParent && existingParent.user_id) {
+          toast({
+            title: 'Cannot change parent email',
+            description: 'A parent account already exists for this email. Please delete the account first or contact an administrator.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      } catch (err) {
+        // Parent record doesn't exist, safe to proceed
+      }
+    }
+
     let updatedName = selectedStudent.name;
-    if (editLastName !== null) {
+    if (editLastName !== null || editFirstMiddleName !== null) {
       const raw = selectedStudent.name.trim();
+      let currentLast = '';
+      let currentFirstMiddle = '';
       if (raw.includes(',')) {
-        // Format: Last, First Middle
         const parts = raw.split(',');
-        const firstMiddle = (parts[1] || '').trim();
-        updatedName = `${editLastName}, ${firstMiddle}`.trim();
+        currentLast = (parts[0] || '').trim();
+        currentFirstMiddle = (parts[1] || '').trim();
       } else {
         const nameParts = raw.split(' ');
-        const firstMiddle = nameParts.slice(0, -1).join(' ');
-        updatedName = `${firstMiddle}${firstMiddle ? ' ' : ''}${editLastName}`.trim();
+        currentLast = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+        currentFirstMiddle = nameParts.slice(0, -1).join(' ');
+      }
+
+      const nextLast = (editLastName ?? currentLast).trim();
+      const nextFirstMiddle = (editFirstMiddleName ?? currentFirstMiddle).trim();
+
+      if (raw.includes(',')) {
+        updatedName = `${nextLast}${nextFirstMiddle ? `, ${nextFirstMiddle}` : ''}`.trim();
+      } else {
+        updatedName = `${nextFirstMiddle}${nextFirstMiddle ? ' ' : ''}${nextLast}`.trim();
       }
     }
 
@@ -848,6 +935,8 @@ export default function StudentsPage() {
 
     const payload = {
       name: updatedName,
+      gender: (selectedStudent.gender || '').trim() || null,
+      birthday: (selectedStudent.birthday || '').trim() || null,
       address: (selectedStudent.address || '').trim() || null,
       parent_name: (selectedStudent.parentName || '').trim() || null,
       parent_contact: (selectedStudent.parentContact || '').trim() || null,
@@ -862,6 +951,41 @@ export default function StudentsPage() {
     setSavingStudentInfo(true);
 
     try {
+      // Ensure new parent_email exists in parents table (for FK constraint)
+      if (payload.parent_email && payload.parent_email.trim()) {
+        try {
+          const { data: existingParent } = await supabase
+            .from('parents')
+            .select('parent_email')
+            .eq('parent_email', payload.parent_email)
+            .single();
+
+          if (!existingParent) {
+            // Parent record doesn't exist, create it
+            const { error: insertError } = await supabase
+              .from('parents')
+              .insert({
+                parent_email: payload.parent_email,
+                full_name: payload.parent_name || null,
+                contact: payload.parent_contact || null,
+              });
+
+            if (insertError) {
+              toast({
+                title: 'Failed to create parent record',
+                description: insertError.message || 'Could not create parent entry',
+                variant: 'destructive',
+              });
+              setSavingStudentInfo(false);
+              return;
+            }
+          }
+        } catch (err) {
+          // If error checking, try to insert anyway
+          console.log('Parent check error (will attempt insert):', err);
+        }
+      }
+
       const { error } = await supabase
         .from('students')
         .update(payload)
@@ -882,6 +1006,8 @@ export default function StudentsPage() {
       setSelectedStudent({
         ...selectedStudent,
         name: updatedName,
+        gender: payload.gender || '',
+        birthday: payload.birthday || '',
         address: payload.address || '',
         parentName: payload.parent_name || '',
         parentContact: payload.parent_contact || '',
@@ -911,6 +1037,7 @@ export default function StudentsPage() {
           toast({ title: 'Failed to update LRN', description: String(err), variant: 'destructive' });
         }
       }
+      setEditFirstMiddleName(null);
       setEditLastName(null);
       setEditingStudentInfo(false);
       await fetchStudents();
@@ -1511,6 +1638,8 @@ export default function StudentsPage() {
       address: '',
       parentName: '',
       parentContact: '',
+      parent2Name: '',
+      parent2Contact: '',
       parentEmail: '',
       status: 'active',
       is_special_case: false,
@@ -3525,11 +3654,16 @@ export default function StudentsPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Special Case</label>
+                      <div className="space-y-3 w-full max-w-xs">
+                        <label className="text-sm font-medium">Special Education needs</label>
+                        <p className="text-xs leading-relaxed text-muted-foreground">Does this learner have educational needs?</p>
                         <div className="flex items-center gap-2">
-                          <Switch checked={!!newStudentForm.is_special_case} onCheckedChange={(v) => setNewStudentForm((prev) => ({ ...prev, is_special_case: !!v }))} />
-                          <span className="text-sm text-muted-foreground">Has case</span>
+                          <Switch
+                            className="data-[state=unchecked]:bg-slate-300 data-[state=unchecked]:border data-[state=unchecked]:border-slate-500 data-[state=checked]:bg-blue-600"
+                            checked={!!newStudentForm.is_special_case}
+                            onCheckedChange={(v) => setNewStudentForm((prev) => ({ ...prev, is_special_case: !!v }))}
+                          />
+                          <span className="text-sm text-slate-700 dark:text-slate-300">Yes</span>
                         </div>
                       </div>
                     </div>
@@ -4009,7 +4143,20 @@ export default function StudentsPage() {
                                   </div>
                                   <div className="flex items-center gap-2 mt-1">
                                     {student.isLinked ? (
-                                      <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs">Linked</Badge>
+                                      <div className="flex items-center gap-1">
+                                        <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs">Linked</Badge>
+                                        <Button
+                                          size="xs"
+                                          variant="outline"
+                                          className="bg-red-100 text-red-700 border-0 text-xs px-2 py-1 h-auto min-h-0 min-w-0 rounded hover:bg-red-200"
+                                          onClick={async () => {
+                                            await handleUnlinkParentAccount(student);
+                                          }}
+                                          title="Unlink parent account"
+                                        >
+                                          Unlink
+                                        </Button>
+                                      </div>
                                     ) : (
                                       <Button
                                         size="xs"
@@ -4231,10 +4378,11 @@ export default function StudentsPage() {
                                                         <div className="flex-1">
                                                           <div className="flex flex-col sm:flex-row gap-2">
                                                             <Input
-                                                              value={firstMiddle}
-                                                              disabled
-                                                              className="font-medium w-full sm:w-1/2 bg-slate-100 dark:bg-slate-800/50 text-sm sm:text-base"
+                                                              value={editFirstMiddleName !== null ? editFirstMiddleName : firstMiddle}
+                                                              onChange={e => setEditFirstMiddleName(e.target.value)}
+                                                              className="font-medium w-full sm:w-1/2 text-sm sm:text-base"
                                                               placeholder="First & Middle Name"
+                                                              disabled={!editingStudentInfo}
                                                             />
                                                             <Input
                                                               value={editLastName !== null ? editLastName : lastName}
@@ -4248,10 +4396,17 @@ export default function StudentsPage() {
                                                       </div>
                                                     </div>
                                                     <div className="col-span-2 sm:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex items-start justify-start pl-4">
-                                                      <div className="flex flex-col items-start ml-2">
+                                                      <div className="flex flex-col items-start ml-2 gap-2 w-full max-w-xs">
+                                                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Special Education needs</p>
+                                                        <p className="text-xs leading-relaxed text-muted-foreground">Does this learner have educational needs?</p>
                                                         <div className="flex items-center gap-2">
-                                                          <Switch checked={!!selectedStudent.is_special_case} onCheckedChange={(v) => setSelectedStudent({ ...selectedStudent, is_special_case: !!v })} disabled={!editingStudentInfo} />
-                                                          <span className="text-sm text-muted-foreground">Has case</span>
+                                                          <Switch
+                                                            className="data-[state=unchecked]:bg-slate-300 data-[state=unchecked]:border data-[state=unchecked]:border-slate-500 data-[state=checked]:bg-blue-600"
+                                                            checked={!!selectedStudent.is_special_case}
+                                                            onCheckedChange={(v) => setSelectedStudent({ ...selectedStudent, is_special_case: !!v })}
+                                                            disabled={!editingStudentInfo}
+                                                          />
+                                                          <span className="text-sm text-slate-700 dark:text-slate-300">Yes</span>
                                                         </div>
                                                       </div>
                                                     </div>
@@ -4263,7 +4418,17 @@ export default function StudentsPage() {
                                                   <Calendar className="w-3 h-3" />
                                                   Birthday
                                                 </p>
-                                                <p className="font-medium">{selectedStudent.birthday}</p>
+                                                {editingStudentInfo ? (
+                                                  <Input
+                                                    type="date"
+                                                    value={selectedStudent.birthday || ''}
+                                                    onChange={(e) => setSelectedStudent({ ...selectedStudent, birthday: e.target.value })}
+                                                    className="font-medium"
+                                                    disabled={!editingStudentInfo}
+                                                  />
+                                                ) : (
+                                                  <p className="font-medium">{selectedStudent.birthday}</p>
+                                                )}
                                                 {shouldShowAge(selectedStudent.level) && (
                                                   <p className="text-sm text-muted-foreground mt-1">
                                                     {calculateAgeWithDecimal(selectedStudent.birthday)} years old
@@ -4275,7 +4440,23 @@ export default function StudentsPage() {
                                                   <User className="w-3 h-3" />
                                                   Gender
                                                 </p>
-                                                <p className="font-medium">{selectedStudent.gender}</p>
+                                                {editingStudentInfo ? (
+                                                  <Select
+                                                    value={selectedStudent.gender || ''}
+                                                    onValueChange={(value) => setSelectedStudent({ ...selectedStudent, gender: value })}
+                                                    disabled={!editingStudentInfo}
+                                                  >
+                                                    <SelectTrigger className="h-10">
+                                                      <SelectValue placeholder="Select Gender" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      <SelectItem value="Male">Male</SelectItem>
+                                                      <SelectItem value="Female">Female</SelectItem>
+                                                    </SelectContent>
+                                                  </Select>
+                                                ) : (
+                                                  <p className="font-medium">{selectedStudent.gender}</p>
+                                                )}
                                               </div>
                                               <div className="col-span-2 md:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
                                                 <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
@@ -4528,13 +4709,17 @@ export default function StudentsPage() {
                                                     // When entering edit mode, buffer the last name (support comma format)
                                                         const raw = selectedStudent.name.trim();
                                                         let bufLast = '';
+                                                        let bufFirstMiddle = '';
                                                         if (raw.includes(',')) {
                                                           const parts = raw.split(',');
                                                           bufLast = parts[0].trim();
+                                                          bufFirstMiddle = (parts[1] || '').trim();
                                                         } else {
                                                           const nameParts = raw.split(' ');
                                                           bufLast = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+                                                          bufFirstMiddle = nameParts.slice(0, -1).join(' ');
                                                         }
+                                                        setEditFirstMiddleName(bufFirstMiddle);
                                                         setEditLastName(bufLast);
                                                         setEditingStudentInfo(true);
                                                   }}>
@@ -5338,10 +5523,19 @@ export default function StudentsPage() {
                                                 </span>
                                                 <span className="ml-2">• {selectedStudent.level}</span>
                                               </DialogDescription>
-                                              <div className="mt-2 flex items-center gap-4">
+                                              <div className="mt-2 flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
+                                                <div className="flex flex-col gap-2 max-w-xs">
+                                                  <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Special Education needs</p>
+                                                  <p className="text-xs leading-relaxed text-muted-foreground">Does this learner have educational needs?</p>
+                                                </div>
                                                 <div className="flex items-center gap-2">
-                                                  <Switch checked={!!selectedStudent.is_special_case} onCheckedChange={(v) => setSelectedStudent({ ...selectedStudent, is_special_case: !!v })} disabled={!editingStudentInfo} />
-                                                  <span className="text-sm">Special Case</span>
+                                                  <Switch
+                                                    className="data-[state=unchecked]:bg-slate-300 data-[state=unchecked]:border data-[state=unchecked]:border-slate-500 data-[state=checked]:bg-blue-600"
+                                                    checked={!!selectedStudent.is_special_case}
+                                                    onCheckedChange={(v) => setSelectedStudent({ ...selectedStudent, is_special_case: !!v })}
+                                                    disabled={!editingStudentInfo}
+                                                  />
+                                                  <span className="text-sm text-slate-700 dark:text-slate-300">Yes</span>
                                                 </div>
                                               </div>
                                             </div>
@@ -5442,7 +5636,23 @@ export default function StudentsPage() {
                                                   <User className="w-3 h-3" />
                                                   Gender
                                                 </p>
-                                                <p className="font-medium">{selectedStudent.gender}</p>
+                                                {editingStudentInfo ? (
+                                                  <Select
+                                                    value={selectedStudent.gender || ''}
+                                                    onValueChange={(value) => setSelectedStudent({ ...selectedStudent, gender: value })}
+                                                    disabled={!editingStudentInfo}
+                                                  >
+                                                    <SelectTrigger className="h-10">
+                                                      <SelectValue placeholder="Select Gender" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      <SelectItem value="Male">Male</SelectItem>
+                                                      <SelectItem value="Female">Female</SelectItem>
+                                                    </SelectContent>
+                                                  </Select>
+                                                ) : (
+                                                  <p className="font-medium">{selectedStudent.gender}</p>
+                                                )}
                                               </div>
                                               <div className="col-span-2 md:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
                                                 <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
@@ -5695,13 +5905,17 @@ export default function StudentsPage() {
                                                     // When entering edit mode, buffer the last name (support comma format)
                                                         const raw = selectedStudent.name.trim();
                                                         let bufLast = '';
+                                                        let bufFirstMiddle = '';
                                                         if (raw.includes(',')) {
                                                           const parts = raw.split(',');
                                                           bufLast = parts[0].trim();
+                                                          bufFirstMiddle = (parts[1] || '').trim();
                                                         } else {
                                                           const nameParts = raw.split(' ');
                                                           bufLast = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+                                                          bufFirstMiddle = nameParts.slice(0, -1).join(' ');
                                                         }
+                                                        setEditFirstMiddleName(bufFirstMiddle);
                                                         setEditLastName(bufLast);
                                                         setEditingStudentInfo(true);
                                                   }}>

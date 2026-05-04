@@ -770,7 +770,14 @@ export default function MasterlistPage() {
                     paginatedStudents.map((student, index) => (
                       <TableRow key={student.id} className="border-border/50 hover:bg-muted/50 transition-colors animate-fade-in-up" style={{ animationDelay: `${0.3 + index * 0.05}s` }}>
                         <TableCell className="font-semibold text-foreground">{student.lrn}</TableCell>
-                        <TableCell className="font-semibold text-foreground">{student.name}</TableCell>
+                        <TableCell className="font-semibold text-foreground">
+                          <div className="flex items-center gap-2">
+                            <span>{student.name}</span>
+                            {student.is_special_case && (
+                              <img src="/Helping-Hand.png" alt="Special Education needs" className="w-4 h-4 flex-shrink-0" />
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-foreground">{student.gender}</TableCell>
                         <TableCell className="text-foreground">
                           <Badge variant="outline" className="font-medium border-border/60">
