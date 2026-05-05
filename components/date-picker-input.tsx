@@ -47,10 +47,12 @@ export function DatePickerInput({ value, onChange, placeholder = 'dd/mm/yyyy', c
   const parsed = React.useMemo(() => parseIsoDate(safeValue), [safeValue]);
   const [open, setOpen] = React.useState(false);
   const [viewDate, setViewDate] = React.useState<Date>(() => parsed ?? new Date());
+  const [showYearPicker, setShowYearPicker] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) {
       setViewDate(parsed ?? new Date());
+      setShowYearPicker(false);
     }
   }, [parsed, open]);
 
@@ -120,47 +122,93 @@ export function DatePickerInput({ value, onChange, placeholder = 'dd/mm/yyyy', c
             <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           </div>
 
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <button type="button" className="rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}>
-                ◀
-              </button>
-              <div className="text-sm font-medium">{viewDate.toLocaleString(undefined, { month: 'long' })} {viewDate.getFullYear()}</div>
-              <button type="button" className="rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}>
-                ▶
-              </button>
-            </div>
-            <div className="text-xs text-slate-500">Su Mo Tu We Th Fr Sa</div>
-          </div>
+          {!showYearPicker ? (
+            <>
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button type="button" className="rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}>
+                    ◀
+                  </button>
+                  <button type="button" className="rounded-full px-2 py-1 text-sm font-medium text-slate-900 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800" onClick={() => setShowYearPicker(true)}>
+                    {viewDate.toLocaleString(undefined, { month: 'short' })} {viewDate.getFullYear()}
+                  </button>
+                  <button type="button" className="rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}>
+                    ▶
+                  </button>
+                </div>
+                <div className="text-xs text-slate-500">Su Mo Tu We Th Fr Sa</div>
+              </div>
 
-          <div className="grid grid-cols-7 gap-1">
-            {days.map((cell, idx) => {
-              if (!cell.date) return <div key={idx} className="h-9" />;
-              const isSelected = safeValue && toIsoDate(cell.date) === safeValue;
-              const isToday = toIsoDate(cell.date) === toIsoDate(new Date());
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleSelect(cell.date as Date)}
-                  className={cn(
-                    'h-9 w-9 rounded-md text-sm',
-                    isSelected ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-blue-50 dark:text-slate-200 dark:hover:bg-slate-800',
-                    isToday && !isSelected ? 'ring-1 ring-slate-200' : '',
-                  )}
-                >
-                  {cell.date.getDate()}
-                </button>
-              );
-            })}
-          </div>
+              <div className="grid grid-cols-7 gap-1">
+                {days.map((cell, idx) => {
+                  if (!cell.date) return <div key={idx} className="h-9" />;
+                  const isSelected = safeValue && toIsoDate(cell.date) === safeValue;
+                  const isToday = toIsoDate(cell.date) === toIsoDate(new Date());
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSelect(cell.date as Date)}
+                      className={cn(
+                        'h-9 w-9 rounded-md text-sm',
+                        isSelected ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-blue-50 dark:text-slate-200 dark:hover:bg-slate-800',
+                        isToday && !isSelected ? 'ring-1 ring-slate-200' : '',
+                      )}
+                    >
+                      {cell.date.getDate()}
+                    </button>
+                  );
+                })}
+              </div>
 
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <Button type="button" variant="ghost" size="sm" className="rounded-full px-4" onClick={handleClear}>Clear</Button>
-            <div className="flex gap-2">
-              <Button type="button" size="sm" className="rounded-full px-4" onClick={handleToday}>Today</Button>
-            </div>
-          </div>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <Button type="button" variant="ghost" size="sm" className="rounded-full px-4" onClick={handleClear}>Clear</Button>
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" className="rounded-full px-4" onClick={handleToday}>Today</Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button type="button" className="rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => setViewDate(new Date(viewDate.getFullYear() - 10, viewDate.getMonth(), 1))}>
+                    ◀◀
+                  </button>
+                  <div className="text-sm font-medium min-w-[80px] text-center">{viewDate.getFullYear()}-{viewDate.getFullYear() + 9}</div>
+                  <button type="button" className="rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => setViewDate(new Date(viewDate.getFullYear() + 10, viewDate.getMonth(), 1))}>
+                    ▶▶
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {Array.from({ length: 10 }, (_, i) => viewDate.getFullYear() - 5 + i).map((year) => {
+                  const isSelected = year === viewDate.getFullYear();
+                  return (
+                    <button
+                      key={year}
+                      type="button"
+                      onClick={() => {
+                        setViewDate(new Date(year, viewDate.getMonth(), 1));
+                        setShowYearPicker(false);
+                      }}
+                      className={cn(
+                        'h-10 rounded-md text-sm font-medium transition-colors',
+                        isSelected
+                          ? 'bg-blue-600 text-white'
+                          : 'text-slate-700 hover:bg-blue-50 dark:text-slate-200 dark:hover:bg-slate-800',
+                      )}
+                    >
+                      {year}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <Button type="button" variant="ghost" size="sm" className="rounded-full px-4" onClick={() => setShowYearPicker(false)}>Back</Button>
+              </div>
+            </>
+          )}
         </PopoverContent>
       </Popover>
     </>
