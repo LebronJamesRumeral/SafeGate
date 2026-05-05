@@ -56,6 +56,13 @@ export default function ParentAnnouncementPage() {
     });
   };
 
+  const isEventPassed = (eventDate: string): boolean => {
+    const eventDateObj = new Date(`${eventDate}T23:59:59`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return eventDateObj < today;
+  };
+
   const normalizeAnnouncementKind = (value?: string | null): AnnouncementKind => {
     const normalized = String(value || '').toLowerCase();
     if (normalized === 'school_holiday' || normalized === 'holiday') return 'holiday';
@@ -447,7 +454,7 @@ export default function ParentAnnouncementPage() {
                           is_active: true,
                           created_at: featured.created_at,
                           updated_at: featured.created_at,
-                        })} disabled={joinNotifiedByEventId[featured.event_id || 0] || savingJoinEventId === featured.event_id}>{joinNotifiedByEventId[featured.event_id || 0] ? 'Join intent sent' : "Notify I'll Join"}</Button>
+                        })} disabled={joinNotifiedByEventId[featured.event_id || 0] || savingJoinEventId === featured.event_id || isEventPassed(featured.event_date)}>{joinNotifiedByEventId[featured.event_id || 0] ? 'Join intent sent' : isEventPassed(featured.event_date) ? 'Event passed' : "Notify I'll Join"}</Button>
                       ) : null}
                     </div>
                   </div>
@@ -472,8 +479,35 @@ export default function ParentAnnouncementPage() {
                     <div className="flex-1">
                       <h5 className="text-sm font-medium line-clamp-2 leading-snug">{item.title}</h5>
                       <p className="text-xs text-slate-500">{formatEventDate(item.event_date)}</p>
-                      <div className="mt-2">
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
                         <Button size="sm" variant="ghost" onClick={() => { setSelectedAnnouncement(item); setDetailsOpen(true); }}>Read</Button>
+                        {item.source === 'event' ? (
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() => void handleNotifyJoin({
+                              id: item.event_id || 0,
+                              title: item.title,
+                              description: item.description,
+                              image_url: item.image_url,
+                              event_date: item.event_date,
+                              start_time: item.start_time,
+                              end_time: item.end_time,
+                              location: item.location,
+                              created_by: null,
+                              is_active: true,
+                              created_at: item.created_at,
+                              updated_at: item.created_at,
+                            })}
+                            disabled={joinNotifiedByEventId[item.event_id || 0] || savingJoinEventId === item.event_id || isEventPassed(item.event_date)}
+                          >
+                            {joinNotifiedByEventId[item.event_id || 0]
+                              ? 'Join intent sent'
+                              : isEventPassed(item.event_date)
+                                ? 'Event passed'
+                                : "Notify I'll Join"}
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   </div>
