@@ -1,8 +1,35 @@
 import * as React from 'react'
 
 import { cn } from '@/lib/utils'
+import DatePickerInput from '@/components/date-picker-input'
 
 function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
+  if (type === 'date') {
+    const value = (props as any).value ?? '';
+    const onChange = (props as any).onChange as unknown as ((e: any) => void) | undefined;
+    const id = (props as any).id;
+    const name = (props as any).name;
+    const disabled = (props as any).disabled;
+    return (
+      <DatePickerInput
+        value={value}
+        onChange={(v) => {
+          if (onChange) {
+            try {
+              onChange({ target: { value: v } });
+            } catch (err) {
+              // ignore
+            }
+          }
+        }}
+        id={id}
+        name={name}
+        className={className}
+        disabled={disabled}
+      />
+    )
+  }
+
   return (
     <input
       type={type}

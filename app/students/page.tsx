@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { TimePickerInput } from '@/components/time-picker-input';
+import { DatePickerInput } from '@/components/date-picker-input';
 import { 
   UserPlus, 
   Download, 
@@ -3596,12 +3598,11 @@ export default function StudentsPage() {
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Birthday *</label>
-                    <Input
-                      type="date"
+                    <DatePickerInput
                       value={newStudentForm.birthday}
-                      onChange={(e) => {
-                        setNewStudentForm((prev) => ({ ...prev, birthday: e.target.value }));
-                        if (e.target.value) {
+                      onChange={(val) => {
+                        setNewStudentForm((prev) => ({ ...prev, birthday: val }));
+                        if (val) {
                           setAddStudentValidationErrors((prev) => ({ ...prev, birthday: undefined }));
                         }
                       }}
@@ -3683,16 +3684,14 @@ export default function StudentsPage() {
                                 placeholder={`Session ${slotIndex + 1}`}
                                 className="h-12 rounded-[18px] border-orange-200 bg-white dark:bg-slate-950"
                               />
-                              <Input
-                                type="time"
+                              <TimePickerInput
                                 value={slot.startTime}
-                                onChange={(e) => updateScheduleSlot(slotIndex, 'startTime', e.target.value)}
+                                onChange={(value) => updateScheduleSlot(slotIndex, 'startTime', value)}
                                 className="h-12 rounded-[18px] border-orange-200 bg-white dark:bg-slate-950"
                               />
-                              <Input
-                                type="time"
+                              <TimePickerInput
                                 value={slot.endTime}
-                                onChange={(e) => updateScheduleSlot(slotIndex, 'endTime', e.target.value)}
+                                onChange={(value) => updateScheduleSlot(slotIndex, 'endTime', value)}
                                 className="h-12 rounded-[18px] border-orange-200 bg-white dark:bg-slate-950"
                               />
                               <Button
@@ -4861,11 +4860,11 @@ export default function StudentsPage() {
                                                   {(editingSchedule ? scheduleDraft : (studentSchedules[selectedStudent.lrn] || [])).map((schedule) => (
                                                     <div
                                                       key={schedule.id}
-                                                      className="rounded-2xl border bg-background/80 p-3 shadow-sm"
+                                                      className="py-3 first:pt-0 last:pb-0"
                                                     >
                                                       {editingSchedule ? (
                                                         <div className="space-y-3">
-                                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[220px_minmax(0,1.2fr)_minmax(0,1fr)]">
+                                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[220px_minmax(0,0.75fr)_minmax(0,1.25fr)]">
                                                             <div className="space-y-1.5">
                                                               <label className="text-xs font-medium text-muted-foreground">Days</label>
                                                               <div className="flex flex-wrap gap-1.5 rounded-xl border p-1.5">
@@ -4892,23 +4891,21 @@ export default function StudentsPage() {
                                                               <Input
                                                                 value={schedule.subject}
                                                                 onChange={(e) => updateScheduleDraftRow(schedule.id, 'subject', e.target.value)}
-                                                                className="h-11 rounded-xl"
+                                                                className="h-11 rounded-xl max-w-md"
                                                               />
                                                             </div>
                                                             <div className="space-y-1.5">
                                                               <label className="text-xs font-medium text-muted-foreground">Time</label>
                                                               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                                                                <Input
-                                                                  type="time"
+                                                                <TimePickerInput
                                                                   value={schedule.start_time?.slice(0, 5)}
-                                                                  onChange={(e) => updateScheduleDraftRow(schedule.id, 'start_time', e.target.value)}
+                                                                  onChange={(value) => updateScheduleDraftRow(schedule.id, 'start_time', value)}
                                                                   className="h-11 rounded-xl"
                                                                 />
                                                                 <span className="text-sm text-muted-foreground">-</span>
-                                                                <Input
-                                                                  type="time"
+                                                                <TimePickerInput
                                                                   value={schedule.end_time?.slice(0, 5)}
-                                                                  onChange={(e) => updateScheduleDraftRow(schedule.id, 'end_time', e.target.value)}
+                                                                  onChange={(value) => updateScheduleDraftRow(schedule.id, 'end_time', value)}
                                                                   className="h-11 rounded-xl"
                                                                 />
                                                               </div>
@@ -6130,17 +6127,15 @@ export default function StudentsPage() {
                                                             <div className="space-y-1.5">
                                                               <label className="text-xs font-medium text-muted-foreground">Time</label>
                                                               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                                                                <Input
-                                                                  type="time"
+                                                                  <TimePickerInput
                                                                   value={schedule.start_time?.slice(0, 5)}
-                                                                  onChange={(e) => updateScheduleDraftRow(schedule.id, 'start_time', e.target.value)}
+                                                                    onChange={(value) => updateScheduleDraftRow(schedule.id, 'start_time', value)}
                                                                   className="h-11 rounded-xl"
                                                                 />
                                                                 <span className="text-sm text-muted-foreground">-</span>
-                                                                <Input
-                                                                  type="time"
+                                                                  <TimePickerInput
                                                                   value={schedule.end_time?.slice(0, 5)}
-                                                                  onChange={(e) => updateScheduleDraftRow(schedule.id, 'end_time', e.target.value)}
+                                                                    onChange={(value) => updateScheduleDraftRow(schedule.id, 'end_time', value)}
                                                                   className="h-11 rounded-xl"
                                                                 />
                                                               </div>

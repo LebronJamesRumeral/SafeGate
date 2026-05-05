@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { TimePickerInput } from '@/components/time-picker-input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CalendarDays, MapPin, Clock, Pencil, Trash2, ImagePlus, Megaphone, Info } from 'lucide-react';
 import { fetchActiveSchoolEvents, createSchoolEvent, ensureUpcomingSchoolEventReminders, type SchoolEvent } from '@/lib/school-events';
@@ -420,15 +421,13 @@ export default function EventsPage() {
                     <div />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Input
-                      type="time"
+                    <TimePickerInput
                       value={form.start_time}
-                      onChange={(e) => setForm((prev) => ({ ...prev, start_time: e.target.value }))}
+                      onChange={(value) => setForm((prev) => ({ ...prev, start_time: value }))}
                     />
-                    <Input
-                      type="time"
+                    <TimePickerInput
                       value={form.end_time}
-                      onChange={(e) => setForm((prev) => ({ ...prev, end_time: e.target.value }))}
+                      onChange={(value) => setForm((prev) => ({ ...prev, end_time: value }))}
                     />
                   </div>
                   <Card className="border-blue-200/60 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/30">

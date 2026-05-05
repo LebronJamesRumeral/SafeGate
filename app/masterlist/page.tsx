@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { TimePickerInput } from '@/components/time-picker-input';
 import { Download, Search, Eye, Mail, Phone, Archive, Upload, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { UserCheck, GraduationCap } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
@@ -1021,16 +1022,14 @@ export default function MasterlistPage() {
                             placeholder={`Session ${slotIndex + 1}`}
                             className="h-12 rounded-[18px] border-blue-200 bg-white dark:bg-slate-950"
                           />
-                          <Input
-                            type="time"
+                          <TimePickerInput
                             value={slot.startTime}
-                            onChange={(e) => updateReAdmitScheduleSlot(slotIndex, 'startTime', e.target.value)}
+                            onChange={(value) => updateReAdmitScheduleSlot(slotIndex, 'startTime', value)}
                             className="h-12 rounded-[18px] border-blue-200 bg-white dark:bg-slate-950"
                           />
-                          <Input
-                            type="time"
+                          <TimePickerInput
                             value={slot.endTime}
-                            onChange={(e) => updateReAdmitScheduleSlot(slotIndex, 'endTime', e.target.value)}
+                            onChange={(value) => updateReAdmitScheduleSlot(slotIndex, 'endTime', value)}
                             className="h-12 rounded-[18px] border-blue-200 bg-white dark:bg-slate-950"
                           />
                           <Button

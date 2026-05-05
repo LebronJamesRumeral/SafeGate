@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import DatePickerInput from '@/components/date-picker-input';
 import { getParentStudents } from '@/lib/parent-data';
 import { supabase } from '@/lib/supabase';
 import { createRoleNotification } from '@/lib/role-notifications';
@@ -578,11 +579,9 @@ export default function ParentAttendancePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">Excuse Date</label>
-                    <input
-                      type="date"
+                    <DatePickerInput
                       value={excuseDate}
-                      onChange={(e) => setExcuseDate(e.target.value)}
-                      min={tomorrowIsoDate}
+                      onChange={(v) => setExcuseDate(v)}
                       className="w-full h-10 px-2.5 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white"
                     />
                   </div>
@@ -811,15 +810,14 @@ export default function ParentAttendancePage() {
 
                           <div className="flex-1 overflow-y-auto pr-2">
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3 mb-3">
-                              <div className="space-y-1">
+                                <div className="space-y-1">
                                 <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
-                                <input
-                                  type="date"
+                                <DatePickerInput
                                   value={selectedDateFilter}
-                                  onChange={(e) =>
+                                  onChange={(v) =>
                                     setDateFilterByChild((prev) => ({
                                       ...prev,
-                                      [child.lrn]: e.target.value,
+                                      [child.lrn]: v,
                                     }))
                                   }
                                   className="w-full h-9 px-2.5 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"

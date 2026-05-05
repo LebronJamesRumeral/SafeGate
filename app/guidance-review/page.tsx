@@ -6,6 +6,7 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import DatePickerInput from '@/components/date-picker-input';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -1822,11 +1823,10 @@ export default function GuidanceReviewPage() {
                                 <p className="text-sm font-semibold text-slate-900 dark:text-white">Compact Date Report</p>
                                 <p className="text-xs text-slate-500">Select a date to generate a printable compact report for this student.</p>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  type="date"
+                                <div className="flex items-center gap-2">
+                                <DatePickerInput
                                   value={reportDate}
-                                  onChange={(e) => setReportDate(e.target.value)}
+                                  onChange={(v) => setReportDate(v)}
                                   className="h-9 w-44"
                                 />
                                 <Button size="sm" className="gap-2" onClick={printCompactDailyReport} disabled={!reportDate}>
@@ -1933,18 +1933,17 @@ export default function GuidanceReviewPage() {
 
             <div className="flex-1 overflow-y-auto pr-2 space-y-4">
               <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3">
-                <div className="space-y-1 flex-1 min-w-40">
+                  <div className="space-y-1 flex-1 min-w-40">
                   <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
-                  <Input
-                    type="date"
+                  <DatePickerInput
                     value={approvedDateFrom}
-                    onChange={(e) => setApprovedDateFrom(e.target.value)}
+                    onChange={(v) => setApprovedDateFrom(v)}
                     className="h-9 text-xs"
                   />
                 </div>
                 <div className="space-y-1 flex-1 min-w-40">
                   <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">To Date</label>
-                  <Input type="date" value={approvedDateTo} onChange={(e) => setApprovedDateTo(e.target.value)} className="h-9 text-xs" />
+                  <DatePickerInput value={approvedDateTo} onChange={(v) => setApprovedDateTo(v)} className="h-9 text-xs" />
                 </div>
                 <div className="space-y-1 flex-1 min-w-40">
                   <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Students</label>

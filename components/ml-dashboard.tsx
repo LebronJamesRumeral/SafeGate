@@ -10,6 +10,7 @@ import { motion } from 'framer-motion';
 import { createClient } from '@supabase/supabase-js';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import DatePickerInput from '@/components/date-picker-input';
 
 interface StudentRisk {
   lrn: string;
@@ -241,10 +242,9 @@ function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: strin
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3">
             <div className="space-y-1">
               <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
-              <input
-                type="date"
+              <DatePickerInput
                 value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
+                onChange={(v) => setDateFilter(v)}
                 className="w-full h-9 px-2.5 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
               />
             </div>
