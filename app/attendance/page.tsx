@@ -94,9 +94,39 @@ type AttendanceLog = {
 const weekdayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
 const NO_CLASS_STATUSES = new Set(['cancelled_class', 'holiday']);
+const YEAR_LEVEL_START_TIMES: Record<string, string> = {
+  'Toddler & Nursery': '11:30',
+  'Pre-K': '11:30',
+  'Kinder 1': '12:00',
+  'Kinder 2': '12:00',
+  'Grade 1': '15:00',
+  'Grade 2': '15:00',
+  'Grade 3': '15:00',
+  'Grade 4': '16:00',
+  'Grade 5': '16:00',
+  'Grade 6': '16:00',
+  'Grade 7': '16:00',
+  'Grade 8': '16:00',
+};
 
 function isNoClassStatus(status?: string | null) {
   return NO_CLASS_STATUSES.has(String(status || '').toLowerCase());
+}
+
+function getLateThreshold(studentLevel?: string | null) {
+  return YEAR_LEVEL_START_TIMES[String(studentLevel || '').trim()] || '16:00';
+}
+
+function isLateCheckIn(checkInTime?: string, entryTime?: string | null) {
+  if (!checkInTime || !entryTime) return false;
+  const checkIn = new Date(checkInTime);
+  if (Number.isNaN(checkIn.getTime())) return false;
+
+  // entryTime is in HH:MM:SS format
+  const [entryHours, entryMinutes] = entryTime.split(':').slice(0, 2).map(Number);
+  if (Number.isNaN(entryHours) || Number.isNaN(entryMinutes)) return false;
+
+  return checkIn.getHours() * 60 + checkIn.getMinutes() > entryHours * 60 + entryMinutes;
 }
 
 function normalizeRange(start: string, end: string) {
@@ -156,6 +186,7 @@ export default function AttendancePage() {
   const [exportLoading, setExportLoading] = useState(false);
   const [parentNotes, setParentNotes] = useState<Record<string, Array<{ studentLrn: string; parentEmail: string; noteText: string; createdAt: string; attendanceDate: string }>>>({});
   const [openNotesModal, setOpenNotesModal] = useState<string | null>(null);
+  const [studentSchedules, setStudentSchedules] = useState<Record<string, string | null>>({});
   const [cancelClassesOpen, setCancelClassesOpen] = useState(false);
   const [cancelDateStart, setCancelDateStart] = useState(today);
   const [cancelDateEnd, setCancelDateEnd] = useState(today);
@@ -274,6 +305,23 @@ export default function AttendancePage() {
       setStudents(sortedStudents);
       setLogs(attendanceData || []);
       setAppliedRange({ start, end });
+
+      // Fetch student schedules (entry times)
+      if (sortedStudents.length > 0) {
+        const { data: schedules, error: schedulesError } = await supabase
+          .from('student_attendance_schedules')
+          .select('student_lrn, entry_time')
+          .in('student_lrn', sortedStudents.map(s => s.lrn))
+          .eq('is_active', true);
+
+        if (!schedulesError && schedules) {
+          const scheduleMap: Record<string, string | null> = {};
+          for (const schedule of schedules) {
+            scheduleMap[schedule.student_lrn] = schedule.entry_time;
+          }
+          setStudentSchedules(scheduleMap);
+        }
+      }
 
       // Fetch parent notes for all students
       const { data: notesData } = await supabase
@@ -1555,7 +1603,7 @@ export default function AttendancePage() {
                         ? Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60)) 
                         : null;
                       
-                      const isLate = !isCancelled && (checkIn.getHours() > 8 || (checkIn.getHours() === 8 && checkIn.getMinutes() > 30));
+                      const isLate = !isCancelled && isLateCheckIn(log.check_in_time, studentSchedules[log.student_lrn]);
 
                       return (
                         <TableRow key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
@@ -1573,23 +1621,30 @@ export default function AttendancePage() {
                           </TableCell>
                           <TableCell className="hidden md:table-cell">{student?.level || 'N/A'}</TableCell>
                           <TableCell>
-                            {isCancelled ? (
-                              <Badge className={isHoliday ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0'}>
-                                {isHoliday ? 'Holiday' : 'Cancelled'}
-                              </Badge>
-                            ) : checkOut && log.is_early_out ? (
-                              <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-0">
-                                Early Out
-                              </Badge>
-                            ) : checkOut ? (
-                              <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-0">
-                                Completed
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-0">
-                                Active
-                              </Badge>
-                            )}
+                            <div className="flex flex-col gap-1">
+                              {isCancelled ? (
+                                <Badge className={isHoliday ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0'}>
+                                  {isHoliday ? 'Holiday' : 'Cancelled'}
+                                </Badge>
+                              ) : checkOut && log.is_early_out ? (
+                                <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-0">
+                                  Early Out
+                                </Badge>
+                              ) : checkOut ? (
+                                <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-0">
+                                  Completed
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-0">
+                                  Active
+                                </Badge>
+                              )}
+                              {isLate && (
+                                <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0 text-xs">
+                                  Late
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col">

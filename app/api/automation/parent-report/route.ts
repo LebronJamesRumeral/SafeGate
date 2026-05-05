@@ -111,15 +111,14 @@ const RISK_LABELS: Record<string, { label: string; color: string; description: s
 };
 
 function formatDisplayDate(raw: string | null | undefined): string {
-  return raw ? formatTime12h(raw, 'N/A') : 'N/A';
   if (!raw) return 'N/A';
-  // Handle "HH:MM:SS" or "HH.MM.SS" formats
-  const normalised = raw.replace(/\./g, ':');
-  const [h, m] = normalised.split(':').map(Number);
-  if (isNaN(h) || isNaN(m)) return raw;
-  const suffix = h >= 12 ? 'PM' : 'AM';
-  const hour12 = h % 12 || 12;
-  return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function formatDisplayTime(raw: string | null | undefined): string {
+  return raw ? formatTime12h(raw, 'N/A') : 'N/A';
 }
 
 function buildParentEmailContent(reportPayload: any) {

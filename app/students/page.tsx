@@ -97,6 +97,36 @@ const toDisplayLrn = (lrn?: string | null): string => {
   return /^temp-\d+$/i.test(value) ? '' : value;
 };
 
+const YEAR_LEVEL_START_TIMES: Record<string, string> = {
+  'Toddler & Nursery': '11:30',
+  'Pre-K': '11:30',
+  'Kinder 1': '12:00',
+  'Kinder 2': '12:00',
+  'Grade 1': '15:00',
+  'Grade 2': '15:00',
+  'Grade 3': '15:00',
+  'Grade 4': '16:00',
+  'Grade 5': '16:00',
+  'Grade 6': '16:00',
+  'Grade 7': '16:00',
+  'Grade 8': '16:00',
+};
+
+function getLateThreshold(studentLevel?: string | null) {
+  return YEAR_LEVEL_START_TIMES[String(studentLevel || '').trim()] || '16:00';
+}
+
+function isLateCheckIn(checkInTime?: string, entryTime?: string | null) {
+  if (!checkInTime || !entryTime) return false;
+  const checkIn = new Date(checkInTime);
+  if (Number.isNaN(checkIn.getTime())) return false;
+
+  // entryTime is in HH:MM:SS format
+  const [entryHours, entryMinutes] = entryTime.split(':').slice(0, 2).map(Number);
+  if (Number.isNaN(entryHours) || Number.isNaN(entryMinutes)) return false;
+
+  return checkIn.getHours() * 60 + checkIn.getMinutes() > entryHours * 60 + entryMinutes;
+}
 const QRCodeCanvas = dynamic(() => import('qrcode.react').then(mod => ({ default: mod.QRCodeCanvas })), { ssr: false });
 
 // Helper function to get risk level colors
@@ -2126,6 +2156,16 @@ export default function StudentsPage() {
 
       if (attendanceError) throw attendanceError;
 
+      // Fetch student's attendance schedule to get their entry_time
+      const { data: scheduleData, error: scheduleError } = await supabase
+        .from('student_attendance_schedules')
+        .select('entry_time')
+        .eq('student_lrn', studentLrn)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (scheduleError) console.error('Error fetching schedule:', scheduleError);
+
       // Use ML-based risk scoring instead of simple thresholds
       const riskScore = await calculateStudentRiskScore(studentLrn);
 
@@ -2137,6 +2177,7 @@ export default function StudentsPage() {
       setBehavioralData({
         events: events || [],
         attendance: attendance || [],
+        entryTime: scheduleData?.entry_time || null,
         stats: {
           positiveEvents,
           negativeEvents,
@@ -4937,15 +4978,23 @@ export default function StudentsPage() {
                                                         .map((entry: any) => {
                                                           const rawStatus = (entry.attendance_status || '').toLowerCase();
                                                           const statusLabel = rawStatus
-                                                            ? (rawStatus === 'present' ? 'Present' : rawStatus === 'absent' ? 'Absent' : rawStatus === 'holiday' ? 'Holiday' : rawStatus === 'cancelled_class' ? 'Cancelled' : rawStatus)
+                                                            ? (rawStatus === 'present' ? 'Present' : rawStatus === 'absent' ? 'Absent' : rawStatus === 'holiday' ? 'Holiday' : rawStatus === 'cancelled_class' ? 'Cancelled' : rawStatus === 'late' ? 'Late' : rawStatus)
                                                             : (entry.is_present ? 'Present' : 'Absent');
                                                           const noClass = isNoClassStatus(entry.attendance_status || entry.attendanceStatus);
-                                                          const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700';
+                                                          const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
+                                                          const isLate = !noClass && isLateCheckIn(entry.check_in_time, behavioralData?.entryTime);
                                                           return (
                                                             <tr key={`${entry.date}-${entry.student_lrn}`} className="border-t border-slate-100 dark:border-slate-800">
                                                               <td className="px-3 py-2">{new Date(entry.date).toLocaleDateString()}</td>
                                                               <td className="px-3 py-2">
-                                                                <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
+                                                                <div className="flex flex-col gap-1">
+                                                                  <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
+                                                                  {isLate && rawStatus !== 'late' && (
+                                                                    <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0 py-1 px-2 text-xs w-fit">
+                                                                      Late
+                                                                    </Badge>
+                                                                  )}
+                                                                </div>
                                                               </td>
                                                               <td className="px-3 py-2">{noClass ? '--' : (entry.check_in_time ? formatTime12h(entry.check_in_time) : '--')}</td>
                                                               <td className="px-3 py-2">{noClass ? '--' : (entry.check_out_time ? formatTime12h(entry.check_out_time) : '--')}</td>
@@ -4992,7 +5041,7 @@ export default function StudentsPage() {
                                                         <div>
                                                           <p className="font-semibold text-slate-900 dark:text-white">{letter.title || 'Parent Excuse Letter'}</p>
                                                           <p className="text-xs text-muted-foreground">
-                                                            Submitted by {parentName} on {new Date(letter.created_at).toLocaleString()}
+                                                              Submitted by {parentName} on {new Date(letter.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {formatTime12h(new Date(letter.created_at))}
                                                           </p>
                                                         </div>
                                                         <div className="flex items-center gap-2">
@@ -5524,21 +5573,6 @@ export default function StudentsPage() {
                                                 </span>
                                                 <span className="ml-2">• {selectedStudent.level}</span>
                                               </DialogDescription>
-                                              <div className="mt-2 flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
-                                                <div className="flex flex-col gap-2 max-w-xs">
-                                                  <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Special Education needs</p>
-                                                  <p className="text-xs leading-relaxed text-muted-foreground">Does this learner have educational needs?</p>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                  <Switch
-                                                    className="data-[state=unchecked]:bg-slate-300 data-[state=unchecked]:border data-[state=unchecked]:border-slate-500 data-[state=checked]:bg-blue-600"
-                                                    checked={!!selectedStudent.is_special_case}
-                                                    onCheckedChange={(v) => setSelectedStudent({ ...selectedStudent, is_special_case: !!v })}
-                                                    disabled={!editingStudentInfo}
-                                                  />
-                                                  <span className="text-sm text-slate-700 dark:text-slate-300">Yes</span>
-                                                </div>
-                                              </div>
                                             </div>
                                           </div>
                                         </DialogHeader>
@@ -5597,27 +5631,49 @@ export default function StudentsPage() {
                                                 }
 
                                                 return (
-                                                  <div className="col-span-2 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
-                                                    <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
-                                                      <User className="w-3 h-3" />
-                                                      Name
-                                                    </p>
-                                                    <div className="flex flex-col sm:flex-row gap-2 w-full max-w-md">
-                                                      <Input
-                                                        value={firstMiddle}
-                                                        disabled
-                                                        className="font-medium w-full sm:w-1/2 bg-slate-100 dark:bg-slate-800/50 text-sm sm:text-base"
-                                                        placeholder="First & Middle Name"
-                                                      />
-                                                      <Input
-                                                        value={editLastName !== null ? editLastName : lastName}
-                                                        onChange={e => setEditLastName(e.target.value)}
-                                                        placeholder="Last Name"
-                                                        className="font-medium w-full sm:w-1/2 text-sm sm:text-base"
-                                                        disabled={!editingStudentInfo}
-                                                      />
+                                                  <>
+                                                    <div className="col-span-2 sm:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                                      <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                        <User className="w-3 h-3" />
+                                                        Name
+                                                      </p>
+                                                      <div className="flex flex-col sm:flex-row gap-2 w-full max-w-md items-start">
+                                                        <div className="flex-1">
+                                                          <div className="flex flex-col sm:flex-row gap-2">
+                                                            <Input
+                                                              value={editFirstMiddleName !== null ? editFirstMiddleName : firstMiddle}
+                                                              onChange={e => setEditFirstMiddleName(e.target.value)}
+                                                              className="font-medium w-full sm:w-1/2 text-sm sm:text-base"
+                                                              placeholder="First & Middle Name"
+                                                              disabled={!editingStudentInfo}
+                                                            />
+                                                            <Input
+                                                              value={editLastName !== null ? editLastName : lastName}
+                                                              onChange={e => setEditLastName(e.target.value)}
+                                                              placeholder="Last Name"
+                                                              className="font-medium w-full sm:w-1/2 text-sm sm:text-base"
+                                                              disabled={!editingStudentInfo}
+                                                            />
+                                                          </div>
+                                                        </div>
+                                                      </div>
                                                     </div>
-                                                  </div>
+                                                    <div className="col-span-2 sm:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex items-start justify-start pl-4">
+                                                      <div className="flex flex-col items-start ml-2 gap-2 w-full max-w-xs">
+                                                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Special Education needs</p>
+                                                        <p className="text-xs leading-relaxed text-muted-foreground">Does this learner have educational needs?</p>
+                                                        <div className="flex items-center gap-2">
+                                                          <Switch
+                                                            className="data-[state=unchecked]:bg-slate-300 data-[state=unchecked]:border data-[state=unchecked]:border-slate-500 data-[state=checked]:bg-blue-600"
+                                                            checked={!!selectedStudent.is_special_case}
+                                                            onCheckedChange={(v) => setSelectedStudent({ ...selectedStudent, is_special_case: !!v })}
+                                                            disabled={!editingStudentInfo}
+                                                          />
+                                                          <span className="text-sm text-slate-700 dark:text-slate-300">Yes</span>
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  </>
                                                 );
                                               })()}
                                               <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
@@ -5625,7 +5681,17 @@ export default function StudentsPage() {
                                                   <Calendar className="w-3 h-3" />
                                                   Birthday
                                                 </p>
-                                                <p className="font-medium">{selectedStudent.birthday}</p>
+                                                {editingStudentInfo ? (
+                                                  <Input
+                                                    type="date"
+                                                    value={selectedStudent.birthday || ''}
+                                                    onChange={(e) => setSelectedStudent({ ...selectedStudent, birthday: e.target.value })}
+                                                    className="font-medium"
+                                                    disabled={!editingStudentInfo}
+                                                  />
+                                                ) : (
+                                                  <p className="font-medium">{selectedStudent.birthday}</p>
+                                                )}
                                                 {shouldShowAge(selectedStudent.level) && (
                                                   <p className="text-sm text-muted-foreground mt-1">
                                                     {calculateAgeWithDecimal(selectedStudent.birthday)} years old
@@ -6133,15 +6199,23 @@ export default function StudentsPage() {
                                                         .map((entry: any) => {
                                                           const rawStatus = (entry.attendance_status || '').toLowerCase();
                                                           const statusLabel = rawStatus
-                                                            ? (rawStatus === 'present' ? 'Present' : rawStatus === 'absent' ? 'Absent' : rawStatus === 'holiday' ? 'Holiday' : rawStatus === 'cancelled_class' ? 'Cancelled' : rawStatus)
+                                                            ? (rawStatus === 'present' ? 'Present' : rawStatus === 'absent' ? 'Absent' : rawStatus === 'holiday' ? 'Holiday' : rawStatus === 'cancelled_class' ? 'Cancelled' : rawStatus === 'late' ? 'Late' : rawStatus)
                                                             : (entry.is_present ? 'Present' : 'Absent');
                                                           const noClass = isNoClassStatus(entry.attendance_status || entry.attendanceStatus);
-                                                          const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700';
+                                                          const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
+                                                          const isLate = !noClass && isLateCheckIn(entry.check_in_time, behavioralData?.entryTime);
                                                           return (
                                                             <tr key={`${entry.date}-${entry.student_lrn}`} className="border-t border-slate-100 dark:border-slate-800">
                                                               <td className="px-3 py-2">{new Date(entry.date).toLocaleDateString()}</td>
                                                               <td className="px-3 py-2">
-                                                                <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
+                                                                <div className="flex flex-col gap-1">
+                                                                  <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
+                                                                  {isLate && rawStatus !== 'late' && (
+                                                                    <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0 py-1 px-2 text-xs w-fit">
+                                                                      Late
+                                                                    </Badge>
+                                                                  )}
+                                                                </div>
                                                               </td>
                                                               <td className="px-3 py-2">{noClass ? '--' : (entry.check_in_time ? formatTime12h(entry.check_in_time) : '--')}</td>
                                                               <td className="px-3 py-2">{noClass ? '--' : (entry.check_out_time ? formatTime12h(entry.check_out_time) : '--')}</td>
@@ -6188,7 +6262,7 @@ export default function StudentsPage() {
                                                         <div>
                                                           <p className="font-semibold text-slate-900 dark:text-white">{letter.title || 'Parent Excuse Letter'}</p>
                                                           <p className="text-xs text-muted-foreground">
-                                                            Submitted by {parentName} on {new Date(letter.created_at).toLocaleString()}
+                                                              Submitted by {parentName} on {new Date(letter.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {formatTime12h(new Date(letter.created_at))}
                                                           </p>
                                                         </div>
                                                         <div className="flex items-center gap-2">

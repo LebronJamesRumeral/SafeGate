@@ -93,7 +93,9 @@ function formatDate(value?: string | null) {
   if (!value) return 'N/A';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const timeStr = formatTime12h(date);
+  return `${dateStr} ${timeStr}`;
 }
 
 function formatDateOnly(value?: string | null) {
@@ -623,14 +625,14 @@ export default function GuidanceReviewPage() {
             </div>
             <div class="content">
               <div class="topline">
-                <span>${new Date().toLocaleString()}</span>
+                  <span>${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${formatTime12h(new Date())}</span>
                 <span>Guidance Review</span>
               </div>
               <h1>Guidance Approved Logs Report</h1>
               <p class="subtitle">Complete approved guidance incident logs for selected filters.</p>
 
             <div class="meta">
-              <div class="meta-item"><span>Date Generated</span>${new Date().toLocaleString()}</div>
+                <div class="meta-item"><span>Date Generated</span>${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${formatTime12h(new Date())}</div>
               <div class="meta-item"><span>Date Range</span>${approvedDateFrom ? formatDateOnly(approvedDateFrom) : 'Any'} - ${approvedDateTo ? formatDateOnly(approvedDateTo) : 'Any'}</div>
               <div class="meta-item"><span>Students</span>${selectedStudentNames || 'All Students'}</div>
             </div>
@@ -1115,7 +1117,7 @@ export default function GuidanceReviewPage() {
             </div>
             <div class="content">
               <div class="topline">
-                <span>${new Date().toLocaleString()}</span>
+                  <span>${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${formatTime12h(new Date())}</span>
                 <span>Guidance Review</span>
               </div>
               <h1>Guidance Daily Compact Report</h1>
