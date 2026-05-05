@@ -67,7 +67,7 @@ export async function createSchoolEvent(input: {
   }
 
   const event = data as SchoolEvent;
-  await createRoleNotification({
+    await createRoleNotification({
     title: 'New School Event Posted',
     message: `${event.title} is scheduled on ${event.event_date}.`,
     targetRoles: ['parent'],
@@ -77,7 +77,7 @@ export async function createSchoolEvent(input: {
       event_id: event.id,
       event_title: event.title,
       event_date: event.event_date,
-      href: '/parent-events',
+        href: '/parent-announcement',
     },
   });
 
@@ -117,7 +117,7 @@ export async function ensureUpcomingSchoolEventReminders(events?: SchoolEvent[])
 
     if ((existing || []).length > 0) continue;
 
-    await createRoleNotification({
+      await createRoleNotification({
       title: 'Upcoming School Event Reminder',
       message: `${event.title} is happening on ${event.event_date} (within 7 days).`,
       targetRoles: ['parent'],
@@ -128,7 +128,7 @@ export async function ensureUpcomingSchoolEventReminders(events?: SchoolEvent[])
         event_id: event.id,
         event_title: event.title,
         event_date: event.event_date,
-        href: '/parent-events',
+          href: '/parent-announcement',
       },
     });
   }

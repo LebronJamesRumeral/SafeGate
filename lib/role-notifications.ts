@@ -53,7 +53,7 @@ export function resolveRoleNotificationHref(notification: RoleNotification, role
   }
 
   if (notificationKind === 'weekly_check_in_reminder') return '/parent-behavior';
-  if (notificationKind === 'school_event_posted' || notificationKind === 'school_event_reminder') return '/parent-events';
+  if (notificationKind === 'school_event_posted' || notificationKind === 'school_event_reminder') return '/parent-announcement';
   if (notificationKind === 'class_cancellation') return '/parent-attendance';
   if (notificationKind === 'parent_excuse_letter') {
     return buildHref('/students', {

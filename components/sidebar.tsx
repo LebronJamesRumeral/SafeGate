@@ -41,7 +41,7 @@ const allNavItems = [
   { icon: Users, label: "Parent Dashboard", href: "/parent", roles: ["parent"] },
   { icon: CalendarDays, label: "Attendance", href: "/parent-attendance", roles: ["parent"] },
   { icon: AlertTriangle, label: "Child's Activity", href: "/parent-behavior", roles: ["parent"] },
-  { icon: Megaphone, label: "School Events", href: "/parent-events", roles: ["parent"] }
+  { icon: Megaphone, label: "Announcement/Advisory", href: "/parent-announcement", roles: ["parent"] }
 ]
 
 const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
@@ -72,7 +72,7 @@ export function Sidebar() {
   // For parent, show all parent pages in mobile nav
   let mobilePrimaryNavItems = navItems
   if (user && user.role === "parent") {
-    mobilePrimaryNavItems = navItems.filter(item => ["/parent", "/parent-attendance", "/parent-behavior", "/parent-events"].includes(item.href))
+    mobilePrimaryNavItems = navItems.filter(item => ["/parent", "/parent-attendance", "/parent-behavior", "/parent-announcement"].includes(item.href))
   } else {
     mobilePrimaryNavItems = navItems.filter((item) => mobilePrimaryHrefs.includes(item.href) || item.href === "/parent")
       .sort((a, b) => mobilePrimaryHrefs.indexOf(a.href) - mobilePrimaryHrefs.indexOf(b.href))
