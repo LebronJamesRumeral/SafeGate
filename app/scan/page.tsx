@@ -948,8 +948,7 @@ export default function ScanPage() {
               
               if (student) {
                 promptTemperatureForStudent(student);
-                // Keep scanner active for continuous queue processing.
-                setScanning(true);
+              } else {
                 setLastScan({
                   status: 'error',
                   message: 'Student not found',
