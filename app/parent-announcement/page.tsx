@@ -518,38 +518,52 @@ export default function ParentAnnouncementPage() {
         </div>
 
         <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl h-auto sm:max-h-[90vh] overflow-hidden flex flex-col">
-            <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
-              <DialogTitle className="text-xl font-bold">Announcement Details</DialogTitle>
+          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-2xl lg:max-w-2xl max-h-[92vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold">
+                {selectedAnnouncement?.title}
+              </DialogTitle>
               <DialogDescription>
-                Full announcement for <span className="font-semibold text-slate-900 dark:text-white">{selectedAnnouncement?.title || 'selected announcement'}</span>
+                {selectedAnnouncement?.id} • Announcement details
               </DialogDescription>
             </DialogHeader>
             {selectedAnnouncement && (
-              <div className="flex-1 overflow-y-auto pr-4 space-y-3 p-3">
+              <div className="space-y-4">
                 {selectedAnnouncement.image_url ? (
-                  <div className="rounded-lg overflow-hidden border bg-slate-100">
+                  <div className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={selectedAnnouncement.image_url} alt={selectedAnnouncement.title} className="w-full h-64 object-cover" />
+                    <img src={selectedAnnouncement.image_url} alt={selectedAnnouncement.title} className="w-full h-48 object-cover" />
                   </div>
                 ) : null}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
-                    <p className="text-sm flex items-center gap-2"><CalendarDays className="w-4 h-4" /> {formatEventDate(selectedAnnouncement.event_date)}</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <CalendarDays className="w-3 h-3" />
+                      Date
+                    </p>
+                    <p className="font-semibold text-foreground">{formatEventDate(selectedAnnouncement.event_date)}</p>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Time</label>
-                    <p className="text-sm flex items-center gap-2"><Clock className="w-4 h-4" /> {selectedAnnouncement.start_time ? formatTime12h(selectedAnnouncement.start_time) : 'TBD'}{selectedAnnouncement.end_time ? ` - ${formatTime12h(selectedAnnouncement.end_time)}` : ''}</p>
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Time
+                    </p>
+                    <p className="font-semibold text-foreground">{selectedAnnouncement.start_time ? formatTime12h(selectedAnnouncement.start_time) : 'TBD'}{selectedAnnouncement.end_time ? ` - ${formatTime12h(selectedAnnouncement.end_time)}` : ''}</p>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Location</label>
-                    <p className="text-sm flex items-center gap-2"><MapPin className="w-4 h-4" /> {selectedAnnouncement.location || 'School campus'}</p>
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      Location
+                    </p>
+                    <p className="font-semibold text-foreground">{selectedAnnouncement.location || 'School campus'}</p>
                   </div>
-                </div>
-                <div className="rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 p-4">
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Description</p>
-                  <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{selectedAnnouncement.description || 'No description provided.'}</p>
+                  <div className="col-span-1 sm:col-span-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                      <Megaphone className="w-3 h-3" />
+                      Description
+                    </p>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{selectedAnnouncement.description || 'No description provided.'}</p>
+                  </div>
                 </div>
               </div>
             )}

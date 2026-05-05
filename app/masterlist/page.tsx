@@ -8,8 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { TimePickerInput } from '@/components/time-picker-input';
-import { Download, Search, Eye, Mail, Phone, Archive, Upload, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Search, Eye, Mail, Phone, Archive, Upload, CheckCircle2, ChevronLeft, ChevronRight, Calendar, User, MapPin } from 'lucide-react';
 import { UserCheck, GraduationCap } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
@@ -135,6 +136,8 @@ export default function MasterlistPage() {
         parentName: student.parent_name,
         parentContact: student.parent_contact,
         parentEmail: student.parent_email,
+        parent2Name: student.parent2_name || null,
+        parent2Contact: student.parent2_contact || null,
         // Default status to 'active' for all students
         status: student.status || 'active',
       }));
@@ -190,7 +193,7 @@ export default function MasterlistPage() {
   const undergradCount = students.filter(s => (s.status || 'active') === 'undergrad').length;
 
   const exportMasterlist = async () => {
-    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Status', 'Parent Name', 'Parent Contact', 'Parent Email', 'Address'];
+    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Status', 'Parent Name', 'Parent Contact', 'Parent Email', 'Additional Parent Name', 'Additional Parent Contact', 'Address'];
     const exportRows = filteredStudents.map((student) => {
       const age = shouldShowAge(student.level) ? calculateAgeWithDecimal(student.birthday) : 'N/A';
       const riskLevel = student.riskLevel || '';
@@ -206,6 +209,8 @@ export default function MasterlistPage() {
         'Parent Name': student.parentName || '',
         'Parent Contact': student.parentContact || '',
         'Parent Email': student.parentEmail || '',
+        'Additional Parent Name': student.parent2Name || '',
+        'Additional Parent Contact': student.parent2Contact || '',
         Address: student.address || '',
       };
     });
@@ -829,10 +834,23 @@ export default function MasterlistPage() {
                                 <span className="hidden sm:inline">View</span>
                               </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-md">
-                              <DialogHeader>
-                                <DialogTitle className="text-2xl font-bold">
-                                  <div className="flex items-center gap-2">
+                            <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto">
+                              <DialogTitle className="sr-only">
+                                Student Details - {selectedStudent?.name}
+                              </DialogTitle>
+                              <div className="flex flex-col items-center gap-4 pt-4">
+                                <Avatar className="h-16 w-16 bg-gradient-to-br from-blue-400 to-blue-600">
+                                  <AvatarFallback className="text-lg font-bold text-white">
+                                    {selectedStudent?.name
+                                      .split(' ')
+                                      .slice(0, 2)
+                                      .map(word => word[0])
+                                      .join('')
+                                      .toUpperCase() || 'ST'}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="text-center">
+                                  <h2 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
                                     <span>{selectedStudent?.name}</span>
                                     {selectedStudent?.is_special_case && (
                                       <img
@@ -841,60 +859,98 @@ export default function MasterlistPage() {
                                         className="h-5 w-5 shrink-0"
                                       />
                                     )}
-                                  </div>
-                                </DialogTitle>
-                                <DialogDescription>
-                                  {selectedStudent?.lrn} • {selectedStudent?.level} • {(selectedStudent?.status || 'active') === 'active' ? 'Active' : selectedStudent?.substatus === 'transferred' ? 'Transferred' : selectedStudent?.substatus === 'dropped' ? 'Dropped' : 'Inactive'}
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className="space-y-4">
-                                <div className="border-t border-border/40 pt-4">
-                                  <h3 className="font-semibold text-foreground mb-3">Complete Details</h3>
-                                  <div className="space-y-3">
-                                    {selectedStudent && shouldShowAge(selectedStudent.level) && (
-                                      <div>
-                                        <p className="text-xs text-muted-foreground font-medium">Age</p>
-                                        <p className="text-sm text-foreground font-semibold">{calculateAgeWithDecimal(selectedStudent.birthday)} years old</p>
-                                      </div>
-                                    )}
-                                    <div>
-                                      <p className="text-xs text-muted-foreground font-medium">Gender</p>
-                                      <p className="text-sm text-foreground">{selectedStudent?.gender}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-xs text-muted-foreground font-medium">Birthday</p>
-                                      <p className="text-sm text-foreground">{selectedStudent?.birthday}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-xs text-muted-foreground font-medium">Address</p>
-                                      <p className="text-sm text-foreground">{selectedStudent?.address}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-xs text-muted-foreground font-medium">Status</p>
-                                      <p className="text-sm text-foreground capitalize">{(selectedStudent?.status || 'active') === 'active' ? 'Active' : selectedStudent?.substatus === 'transferred' ? 'Transferred' : selectedStudent?.substatus === 'dropped' ? 'Dropped' : 'Inactive'}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-xs text-muted-foreground font-medium">Parent/Guardian</p>
-                                      <p className="text-sm text-foreground">{selectedStudent?.parentName}</p>
-                                      <p className="text-xs text-muted-foreground">{selectedStudent?.parentContact}</p>
-                                      {selectedStudent?.parentEmail && (
-                                        <p className="text-xs text-muted-foreground">{selectedStudent?.parentEmail}</p>
-                                      )}
-                                    </div>
-                                  </div>
+                                  </h2>
+                                  <p className="text-sm text-muted-foreground mt-1">
+                                    {selectedStudent?.lrn} • {selectedStudent?.level} • {(selectedStudent?.status || 'active') === 'active' ? 'Active' : selectedStudent?.substatus === 'transferred' ? 'Transferred' : selectedStudent?.substatus === 'dropped' ? 'Dropped' : 'Inactive'}
+                                  </p>
                                 </div>
-                                  {selectedStudent?.substatus === 'transferred' && (
-                                    <div className="flex justify-end pt-2">
-                                      <Button variant="outline" className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300" onClick={() => {
-                                        setReAdmitValidationErrors({});
-                                        setReAdmitError('');
-                                        setReAdmitDialogOpen(true);
-                                      }}>
-                                        <CheckCircle2 className="w-4 h-4" />
-                                        Re-Admit Student
-                                      </Button>
+                              </div>
+                              <div className="space-y-4 pt-4">
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                  {selectedStudent && shouldShowAge(selectedStudent.level) && (
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                      <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                        <Calendar className="w-3 h-3" />
+                                        Age
+                                      </p>
+                                      <p className="font-semibold text-foreground">{calculateAgeWithDecimal(selectedStudent.birthday)} years old</p>
                                     </div>
                                   )}
+                                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                      <User className="w-3 h-3" />
+                                      Gender
+                                    </p>
+                                    <p className="font-semibold text-foreground">{selectedStudent?.gender}</p>
+                                  </div>
+                                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                      <Calendar className="w-3 h-3" />
+                                      Birthday
+                                    </p>
+                                    <p className="font-semibold text-foreground">{selectedStudent?.birthday}</p>
+                                  </div>
+                                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      Status
+                                    </p>
+                                    <p className="font-semibold text-foreground capitalize">{(selectedStudent?.status || 'active') === 'active' ? 'Active' : selectedStudent?.substatus === 'transferred' ? 'Transferred' : selectedStudent?.substatus === 'dropped' ? 'Dropped' : 'Inactive'}</p>
+                                  </div>
+                                  <div className="col-span-1 sm:col-span-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                      <MapPin className="w-3 h-3" />
+                                      Address
+                                    </p>
+                                    <p className="font-semibold text-foreground">{selectedStudent?.address}</p>
+                                  </div>
+                                  <div className="col-span-1 sm:col-span-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border-2 border-blue-200 dark:border-blue-900/40">
+                                    <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                                      <Mail className="w-3 h-3" />
+                                      Primary Parent/Guardian
+                                    </p>
+                                    <p className="font-semibold text-foreground">{selectedStudent?.parentName}</p>
+                                    {selectedStudent?.parentContact && (
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <Phone className="w-3 h-3 text-muted-foreground" />
+                                        <p className="text-sm text-foreground">{selectedStudent?.parentContact}</p>
+                                      </div>
+                                    )}
+                                    {selectedStudent?.parentEmail && (
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <Mail className="w-3 h-3 text-muted-foreground" />
+                                        <p className="text-sm text-foreground">{selectedStudent?.parentEmail}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                  {selectedStudent?.parent2Name && (
+                                    <div className="col-span-1 sm:col-span-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border-2 border-amber-200 dark:border-amber-900/40">
+                                      <p className="text-xs text-amber-700 dark:text-amber-300 mb-2 flex items-center gap-1 font-semibold">
+                                        <Mail className="w-3 h-3" />
+                                        Additional Parent/Guardian
+                                      </p>
+                                      <p className="font-semibold text-foreground">{selectedStudent?.parent2Name}</p>
+                                      {selectedStudent?.parent2Contact && (
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <Phone className="w-3 h-3 text-muted-foreground" />
+                                          <p className="text-sm text-foreground">{selectedStudent?.parent2Contact}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                {selectedStudent?.substatus === 'transferred' && (
+                                  <div className="flex justify-end pt-2">
+                                    <Button variant="outline" className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300" onClick={() => {
+                                      setReAdmitValidationErrors({});
+                                      setReAdmitError('');
+                                      setReAdmitDialogOpen(true);
+                                    }}>
+                                      <CheckCircle2 className="w-4 h-4" />
+                                      Re-Admit Student
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
                             </DialogContent>
                           </Dialog>
