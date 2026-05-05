@@ -211,7 +211,12 @@ export default function AnalyticsPage() {
       };
 
       const dateRange = buildDateRange(normalizedStart, normalizedEnd);
-      const last7Days = dateRange.slice(-7);
+      // Filter to only weekdays (Monday-Friday, not Saturday-Sunday)
+      const last7Days = dateRange.slice(-7).filter(dateStr => {
+        const date = new Date(dateStr);
+        const dayOfWeek = date.getDay();
+        return dayOfWeek >= 1 && dayOfWeek <= 5; // 1 = Monday, 5 = Friday
+      });
 
       // Fetch attendance logs with specific fields (matching attendance page pattern)
       let attendanceQuery = supabase

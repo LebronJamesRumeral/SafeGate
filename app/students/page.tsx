@@ -2146,15 +2146,48 @@ export default function StudentsPage() {
       // Fetch attendance data for the month
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const startDateStr = thirtyDaysAgo.toISOString().split('T')[0];
       
       const { data: attendance, error: attendanceError } = await supabase
         .from('attendance_logs')
         .select('*')
         .eq('student_lrn', studentLrn)
-        .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+        .gte('date', startDateStr)
         .order('date', { ascending: false });
 
       if (attendanceError) throw attendanceError;
+
+      // Add absent logs for weekdays where student didn't log in
+      const enrichedAttendance = [...(attendance || [])];
+      const existingDates = new Set((attendance || []).map(a => a.date));
+      
+      // Generate all weekdays in the 30-day period
+      const current = new Date(thirtyDaysAgo);
+      const today = new Date();
+      while (current <= today) {
+        const dateStr = current.toISOString().split('T')[0];
+        const dayOfWeek = current.getDay();
+        
+        // Only check weekdays (Monday=1 to Friday=5)
+        if (dayOfWeek >= 1 && dayOfWeek <= 5 && !existingDates.has(dateStr)) {
+          // Add an absent entry for this missing weekday
+          enrichedAttendance.push({
+            student_lrn: studentLrn,
+            date: dateStr,
+            check_in_time: null,
+            check_out_time: null,
+            attendance_status: 'absent',
+            is_present: false,
+            is_late: false,
+            is_invalid_timeout: false,
+          });
+        }
+        
+        current.setDate(current.getDate() + 1);
+      }
+      
+      // Sort by date descending (most recent first)
+      enrichedAttendance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       // Fetch student's attendance schedule to get their entry_time
       const { data: scheduleData, error: scheduleError } = await supabase
@@ -2176,7 +2209,7 @@ export default function StudentsPage() {
       
       setBehavioralData({
         events: events || [],
-        attendance: attendance || [],
+        attendance: enrichedAttendance,
         entryTime: scheduleData?.entry_time || null,
         stats: {
           positiveEvents,
@@ -4982,7 +5015,18 @@ export default function StudentsPage() {
                                                             : (entry.is_present ? 'Present' : 'Absent');
                                                           const noClass = isNoClassStatus(entry.attendance_status || entry.attendanceStatus);
                                                           const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
-                                                          const isLate = !noClass && isLateCheckIn(entry.check_in_time, behavioralData?.entryTime);
+                                                                                                                    // Determine late status using schedule entry time or level-based threshold
+                                                          let isLate = false;
+                                                          if (!noClass && entry.check_in_time && entry.is_present !== false) {
+                                                            const entryTimeFromSchedule = behavioralData?.entryTime;
+                                                            if (entryTimeFromSchedule) {
+                                                              isLate = isLateCheckIn(entry.check_in_time, entryTimeFromSchedule);
+                                                            } else {
+                                                              // Fallback to level-based threshold if schedule entry time not available
+                                                              const lateThreshold = getLateThreshold(selectedStudent?.level);
+                                                              isLate = isLateCheckIn(entry.check_in_time, lateThreshold);
+                                                            }
+                                                          }
                                                           return (
                                                             <tr key={`${entry.date}-${entry.student_lrn}`} className="border-t border-slate-100 dark:border-slate-800">
                                                               <td className="px-3 py-2">{new Date(entry.date).toLocaleDateString()}</td>
@@ -6203,7 +6247,18 @@ export default function StudentsPage() {
                                                             : (entry.is_present ? 'Present' : 'Absent');
                                                           const noClass = isNoClassStatus(entry.attendance_status || entry.attendanceStatus);
                                                           const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
-                                                          const isLate = !noClass && isLateCheckIn(entry.check_in_time, behavioralData?.entryTime);
+                                                                                                                    // Determine late status using schedule entry time or level-based threshold
+                                                          let isLate = false;
+                                                          if (!noClass && entry.check_in_time && entry.is_present !== false) {
+                                                            const entryTimeFromSchedule = behavioralData?.entryTime;
+                                                            if (entryTimeFromSchedule) {
+                                                              isLate = isLateCheckIn(entry.check_in_time, entryTimeFromSchedule);
+                                                            } else {
+                                                              // Fallback to level-based threshold if schedule entry time not available
+                                                              const lateThreshold = getLateThreshold(selectedStudent?.level);
+                                                              isLate = isLateCheckIn(entry.check_in_time, lateThreshold);
+                                                            }
+                                                          }
                                                           return (
                                                             <tr key={`${entry.date}-${entry.student_lrn}`} className="border-t border-slate-100 dark:border-slate-800">
                                                               <td className="px-3 py-2">{new Date(entry.date).toLocaleDateString()}</td>
