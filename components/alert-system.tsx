@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/lib/supabase';
+import { humanizeEventType } from '@/lib/event-types';
 import {
   Popover,
   PopoverContent,
@@ -63,7 +64,7 @@ export function AlertSystem() {
               id: `event-${event.id}`,
               type: 'behavioral',
               severity: event.severity === 'critical' ? 'critical' : 'warning',
-              title: `${event.severity.toUpperCase()}: ${event.event_type}`,
+              title: `${event.severity.toUpperCase()}: ${humanizeEventType(event.event_type)}`,
               description: `${event.students?.name} - ${event.description.substring(0, 100)}...`,
               studentLrn: event.student_lrn,
               studentName: event.students?.name,
@@ -146,7 +147,7 @@ export function AlertSystem() {
             id: `positive-${event.id}`,
             type: 'positive',
             severity: 'info',
-            title: `Achievement: ${event.event_type}`,
+            title: `Achievement: ${humanizeEventType(event.event_type)}`,
             description: `${event.students?.name} - ${event.description.substring(0, 100)}`,
             studentLrn: event.student_lrn,
             studentName: event.students?.name,

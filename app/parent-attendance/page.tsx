@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import DatePickerInput from '@/components/date-picker-input';
 import { getParentStudents } from '@/lib/parent-data';
 import { supabase } from '@/lib/supabase';
+import { humanizeEventType } from '@/lib/event-types';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { formatTime12h } from '@/lib/time-format';
 import { Users, CheckCircle2, Clock3, XCircle, TrendingUp, AlertTriangle, Star, MinusCircle, FileText, CalendarDays, Shield, MapPin, UserRound, Bell } from 'lucide-react';
@@ -404,7 +405,7 @@ export default function ParentAttendancePage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <Shield className={`w-4 h-4 ${style.text}`} />
-                          <p className={`font-bold text-sm ${style.text}`}>{String(event.event_type || 'Behavior Event')}</p>
+                          <p className={`font-bold text-sm ${style.text}`}>{humanizeEventType(event.event_type) || 'Behavior Event'}</p>
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 inline-flex items-center gap-1">
                           <CalendarDays className="w-3 h-3" />

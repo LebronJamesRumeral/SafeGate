@@ -60,6 +60,7 @@ import {
   CloudUpload
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { humanizeEventType } from '@/lib/event-types';
 import { toast } from '@/hooks/use-toast';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { buildEarlyPreventionNote } from '@/lib/prevention-notes';
@@ -1910,7 +1911,7 @@ function BehavioralEventsPageContent() {
 
         await createRoleNotification({
           title: 'Log Reviewed By Guidance',
-          message: `${selectedEvent.students?.name || selectedEvent.student_lrn} (${selectedEvent.event_type}) was approved by guidance.`,
+          message: `${selectedEvent.students?.name || selectedEvent.student_lrn} (${humanizeEventType(selectedEvent.event_type)}) was approved by guidance.`,
           targetRoles: [
             'teacher',
             'admin',
@@ -1943,7 +1944,7 @@ function BehavioralEventsPageContent() {
 
         await createRoleNotification({
           title: 'Log Reviewed By Guidance',
-          message: `${selectedEvent.students?.name || selectedEvent.student_lrn} (${selectedEvent.event_type}) was denied by guidance.`,
+          message: `${selectedEvent.students?.name || selectedEvent.student_lrn} (${humanizeEventType(selectedEvent.event_type)}) was denied by guidance.`,
           targetRoles: ['teacher', 'admin'],
           createdBy: reviewerName,
           relatedEventId: selectedEvent.id,
@@ -3236,7 +3237,7 @@ function BehavioralEventsPageContent() {
                               )}
                               
                               <p className="font-medium text-sm mt-1 text-slate-800 dark:text-slate-200">
-                                {event.event_type === 'parent_report' ? 'Parent Report' : event.event_type}
+                                {humanizeEventType(event.event_type)}
                               </p>
                               
                               <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
@@ -3465,7 +3466,7 @@ function BehavioralEventsPageContent() {
                 <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700">
                   <div className="flex items-center gap-2 mb-2">
                     {getSeverityIcon(selectedEvent.severity)}
-                    <DialogTitle className="text-2xl">{selectedEvent.event_type}</DialogTitle>
+                    <DialogTitle className="text-2xl">{humanizeEventType(selectedEvent.event_type)}</DialogTitle>
                   </div>
                   <DialogDescription>
                     {selectedEvent.report_group_id

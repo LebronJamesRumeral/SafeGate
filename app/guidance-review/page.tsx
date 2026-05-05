@@ -29,6 +29,7 @@ import {
   SelectSeparator
 } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
+import { humanizeEventType } from '@/lib/event-types';
 import { formatTime12h } from '@/lib/time-format';
 import { toast } from '@/hooks/use-toast';
 import { createRoleNotification } from '@/lib/role-notifications';
@@ -144,6 +145,8 @@ function getIncidentReportCardClass(severity: string) {
   }
   return 'border-slate-200 dark:border-slate-700/60 border-l-4 border-l-slate-500 bg-gradient-to-br from-slate-50/80 via-white to-slate-50/40 dark:from-slate-900/60 dark:via-slate-800/50 dark:to-slate-900/30';
 }
+
+
 
 function computeSuggestedBehaviorScore(event: BehavioralEventRecord) {
   const severity = event.severity.toLowerCase();
@@ -539,7 +542,7 @@ export default function GuidanceReviewPage() {
           <article class="log-card ${severityClass}">
             <div class="log-header">
               <div>
-                <h3>${event.event_type}</h3>
+                <h3>${humanizeEventType(event.event_type)}</h3>
                 <p class="event-date">${formatDateOnly(event.event_date)} at ${event.event_time || '-'}</p>
               </div>
               <span class="severity-pill ${severityClass}">${event.severity || 'N/A'}</span>
@@ -786,7 +789,7 @@ export default function GuidanceReviewPage() {
 
         await createRoleNotification({
           title: 'Log Reviewed By Guidance',
-          message: `${reviewStudentIdentity?.name || reviewEvent.student_lrn} (${reviewEvent.event_type}) was approved by guidance.`,
+          message: `${reviewStudentIdentity?.name || reviewEvent.student_lrn} (${humanizeEventType(reviewEvent.event_type)}) was approved by guidance.`,
           targetRoles: ['teacher', 'admin'],
           createdBy: reviewerName,
           relatedEventId: reviewEvent.id,
@@ -811,7 +814,7 @@ export default function GuidanceReviewPage() {
 
         await createRoleNotification({
           title: 'Log Reviewed By Guidance',
-          message: `${reviewStudentIdentity?.name || reviewEvent.student_lrn} (${reviewEvent.event_type}) was denied by guidance.`,
+          message: `${reviewStudentIdentity?.name || reviewEvent.student_lrn} (${humanizeEventType(reviewEvent.event_type)}) was denied by guidance.`,
           targetRoles: ['teacher', 'admin'],
           createdBy: reviewerName,
           relatedEventId: reviewEvent.id,
@@ -1033,7 +1036,7 @@ export default function GuidanceReviewPage() {
         (event) => `
           <article class="record-card">
             <div class="row-top">
-              <strong>${event.event_type || '-'}</strong>
+              <strong>${humanizeEventType(event.event_type) || '-'}</strong>
               <span class="mini-pill">${event.severity || '-'}</span>
             </div>
             <div class="row-meta">Time: ${event.event_time || '-'} | Status: ${event.guidance_status.replaceAll('_', ' ')}</div>
@@ -1501,7 +1504,7 @@ export default function GuidanceReviewPage() {
                               {event.severity}
                             </Badge>
                           </div>
-                          <p className="text-sm font-medium mt-2">{event.event_type}</p>
+                          <p className="text-sm font-medium mt-2">{humanizeEventType(event.event_type)}</p>
                           <p className="text-xs text-slate-500 line-clamp-2 mt-1">{event.description}</p>
                           {event.proof_image_url && (
                             <div className="mt-2 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -1652,7 +1655,7 @@ export default function GuidanceReviewPage() {
                                 })()}
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                   <div className="min-w-0">
-                                    <p className="font-semibold text-slate-900 dark:text-white">{event.event_type}</p>
+                                    <p className="font-semibold text-slate-900 dark:text-white">{humanizeEventType(event.event_type)}</p>
                                     <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 wrap-break-word">{event.description}</p>
                                     {event.proof_image_url && (
                                       <div className="mt-2 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden max-w-sm">
@@ -1872,7 +1875,7 @@ export default function GuidanceReviewPage() {
                                       <div className="space-y-2 max-h-48 overflow-auto pr-1">
                                         {dateReport.events.map((event) => (
                                           <div key={`report-event-${event.id}`} className="rounded-lg border border-border/60 p-2.5 bg-slate-50/60 dark:bg-slate-800/30">
-                                            <p className="text-sm font-medium text-slate-900 dark:text-white">{event.event_type}</p>
+                                            <p className="text-sm font-medium text-slate-900 dark:text-white">{humanizeEventType(event.event_type)}</p>
                                             <p className="text-xs text-slate-500 mt-0.5">{event.event_time} • {event.severity} • {event.guidance_status.replaceAll('_', ' ')}</p>
                                           </div>
                                         ))}
@@ -2028,7 +2031,7 @@ export default function GuidanceReviewPage() {
                           <div className="space-y-3">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="font-bold text-sm text-slate-900 dark:text-white">{event.event_type}</p>
+                                <p className="font-bold text-sm text-slate-900 dark:text-white">{humanizeEventType(event.event_type)}</p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                   <CalendarDays className="w-3 h-3 inline mr-1" />
                                   {new Date(event.event_date).toLocaleDateString('en-US', {
@@ -2105,7 +2108,7 @@ export default function GuidanceReviewPage() {
 
                 <div className="rounded-lg border p-4 bg-white dark:bg-slate-900/30">
                   <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <p className="font-semibold text-slate-900 dark:text-white">{reviewEvent.event_type}</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{humanizeEventType(reviewEvent.event_type)}</p>
                     <Badge variant="outline" className="capitalize">{reviewEvent.severity}</Badge>
                     {getGuidanceBadge(reviewEvent.guidance_status)}
                   </div>

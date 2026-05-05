@@ -4,6 +4,7 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { humanizeEventType } from '@/lib/event-types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -5215,7 +5216,7 @@ export default function StudentsPage() {
                                                               </div>
                                                               <div className="min-w-0">
                                                                 <p className={`font-semibold leading-tight truncate ${getBehaviorEventVisuals(event.severity).title}`}>
-                                                                  {event.event_type || 'Behavior Event'}
+                                                                    {humanizeEventType(event.event_type) || 'Behavior Event'}
                                                                 </p>
                                                                 <p className="text-[11px] text-muted-foreground">
                                                                   {new Date(event.event_date).toLocaleDateString(undefined, {
@@ -6445,7 +6446,7 @@ export default function StudentsPage() {
                                                               </div>
                                                               <div className="min-w-0">
                                                                 <p className={`font-semibold leading-tight truncate ${getBehaviorEventVisuals(event.severity).title}`}>
-                                                                  {event.event_type || 'Behavior Event'}
+                                                                  {humanizeEventType(event.event_type) || 'Behavior Event'}
                                                                 </p>
                                                                 <p className="text-[11px] text-muted-foreground">
                                                                   {new Date(event.event_date).toLocaleDateString(undefined, {

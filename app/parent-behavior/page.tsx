@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { getParentStudents } from '@/lib/parent-data';
 import { supabase } from '@/lib/supabase';
+import { humanizeEventType } from '@/lib/event-types';
 import { toast } from '@/hooks/use-toast';
 import { GraduationCap, Search } from 'lucide-react';
 
@@ -170,7 +171,7 @@ export default function ParentBehaviorPage() {
   const handleOpenModal = () => {
     // Default to first child if only one, else null
     if (children.length === 1) {
-      setSelectedStudentId(children[0].id);
+      setSelectedStudentId(String(children[0].id));
     } else {
       setSelectedStudentId(null);
     }
@@ -193,7 +194,7 @@ export default function ParentBehaviorPage() {
       return;
     }
     // Insert parent report as behavioral_event (always minor)
-    const student = children.find((c: any) => c.id === selectedStudentId);
+    const student = children.find((c: any) => String(c.id) === selectedStudentId);
     const parentEmail = user?.username || "parent";
     const activities = selected[selectedStudentId] || [];
     const otherActivityText = (otherActivity[selectedStudentId] || "").trim();
@@ -328,7 +329,7 @@ export default function ParentBehaviorPage() {
     );
   });
 
-  const activeStudentId = selectedStudentId || (children.length === 1 ? children[0]?.id : null);
+  const activeStudentId = selectedStudentId || (children.length === 1 ? String(children[0]?.id) : null);
   const activeActivities = activeStudentId ? (selected[activeStudentId] || []) : [];
   const activeOther = activeStudentId ? (otherActivity[activeStudentId] || '').trim() : '';
   const activeMood = activeStudentId ? (moodByStudent[activeStudentId] || '').trim() : '';
@@ -376,10 +377,10 @@ export default function ParentBehaviorPage() {
                           </SelectTrigger>
                           <SelectContent>
                             {children.map(child => (
-                              <SelectItem key={child.id} value={child.id}>
-                                {child.name} ({child.level})
-                              </SelectItem>
-                            ))}
+                                  <SelectItem key={child.id} value={String(child.id)}>
+                                    {child.name} ({child.level})
+                                  </SelectItem>
+                                ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -394,9 +395,9 @@ export default function ParentBehaviorPage() {
                           <label key={activity} className="flex items-center gap-3 cursor-pointer hover:bg-white/50 dark:hover:bg-slate-800/50 p-2 rounded transition-colors">
                             <input
                               type="checkbox"
-                              checked={selected[selectedStudentId || children[0]?.id]?.includes(activity) || false}
+                              checked={selected[selectedStudentId || String(children[0]?.id)]?.includes(activity) || false}
                               onChange={() => {
-                                const id = selectedStudentId || children[0]?.id;
+                                const id = selectedStudentId || String(children[0]?.id);
                                 if (id) handleToggle(id, activity);
                               }}
                               className="w-4 h-4 rounded border border-slate-300 dark:border-slate-600 accent-blue-600 cursor-pointer"
@@ -408,15 +409,15 @@ export default function ParentBehaviorPage() {
                       {formError.activities && (
                         <p className="text-sm text-red-600 dark:text-red-400">{formError.activities}</p>
                       )}
-                      {(selected[selectedStudentId || children[0]?.id] || []).includes("Other") && (
+                      {(selected[selectedStudentId || String(children[0]?.id)] || []).includes("Other") && (
                         <div className="space-y-2">
-                          <Label htmlFor={`other-activity-${selectedStudentId || children[0]?.id}`}>Please specify Other activity</Label>
+                          <Label htmlFor={`other-activity-${selectedStudentId || String(children[0]?.id)}`}>Please specify Other activity</Label>
                           <input
-                            id={`other-activity-${selectedStudentId || children[0]?.id}`}
+                            id={`other-activity-${selectedStudentId || String(children[0]?.id)}`}
                             type="text"
-                            value={otherActivity[selectedStudentId || children[0]?.id] || ""}
+                            value={otherActivity[selectedStudentId || String(children[0]?.id)] || ""}
                             onChange={(e) => {
-                              const id = selectedStudentId || children[0]?.id;
+                              const id = selectedStudentId || String(children[0]?.id);
                               if (id) handleOtherActivityChange(id, e.target.value);
                             }}
                             placeholder="Type activity"
@@ -434,12 +435,12 @@ export default function ParentBehaviorPage() {
                         Overall Mood & Attitude <span className="text-red-500">*</span>
                       </Label>
                       <Select
-                        value={moodByStudent[selectedStudentId || children[0]?.id] || ''}
-                        onValueChange={(value) => {
-                          const id = selectedStudentId || children[0]?.id;
-                          if (id) handleMoodChange(id, value);
-                        }}
-                      >
+                          value={moodByStudent[selectedStudentId || String(children[0]?.id)] || ''}
+                          onValueChange={(value) => {
+                            const id = selectedStudentId || String(children[0]?.id);
+                            if (id) handleMoodChange(id, value);
+                          }}
+                        >
                         <SelectTrigger id="mood_select" className="w-full border-orange-200 dark:border-orange-700/60">
                           <SelectValue placeholder="Select mood..." />
                         </SelectTrigger>
@@ -464,11 +465,11 @@ export default function ParentBehaviorPage() {
                         <input
                           id="health_input"
                           type="text"
-                          value={healthByStudent[selectedStudentId || children[0]?.id] || ''}
-                          onChange={(e) => {
-                            const id = selectedStudentId || children[0]?.id;
-                            if (id) handleHealthChange(id, e.target.value);
-                          }}
+                          value={healthByStudent[selectedStudentId || String(children[0]?.id)] || ''}
+                            onChange={(e) => {
+                              const id = selectedStudentId || String(children[0]?.id);
+                              if (id) handleHealthChange(id, e.target.value);
+                            }}
                           placeholder="Sleep, exercise, nutrition, concerns"
                           className="w-full h-11 px-3 border border-orange-200 dark:border-orange-700/60 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-all"
                         />
@@ -484,9 +485,9 @@ export default function ParentBehaviorPage() {
                         <input
                           id="challenges_input"
                           type="text"
-                          value={challengesByStudent[selectedStudentId || children[0]?.id] || ''}
-                          onChange={(e) => {
-                            const id = selectedStudentId || children[0]?.id;
+                          value={challengesByStudent[selectedStudentId || String(children[0]?.id)] || ''}
+                        onChange={(e) => {
+                            const id = selectedStudentId || String(children[0]?.id);
                             if (id) handleChallengesChange(id, e.target.value);
                           }}
                           placeholder="Academic, peer, or personal challenges"
@@ -505,11 +506,11 @@ export default function ParentBehaviorPage() {
                       <input
                         id="goals_input"
                         type="text"
-                        value={goalsByStudent[selectedStudentId || children[0]?.id] || ''}
-                        onChange={(e) => {
-                          const id = selectedStudentId || children[0]?.id;
-                          if (id) handleGoalsChange(id, e.target.value);
-                        }}
+                        value={goalsByStudent[selectedStudentId || String(children[0]?.id)] || ''}
+                          onChange={(e) => {
+                            const id = selectedStudentId || String(children[0]?.id);
+                            if (id) handleGoalsChange(id, e.target.value);
+                          }}
                         placeholder="Academic and behavior goals"
                         className="w-full h-11 px-3 border border-orange-200 dark:border-orange-700/60 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-all"
                       />
@@ -519,14 +520,14 @@ export default function ParentBehaviorPage() {
                     </div>
                     {/* Notes */}
                     <div className="space-y-2">
-                      <Label htmlFor={`notes-${selectedStudentId || children[0]?.id}`} className="flex items-center gap-1">
+                      <Label htmlFor={`notes-${selectedStudentId || String(children[0]?.id)}`} className="flex items-center gap-1">
                         Notes or Description <span className="text-red-500">*</span>
                       </Label>
                       <Textarea
-                        id={`notes-${selectedStudentId || children[0]?.id}`}
-                        value={notes[selectedStudentId || children[0]?.id] || ""}
+                        id={`notes-${selectedStudentId || String(children[0]?.id)}`}
+                        value={notes[selectedStudentId || String(children[0]?.id)] || ""}
                         onChange={(e) => {
-                          const id = selectedStudentId || children[0]?.id;
+                          const id = selectedStudentId || String(children[0]?.id);
                           if (id) handleNotesChange(id, e.target.value);
                         }}
                         placeholder="Help us by specifying any additional details about your child's week, progress, or observations..."
@@ -909,7 +910,7 @@ export default function ParentBehaviorPage() {
                                             <div className={`${colors.icon}`}>
                                               <Activity className="w-4 h-4" />
                                             </div>
-                                            <p className={`font-bold text-sm ${colors.text}`}>{event.event_type}</p>
+                                            <p className={`font-bold text-sm ${colors.text}`}>{humanizeEventType(event.event_type)}</p>
                                           </div>
                                           <p className="text-xs text-slate-500 dark:text-slate-400">
                                             <Calendar className="w-3 h-3 inline mr-1" />
