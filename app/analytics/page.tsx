@@ -568,6 +568,8 @@ export default function AnalyticsPage() {
           emerald: 'FF10B981',
           amber: 'FFF59E0B',
           rose: 'FFEF4444',
+          indigo: 'FF1D4ED8',
+          cyan: 'FF0891B2',
           slate900: 'FF0F172A',
           slate700: 'FF334155',
           slate500: 'FF64748B',
@@ -590,6 +592,48 @@ export default function AnalyticsPage() {
           right: { style: 'thin' as any, color: { argb } },
         });
 
+        const formatHeaderLabel = (key: string) =>
+          key
+            .replace(/_/g, ' ')
+            .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .replace(/\b\w/g, (c) => c.toUpperCase())
+            .replace(/(Rate|Percent)$/i, '$1 (%)');
+
+        const fitTableColumns = (
+          sheet: any,
+          startRow: number,
+          endRow: number,
+          startCol: number,
+          headers: string[],
+          options?: { minWidth?: number; maxWidth?: number; padding?: number }
+        ) => {
+          const minWidth = options?.minWidth ?? 10;
+          const maxWidth = options?.maxWidth ?? 28;
+          const padding = options?.padding ?? 2;
+
+          headers.forEach((header, index) => {
+            let widest = String(header || '').length;
+            for (let row = startRow + 1; row <= endRow; row++) {
+              const cell = sheet.getCell(row, startCol + index);
+              const value = cell.value;
+              const text = value instanceof Date
+                ? cell.numFmt?.includes('hh')
+                  ? value.toLocaleString()
+                  : value.toLocaleDateString()
+                : Array.isArray(value)
+                  ? value.join(' ')
+                  : typeof value === 'object' && value !== null && 'text' in value
+                    ? String((value as any).text || '')
+                    : String(value ?? '');
+              widest = Math.max(widest, text.length);
+            }
+
+            sheet.getColumn(startCol + index).width = Math.min(maxWidth, Math.max(minWidth, widest + padding));
+          });
+        };
+
         const applySummaryCard = (
           sheet: any,
           range: string,
@@ -599,11 +643,15 @@ export default function AnalyticsPage() {
         ) => {
           sheet.mergeCells(range);
           const cell = sheet.getCell(range.split(':')[0]);
-          cell.value = `${label}\n${value}`;
-          cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: theme.slate900 } };
-          cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+          cell.value = {
+            richText: [
+              { text: `${label}\n`, font: { name: 'Calibri', size: 10, bold: true, color: { argb: theme.slate500 } } },
+              { text: value, font: { name: 'Calibri', size: 15, bold: true, color: { argb: theme.slate900 } } },
+            ],
+          };
+          cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
           cell.fill = solidFill(theme.white);
-            cell.border = {
+          cell.border = {
             top: { style: 'thick' as any, color: { argb: accent } },
             left: { style: 'thin' as any, color: { argb: theme.slate200 } },
             bottom: { style: 'thin' as any, color: { argb: theme.slate200 } },
@@ -620,12 +668,23 @@ export default function AnalyticsPage() {
                 cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: theme.white } };
                 cell.fill = solidFill(headerFill);
                 cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+                const headerText = String(cell.value ?? '').toLowerCase();
+                if (headerText.includes('rate') || headerText.includes('percent') || headerText.includes('%')) {
+                  for (let dataRow = row + 1; dataRow <= endRow; dataRow++) {
+                    const dataCell = sheet.getCell(dataRow, col);
+                    if (typeof dataCell.value === 'number') {
+                      dataCell.numFmt = '0.0';
+                    }
+                  }
+                }
               } else {
                 cell.font = { name: 'Calibri', size: 10, color: { argb: theme.slate700 } };
                 cell.fill = solidFill(row % 2 === 0 ? theme.slate50 : theme.white);
-                cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+                const isNumeric = typeof cell.value === 'number';
+                cell.alignment = { horizontal: isNumeric ? 'center' : 'left', vertical: 'middle', wrapText: true };
               }
             }
+            sheet.getRow(row).height = row === startRow ? 24 : 22;
           }
           sheet.getCell(startRow, startCol).border = {
             top: { style: 'thin' as any, color: { argb: theme.slate200 } },
@@ -668,6 +727,9 @@ export default function AnalyticsPage() {
         }) => {
           sheet.properties.defaultRowHeight = 22;
           sheet.views = [{ showGridLines: false, state: 'frozen', ySplit: 5 }];
+          sheet.headerFooter = {
+            oddFooter: '&LGenerated by SafeGate Analytics&C&F&RPage &P of &N',
+          };
           sheet.pageSetup = {
             orientation: 'landscape',
             paperSize: 9,
@@ -731,11 +793,10 @@ export default function AnalyticsPage() {
           sheet.mergeCells(options.titleRange);
           const titleCell = sheet.getCell(options.titleRange.split(':')[0]);
           titleCell.value = options.titleText;
-          titleCell.font = { name: 'Calibri', size: 28, bold: true, color: { argb: theme.white } };
-          titleCell.fill = solidFill(theme.blue);
+          titleCell.font = { name: 'Calibri', size: 24, bold: true, color: { argb: theme.white } };
+          titleCell.fill = solidFill(theme.indigo);
           titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
-          titleCell.border = borderAll(theme.blue);
-          titleCell.border = borderAll(theme.blue);
+          titleCell.border = borderAll(theme.indigo);
 
           sheet.mergeCells(options.badgeRange);
           const badgeCell = sheet.getCell(options.badgeRange.split(':')[0]);
@@ -753,6 +814,7 @@ export default function AnalyticsPage() {
 
         // Attendance worksheet
         const ws = wb.addWorksheet('Attendance', { views: [{ state: 'frozen', ySplit: 5 }] });
+        ws.properties.tabColor = { argb: theme.blue };
         ws.properties.defaultRowHeight = 22;
         await applyEmailHeader(ws, {
           headerStartCol: 'B',
@@ -767,14 +829,22 @@ export default function AnalyticsPage() {
           badgeBorder: theme.gold,
         });
 
-        ws.mergeCells('B3:G3');
-        const metaAttendance = ws.getCell('B3');
-        // Use a proper Excel date for export timestamp so consumers can sort/filter by it
-        metaAttendance.value = new Date();
-        metaAttendance.numFmt = 'mm/dd/yyyy hh:mm:ss AM/PM';
-        metaAttendance.font = { name: 'Calibri', size: 10, color: { argb: theme.white } };
-        metaAttendance.fill = solidFill(theme.navy);
-        metaAttendance.alignment = { vertical: 'middle', horizontal: 'left' };
+        ws.mergeCells('B3:E3');
+        const metaAttendanceLabel = ws.getCell('B3');
+        metaAttendanceLabel.value = 'Report metadata: Attendance analytics snapshot';
+        metaAttendanceLabel.font = { name: 'Calibri', size: 10, bold: true, color: { argb: theme.white } };
+        metaAttendanceLabel.fill = solidFill(theme.navy);
+        metaAttendanceLabel.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+        metaAttendanceLabel.border = borderAll(theme.navy);
+
+        ws.mergeCells('F3:G3');
+        const metaAttendanceDate = ws.getCell('F3');
+        metaAttendanceDate.value = new Date();
+        metaAttendanceDate.numFmt = 'mm/dd/yyyy hh:mm:ss AM/PM';
+        metaAttendanceDate.font = { name: 'Calibri', size: 10, bold: true, color: { argb: theme.white } };
+        metaAttendanceDate.fill = solidFill(theme.navy);
+        metaAttendanceDate.alignment = { vertical: 'middle', horizontal: 'center' };
+        metaAttendanceDate.border = borderAll(theme.navy);
 
         // Split filter row: filters text + start date + end date (as proper Excel dates)
         ws.mergeCells('B4:C4');
@@ -821,7 +891,8 @@ export default function AnalyticsPage() {
         // Add header for weekly data
         if (stats.weeklyData && stats.weeklyData.length > 0) {
           const headers = Object.keys(stats.weeklyData[0]);
-          const headerRow = ws.addRow(headers);
+          const displayHeaders = headers.map((h) => formatHeaderLabel(h));
+          const headerRow = ws.addRow(displayHeaders);
           // Add data rows, converting any parseable date columns to real Date objects
           stats.weeklyData.forEach((r: any) => {
             const rowVals = headers.map((h) => {
@@ -849,6 +920,7 @@ export default function AnalyticsPage() {
           }
 
           styleTable(ws, headerRow.number, ws.lastRow.number, 1, headers.length, theme.navy, theme.orange);
+          fitTableColumns(ws, headerRow.number, ws.lastRow.number, 1, displayHeaders, { minWidth: 10, maxWidth: 20, padding: 2 });
         } else {
           const emptyRow = ws.addRow(['No weekly data available']);
           emptyRow.eachCell((cell: ExcelCell) => {
@@ -868,7 +940,8 @@ export default function AnalyticsPage() {
         });
         if (stats.monthlyTrend && stats.monthlyTrend.length > 0) {
           const headers = Object.keys(stats.monthlyTrend[0]);
-          const headerRow = ws.addRow(headers);
+          const displayHeaders = headers.map((h) => formatHeaderLabel(h));
+          const headerRow = ws.addRow(displayHeaders);
           // Convert parseable date values into Date objects so Excel recognizes them
           stats.monthlyTrend.forEach((r: any) => {
             const rowVals = headers.map((h) => {
@@ -894,6 +967,7 @@ export default function AnalyticsPage() {
           }
 
           styleTable(ws, headerRow.number, ws.lastRow.number, 1, headers.length, theme.blue, theme.gold);
+          fitTableColumns(ws, headerRow.number, ws.lastRow.number, 1, displayHeaders, { minWidth: 10, maxWidth: 18, padding: 2 });
         } else {
           const emptyRow = ws.addRow(['No monthly trend data available']);
           emptyRow.eachCell((cell: ExcelCell) => {
@@ -903,19 +977,17 @@ export default function AnalyticsPage() {
           });
         }
 
-        // Column widths
-        ws.columns = [
-          { key: 'col1', width: 18 },
-          { key: 'col2', width: 14 },
-          { key: 'col3', width: 12 },
-          { key: 'col4', width: 12 },
-          { key: 'col5', width: 14 },
-          { key: 'col6', width: 14 },
-          { key: 'col7', width: 14 },
-        ];
+        ws.getColumn(1).width = 14;
+        ws.getColumn(2).width = 14;
+        ws.getColumn(3).width = 12;
+        ws.getColumn(4).width = 12;
+        ws.getColumn(5).width = 12;
+        ws.getColumn(6).width = 12;
+        ws.getColumn(7).width = 14;
 
         // Behavioral worksheet
         const wbBeh = wb.addWorksheet('Behavioral', { views: [{ state: 'frozen', ySplit: 5 }] });
+        wbBeh.properties.tabColor = { argb: theme.orange };
         wbBeh.properties.defaultRowHeight = 22;
         await applyEmailHeader(wbBeh, {
           headerStartCol: 'B',
@@ -930,13 +1002,22 @@ export default function AnalyticsPage() {
           badgeBorder: theme.gold,
         });
 
-        wbBeh.mergeCells('B3:G3');
-        const bMeta = wbBeh.getCell('B3');
-        bMeta.value = new Date();
-        bMeta.numFmt = 'mm/dd/yyyy hh:mm:ss AM/PM';
-        bMeta.font = { name: 'Calibri', size: 10, color: { argb: theme.white } };
-        bMeta.fill = solidFill(theme.navy);
-        bMeta.alignment = { vertical: 'middle', horizontal: 'left' };
+        wbBeh.mergeCells('B3:E3');
+        const bMetaLabel = wbBeh.getCell('B3');
+        bMetaLabel.value = 'Report metadata: Behavioral analytics snapshot';
+        bMetaLabel.font = { name: 'Calibri', size: 10, bold: true, color: { argb: theme.white } };
+        bMetaLabel.fill = solidFill(theme.navy);
+        bMetaLabel.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+        bMetaLabel.border = borderAll(theme.navy);
+
+        wbBeh.mergeCells('F3:G3');
+        const bMetaDate = wbBeh.getCell('F3');
+        bMetaDate.value = new Date();
+        bMetaDate.numFmt = 'mm/dd/yyyy hh:mm:ss AM/PM';
+        bMetaDate.font = { name: 'Calibri', size: 10, bold: true, color: { argb: theme.white } };
+        bMetaDate.fill = solidFill(theme.navy);
+        bMetaDate.alignment = { vertical: 'middle', horizontal: 'center' };
+        bMetaDate.border = borderAll(theme.navy);
 
         // Split filter row on Behavioral sheet: filters + start + end (dates)
         wbBeh.mergeCells('B4:C4');
@@ -995,10 +1076,12 @@ export default function AnalyticsPage() {
 
         if (behavioralStats.weeklyTrend && behavioralStats.weeklyTrend.length > 0) {
           const headers = Object.keys(behavioralStats.weeklyTrend[0]);
-          const headerRow = wbBeh.addRow(headers);
+          const displayHeaders = headers.map((h) => formatHeaderLabel(h));
+          const headerRow = wbBeh.addRow(displayHeaders);
           behavioralStats.weeklyTrend.forEach((r: any) => wbBeh.addRow(Object.values(r)));
 
           styleTable(wbBeh, headerRow.number, wbBeh.lastRow.number, 1, headers.length, theme.navy, theme.orange);
+          fitTableColumns(wbBeh, headerRow.number, wbBeh.lastRow.number, 1, displayHeaders, { minWidth: 10, maxWidth: 20, padding: 2 });
         } else {
           const emptyRow = wbBeh.addRow(['No weekly behavioral trend data available']);
           emptyRow.eachCell((cell: ExcelCell) => {
@@ -1008,15 +1091,13 @@ export default function AnalyticsPage() {
           });
         }
 
-        wbBeh.columns = [
-          { key: 'bcol1', width: 26 },
-          { key: 'bcol2', width: 16 },
-          { key: 'bcol3', width: 14 },
-          { key: 'bcol4', width: 12 },
-          { key: 'bcol5', width: 12 },
-          { key: 'bcol6', width: 12 },
-          { key: 'bcol7', width: 12 },
-        ];
+        wbBeh.getColumn(1).width = 26;
+        wbBeh.getColumn(2).width = 16;
+        wbBeh.getColumn(3).width = 14;
+        wbBeh.getColumn(4).width = 12;
+        wbBeh.getColumn(5).width = 12;
+        wbBeh.getColumn(6).width = 12;
+        wbBeh.getColumn(7).width = 12;
 
         // Write workbook to buffer and download
         const buf = await wb.xlsx.writeBuffer();

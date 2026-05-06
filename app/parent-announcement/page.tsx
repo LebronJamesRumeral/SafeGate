@@ -465,13 +465,13 @@ export default function ParentAnnouncementPage() {
           </div>
 
           {/* Right column: other news / thumbnails */}
-          <aside className="space-y-4 lg:sticky lg:top-4">
+          <aside className="space-y-4 lg:sticky lg:top-4 lg:h-[calc(100vh-8.5rem)] lg:overflow-hidden lg:flex lg:flex-col">
             <div className="flex items-center justify-between">
               <h4 className="text-lg font-semibold">Other News</h4>
               <Badge>{filteredAnnouncements.length}</Badge>
             </div>
 
-            <div className="space-y-3 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
+            <div className="space-y-3 pr-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
               {others.slice(0, 10).map((item) => (
                 <Card key={item.id} className="overflow-hidden border border-slate-200/80 bg-white shadow-sm">
                   <div className="flex items-start gap-3 p-3">
