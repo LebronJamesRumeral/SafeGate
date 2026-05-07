@@ -583,11 +583,8 @@ export default function AnalyticsPage() {
       let totalRiskScores = 0;
       let analyzedCount = 0;
 
-      // Sample top 20 students to avoid excessive API calls
-      const sampleSize = Math.min(20, students.length);
-      const sampledStudents = students.slice(0, sampleSize);
-
-      for (const student of sampledStudents) {
+      // Analyze all active students so the insights match the student page and ML dashboard.
+      for (const student of students) {
         try {
           // Fetch risk score
           const riskScore = await calculateStudentRiskScore(student.lrn);
