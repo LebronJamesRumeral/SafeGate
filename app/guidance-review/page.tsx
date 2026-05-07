@@ -29,7 +29,7 @@ import {
   SelectSeparator
 } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
-import { humanizeEventType } from '@/lib/event-types';
+import { formatReporterLabel, humanizeEventType } from '@/lib/event-types';
 import { formatTime12h } from '@/lib/time-format';
 import { toast } from '@/hooks/use-toast';
 import { createRoleNotification } from '@/lib/role-notifications';
@@ -2154,7 +2154,7 @@ export default function GuidanceReviewPage() {
                   )}
                   <div className="mt-3 text-xs text-slate-500 space-y-1">
                     <p>Location: {reviewEvent.location || 'Not provided'}</p>
-                    <p>Reported by: {reviewEvent.reported_by}</p>
+                    <p>Reported by: {formatReporterLabel(reviewEvent)}</p>
                   </div>
                 </div>
 

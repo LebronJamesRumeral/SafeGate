@@ -16,9 +16,106 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { getParentStudents } from '@/lib/parent-data';
 import { supabase } from '@/lib/supabase';
-import { humanizeEventType } from '@/lib/event-types';
+import { formatReporterLabel, humanizeEventType } from '@/lib/event-types';
 import { toast } from '@/hooks/use-toast';
 import { GraduationCap, Search } from 'lucide-react';
+
+type TeacherAccount = {
+  name: string;
+  email: string;
+};
+
+function resolveWitnessName(rawWitness: string, teacherAccounts: Record<string, TeacherAccount>) {
+  const trimmed = rawWitness.trim();
+  if (!trimmed) return '';
+
+  const emailMatch = trimmed.match(/([\w.+-]+@[\w.-]+\.[A-Za-z]{2,})/);
+  const witnessEmail = emailMatch?.[1]?.trim().toLowerCase() || '';
+  if (witnessEmail && teacherAccounts[witnessEmail]?.name) {
+    return teacherAccounts[witnessEmail].name;
+  }
+
+  const nameOnly = trimmed.replace(/[._-]+/g, ' ').trim();
+  if (!nameOnly) return '';
+
+  const normalizedName = nameOnly.toLowerCase();
+  const matchedAccount = Object.values(teacherAccounts).find((account) => {
+    const accountEmail = account.email.trim().toLowerCase();
+    const accountName = account.name.trim().toLowerCase();
+    const accountLocalPart = accountEmail.includes('@') ? accountEmail.split('@')[0] : accountEmail;
+    return normalizedName === accountName || normalizedName === accountEmail || normalizedName === accountLocalPart;
+  });
+
+  if (matchedAccount?.name) {
+    return matchedAccount.name;
+  }
+
+  return nameOnly.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatParentBehaviorNotes(notes?: string | null, description?: string | null, teacherAccounts: Record<string, TeacherAccount> = {}) {
+  const rawNotes = (notes || '').trim();
+  if (!rawNotes) return '';
+
+  try {
+    const parsed = JSON.parse(rawNotes);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const lines: string[] = [];
+      const activities = Array.isArray(parsed.activities)
+        ? parsed.activities.map((activity: unknown) => String(activity).trim()).filter(Boolean)
+        : [];
+
+      if (activities.length > 0) {
+        lines.push(`Activities: ${activities.join(', ')}`);
+      }
+      if (parsed.other_activity) {
+        lines.push(`Other activity: ${String(parsed.other_activity).trim()}`);
+      }
+      if (parsed.mood) {
+        lines.push(`Mood: ${String(parsed.mood).trim()}`);
+      }
+      if (parsed.health) {
+        lines.push(`Health: ${String(parsed.health).trim()}`);
+      }
+      if (parsed.challenges) {
+        lines.push(`Challenges: ${String(parsed.challenges).trim()}`);
+      }
+      if (parsed.goals) {
+        lines.push(`Goals: ${String(parsed.goals).trim()}`);
+      }
+
+      if (lines.length > 0) {
+        return lines.join('\n');
+      }
+    }
+  } catch {
+    // Fall through to string cleanup below.
+  }
+
+  const witnessMatch = rawNotes.match(/Witnesses:\s*([^\n\r]+)/i);
+  if (witnessMatch?.[1]) {
+    const resolvedWitness = resolveWitnessName(witnessMatch[1], teacherAccounts);
+    if (resolvedWitness) {
+      return rawNotes
+        .replace(/\[GROUP_REPORT_ID:[^\]]*\]\s*/gi, '')
+        .replace(/\[GROUP_REPORT_COUNT:[^\]]*\]\s*/gi, '')
+        .replace(/Witnesses:\s*([^\n\r]+)/i, `Witnesses: ${resolvedWitness}`)
+        .replace(/\b([\w.+-]+@[\w.-]+\.[A-Za-z]{2,})\b/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim() || (description || '').trim();
+    }
+  }
+
+  return rawNotes
+    .replace(/\[GROUP_REPORT_ID:[^\]]*\]\s*/gi, '')
+    .replace(/\[GROUP_REPORT_COUNT:[^\]]*\]\s*/gi, '')
+    .replace(/Witnesses:\s*([^()]+)\s*\([^)]+\)/gi, (_match, witness) => {
+      return `Witnesses: ${resolveWitnessName(String(witness), teacherAccounts)}`;
+    })
+    .replace(/\b([\w.+-]+@[\w.-]+\.[A-Za-z]{2,})\b/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim() || (description || '').trim();
+}
 
 export default function ParentBehaviorPage() {
   const mounted = useIsMounted();
@@ -28,6 +125,7 @@ export default function ParentBehaviorPage() {
   const [search, setSearch] = useState("");
   const [behavioralEvents, setBehavioralEvents] = useState<any>({});
   const [achievementsByStudent, setAchievementsByStudent] = useState<any>({});
+  const [teacherAccounts, setTeacherAccounts] = useState<Record<string, TeacherAccount>>({});
   // Daily check-in state
   const ACTIVITIES = [
     "Studied",
@@ -100,6 +198,37 @@ export default function ParentBehaviorPage() {
       });
     }
   }, [authLoading, user, user?.username]);
+
+  useEffect(() => {
+    const fetchTeacherAccounts = async () => {
+      try {
+        const response = await fetch('/api/auth/teachers');
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error || 'Failed to load teacher accounts');
+        }
+
+        const nextTeacherAccounts: Record<string, TeacherAccount> = {};
+        for (const account of payload.data || []) {
+          const email = String(account.email || '').trim().toLowerCase();
+          if (email) {
+            nextTeacherAccounts[email] = {
+              name: String(account.name || '').trim() || email.split('@')[0] || 'Teacher',
+              email,
+            };
+          }
+        }
+
+        setTeacherAccounts(nextTeacherAccounts);
+      } catch (error) {
+        console.error('Error fetching teacher accounts for parent behavior:', error);
+        setTeacherAccounts({});
+      }
+    };
+
+    fetchTeacherAccounts();
+  }, []);
 
   // Daily check-in handlers
   const handleToggle = (childId: string, activity: string) => {
@@ -936,7 +1065,7 @@ export default function ParentBehaviorPage() {
                                         {event.reported_by && (
                                           <div className="flex items-center gap-2">
                                             <Users className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                            <span><span className="font-semibold">Reported:</span> {event.reported_by}</span>
+                                            <span><span className="font-semibold">Reported:</span> {formatReporterLabel(event)}</span>
                                           </div>
                                         )}
                                         {event.location && (
@@ -964,7 +1093,7 @@ export default function ParentBehaviorPage() {
                                             <p><span className="font-semibold">Action Taken:</span> {event.action_taken}</p>
                                           )}
                                           {event.notes && (
-                                            <p><span className="font-semibold">Notes:</span> {event.notes}</p>
+                                            <p className="whitespace-pre-wrap">{formatParentBehaviorNotes(event.notes, event.description, teacherAccounts) || 'No additional notes provided.'}</p>
                                           )}
                                         </div>
                                       )}

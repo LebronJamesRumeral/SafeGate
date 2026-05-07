@@ -60,7 +60,7 @@ import {
   CloudUpload
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { humanizeEventType } from '@/lib/event-types';
+import { formatReporterLabel, humanizeEventType } from '@/lib/event-types';
 import { toast } from '@/hooks/use-toast';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { buildEarlyPreventionNote } from '@/lib/prevention-notes';
@@ -3263,7 +3263,7 @@ function BehavioralEventsPageContent() {
                                 )}
                                 <span className="flex items-center gap-1">
                                   <User className="w-3 h-3" />
-                                  {event.reported_by}
+                                  {formatReporterLabel(event)}
                                 </span>
                               </div>
                               
