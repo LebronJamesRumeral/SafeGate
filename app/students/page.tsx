@@ -692,6 +692,9 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true);
   const [currentSchoolYearLabel, setCurrentSchoolYearLabel] = useState('');
   const [currentSchoolYear, setCurrentSchoolYear] = useState<{ label: string, start_date: string, end_date: string } | null>(null);
+  const [endSchoolYearOpen, setEndSchoolYearOpen] = useState(false);
+  const [includeSummerStudentsOnEnd, setIncludeSummerStudentsOnEnd] = useState(false);
+  const [endingSchoolYear, setEndingSchoolYear] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
   const [activeTab, setActiveTab] = useState('list');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
@@ -1217,35 +1220,62 @@ export default function StudentsPage() {
     'Grade 7': '16:00',
     'Grade 8': '16:00',
   });
+  const schoolYearClosureKey = 'schoolYearEndedAt';
+  const schoolYearMinimumStartDate = useMemo(() => {
+    const baseDate = currentSchoolYear?.end_date ? new Date(currentSchoolYear.end_date) : new Date();
+    baseDate.setDate(baseDate.getDate() + 1);
+    baseDate.setHours(0, 0, 0, 0);
+    return baseDate.toISOString().split('T')[0];
+  }, [currentSchoolYear?.end_date]);
+
+  const loadSchoolYearMetadata = async () => {
+    if (!supabase) return;
+
+    const { data, error } = await supabase
+      .from('school_years')
+      .select('label, start_date, end_date')
+      .eq('is_current', true)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    const forcedEndDate = typeof window !== 'undefined' ? localStorage.getItem(schoolYearClosureKey) : null;
+    if (data) {
+      setCurrentSchoolYearLabel(data.label);
+      setCurrentSchoolYear(data);
+    } else if (forcedEndDate) {
+      setCurrentSchoolYearLabel('School Year Closed');
+      setCurrentSchoolYear({
+        label: 'School Year Closed',
+        start_date: forcedEndDate,
+        end_date: forcedEndDate,
+      });
+    } else {
+      setCurrentSchoolYearLabel('');
+      setCurrentSchoolYear(null);
+    }
+
+    try {
+      const { data: summerData } = await supabase.from('summer_enrollments').select('*');
+      const map: Record<string, { id?: number; start_date: string; end_date: string }> = {};
+      (summerData || []).forEach((row: any) => {
+        map[row.student_lrn] = { id: row.id, start_date: row.start_date, end_date: row.end_date };
+      });
+      setSummerEnrollments(map);
+    } catch (err) {
+      // ignore if table doesn't exist yet
+    }
+  };
 
   useEffect(() => {
     if (isMobile) {
       setShowFilters(false);
     }
-    // Fetch current school year from DB
-    (async () => {
-      if (!supabase) return;
-      const { data, error } = await supabase
-        .from('school_years')
-        .select('label, start_date, end_date')
-        .eq('is_current', true)
-        .maybeSingle();
-      if (data) {
-        setCurrentSchoolYearLabel(data.label);
-        setCurrentSchoolYear(data);
-      }
-      // Fetch summer enrollments
-      try {
-        const { data: summerData } = await supabase.from('summer_enrollments').select('*');
-        const map: Record<string, { id?: number; start_date: string; end_date: string }> = {};
-        (summerData || []).forEach((row: any) => {
-          map[row.student_lrn] = { id: row.id, start_date: row.start_date, end_date: row.end_date };
-        });
-        setSummerEnrollments(map);
-      } catch (err) {
-        // ignore if table doesn't exist yet
-      }
-    })();
+    void loadSchoolYearMetadata().catch((error) => {
+      console.error('Failed to load school year metadata:', error);
+    });
   }, [isMobile]);
 
   // Function to calculate duration
@@ -1273,6 +1303,22 @@ export default function StudentsPage() {
       toast({
         title: 'Missing Dates',
         description: 'Please select both start and end dates.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (schoolYearStartDate < schoolYearMinimumStartDate) {
+      toast({
+        title: 'Invalid Start Date',
+        description: `School year must start on or after ${schoolYearMinimumStartDate}.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (schoolYearStartDate > schoolYearEndDate) {
+      toast({
+        title: 'Invalid Dates',
+        description: 'End date must be on or after the start date.',
         variant: 'destructive',
       });
       return;
@@ -1374,6 +1420,144 @@ export default function StudentsPage() {
       });
     } finally {
       setSchoolYearLoadingModalOpen(false);
+    }
+  };
+
+  const handleEndSchoolYearDialogChange = (open: boolean) => {
+    setEndSchoolYearOpen(open);
+    if (!open) {
+      setIncludeSummerStudentsOnEnd(false);
+    }
+  };
+
+  const handleEndSchoolYear = async () => {
+    if (!supabase) {
+      toast({
+        title: 'Internal Error',
+        description: 'Supabase client not initialized.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    let schoolYearToEnd = currentSchoolYear;
+
+    if (!schoolYearToEnd) {
+      const { data: fallbackSchoolYear, error: fallbackError } = await supabase
+        .from('school_years')
+        .select('label, start_date, end_date')
+        .order('start_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (fallbackError) {
+        toast({
+          title: 'Missing School Year',
+          description: fallbackError.message,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      schoolYearToEnd = fallbackSchoolYear || null;
+    }
+
+    if (!schoolYearToEnd) {
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() - 1);
+      const endDateValue = endDate.toISOString().split('T')[0];
+      localStorage.setItem(schoolYearClosureKey, endDateValue);
+      const syntheticSchoolYear = {
+        label: 'School Year Closed',
+        start_date: endDateValue,
+        end_date: endDateValue,
+      };
+
+      setCurrentSchoolYearLabel('School Year Closed');
+      setCurrentSchoolYear(syntheticSchoolYear);
+
+      await fetchTodaysAttendance({
+        currentSchoolYear: syntheticSchoolYear,
+        summerEnrollmentsOverride: summerEnrollments,
+      });
+
+      toast({
+        title: 'School Year Ended',
+        description: includeSummerStudentsOnEnd
+          ? 'Active students were stopped and summer enrollments were also closed.'
+          : 'Active students were stopped. Summer class students remain available.',
+      });
+      setEndSchoolYearOpen(false);
+      setEndingSchoolYear(false);
+      return;
+    }
+
+    setEndingSchoolYear(true);
+    try {
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() - 1);
+      const endDateValue = endDate.toISOString().split('T')[0];
+
+      const { error: schoolYearError } = await supabase
+        .from('school_years')
+        .update({ end_date: endDateValue })
+        .eq('label', schoolYearToEnd.label);
+
+      if (schoolYearError) {
+        throw schoolYearError;
+      }
+
+      if (includeSummerStudentsOnEnd && Object.keys(summerEnrollments).length > 0) {
+        const { error: summerError } = await supabase
+          .from('summer_enrollments')
+          .update({ end_date: endDateValue })
+          .in('student_lrn', Object.keys(summerEnrollments));
+
+        if (summerError) {
+          throw summerError;
+        }
+      }
+
+      const updatedSchoolYear = { ...schoolYearToEnd, end_date: endDateValue };
+      const updatedSummerEnrollments = includeSummerStudentsOnEnd
+        ? Object.fromEntries(
+            Object.entries(summerEnrollments).map(([lrn, enrollment]) => [
+              lrn,
+              { ...enrollment, end_date: endDateValue },
+            ])
+          )
+        : summerEnrollments;
+
+      if (updatedSchoolYear) {
+        setCurrentSchoolYear(updatedSchoolYear);
+      }
+      localStorage.setItem(schoolYearClosureKey, endDateValue);
+      if (includeSummerStudentsOnEnd) {
+        setSummerEnrollments(updatedSummerEnrollments);
+      }
+
+      await loadSchoolYearMetadata();
+      await fetchStudents();
+      await fetchTodaysAttendance({
+        currentSchoolYear: updatedSchoolYear,
+        summerEnrollmentsOverride: updatedSummerEnrollments,
+      });
+
+      toast({
+        title: 'School Year Ended',
+        description: includeSummerStudentsOnEnd
+          ? 'Active students were stopped and summer enrollments were also closed.'
+          : 'Active students were stopped. Summer class students remain available.',
+      });
+      setEndSchoolYearOpen(false);
+    } catch (error: any) {
+      toast({
+        title: 'Failed to End School Year',
+        description: error?.message || String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setEndingSchoolYear(false);
     }
   };
   // Function to check if school day has ended based on per-student schedule or year level fallback
@@ -1505,7 +1689,10 @@ export default function StudentsPage() {
     return v === 'holiday' || v === 'cancelled_class';
   };
 
-  const fetchTodaysAttendance = async () => {
+  const fetchTodaysAttendance = async (options?: {
+    currentSchoolYear?: { label: string; start_date: string; end_date: string } | null;
+    summerEnrollmentsOverride?: Record<string, { id?: number; start_date: string; end_date: string }>;
+  }) => {
     if (!supabase) return;
     try {
       const today = new Date().toISOString().split('T')[0];
@@ -1529,12 +1716,14 @@ export default function StudentsPage() {
       // only students enrolled in summer classes should have attendance considered. Others should be marked out_of_session.
       try {
         const todayDate = new Date(today);
-        if (currentSchoolYear && currentSchoolYear.end_date) {
-          const syEnd = new Date(currentSchoolYear.end_date);
+        const schoolYearForCheck = options?.currentSchoolYear ?? currentSchoolYear;
+        const summerEnrollmentsForCheck = options?.summerEnrollmentsOverride ?? summerEnrollments;
+        if (schoolYearForCheck && schoolYearForCheck.end_date) {
+          const syEnd = new Date(schoolYearForCheck.end_date);
           if (todayDate > syEnd) {
             // We're past school year end; enforce summer-only attendance
             students.forEach((s) => {
-              const enrollment = summerEnrollments[s.lrn];
+              const enrollment = summerEnrollmentsForCheck[s.lrn];
               if (!enrollment) {
                 attendanceMap[s.lrn] = {
                   checkInTime: undefined,
@@ -3119,37 +3308,6 @@ export default function StudentsPage() {
           </div>
           
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={handleImportStudents}
-              className="hidden"
-              disabled={importingStudents}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => importInputRef.current?.click()}
-              className="gap-2"
-              disabled={importingStudents}
-            >
-              {importingStudents ? (
-                <span className="flex items-center gap-2"><Loader2 className="animate-spin w-4 h-4" /> Importing...</span>
-              ) : (
-                <span className="flex items-center gap-2"><Upload className="w-4 h-4" />Import</span>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportToCSV}
-              className="gap-2"
-              disabled={importingStudents}
-            >
-              <Download className="w-4 h-4" />
-              Export
-            </Button>
             {/* School Year Advancement/Undo/Confirm Buttons */}
             {pendingSchoolYearConfirmation ? (
               <>
@@ -3372,20 +3530,56 @@ export default function StudentsPage() {
                     </div>
                   </DialogContent>
                 </Dialog>
+                <Dialog open={endSchoolYearOpen} onOpenChange={handleEndSchoolYearDialogChange}>
+                  <DialogTrigger asChild>
+                    <Button variant="destructive" size="sm" className="gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold">
+                      <XCircle size={16} />
+                      End School Year
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="text-2xl font-bold">End Current School Year</DialogTitle>
+                      <DialogDescription>
+                        This will stop attendance tracking for active students right away by closing the current school year.
+                        Summer class students can remain active unless you include them below.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 mt-4">
+                      <div className="flex items-start gap-3 rounded-lg border p-4">
+                        <Checkbox
+                          checked={includeSummerStudentsOnEnd}
+                          onCheckedChange={(checked) => setIncludeSummerStudentsOnEnd(Boolean(checked))}
+                        />
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Also end summer class enrollments</p>
+                          <p className="text-sm text-muted-foreground">
+                            Turn this on if you are cancelling summer class as well.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3 justify-end">
+                        <Button variant="outline" onClick={() => handleEndSchoolYearDialogChange(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={handleEndSchoolYear}
+                          disabled={endingSchoolYear}
+                          className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                          {endingSchoolYear ? 'Ending...' : 'End School Year'}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                 <DialogContent className="max-w-md">
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-bold">
-                      {(() => {
-                        if (currentSchoolYear) {
-                          const prevStart = new Date(currentSchoolYear.start_date);
-                          const nextStart = new Date(prevStart);
-                          nextStart.setFullYear(prevStart.getFullYear() + 1);
-                          const nextEnd = new Date(currentSchoolYear.end_date);
-                          nextEnd.setFullYear(nextEnd.getFullYear() + 1);
-                          return `Start New School Year (Current S.Y. ${nextStart.getFullYear()}-${nextEnd.getFullYear()})`;
-                        }
-                        return 'Start New School Year';
-                      })()}
+                      {schoolYearStartDate && schoolYearEndDate
+                        ? `Start New School Year (S.Y. ${new Date(schoolYearStartDate).getFullYear()}-${new Date(schoolYearEndDate).getFullYear()})`
+                        : 'Start New School Year'}
                     </DialogTitle>
                     <DialogDescription>Validate and advance {students.length} students to their new grade levels</DialogDescription>
                   </DialogHeader>
@@ -3409,6 +3603,7 @@ export default function StudentsPage() {
                                   id="school-year-start"
                                   type="date"
                                   value={schoolYearStartDate}
+                                  min={schoolYearMinimumStartDate}
                                   onChange={(e) => setSchoolYearStartDate(e.target.value)}
                                 />
                               </div>
@@ -3420,10 +3615,16 @@ export default function StudentsPage() {
                                   id="school-year-end"
                                   type="date"
                                   value={schoolYearEndDate}
+                                  min={schoolYearStartDate || schoolYearMinimumStartDate}
                                   onChange={(e) => setSchoolYearEndDate(e.target.value)}
                                 />
                               </div>
                             </div>
+                            {schoolYearStartDate && schoolYearStartDate < schoolYearMinimumStartDate && (
+                              <p className="text-xs text-red-600 dark:text-red-400">
+                                Start date cannot be before {schoolYearMinimumStartDate}.
+                              </p>
+                            )}
                             {schoolYearStartDate && schoolYearEndDate && new Date(schoolYearStartDate) > new Date(schoolYearEndDate) && (
                               <p className="text-xs text-red-600 dark:text-red-400">
                                 End date must be on or after the start date.
@@ -4061,7 +4262,39 @@ export default function StudentsPage() {
                       Complete list of enrolled students with LRN, level, and parent contact details
                     </CardDescription>
                   </div>
-                    <Badge variant="outline" className="bg-white dark:bg-slate-800 self-start sm:self-auto text-xs whitespace-nowrap">
+                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                    <input
+                      ref={importInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={handleImportStudents}
+                      className="hidden"
+                      disabled={importingStudents}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => importInputRef.current?.click()}
+                      className="gap-2"
+                      disabled={importingStudents}
+                    >
+                      {importingStudents ? (
+                        <span className="flex items-center gap-2"><Loader2 className="animate-spin w-4 h-4" /> Importing...</span>
+                      ) : (
+                        <span className="flex items-center gap-2"><Upload className="w-4 h-4" />Import</span>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={exportToCSV}
+                      className="gap-2"
+                      disabled={importingStudents}
+                    >
+                      <Download className="w-4 h-4" />
+                      Export
+                    </Button>
+                    <Badge variant="outline" className="bg-white dark:bg-slate-800 text-xs whitespace-nowrap">
                       {{
                        lrn: 'LRN',
                        name: 'Name',
@@ -4070,7 +4303,8 @@ export default function StudentsPage() {
                       }[sortConfig.key] ?? sortConfig.key}
                       {' \u2014 '}
                       {sortConfig.direction === 'asc' ? 'A \u2192 Z' : 'Z \u2192 A'}
-                  </Badge>
+                    </Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="p-0">

@@ -56,6 +56,11 @@ const allowWeekendQrInDev =
   process.env.NODE_ENV === 'development' &&
   process.env.NEXT_PUBLIC_ALLOW_WEEKEND_QR_TEST === 'true';
 
+type AttendanceAccessCheck = {
+  blocked: boolean;
+  message?: string;
+};
+
 export default function ScanPage() {
   const [scanning, setScanning] = useState(false);
   const [qrText, setQrText] = useState<string | null>(null);
@@ -389,6 +394,75 @@ export default function ScanPage() {
     return `${hour12}:${String(minute).padStart(2, '0')} ${suffix}`;
   };
 
+  const checkAttendanceAccess = async (studentLrn: string): Promise<AttendanceAccessCheck> => {
+    if (!supabase) {
+      return { blocked: false };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const forcedEndDate = typeof window !== 'undefined' ? window.localStorage.getItem('schoolYearEndedAt') : null;
+
+    let schoolYearEndDate = forcedEndDate;
+
+    if (!schoolYearEndDate) {
+      const { data: schoolYear, error: schoolYearError } = await supabase
+        .from('school_years')
+        .select('end_date')
+        .eq('is_current', true)
+        .maybeSingle();
+
+      if (schoolYearError) {
+        throw schoolYearError;
+      }
+
+      schoolYearEndDate = schoolYear?.end_date || null;
+    }
+
+    if (!schoolYearEndDate) {
+      return { blocked: false };
+    }
+
+    const schoolYearEnd = new Date(schoolYearEndDate);
+    schoolYearEnd.setHours(0, 0, 0, 0);
+
+    if (today <= schoolYearEnd) {
+      return { blocked: false };
+    }
+
+    const { data: summerEnrollment, error: summerError } = await supabase
+      .from('summer_enrollments')
+      .select('start_date, end_date')
+      .eq('student_lrn', studentLrn)
+      .maybeSingle();
+
+    if (summerError) {
+      throw summerError;
+    }
+
+    if (!summerEnrollment?.start_date || !summerEnrollment?.end_date) {
+      return {
+        blocked: true,
+        message: 'School year has ended. This student is not enrolled in summer class.',
+      };
+    }
+
+    const summerStart = new Date(summerEnrollment.start_date);
+    summerStart.setHours(0, 0, 0, 0);
+    const summerEnd = new Date(summerEnrollment.end_date);
+    summerEnd.setHours(0, 0, 0, 0);
+
+    if (today < summerStart || today > summerEnd) {
+      return {
+        blocked: true,
+        message: 'School year has ended. This student is not enrolled in summer class.',
+      };
+    }
+
+    return { blocked: false };
+  };
+
   const applyAttendanceOnline = async (
     studentLrn: string,
     scanIsoTime: string,
@@ -399,6 +473,14 @@ export default function ScanPage() {
   ) => {
     if (!supabase) {
       throw new Error('Supabase client not initialized');
+    }
+
+    const accessCheck = await checkAttendanceAccess(studentLrn);
+    if (accessCheck.blocked) {
+      return {
+        action: 'Blocked' as const,
+        message: accessCheck.message || 'Attendance is not available for this student.',
+      };
     }
 
     const schedule = await getStudentSchedule(studentLrn);
