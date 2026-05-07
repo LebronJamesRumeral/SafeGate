@@ -378,6 +378,8 @@ CREATE TABLE IF NOT EXISTS behavioral_events (
   guidance_reviewed_by VARCHAR(255),
   guidance_reviewed_at TIMESTAMP WITH TIME ZONE,
   guidance_intervention_notes TEXT,
+  guidance_score_input INT,
+  guidance_behavior_score INT,
   proof_image_url TEXT,
   action_taken TEXT,
   notes TEXT,
@@ -390,6 +392,8 @@ ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_status VARCHAR(3
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_reviewed_by VARCHAR(255);
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_reviewed_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_intervention_notes TEXT;
+ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_score_input INT;
+ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_behavior_score INT;
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS proof_image_url TEXT;
 
 -- Positive achievements and recognitions
@@ -798,9 +802,9 @@ DECLARE
   v_risk_factors TEXT;
   v_recommendation TEXT;
 BEGIN
-  -- Get current 30-day attendance
-  SELECT COALESCE(attendance_rate, 0)
-  INTO v_current_attendance
+  -- Get current 30-day attendance and counts
+  SELECT COALESCE(attendance_rate, 0), COALESCE(days_present, 0), COALESCE(school_days, 0)
+  INTO v_current_attendance, v_days_present, v_school_days
   FROM calculate_student_attendance_metrics(p_student_lrn, 30)
   LIMIT 1;
 
@@ -819,15 +823,20 @@ BEGIN
     v_trend := 'stable';
   END IF;
 
-  -- Determine risk level
-  IF v_current_attendance < 60 THEN
-    v_risk_level := 'critical';
-  ELSIF v_current_attendance < 75 THEN
-    v_risk_level := 'high';
-  ELSIF v_current_attendance < 85 THEN
-    v_risk_level := 'medium';
-  ELSE
+  -- If there is no attendance data (new student), default to low risk
+  IF v_school_days = 0 OR v_days_present = 0 THEN
     v_risk_level := 'low';
+  ELSE
+    -- Determine risk level from attendance rate
+    IF v_current_attendance < 60 THEN
+      v_risk_level := 'critical';
+    ELSIF v_current_attendance < 75 THEN
+      v_risk_level := 'high';
+    ELSIF v_current_attendance < 85 THEN
+      v_risk_level := 'medium';
+    ELSE
+      v_risk_level := 'low';
+    END IF;
   END IF;
 
   -- Get ML prediction
@@ -910,6 +919,8 @@ DECLARE
   v_on_time_count INT;
   v_negative_events INT;
   v_positive_events INT;
+  v_guidance_average_score DECIMAL := 0;
+  v_guidance_component INT := 0;
   v_risk_score DECIMAL := 0;
   v_risk_level VARCHAR;
   v_attendance_component INT := 0;
@@ -930,6 +941,37 @@ BEGIN
   FROM calculate_student_attendance_metrics(p_student_lrn, 60)
   LIMIT 1;
 
+  -- If there is no attendance data (new student), treat as low risk
+  IF v_school_days = 0 OR v_days_present = 0 THEN
+    v_risk_score := 0;
+    v_risk_level := 'low';
+    v_attendance_component := 0;
+    v_behavior_component := 0;
+    v_pattern_component := 0;
+    v_confidence := 50;
+    v_breakdown := jsonb_build_object(
+      'attendance_rate', ROUND(v_attendance_rate::NUMERIC, 1),
+      'days_present', v_days_present,
+      'school_days', v_school_days,
+      'late_percentage', 0,
+      'negative_events', 0,
+      'positive_events', 0,
+      'guidance_average_score', 0,
+      'guidance_component', 0,
+      'calculation_date', CURRENT_DATE::TEXT,
+      'pattern_type', NULL
+    );
+
+    RETURN QUERY SELECT
+      ROUND(v_risk_score::NUMERIC, 1)::DECIMAL,
+      v_risk_level::VARCHAR,
+      v_attendance_component::INT,
+      v_behavior_component::INT,
+      v_pattern_component::INT,
+      v_confidence::INT,
+      v_breakdown::JSONB;
+  END IF;
+
   -- Get behavioral events (last 30 days)
   SELECT 
     COUNT(*) FILTER (WHERE severity IN ('major', 'critical')) as neg_events,
@@ -938,6 +980,14 @@ BEGIN
   FROM behavioral_events
   WHERE student_lrn = p_student_lrn
   AND event_date >= CURRENT_DATE - INTERVAL '30 days';
+
+  -- Get averaged guidance score from reviewed logs (last 30 days)
+  SELECT COALESCE(AVG(guidance_behavior_score), 0)
+  INTO v_guidance_average_score
+  FROM behavioral_events
+  WHERE student_lrn = p_student_lrn
+    AND guidance_behavior_score IS NOT NULL
+    AND event_date >= CURRENT_DATE - INTERVAL '30 days';
 
   -- Get pattern type
   SELECT pattern_type INTO v_pattern_type
@@ -998,8 +1048,23 @@ BEGIN
     v_pattern_component := 8;
   END IF;
 
+  -- 4. GUIDANCE COMPONENT (0-15 points)
+  IF v_guidance_average_score >= 90 THEN
+    v_guidance_component := 15;
+  ELSIF v_guidance_average_score >= 75 THEN
+    v_guidance_component := 12;
+  ELSIF v_guidance_average_score >= 60 THEN
+    v_guidance_component := 9;
+  ELSIF v_guidance_average_score >= 45 THEN
+    v_guidance_component := 6;
+  ELSIF v_guidance_average_score >= 30 THEN
+    v_guidance_component := 3;
+  ELSE
+    v_guidance_component := 0;
+  END IF;
+
   -- CALCULATE TOTAL RISK SCORE (0-100)
-  v_risk_score := (v_attendance_component::DECIMAL + v_behavior_component::DECIMAL + v_pattern_component::DECIMAL);
+  v_risk_score := LEAST(100, (v_attendance_component::DECIMAL + v_behavior_component::DECIMAL + v_pattern_component::DECIMAL + v_guidance_component::DECIMAL));
 
   -- DETERMINE RISK LEVEL
   IF v_risk_score >= 75 THEN
@@ -1022,6 +1087,8 @@ BEGIN
       ELSE 0 END,
     'negative_events', v_negative_events,
     'positive_events', v_positive_events,
+    'guidance_average_score', ROUND(v_guidance_average_score::NUMERIC, 1),
+    'guidance_component', v_guidance_component,
     'calculation_date', CURRENT_DATE::TEXT,
     'pattern_type', v_pattern_type
   );

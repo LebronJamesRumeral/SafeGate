@@ -667,6 +667,8 @@ CREATE TABLE IF NOT EXISTS behavioral_events (
   guidance_reviewed_by VARCHAR(255),
   guidance_reviewed_at TIMESTAMP WITH TIME ZONE,
   guidance_intervention_notes TEXT,
+  guidance_score_input INT,
+  guidance_behavior_score INT,
   proof_image_url TEXT,
   action_taken TEXT,
   notes TEXT,
@@ -678,6 +680,8 @@ ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_status VARCHAR(3
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_reviewed_by VARCHAR(255);
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_reviewed_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_intervention_notes TEXT;
+ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_score_input INT;
+ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS guidance_behavior_score INT;
 ALTER TABLE behavioral_events ADD COLUMN IF NOT EXISTS proof_image_url TEXT;
 -- Create indices for behavioral events
 CREATE INDEX IF NOT EXISTS idx_behavioral_events_student ON behavioral_events(student_lrn);
@@ -1192,6 +1196,8 @@ DECLARE
   v_on_time_count INT;
   v_negative_events INT;
   v_positive_events INT;
+  v_guidance_average_score DECIMAL := 0;
+  v_guidance_component INT := 0;
   v_risk_score DECIMAL := 0;
   v_risk_level VARCHAR;
   v_attendance_component INT := 0;
@@ -1219,6 +1225,14 @@ BEGIN
   FROM behavioral_events
   WHERE student_lrn = p_student_lrn
   AND event_date >= CURRENT_DATE - INTERVAL '30 days';
+
+  -- Get averaged guidance score from reviewed logs (last 30 days)
+  SELECT COALESCE(AVG(guidance_behavior_score), 0)
+  INTO v_guidance_average_score
+  FROM behavioral_events
+  WHERE student_lrn = p_student_lrn
+    AND guidance_behavior_score IS NOT NULL
+    AND event_date >= CURRENT_DATE - INTERVAL '30 days';
   -- Get pattern type
   SELECT pattern_type INTO v_pattern_type
   FROM attendance_patterns
@@ -1273,8 +1287,23 @@ BEGIN
   ELSE
     v_pattern_component := 8;
   END IF;
+
+  -- 4. GUIDANCE COMPONENT (0-15 points)
+  IF v_guidance_average_score >= 90 THEN
+    v_guidance_component := 15;
+  ELSIF v_guidance_average_score >= 75 THEN
+    v_guidance_component := 12;
+  ELSIF v_guidance_average_score >= 60 THEN
+    v_guidance_component := 9;
+  ELSIF v_guidance_average_score >= 45 THEN
+    v_guidance_component := 6;
+  ELSIF v_guidance_average_score >= 30 THEN
+    v_guidance_component := 3;
+  ELSE
+    v_guidance_component := 0;
+  END IF;
   -- CALCULATE TOTAL RISK SCORE (0-100)
-  v_risk_score := (v_attendance_component::DECIMAL + v_behavior_component::DECIMAL + v_pattern_component::DECIMAL);
+  v_risk_score := LEAST(100, (v_attendance_component::DECIMAL + v_behavior_component::DECIMAL + v_pattern_component::DECIMAL + v_guidance_component::DECIMAL));
   -- DETERMINE RISK LEVEL
   IF v_risk_score >= 75 THEN
     v_risk_level := 'critical';
@@ -1295,6 +1324,8 @@ BEGIN
       ELSE 0 END,
     'negative_events', v_negative_events,
     'positive_events', v_positive_events,
+    'guidance_average_score', ROUND(v_guidance_average_score::NUMERIC, 1),
+    'guidance_component', v_guidance_component,
     'calculation_date', CURRENT_DATE::TEXT,
     'pattern_type', v_pattern_type
   );

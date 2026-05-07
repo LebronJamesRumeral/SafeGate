@@ -383,9 +383,9 @@ export default function Dashboard() {
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students Needing Intervention</p>
+                  <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students At Risk</p>
                   <div className="text-xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{behavioralStats.studentsAtRisk}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">High Or Critical Risk Level</p>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">High + critical risk level</p>
                 </div>
                 <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                   <AlertTriangle className="w-8 h-8" />

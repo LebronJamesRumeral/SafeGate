@@ -59,6 +59,8 @@ type BehavioralEventRecord = {
   guidance_reviewed_by: string | null;
   guidance_reviewed_at: string | null;
   guidance_intervention_notes: string | null;
+  guidance_score_input?: number | null;
+  guidance_behavior_score?: number | null;
   parent_notified?: boolean;
   follow_up_required?: boolean;
   notes?: string | null;
@@ -172,7 +174,7 @@ function computeSuggestedBehaviorScore(event: BehavioralEventRecord) {
 
 function parseBehavioralScoreFromNotes(notes?: string | null) {
   if (!notes) return null;
-  const match = notes.match(/\[Behavioral Score:\s*(\d{1,3})\s*,\s*(confirmed|overridden)\]/i);
+  const match = notes.match(/\[Behavioral Score:\s*(\d{1,3})(?:\s*,\s*([^\]]+))?\]/i);
   if (!match) return null;
 
   const parsed = Number(match[1]);
@@ -180,12 +182,24 @@ function parseBehavioralScoreFromNotes(notes?: string | null) {
 
   return {
     value: Math.max(0, Math.min(100, parsed)),
-    mode: (match[2] || 'confirmed').toLowerCase() as 'confirmed' | 'overridden',
+    mode: (match[2] || 'confirmed').toLowerCase(),
   };
 }
 
 function stripBehavioralScoreFromNotes(notes: string) {
-  return notes.replace(/\[Behavioral Score:\s*\d{1,3}\s*,\s*(confirmed|overridden)\]\s*/gi, '').trim();
+  return notes.replace(/\[Behavioral Score:\s*\d{1,3}(?:\s*,\s*[^\]]+)?\]\s*/gi, '').trim();
+}
+
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function computeCombinedBehaviorScore(suggestedScore: number, guidanceScore: number) {
+  return clampScore((suggestedScore + guidanceScore) / 2);
+}
+
+function deriveGuidanceInputFromFinalScore(suggestedScore: number, finalScore: number) {
+  return clampScore(finalScore * 2 - suggestedScore);
 }
 
 export default function GuidanceReviewPage() {
@@ -256,7 +270,7 @@ export default function GuidanceReviewPage() {
   const [reviewEvent, setReviewEvent] = useState<BehavioralEventRecord | null>(null);
   const [notificationDeepLinkHandled, setNotificationDeepLinkHandled] = useState(false);
   const [reviewNote, setReviewNote] = useState('');
-  const [behaviorScoreInput, setBehaviorScoreInput] = useState('');
+  const [guidanceScoreInput, setGuidanceScoreInput] = useState('');
   const [suggestedBehaviorScore, setSuggestedBehaviorScore] = useState<number | null>(null);
   const [approvedReportsOpen, setApprovedReportsOpen] = useState(false);
   const [loadingApprovedReports, setLoadingApprovedReports] = useState(false);
@@ -370,7 +384,7 @@ export default function GuidanceReviewPage() {
         supabase
           .from('behavioral_events')
           .select(
-            'id, student_lrn, event_type, severity, description, proof_image_url, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, created_at'
+            'id, student_lrn, event_type, severity, description, proof_image_url, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, guidance_score_input, guidance_behavior_score, created_at'
           )
           .eq('student_lrn', studentLrn)
           .order('created_at', { ascending: false })
@@ -421,7 +435,7 @@ export default function GuidanceReviewPage() {
       const { data, error } = await supabase
         .from('behavioral_events')
         .select(
-          'id, student_lrn, event_type, severity, description, proof_image_url, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, created_at, students(name, level)'
+          'id, student_lrn, event_type, severity, description, proof_image_url, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, guidance_score_input, guidance_behavior_score, created_at, students(name, level)'
         )
         .eq('guidance_status', 'pending_guidance')
         .order('created_at', { ascending: false })
@@ -460,7 +474,7 @@ export default function GuidanceReviewPage() {
       let query = supabase
         .from('behavioral_events')
         .select(
-          'id, student_lrn, event_type, severity, description, proof_image_url, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, parent_notified, follow_up_required, notes, created_at, students(name, level)'
+          'id, student_lrn, event_type, severity, description, proof_image_url, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, guidance_score_input, guidance_behavior_score, parent_notified, follow_up_required, notes, created_at, students(name, level)'
         )
         .eq('guidance_status', 'approved_for_ml')
         .order('event_date', { ascending: false })
@@ -681,11 +695,15 @@ export default function GuidanceReviewPage() {
   const openReviewDialog = async (event: BehavioralEventRecord) => {
     const suggestedScore = computeSuggestedBehaviorScore(event);
     const savedScore = parseBehavioralScoreFromNotes(event.guidance_intervention_notes);
+    const savedFinalScore = event.guidance_behavior_score ?? savedScore?.value ?? null;
+    const savedGuidanceInput =
+      event.guidance_score_input ??
+      (savedFinalScore !== null ? deriveGuidanceInputFromFinalScore(suggestedScore, savedFinalScore) : suggestedScore);
 
     setReviewEvent(event);
-    setReviewNote(event.guidance_intervention_notes || '');
+    setReviewNote(stripBehavioralScoreFromNotes(event.guidance_intervention_notes || ''));
     setSuggestedBehaviorScore(suggestedScore);
-    setBehaviorScoreInput(String(savedScore?.value ?? suggestedScore));
+    setGuidanceScoreInput(String(savedGuidanceInput));
     setReviewDialogOpen(true);
 
     if (selectedStudentLrn !== event.student_lrn) {
@@ -712,10 +730,14 @@ export default function GuidanceReviewPage() {
 
     const suggestedScore = computeSuggestedBehaviorScore(targetEvent);
     const savedScore = parseBehavioralScoreFromNotes(targetEvent.guidance_intervention_notes);
+    const savedFinalScore = targetEvent.guidance_behavior_score ?? savedScore?.value ?? null;
+    const savedGuidanceInput =
+      targetEvent.guidance_score_input ??
+      (savedFinalScore !== null ? deriveGuidanceInputFromFinalScore(suggestedScore, savedFinalScore) : suggestedScore);
     setReviewEvent(targetEvent);
-    setReviewNote(targetEvent.guidance_intervention_notes || '');
+    setReviewNote(stripBehavioralScoreFromNotes(targetEvent.guidance_intervention_notes || ''));
     setSuggestedBehaviorScore(suggestedScore);
-    setBehaviorScoreInput(String(savedScore?.value ?? suggestedScore));
+    setGuidanceScoreInput(String(savedGuidanceInput));
     setReviewDialogOpen(true);
 
     if (selectedStudentLrn !== targetEvent.student_lrn) {
@@ -739,15 +761,15 @@ export default function GuidanceReviewPage() {
 
     setGuidanceSubmitting(true);
     try {
-      const parsedScore = Number(behaviorScoreInput);
       const suggestedScore = suggestedBehaviorScore ?? computeSuggestedBehaviorScore(reviewEvent);
-      const finalBehaviorScore = Number.isFinite(parsedScore)
-        ? Math.max(0, Math.min(100, Math.round(parsedScore)))
+      const parsedGuidanceScore = Number(guidanceScoreInput);
+      const guidanceScore = Number.isFinite(parsedGuidanceScore)
+        ? clampScore(parsedGuidanceScore)
         : suggestedScore;
-      const scoringMode: 'confirmed' | 'overridden' = finalBehaviorScore === suggestedScore ? 'confirmed' : 'overridden';
+      const finalBehaviorScore = computeCombinedBehaviorScore(suggestedScore, guidanceScore);
 
       const cleanedNotes = stripBehavioralScoreFromNotes(reviewNote.trim());
-      const scoreLine = `[Behavioral Score: ${finalBehaviorScore}, ${scoringMode}]`;
+      const scoreLine = `[Behavioral Score: ${finalBehaviorScore}, mean of ${suggestedScore} and ${guidanceScore}]`;
       const finalGuidanceNotes = [cleanedNotes, scoreLine].filter(Boolean).join('\n').trim();
 
       const { error: updateError } = await supabase
@@ -756,6 +778,8 @@ export default function GuidanceReviewPage() {
           guidance_status: decision,
           guidance_reviewed_by: reviewerName,
           guidance_reviewed_at: new Date().toISOString(),
+          guidance_score_input: guidanceScore,
+          guidance_behavior_score: finalBehaviorScore,
           guidance_intervention_notes: finalGuidanceNotes || null,
         })
         .eq('id', reviewEvent.id);
@@ -836,7 +860,7 @@ export default function GuidanceReviewPage() {
       setReviewDialogOpen(false);
       setReviewEvent(null);
       setReviewNote('');
-      setBehaviorScoreInput('');
+      setGuidanceScoreInput('');
       setSuggestedBehaviorScore(null);
       await Promise.all([
         fetchPendingQueue(),
@@ -915,6 +939,15 @@ export default function GuidanceReviewPage() {
       lrn: reviewEvent.student_lrn,
     };
   }, [reviewEvent, students]);
+
+  const combinedBehaviorScore = useMemo(() => {
+    if (suggestedBehaviorScore === null) return null;
+    const parsedGuidanceScore = Number(guidanceScoreInput);
+    const guidanceScore = Number.isFinite(parsedGuidanceScore)
+      ? clampScore(parsedGuidanceScore)
+      : suggestedBehaviorScore;
+    return computeCombinedBehaviorScore(suggestedBehaviorScore, guidanceScore);
+  }, [guidanceScoreInput, suggestedBehaviorScore]);
 
   const summary = useMemo(() => {
     const pending = events.filter(event => event.guidance_status === 'pending_guidance').length;
@@ -1928,7 +1961,7 @@ export default function GuidanceReviewPage() {
                     Complete approved guidance logs with date and multi-student filtering.
                   </DialogDescription>
                 </div>
-                <Badge className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg shadow-emerald-500/25 text-xs font-semibold px-3 py-1 whitespace-nowrap mr-8">
+                <Badge className="bg-linear-to-r from-emerald-600 to-emerald-700 text-white shadow-lg shadow-emerald-500/25 text-xs font-semibold px-3 py-1 whitespace-nowrap mr-8">
                   {approvedLogs.length} Approved
                 </Badge>
               </div>
@@ -2043,7 +2076,7 @@ export default function GuidanceReviewPage() {
                                   at {event.event_time}
                                 </p>
                               </div>
-                              <Badge className={`capitalize font-semibold text-xs px-2.5 py-1 uppercase tracking-wider ${getSeverityBadgeClass(event.severity)}`}>
+                              <Badge className={`font-semibold text-xs px-2.5 py-1 uppercase tracking-wider ${getSeverityBadgeClass(event.severity)}`}>
                                 {event.severity}
                               </Badge>
                             </div>
@@ -2144,22 +2177,33 @@ export default function GuidanceReviewPage() {
 
                 <div className="space-y-2">
                   <p className="text-sm font-semibold text-slate-900 dark:text-white">Behavioral Score Review</p>
-                  <div className="rounded-lg border p-3 bg-slate-50 dark:bg-slate-900/30 space-y-2">
-                    <p className="text-xs text-slate-600 dark:text-slate-300">
-                      Suggested Score: <span className="font-semibold text-slate-900 dark:text-white">{suggestedBehaviorScore ?? 'N/A'}/100</span>
-                    </p>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="rounded-lg border p-3 bg-slate-50 dark:bg-slate-900/30 space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-xs text-slate-600 dark:text-slate-300">Suggested score</p>
+                      <Input
+                        type="number"
+                        value={suggestedBehaviorScore ?? ''}
+                        readOnly
+                        disabled
+                        className="sm:max-w-45 bg-slate-100/80 text-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-slate-600 dark:text-slate-300">Guidance score input</p>
                       <Input
                         type="number"
                         min={0}
                         max={100}
-                        value={behaviorScoreInput}
-                        onChange={(e) => setBehaviorScoreInput(e.target.value)}
-                        placeholder="0 to 100"
+                        value={guidanceScoreInput}
+                        onChange={(e) => setGuidanceScoreInput(e.target.value)}
+                        placeholder="Enter guidance score"
                         className="sm:max-w-45"
                       />
-                      <p className="text-xs text-slate-500">Keep the suggested value to confirm, or adjust to override.</p>
                     </div>
+                    <p className="text-xs text-slate-500">
+                      Final report score: <span className="font-semibold text-slate-900 dark:text-white">{combinedBehaviorScore ?? 'N/A'}/100</span>
+                      {' '}from the mean of the suggested score and your guidance input.
+                    </p>
                   </div>
                 </div>
 

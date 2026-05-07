@@ -36,6 +36,7 @@ import { MLDashboard } from '@/components/ml-dashboard';
 import { AnalyticsPageSkeleton } from '@/components/analytics-skeleton';
 import { DateLevelFilter } from '@/components/date-level-filter';
 import { motion, AnimatePresence } from 'framer-motion';
+import { calculateStudentRiskScore, detectAbsencePatterns, getAttendanceMetrics } from '@/lib/ml-risk-calculator';
 import type { Cell as ExcelCell } from 'exceljs';
 import { 
   AreaChart, 
@@ -103,7 +104,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'behavioral'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'behavioral' | 'ml'>('overview');
   const [stats, setStats] = useState({
     averageAttendance: 0,
     totalStudents: 0,
@@ -122,6 +123,15 @@ export default function AnalyticsPage() {
     riskDistribution: [] as any[],
     weeklyTrend: [] as any[],
     severityDistribution: [] as any[]
+  });
+  const [mlInsights, setMlInsights] = useState({
+    totalStudentsAnalyzed: 0,
+    criticalRiskStudents: 0,
+    highRiskStudents: 0,
+    atRiskStudents: 0,
+    patternsDetected: 0,
+    averageRiskScore: 0,
+    loadingMl: false
   });
 
 
@@ -456,22 +466,53 @@ export default function AnalyticsPage() {
         let studentsAtRisk = 0;
         const riskDistribution = { high: 0, medium: 0, low: 0 };
         const atRiskStudentsList = [];
-        
+
+        // Prefer canonical risk level from student_attendance_summary when available
+        const levelStudentLrns = (students || []).map((s: any) => s.lrn).filter(Boolean);
+        const summaryMap = new Map<string, string>();
+        if (levelStudentLrns.length > 0) {
+          try {
+            const { data: summaries } = await supabase
+              .from('student_attendance_summary')
+              .select('student_lrn, risk_level')
+              .in('student_lrn', levelStudentLrns);
+            (summaries || []).forEach((row: any) => summaryMap.set(row.student_lrn, row.risk_level));
+          } catch (err) {
+            // if summary fetch fails, we'll fallback to heuristic below
+            console.error('Failed to fetch student summaries for analytics:', err);
+          }
+        }
+
         for (const student of students || []) {
           const studentStats = studentEventMap.get(student.lrn) || { positive: 0, negative: 0 };
           const studentAttendance = attendance?.filter(a => a.student_lrn === student.lrn).length || 0;
           const attendanceRate = (studentAttendance / dateRange.length) * 100;
-          
+
+          // Use DB summary risk if available
+          const summaryRisk = summaryMap.get(student.lrn);
           let riskLevel = 'low';
-          if (studentStats.negative >= 3 || attendanceRate < 70) {
-            riskLevel = 'high';
-            studentsAtRisk++;
-            riskDistribution.high++;
-          } else if (studentStats.negative >= 1 || attendanceRate < 85) {
-            riskLevel = 'medium';
-            riskDistribution.medium++;
+          if (summaryRisk) {
+            riskLevel = summaryRisk;
+            if (riskLevel === 'high' || riskLevel === 'critical') {
+              studentsAtRisk++;
+              riskDistribution.high++;
+            } else if (riskLevel === 'medium') {
+              riskDistribution.medium++;
+            } else {
+              riskDistribution.low++;
+            }
           } else {
-            riskDistribution.low++;
+            // Fallback heuristic (legacy behavior)
+            if (studentStats.negative >= 3 || attendanceRate < 70) {
+              riskLevel = 'high';
+              studentsAtRisk++;
+              riskDistribution.high++;
+            } else if (studentStats.negative >= 1 || attendanceRate < 85) {
+              riskLevel = 'medium';
+              riskDistribution.medium++;
+            } else {
+              riskDistribution.low++;
+            }
           }
 
           if (riskLevel !== 'low') {
@@ -531,6 +572,75 @@ export default function AnalyticsPage() {
       };
     });
   };
+
+  const fetchMlInsights = async (students: any[]) => {
+    try {
+      setMlInsights(prev => ({ ...prev, loadingMl: true }));
+      
+      let criticalCount = 0;
+      let highCount = 0;
+      let patternsCount = 0;
+      let totalRiskScores = 0;
+      let analyzedCount = 0;
+
+      // Sample top 20 students to avoid excessive API calls
+      const sampleSize = Math.min(20, students.length);
+      const sampledStudents = students.slice(0, sampleSize);
+
+      for (const student of sampledStudents) {
+        try {
+          // Fetch risk score
+          const riskScore = await calculateStudentRiskScore(student.lrn);
+          if (riskScore) {
+            totalRiskScores += riskScore.risk_score;
+            analyzedCount++;
+            
+            if (riskScore.risk_level === 'critical') {
+              criticalCount++;
+            } else if (riskScore.risk_level === 'high') {
+              highCount++;
+            }
+          }
+
+          // Detect patterns
+          const patterns = await detectAbsencePatterns(student.lrn, 30);
+          if (patterns && patterns.length > 0) {
+            patternsCount += patterns.length;
+          }
+        } catch (err) {
+          console.error(`Error analyzing student ${student.lrn}:`, err);
+        }
+      }
+
+      const avgRiskScore = analyzedCount > 0 ? (totalRiskScores / analyzedCount) : 0;
+
+      setMlInsights({
+        totalStudentsAnalyzed: analyzedCount,
+        criticalRiskStudents: criticalCount,
+        highRiskStudents: highCount,
+        atRiskStudents: criticalCount + highCount,
+        patternsDetected: patternsCount,
+        averageRiskScore: Math.round(avgRiskScore * 10) / 10,
+        loadingMl: false
+      });
+    } catch (error) {
+      console.error('Error fetching ML insights:', error);
+      setMlInsights(prev => ({ ...prev, loadingMl: false }));
+    }
+  };
+
+  useEffect(() => {
+    if (stats.totalStudents > 0 && !mlInsights.loadingMl) {
+      const allStudents = supabase
+        ? (async () => {
+            const { data } = await supabase.from('students').select('lrn').eq('status', 'active');
+            if (data && data.length > 0) {
+              fetchMlInsights(data);
+            }
+          })()
+        : null;
+    }
+  }, [stats.totalStudents]);
 
   const generateRecommendations = (avgAttendance: number, atRisk: number, late: number, positive: number, negative: number) => {
     const recs = [];
@@ -1170,7 +1280,8 @@ export default function AnalyticsPage() {
         <div className="flex w-full gap-2 overflow-x-auto p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl sm:w-fit">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart3 },
-            { id: 'behavioral', label: 'Behavioral', icon: Activity }
+            { id: 'behavioral', label: 'Behavioral', icon: Activity },
+            { id: 'ml', label: 'Insights', icon: Brain }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1431,6 +1542,188 @@ export default function AnalyticsPage() {
             </motion.div>
           )}
 
+          {activeTab === 'ml' && (
+            <motion.div
+              key="ml"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <Brain className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">AI/ML Risk Insights</h2>
+                {mlInsights.loadingMl && <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 animate-spin" />}
+              </div>
+              <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
+                <span>Machine learning-based analysis of student risk factors</span>
+                <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-violet-700 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300">
+                  Average risk score: {mlInsights.averageRiskScore.toFixed(1)}/100
+                </span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                  Patterns detected: {mlInsights.patternsDetected}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.05 }}>
+                  <Card className="border-0 bg-linear-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 dark:bg-violet-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-violet-500/5 dark:bg-violet-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                      <div>
+                        <p className="text-[10px] sm:text-xs text-violet-600 dark:text-violet-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students Analyzed</p>
+                        <div className="text-xl sm:text-4xl font-bold text-violet-600 dark:text-violet-400">{mlInsights.totalStudentsAnalyzed}</div>
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">ML analysis complete</p>
+                      </div>
+                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-violet-500 to-violet-600 text-white items-center justify-center shadow-lg shadow-violet-500/25 dark:shadow-violet-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <Brain className="w-8 h-8" />
+                      </div>
+                    </CardContent>
+                    <div className="h-1 w-full bg-linear-to-r from-violet-400 to-violet-600 dark:from-violet-500 dark:to-violet-700" />
+                  </Card>
+                </motion.div>
+
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1 }}>
+                  <Card className="border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                      <div>
+                        <p className="text-[10px] sm:text-xs text-rose-600 dark:text-rose-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Critical Risk Students</p>
+                        <div className="text-xl sm:text-4xl font-bold text-rose-600 dark:text-rose-400">{mlInsights.criticalRiskStudents}</div>
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">immediate attention needed</p>
+                      </div>
+                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-lg shadow-rose-500/25 dark:shadow-rose-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <Shield className="w-8 h-8" />
+                      </div>
+                    </CardContent>
+                    <div className="h-1 w-full bg-linear-to-r from-rose-400 to-rose-600 dark:from-rose-500 dark:to-rose-700" />
+                  </Card>
+                </motion.div>
+
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.15 }}>
+                  <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 dark:bg-amber-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-amber-500/5 dark:bg-amber-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                      <div>
+                        <p className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">High Risk Students</p>
+                        <div className="text-xl sm:text-4xl font-bold text-amber-600 dark:text-amber-400">{mlInsights.highRiskStudents}</div>
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">requiring monitoring</p>
+                      </div>
+                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-amber-500 to-amber-600 text-white items-center justify-center shadow-lg shadow-amber-500/25 dark:shadow-amber-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <Eye className="w-8 h-8" />
+                      </div>
+                    </CardContent>
+                    <div className="h-1 w-full bg-linear-to-r from-amber-400 to-amber-600 dark:from-amber-500 dark:to-amber-700" />
+                  </Card>
+                </motion.div>
+
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.2 }}>
+                  <Card className="border-0 bg-linear-to-br from-cyan-50 to-white dark:from-cyan-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 dark:bg-cyan-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-cyan-500/5 dark:bg-cyan-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                      <div>
+                        <p className="text-[10px] sm:text-xs text-cyan-600 dark:text-cyan-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students At Risk</p>
+                        <div className="text-xl sm:text-4xl font-bold text-cyan-600 dark:text-cyan-400">{mlInsights.atRiskStudents}</div>
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">high + critical risk level</p>
+                      </div>
+                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-cyan-500 to-cyan-600 text-white items-center justify-center shadow-lg shadow-cyan-500/25 dark:shadow-cyan-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <Zap className="w-8 h-8" />
+                      </div>
+                    </CardContent>
+                    <div className="h-1 w-full bg-linear-to-r from-cyan-400 to-cyan-600 dark:from-cyan-500 dark:to-cyan-700" />
+                  </Card>
+                </motion.div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="overflow-hidden border-0 shadow-xl">
+                  <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Brain className="w-5 h-5 text-violet-500" />
+                      ML Evidence Breakdown
+                    </CardTitle>
+                    <CardDescription>Key signals the model used to produce the insights</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="h-64 sm:h-80 lg:h-96">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart
+                          data={[
+                            { metric: 'Attendance', value: stats.averageAttendance, fullMark: 100 },
+                            { metric: 'Late Arrivals', value: Math.min((stats.lateArrivals / Math.max(stats.totalStudents, 1)) * 10, 100), fullMark: 100 },
+                            { metric: 'Behavior Issues', value: Math.min((behavioralStats.negativeEvents / Math.max(behavioralStats.totalEvents, 1)) * 100, 100), fullMark: 100 },
+                            { metric: 'Positive Signals', value: Math.min((behavioralStats.positiveEvents / Math.max(behavioralStats.totalEvents, 1)) * 100, 100), fullMark: 100 },
+                            { metric: 'Risk Score', value: mlInsights.averageRiskScore, fullMark: 100 }
+                          ]}
+                          margin={{ top: 24, right: 48, bottom: 24, left: 48 }}
+                          cx="50%"
+                          cy="52%"
+                        >
+                          <PolarGrid />
+                          <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: '#64748b' }} />
+                          <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10, fill: '#64748b' }} />
+                          <Radar dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.25} />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="overflow-hidden border-0 shadow-xl">
+                  <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Zap className="w-5 h-5 text-cyan-500" />
+                      Risk Driver Signals
+                    </CardTitle>
+                    <CardDescription>Aggregated signals that push students into higher risk categories</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="h-60 sm:h-75 lg:h-96">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={[
+                            { name: 'Critical', count: mlInsights.criticalRiskStudents, color: '#f43f5e' },
+                            { name: 'High', count: mlInsights.highRiskStudents, color: '#f59e0b' },
+                            { name: 'Patterns', count: mlInsights.patternsDetected, color: '#8b5cf6' },
+                            { name: 'Late Avg', count: Math.round(stats.lateArrivals / Math.max(stats.weeklyData.length, 1)), color: '#06b6d4' }
+                          ]}
+                          margin={{ top: 20, right: 20, left: 0, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
+                          <XAxis dataKey="name" stroke="#6B7280" />
+                          <YAxis stroke="#6B7280" />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                              borderRadius: '8px',
+                              border: 'none',
+                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                            }}
+                          />
+                          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                            {[
+                              { name: 'Critical', count: mlInsights.criticalRiskStudents, color: '#f43f5e' },
+                              { name: 'High', count: mlInsights.highRiskStudents, color: '#f59e0b' },
+                              { name: 'Patterns', count: mlInsights.patternsDetected, color: '#8b5cf6' },
+                              { name: 'Late Avg', count: Math.round(stats.lateArrivals / Math.max(stats.weeklyData.length, 1)), color: '#06b6d4' }
+                            ].map((entry) => (
+                              <Cell key={entry.name} fill={entry.color} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </motion.div>
+          )}
+
           {activeTab === 'behavioral' && (
             <motion.div
               key="behavioral"
@@ -1506,9 +1799,9 @@ export default function AnalyticsPage() {
                     <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
                     <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
                       <div>
-                        <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students Needing Intervention</p>
+                        <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students At Risk</p>
                         <div className="text-xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{behavioralStats.studentsAtRisk}</div>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">high or critical risk level</p>
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">high + critical risk level</p>
                       </div>
                       <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                         <AlertTriangle className="w-8 h-8" />

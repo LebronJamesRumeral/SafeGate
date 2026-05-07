@@ -78,7 +78,7 @@ export async function GET(request: Request) {
 
     const { data: summaries } = await supabase
       .from('student_attendance_summary')
-      .select('student_lrn, next_likely_absent_date, next_absent_confidence')
+      .select('student_lrn, risk_level, next_likely_absent_date, next_absent_confidence')
       .in('student_lrn', studentList.map((s) => s.lrn));
 
     const summaryByLrn = new Map((summaries || []).map((row: any) => [row.student_lrn, row]));
@@ -128,20 +128,24 @@ export async function GET(request: Request) {
         const positiveEvents = Math.max(rpcPositiveEvents, directCounts.positive);
         const attendanceRate = Number(breakdown.attendance_rate || 0);
         const latePercentage = Number(breakdown.late_percentage || 0);
-        let level = String(risk.risk_level || 'low') as RiskLevel;
-        
-        // Apply risk downgrade logic based on positive events and attendance stability
-        level = applyRiskDowngrade(level, {
-          attendance_rate: attendanceRate,
-          negative_events: concerningEvents,
-          positive_events: positiveEvents,
-          late_percentage: latePercentage,
-        });
+        const summary = summaryByLrn.get(student.lrn);
+
+        // Prefer the ML risk score so the dashboard matches the Student page.
+        // Fall back to the stored summary only if the RPC result is unavailable.
+        let level = String(risk.risk_level || summary?.risk_level || 'low') as RiskLevel;
+
+        // Only apply downgrade logic when we do not have a computed ML score.
+        if (!risk.risk_level) {
+          level = applyRiskDowngrade(level, {
+            attendance_rate: attendanceRate,
+            negative_events: concerningEvents,
+            positive_events: positiveEvents,
+            late_percentage: latePercentage,
+          });
+        }
         
         const behaviorStatus = deriveBehaviorStatus(level, concerningEvents);
         const attendanceSignal = buildAttendanceSignal(attendanceRate, Number(risk.attendance_component || 0), latePercentage);
-        const summary = summaryByLrn.get(student.lrn);
-
         // Compile multiple issues into a single comprehensive term
         const issueCompilation = await compileStudentIssues(student.lrn);
         const patternType = issueCompilation.compiledIssue;
