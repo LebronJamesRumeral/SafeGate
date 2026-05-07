@@ -11,6 +11,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import DatePickerInput from '@/components/date-picker-input';
+import { humanizeEventType } from '@/lib/event-types';
 
 interface StudentRisk {
   lrn: string;
@@ -28,7 +29,7 @@ interface StudentRisk {
 
 interface StudentSummary {
   name?: string;
-  trend: 'improving' | 'stable' | 'declining';
+  trend: 'increasing' | 'stable' | 'declining';
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
   behaviorStatus: 'stable' | 'watch' | 'concerning' | 'critical';
   concerningEvents: number;
@@ -123,7 +124,14 @@ function formatKeyIssues(patternType?: string, visibleCount = 2) {
 
   const issues = patternType
     .split(' + ')
-    .map(issue => issue.trim())
+    .map((issue) => {
+      const normalizedIssue = issue.trim();
+      if (!normalizedIssue) return '';
+      if (normalizedIssue.toLowerCase() === 'parent_report') {
+        return 'Parent weekly check-in';
+      }
+      return normalizedIssue;
+    })
     .filter(Boolean);
 
   if (issues.length === 0) return 'No major issues identified';
@@ -131,6 +139,60 @@ function formatKeyIssues(patternType?: string, visibleCount = 2) {
 
   const hiddenCount = issues.length - visibleCount;
   return `${issues.slice(0, visibleCount).join(' + ')} +${hiddenCount} more`;
+}
+
+function formatIncidentNotes(notes?: string | null) {
+  const rawNotes = (notes || '').trim();
+  if (!rawNotes) return '';
+
+  try {
+    const parsed = JSON.parse(rawNotes);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const lines: string[] = [];
+      const activities = Array.isArray(parsed.activities)
+        ? parsed.activities.map((activity: unknown) => String(activity).trim()).filter(Boolean)
+        : [];
+
+      if (activities.length > 0) {
+        lines.push(`Activities: ${activities.join(', ')}`);
+      }
+      if (parsed.other_activity) {
+        lines.push(`Other activity: ${String(parsed.other_activity).trim()}`);
+      }
+      if (parsed.mood) {
+        lines.push(`Mood: ${String(parsed.mood).trim()}`);
+      }
+      if (parsed.health) {
+        lines.push(`Health: ${String(parsed.health).trim()}`);
+      }
+      if (parsed.challenges) {
+        lines.push(`Challenges: ${String(parsed.challenges).trim()}`);
+      }
+      if (parsed.goals) {
+        lines.push(`Goals: ${String(parsed.goals).trim()}`);
+      }
+
+      if (lines.length > 0) {
+        return lines.join('\n');
+      }
+    }
+  } catch {
+    // Fall through to string cleanup below.
+  }
+
+  return rawNotes
+    .replace(/\[GROUP_REPORT_ID:[^\]]*\]\s*/gi, '')
+    .replace(/\[GROUP_REPORT_COUNT:[^\]]*\]\s*/gi, '')
+    .replace(/Witnesses:\s*([^\n\r]+)/gi, (_match, witnessList) => {
+      const cleanedWitnesses = String(witnessList)
+        .replace(/\([^)]+\)/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      return `Witnesses: ${cleanedWitnesses}`;
+    })
+    .replace(/\b([\w.+-]+@[\w.-]+\.[A-Za-z]{2,})\b/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: string; studentName: string }) {
@@ -257,7 +319,7 @@ function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: strin
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
                   {uniqueEventTypes.map((type) => (
-                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                    <SelectItem key={type} value={type}>{humanizeEventType(type) || type}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -327,7 +389,7 @@ function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: strin
                         <div className={`${style.iconColor}`}>
                           {getSeverityIcon(incident.severity)}
                         </div>
-                        <p className={`font-bold text-sm ${style.textColor}`}>{incident.event_type}</p>
+                        <p className={`font-bold text-sm ${style.textColor}`}>{humanizeEventType(incident.event_type) || incident.event_type}</p>
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         <Calendar className="w-3 h-3 inline mr-1" />
@@ -398,8 +460,9 @@ function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: strin
                       </p>
                     )}
                     {incident.notes && (
-                      <p className="text-xs text-slate-600 dark:text-slate-400">
-                        <span className="font-semibold">Notes:</span> {incident.notes}
+                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
+                        <span className="font-semibold block">Notes:</span>
+                        <span className="block">{formatIncidentNotes(incident.notes) || 'No additional notes provided.'}</span>
                       </p>
                     )}
                   </div>
@@ -480,7 +543,7 @@ function getRiskColor(riskLevel: string): {
 
 function getTrendIcon(trend: string) {
   switch (trend) {
-    case 'improving':
+    case 'increasing':
       return <TrendingUp className="w-4 h-4" />;
     case 'declining':
       return <TrendingDown className="w-4 h-4" />;
@@ -491,12 +554,23 @@ function getTrendIcon(trend: string) {
 
 function getTrendColor(trend: string) {
   switch (trend) {
-    case 'improving':
+    case 'increasing':
       return 'text-emerald-600 dark:text-emerald-400 bg-emerald-100/80 dark:bg-emerald-900/40';
     case 'declining':
       return 'text-red-600 dark:text-red-400 bg-red-100/80 dark:bg-red-900/40';
     default:
       return 'text-gray-600 dark:text-gray-300 bg-gray-100/80 dark:bg-gray-700/40';
+  }
+}
+
+function formatTrendLabel(trend: string) {
+  switch (trend) {
+    case 'increasing':
+      return 'Increasing';
+    case 'declining':
+      return 'Declining';
+    default:
+      return 'Stable';
   }
 }
 
@@ -1191,7 +1265,7 @@ export function StudentRiskCard({ studentLrn, name, lrn }: { studentLrn: string,
           {/* Trend Badge */}
           <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${getTrendColor(summary.trend)}`}>
             {getTrendIcon(summary.trend)}
-            <span className="text-xs font-semibold capitalize">{summary.trend}</span>
+            <span className="text-xs font-semibold">{formatTrendLabel(summary.trend)}</span>
           </div>
 
           {/* Prediction Info - Compact */}

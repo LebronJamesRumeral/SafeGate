@@ -28,6 +28,33 @@ function buildAttendanceSignal(attendanceRate: number, attendanceComponent: numb
   return 'Attendance is currently a stable supporting signal.';
 }
 
+function deriveTrendLabel(trendRow: Record<string, unknown> | null | undefined): 'increasing' | 'stable' | 'declining' {
+  if (!trendRow) return 'stable';
+
+  const currentAttendance = Number(trendRow.current_attendance_rate);
+  const previousAttendance = Number(trendRow.previous_attendance_rate);
+
+  if (Number.isFinite(currentAttendance) && Number.isFinite(previousAttendance)) {
+    const delta = currentAttendance - previousAttendance;
+
+    if (delta > 0.5) {
+      return 'increasing';
+    }
+
+    if (delta < -0.5) {
+      return 'declining';
+    }
+
+    return 'stable';
+  }
+
+  const rawDirection = String(trendRow.trend_direction || '').toLowerCase();
+  if (rawDirection === 'improving' || rawDirection === 'increasing') return 'increasing';
+  if (rawDirection === 'declining' || rawDirection === 'decreasing') return 'declining';
+
+  return 'stable';
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -91,9 +118,7 @@ export async function GET(request: Request) {
     });
     const behaviorStatus = deriveBehaviorStatus(riskLevel, concerningEvents);
     const attendanceSignal = buildAttendanceSignal(attendanceRate, Number(risk.attendance_component || 0), latePercentage);
-    const trend = Array.isArray(trendRows) && trendRows.length > 0
-      ? String(trendRows[0].trend_direction || 'stable')
-      : 'stable';
+    const trend = deriveTrendLabel(Array.isArray(trendRows) && trendRows.length > 0 ? trendRows[0] : null);
 
     // Compile multiple issues into a single comprehensive term
     const issueCompilation = await compileStudentIssues(studentLrn);
