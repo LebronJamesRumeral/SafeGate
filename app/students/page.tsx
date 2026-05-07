@@ -1241,10 +1241,34 @@ export default function StudentsPage() {
       throw error;
     }
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const forcedEndDate = typeof window !== 'undefined' ? localStorage.getItem(schoolYearClosureKey) : null;
     if (data) {
-      setCurrentSchoolYearLabel(data.label);
-      setCurrentSchoolYear(data);
+      const schoolYearEnd = new Date(data.end_date);
+      schoolYearEnd.setHours(0, 0, 0, 0);
+
+      if (today > schoolYearEnd) {
+        await supabase
+          .from('school_years')
+          .update({ is_current: false })
+          .eq('label', data.label);
+
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(schoolYearClosureKey, data.end_date);
+        }
+
+        const closedSchoolYear = {
+          ...data,
+          label: 'School Year Closed',
+        };
+
+        setCurrentSchoolYearLabel(closedSchoolYear.label);
+        setCurrentSchoolYear(closedSchoolYear);
+      } else {
+        setCurrentSchoolYearLabel(data.label);
+        setCurrentSchoolYear(data);
+      }
     } else if (forcedEndDate) {
       setCurrentSchoolYearLabel('School Year Closed');
       setCurrentSchoolYear({
@@ -1463,32 +1487,11 @@ export default function StudentsPage() {
     }
 
     if (!schoolYearToEnd) {
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() - 1);
-      const endDateValue = endDate.toISOString().split('T')[0];
-      localStorage.setItem(schoolYearClosureKey, endDateValue);
-      const syntheticSchoolYear = {
-        label: 'School Year Closed',
-        start_date: endDateValue,
-        end_date: endDateValue,
-      };
-
-      setCurrentSchoolYearLabel('School Year Closed');
-      setCurrentSchoolYear(syntheticSchoolYear);
-
-      await fetchTodaysAttendance({
-        currentSchoolYear: syntheticSchoolYear,
-        summerEnrollmentsOverride: summerEnrollments,
-      });
-
       toast({
-        title: 'School Year Ended',
-        description: includeSummerStudentsOnEnd
-          ? 'Active students were stopped and summer enrollments were also closed.'
-          : 'Active students were stopped. Summer class students remain available.',
+        title: 'Missing School Year',
+        description: 'No school year record was found to end in the database.',
+        variant: 'destructive',
       });
-      setEndSchoolYearOpen(false);
-      setEndingSchoolYear(false);
       return;
     }
 
@@ -1500,7 +1503,7 @@ export default function StudentsPage() {
 
       const { error: schoolYearError } = await supabase
         .from('school_years')
-        .update({ end_date: endDateValue })
+        .update({ end_date: endDateValue, is_current: false })
         .eq('label', schoolYearToEnd.label);
 
       if (schoolYearError) {

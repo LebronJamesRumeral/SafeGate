@@ -409,7 +409,7 @@ export default function ScanPage() {
     if (!schoolYearEndDate) {
       const { data: schoolYear, error: schoolYearError } = await supabase
         .from('school_years')
-        .select('end_date')
+        .select('label, end_date')
         .eq('is_current', true)
         .maybeSingle();
 
@@ -417,7 +417,27 @@ export default function ScanPage() {
         throw schoolYearError;
       }
 
-      schoolYearEndDate = schoolYear?.end_date || null;
+      if (schoolYear?.end_date) {
+        const schoolYearEnd = new Date(schoolYear.end_date);
+        schoolYearEnd.setHours(0, 0, 0, 0);
+
+        if (today > schoolYearEnd) {
+          await supabase
+            .from('school_years')
+            .update({ is_current: false })
+            .eq('label', schoolYear.label);
+
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem('schoolYearEndedAt', schoolYear.end_date);
+          }
+
+          schoolYearEndDate = schoolYear.end_date;
+        } else {
+          schoolYearEndDate = schoolYear.end_date;
+        }
+      }
+
+      schoolYearEndDate = schoolYearEndDate || null;
     }
 
     if (!schoolYearEndDate) {
