@@ -1295,8 +1295,47 @@ export default function StudentsPage() {
         end_date: forcedEndDate,
       });
     } else {
-      setCurrentSchoolYearLabel('');
-      setCurrentSchoolYear(null);
+      // No current school year found. Try to infer state from the most recent school_year row
+      try {
+        const { data: latestYear, error: latestError } = await supabase
+          .from('school_years')
+          .select('*')
+          .order('end_date', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latestError) {
+          console.error('Error fetching latest school year for inference:', latestError);
+          setCurrentSchoolYearLabel('');
+          setCurrentSchoolYear(null);
+        } else if (latestYear) {
+          // If the latest school year has already ended (or ends today), treat the UI as closed.
+          try {
+            const latestEnd = new Date(latestYear.end_date);
+            latestEnd.setHours(0, 0, 0, 0);
+            if (today >= latestEnd) {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(schoolYearClosureKey, latestYear.end_date);
+              }
+              setCurrentSchoolYearLabel('School Year Closed');
+              setCurrentSchoolYear({ ...latestYear, label: 'School Year Closed' });
+            } else {
+              // There's a recent school year but it's not ended yet. Show it as current in UI.
+              setCurrentSchoolYearLabel(latestYear.label || '');
+              setCurrentSchoolYear(latestYear);
+            }
+          } catch (err) {
+            setCurrentSchoolYearLabel(latestYear.label || '');
+            setCurrentSchoolYear(latestYear);
+          }
+        } else {
+          setCurrentSchoolYearLabel('');
+          setCurrentSchoolYear(null);
+        }
+      } catch (err) {
+        setCurrentSchoolYearLabel('');
+        setCurrentSchoolYear(null);
+      }
     }
 
     try {
