@@ -709,9 +709,9 @@ function SchoolHeatmapContent() {
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
                 <div className="flex-1">
-                  <p className="text-xs text-blue-600 dark:text-blue-400 font-bold mb-2 uppercase tracking-wider leading-tight">Behavioral Logs</p>
-                  <div className="text-3xl sm:text-4xl font-black text-blue-700 dark:text-blue-300 tracking-tight">{logs.length}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-snug">Total reports</p>
+                  <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Behavioral Logs</p>
+                  <div className="text-xl sm:text-4xl font-bold text-blue-700 dark:text-blue-300">{logs.length}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Total reports</p>
                 </div>
                 <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/30 dark:shadow-blue-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
                   <Archive className="w-8 h-8" />
@@ -725,9 +725,9 @@ function SchoolHeatmapContent() {
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
                 <div className="flex-1">
-                  <p className="text-xs text-red-600 dark:text-red-400 font-bold mb-2 uppercase tracking-wider leading-tight">Critical Incidents</p>
-                  <div className="text-3xl sm:text-4xl font-black text-red-700 dark:text-red-300 tracking-tight">{totalCritical}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-snug">High-severity events</p>
+                  <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Critical Incidents</p>
+                  <div className="text-xl sm:text-4xl font-bold text-red-700 dark:text-red-300">{totalCritical}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">High-severity events</p>
                 </div>
                 <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/30 dark:shadow-red-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
                   <Flame className="w-8 h-8" />
@@ -741,9 +741,9 @@ function SchoolHeatmapContent() {
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
                 <div className="flex-1">
-                  <p className="text-xs text-orange-600 dark:text-orange-400 font-bold mb-2 uppercase tracking-wider leading-tight">Mapped Areas</p>
-                  <div className="text-3xl sm:text-4xl font-black text-orange-700 dark:text-orange-300 tracking-tight">{zones.length}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-snug">Configured zones</p>
+                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Mapped Areas</p>
+                  <div className="text-xl sm:text-4xl font-bold text-orange-700 dark:text-orange-300">{zones.length}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Configured zones</p>
                 </div>
                 <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/30 dark:shadow-orange-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
                   <MapPinned className="w-8 h-8" />
@@ -757,9 +757,9 @@ function SchoolHeatmapContent() {
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
               <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
                 <div className="flex-1">
-                  <p className="text-xs text-rose-600 dark:text-rose-400 font-bold mb-2 uppercase tracking-wider leading-tight">ML High-Risk Students</p>
-                  <div className="text-3xl sm:text-4xl font-black text-rose-700 dark:text-rose-300 tracking-tight">{highRiskStudents.length}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-snug">Risk signals linked</p>
+                  <p className="text-[10px] sm:text-xs text-rose-600 dark:text-rose-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">ML High-Risk Students</p>
+                  <div className="text-xl sm:text-4xl font-bold text-rose-700 dark:text-rose-300">{highRiskStudents.length}</div>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Risk signals linked</p>
                 </div>
                 <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-lg shadow-rose-500/30 dark:shadow-rose-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
                   <ShieldAlert className="w-8 h-8" />

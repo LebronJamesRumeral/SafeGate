@@ -1214,106 +1214,98 @@ export default function GuidanceReviewPage() {
         transition={{ duration: 0.5 }}
         className="space-y-5 max-w-7xl mx-auto"
       >
-        <Card className="border border-border/70 bg-white/80 dark:bg-slate-900/55 backdrop-blur shadow-sm">
-          <CardContent className="p-5 sm:p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="space-y-2">
-                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Guidance Review Center</h1>
-                <p className="text-sm text-slate-600 dark:text-slate-400 max-w-2xl">
-                  Review pending behavior logs, check student context, and complete a clear approve or deny decision.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                <Badge className="bg-blue-100 text-blue-700 border-0">Guidance Workflow</Badge>
-                <Badge variant="outline" className="text-xs">Queue: {queueSummary.totalPending}</Badge>
-                <Badge variant="outline" className="text-xs">Auto-updates every 15s</Badge>
-              </div>
+        <div className="space-y-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-2">
+              <h1 className="text-3xl sm:text-4xl font-bold bg-linear-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
+                Guidance Review Center
+              </h1>
+              <p className="text-base text-slate-600 dark:text-slate-400 max-w-2xl">
+                Review pending behavior logs, check student context, and complete a clear approve or deny decision.
+              </p>
             </div>
-
-            {/* Animated Metric Cards */}
-            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
-              {/* Pending queue */}
-              <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1 }}>
-                <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300 min-h-30">
-                  <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 dark:bg-amber-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
-                  <div className="absolute bottom-0 left-0 w-10 h-10 bg-amber-500/5 dark:bg-amber-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
-                  <CardContent className="p-2 flex items-center justify-between relative z-10">
-                    <div>
-                      <p className="text-[9px] text-amber-700 dark:text-amber-400 font-semibold mb-0.5 tracking-wider leading-tight">Pending queue</p>
-                      <div className="text-lg font-bold text-amber-700 dark:text-amber-400">
-                        {isTopSummaryLoading ? <Skeleton className="h-6 w-10" /> : queueSummary.totalPending}
-                      </div>
-                      <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Awaiting review</p>
-                    </div>
-                  </CardContent>
-                  <div className="h-0.5 w-full bg-linear-to-r from-amber-400 to-amber-600 dark:from-amber-500 dark:to-amber-700" />
-                </Card>
-              </motion.div>
-
-              {/* High severity pending */}
-              <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.2 }}>
-                <Card className="border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300 min-h-30">
-                  <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
-                  <div className="absolute bottom-0 left-0 w-10 h-10 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
-                  <CardContent className="p-2 flex items-center justify-between relative z-10">
-                    <div>
-                      <p className="text-[9px] text-rose-700 dark:text-rose-400 font-semibold mb-0.5 tracking-wider leading-tight">High severity pending</p>
-                      <div className="text-lg font-bold text-rose-700 dark:text-rose-400">
-                        {isTopSummaryLoading ? <Skeleton className="h-6 w-10" /> : queueSummary.highSeverityCount}
-                      </div>
-                      <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Major/critical logs</p>
-                    </div>
-                  </CardContent>
-                  <div className="h-0.5 w-full bg-linear-to-r from-rose-400 to-rose-600 dark:from-rose-500 dark:to-rose-700" />
-                </Card>
-              </motion.div>
-
-              {/* Students loaded */}
-              <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.3 }}>
-                <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300 min-h-30">
-                  <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
-                  <div className="absolute bottom-0 left-0 w-10 h-10 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
-                  <CardContent className="p-2 flex items-center justify-between relative z-10">
-                    <div>
-                      <p className="text-[9px] text-blue-700 dark:text-blue-400 font-semibold mb-0.5 tracking-wider leading-tight">Students loaded</p>
-                      <div className="text-lg font-bold text-blue-700 dark:text-blue-400">
-                        {isTopSummaryLoading ? <Skeleton className="h-6 w-10" /> : queueSummary.studentCount}
-                      </div>
-                      <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Active in system</p>
-                    </div>
-                  </CardContent>
-                  <div className="h-0.5 w-full bg-linear-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
-                </Card>
-              </motion.div>
-
-              {/* Selected student events */}
-              <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.4 }}>
-                <Card className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300 min-h-30">
-                  <div className="absolute top-0 right-0 w-16 h-16 bg-slate-500/10 dark:bg-slate-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
-                  <div className="absolute bottom-0 left-0 w-10 h-10 bg-slate-500/5 dark:bg-slate-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
-                  <CardContent className="p-2 flex items-center justify-between relative z-10">
-                    <div>
-                      <p className="text-[9px] text-slate-700 dark:text-slate-300 font-semibold mb-0.5 tracking-wider leading-tight">Selected student events</p>
-                      <div className="text-lg font-bold text-slate-900 dark:text-white">
-                        {isTopSummaryLoading || isSelectedSummaryLoading ? <Skeleton className="h-6 w-10" /> : summary.totalEvents}
-                      </div>
-                      <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">For current student</p>
-                    </div>
-                  </CardContent>
-                  <div className="h-0.5 w-full bg-linear-to-r from-slate-400 to-slate-600 dark:from-slate-500 dark:to-slate-700" />
-                </Card>
-              </motion.div>
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              <Badge className="bg-blue-100 text-blue-700 border-0">Guidance Workflow</Badge>
+              <Badge variant="outline" className="text-xs">Queue: {queueSummary.totalPending}</Badge>
+              <Badge variant="outline" className="text-xs">Auto-updates every 15s</Badge>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card className="border border-border/70 bg-white/80 dark:bg-slate-900/55 backdrop-blur shadow-sm">
-          <CardHeader className="pb-3">
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1 }}>
+              <Card className="shadow-xl border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 dark:bg-amber-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-amber-500/5 dark:bg-amber-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+                  <div className="flex-1">
+                    <p className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Pending Queue</p>
+                    <div className="text-xl sm:text-4xl font-bold text-amber-700 dark:text-amber-300"> 
+                      {isTopSummaryLoading ? <Skeleton className="h-8 w-12" /> : queueSummary.totalPending}
+                    </div>
+                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Awaiting review</p>
+                  </div>
+                  <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-amber-500 to-amber-600 text-white items-center justify-center shadow-lg shadow-amber-500/30 dark:shadow-amber-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
+                    <AlertTriangle className="w-8 h-8" />
+                  </div>
+                </CardContent>
+                <div className="h-1.5 w-full bg-linear-to-r from-amber-400 via-amber-500 to-amber-600 dark:from-amber-500 dark:via-amber-600 dark:to-amber-700" />
+              </Card>
+            </motion.div>
+
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.2 }}>
+              <Card className="shadow-xl border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+                  <div className="flex-1">
+                    <p className="text-[10px] sm:text-xs text-rose-600 dark:text-rose-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">High Severity</p>
+                    <div className="text-xl sm:text-4xl font-bold text-rose-700 dark:text-rose-300">{isTopSummaryLoading ? <Skeleton className="h-8 w-12" /> : queueSummary.highSeverityCount}</div>
+                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Major / critical logs</p>
+                  </div>
+                  <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-lg shadow-rose-500/30 dark:shadow-rose-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
+                    <XCircle className="w-8 h-8" />
+                  </div>
+                </CardContent>
+                <div className="h-1.5 w-full bg-linear-to-r from-rose-400 via-rose-500 to-rose-600 dark:from-rose-500 dark:via-rose-600 dark:to-rose-700" />
+              </Card>
+            </motion.div>
+
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.3 }}>
+              <Card className="shadow-xl border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+                  <div className="flex-1">
+                    <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students Loaded</p>
+                    <div className="text-xl sm:text-4xl font-bold text-blue-700 dark:text-blue-300">{isTopSummaryLoading ? <Skeleton className="h-8 w-12" /> : queueSummary.studentCount}</div>
+                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Active in system</p>
+                  </div>
+                  <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/30 dark:shadow-blue-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
+                    <Users className="w-8 h-8" />
+                  </div>
+                </CardContent>
+                <div className="h-1.5 w-full bg-linear-to-r from-blue-400 via-blue-500 to-blue-600 dark:from-blue-500 dark:via-blue-600 dark:to-blue-700" />
+              </Card>
+            </motion.div>
+
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.4 }}>
+              {/* Selected Student card removed per request */}
+            </motion.div>
+          </div>
+        </div>
+
+        <section className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
+          <div className="border-b border-slate-200/50 dark:border-slate-700/40 bg-linear-to-r from-slate-50/60 via-slate-50/30 to-transparent dark:from-slate-950/30 dark:via-slate-950/15 dark:to-transparent pb-5 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Users className="w-5 h-5 text-blue-600" />
-                Students
-              </CardTitle>
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-blue-500/30">
+                  <Users className="w-5 h-5 text-blue-500/60" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">Students</h2>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Select a student to open records. You can type in the dropdown to jump to a name or filter by level.</p>
+                </div>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -1324,125 +1316,64 @@ export default function GuidanceReviewPage() {
                 Report
               </Button>
             </div>
-            <CardDescription>Select a student to open records. You can type in the dropdown to jump to a name or filter by level.</CardDescription>
-            <div className="pt-1 max-w-xl flex gap-2">
+          </div>
+          <div className="p-5">
+            <div className="max-w-4xl space-y-4">
               {isClientMounted ? (
-                <>
-                  <div className="flex flex-row gap-2 w-full">
-                    {/* All Levels filter */}
-                    <div className="flex flex-col gap-2 w-full max-w-xs">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
-                        Student Level
-                      </label>
-                      <Select value={studentLevelFilter || "all"} onValueChange={val => setStudentLevelFilter(val === "all" ? "" : val)}>
-                        <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
-                          <SelectValue placeholder="All Levels" />
-                        </SelectTrigger>
-                        <SelectContent className="dark:bg-slate-800 dark:border-border/40">
-                          <SelectItem value="all">All Levels</SelectItem>
-                          {Array.from(new Set(students.map(s => s.level))).sort().map((level) => (
-                            <SelectItem key={level} value={level}>
-                              {level}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {/* Severity filter */}
-                    <div className="flex flex-col gap-2 w-full max-w-xs">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
-                        Severity
-                      </label>
-                      <Select value={severityFilter || "all"} onValueChange={val => setSeverityFilter(val === "all" ? "" : val)}>
-                        <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
-                          <SelectValue placeholder="All Severities" />
-                        </SelectTrigger>
-                        <SelectContent className="dark:bg-slate-800 dark:border-border/40 min-w-55">
-                          <SelectItem value="all">
-                            <span className="flex items-center gap-2">
-                              <CheckCircle className="w-4 h-4 text-slate-400" />
-                              All Severities
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="positive">
-                            <span className="flex items-center gap-2">
-                              <CheckCircle className="w-4 h-4 text-emerald-600" />
-                              Positive
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="neutral">
-                            <span className="flex items-center gap-2">
-                              <Minus className="w-4 h-4 text-gray-500" />
-                              Neutral
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="minor">
-                            <span className="flex items-center gap-2">
-                              <Info className="w-4 h-4 text-yellow-500" />
-                              Minor
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="major">
-                            <span className="flex items-center gap-2">
-                              <AlertTriangle className="w-4 h-4 text-orange-500" />
-                              Major
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="critical">
-                            <span className="flex items-center gap-2">
-                              <XCircle className="w-4 h-4 text-red-600" />
-                              Critical
-                            </span>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
+                      Student Level
+                    </label>
+                    <Select value={studentLevelFilter || "all"} onValueChange={val => setStudentLevelFilter(val === "all" ? "" : val)}>
+                      <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
+                        <SelectValue placeholder="All Levels" />
+                      </SelectTrigger>
+                      <SelectContent className="dark:bg-slate-800 dark:border-border/40">
+                        <SelectItem value="all">All Levels</SelectItem>
+                        {Array.from(new Set(students.map(s => s.level))).sort().map((level) => (
+                          <SelectItem key={level} value={level}>{level}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  {/* Student Search & Picker */}
-                  <div className="flex flex-col gap-2 w-full">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
+                      Severity
+                    </label>
+                    <Select value={severityFilter || "all"} onValueChange={val => setSeverityFilter(val === "all" ? "" : val)}>
+                      <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
+                        <SelectValue placeholder="All Severities" />
+                      </SelectTrigger>
+                      <SelectContent className="dark:bg-slate-800 dark:border-border/40 min-w-55">
+                        <SelectItem value="all"><span className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-slate-400" />All Severities</span></SelectItem>
+                        <SelectItem value="positive"><span className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-emerald-600" />Positive</span></SelectItem>
+                        <SelectItem value="neutral"><span className="flex items-center gap-2"><Minus className="w-4 h-4 text-gray-500" />Neutral</span></SelectItem>
+                        <SelectItem value="minor"><span className="flex items-center gap-2"><Info className="w-4 h-4 text-yellow-500" />Minor</span></SelectItem>
+                        <SelectItem value="major"><span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-orange-500" />Major</span></SelectItem>
+                        <SelectItem value="critical"><span className="flex items-center gap-2"><XCircle className="w-4 h-4 text-red-600" />Critical</span></SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
                       Search Student
                     </label>
                     <Popover open={studentPickerOpen} onOpenChange={setStudentPickerOpen}>
                       <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={studentPickerOpen}
-                          className="w-full justify-between h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200"
-                        >
-                          {selectedStudentLrn
-                            ? students.find((s) => s.lrn === selectedStudentLrn)?.name || 'Select student'
-                            : 'Select student'}
+                        <Button variant="outline" role="combobox" aria-expanded={studentPickerOpen} className="w-full justify-between h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200">
+                          {selectedStudentLrn ? students.find((s) => s.lrn === selectedStudentLrn)?.name || 'Select student' : 'Select student'}
                           <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-87.5 p-0 dark:bg-slate-800 dark:border-border/40">
                         <Command>
-                          <CommandInput
-                            placeholder="Search by name or LRN..."
-                            value={studentSearchQuery}
-                            onValueChange={setStudentSearchQuery}
-                            className="h-9"
-                            autoFocus
-                          />
+                          <CommandInput placeholder="Search by name or LRN..." value={studentSearchQuery} onValueChange={setStudentSearchQuery} className="h-9" autoFocus />
                           <CommandList>
                             <CommandEmpty>No students found.</CommandEmpty>
                             <CommandGroup>
                               {filteredStudentOptions.map((student) => (
-                                <CommandItem
-                                  key={student.lrn}
-                                  value={student.name}
-                                  onSelect={() => {
-                                    handleStudentSelect(student.lrn);
-                                    setStudentPickerOpen(false);
-                                  }}
-                                  className={
-                                    student.lrn === selectedStudentLrn
-                                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
-                                      : ''
-                                  }
-                                >
+                                <CommandItem key={student.lrn} value={student.name} onSelect={() => { handleStudentSelect(student.lrn); setStudentPickerOpen(false); }} className={student.lrn === selectedStudentLrn ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200' : ''}>
                                   <div className="flex flex-col">
                                     <span className="font-medium">{student.name}</span>
                                     <span className="text-xs text-slate-500">{student.lrn} • {student.level}</span>
@@ -1455,51 +1386,46 @@ export default function GuidanceReviewPage() {
                       </PopoverContent>
                     </Popover>
                   </div>
-                </>
+                </div>
               ) : (
-                <div className="flex flex-row gap-2 w-full">
-                  <div className="w-full max-w-xs space-y-2">
-                    <Skeleton className="h-3 w-24" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                  <div className="w-full max-w-xs space-y-2">
-                    <Skeleton className="h-3 w-20" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                  <div className="w-full space-y-2">
-                    <Skeleton className="h-3 w-28" />
-                    <Skeleton className="h-10 w-full" />
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2"><Skeleton className="h-3 w-24" /><Skeleton className="h-10 w-full" /></div>
+                  <div className="space-y-2"><Skeleton className="h-3 w-20" /><Skeleton className="h-10 w-full" /></div>
+                  <div className="space-y-2"><Skeleton className="h-3 w-28" /><Skeleton className="h-10 w-full" /></div>
+                </div>
+              )}
+
+              {loadingStudents && (
+                <div className="space-y-3 py-2">
+                  <Skeleton className="h-10 w-full max-w-xl" />
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2 bg-white/70 dark:bg-slate-900/30">
+                    <Skeleton className="h-5 w-64" />
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-4 w-48" />
                   </div>
                 </div>
               )}
             </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {loadingStudents && (
-              <div className="space-y-3 py-2">
-                <Skeleton className="h-10 w-full max-w-xl" />
-                <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2 bg-white/70 dark:bg-slate-900/30">
-                  <Skeleton className="h-5 w-64" />
-                  <Skeleton className="h-4 w-40" />
-                  <Skeleton className="h-4 w-48" />
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
           <div className="xl:col-span-5 space-y-4">
-            <Card className="border border-border/70 bg-white/80 dark:bg-slate-900/55 backdrop-blur shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <AlertTriangle className="w-5 h-5 text-amber-600" />
-                  Work Queue
-                  <Badge variant="outline" className="ml-1">{pendingQueue.length}</Badge>
-                </CardTitle>
-                <CardDescription>Open a log to review and finalize a guidance decision.</CardDescription>
-              </CardHeader>
-              <CardContent>
+            <section className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
+              <div className="border-b border-amber-200/50 dark:border-amber-700/40 bg-linear-to-r from-amber-50/60 via-amber-50/30 to-transparent dark:from-amber-950/30 dark:via-amber-950/15 dark:to-transparent pb-5 p-5">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-amber-500/30">
+                    <AlertTriangle className="w-5 h-5 text-amber-500/60" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      Work Queue <Badge variant="outline">{pendingQueue.length}</Badge>
+                    </h2>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Open a log to review and finalize a guidance decision.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-5">
                 {loadingPending ? (
                   <div className="space-y-2 max-h-112 overflow-auto pr-1">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -1557,33 +1483,37 @@ export default function GuidanceReviewPage() {
                     })}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </section>
 
           </div>
 
           <div className="xl:col-span-7 space-y-4">
             {!selectedStudentLrn ? (
-              <Card className="border border-border/70 bg-white/80 dark:bg-slate-900/55 backdrop-blur shadow-sm">
-                <CardContent className="py-16 text-center">
+              <section className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
+                <div className="p-16 text-center">
                   <UserCircle2 className="w-10 h-10 text-slate-400 mx-auto mb-3" />
                   <p className="text-base font-semibold text-slate-800 dark:text-slate-200">No student selected yet</p>
                   <p className="text-sm text-slate-500 mt-1">Select a student above to view records.</p>
-                </CardContent>
-              </Card>
+                </div>
+              </section>
             ) : (
               <>
-                <Card className="border border-border/70 bg-white/80 dark:bg-slate-900/55 backdrop-blur shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <UserCircle2 className="w-5 h-5 text-blue-600" />
-                      <>{displayStudent ? `${displayStudent.name} (${displayStudent.level})` : 'Select a student'}</>
-                    </CardTitle>
-                    <CardDescription>
-                      <>{displayStudent?.lrn || 'Choose a student from the list to begin review.'}</>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
+                <section className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
+                  <div className="border-b border-slate-200/50 dark:border-slate-700/40 bg-linear-to-r from-slate-50/60 via-slate-50/30 to-transparent dark:from-slate-950/30 dark:via-slate-950/15 dark:to-transparent p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 rounded-xl bg-blue-500/30">
+                        <UserCircle2 className="w-5 h-5 text-blue-500/60" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                          {displayStudent ? `${displayStudent.name} (${displayStudent.level})` : 'Select a student'}
+                        </h2>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">{displayStudent?.lrn || 'Choose a student from the list to begin review.'}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-5">
                     {isStudentCardsLoading ? (
                       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                         {Array.from({ length: 5 }).map((_, i) => (
@@ -1617,11 +1547,11 @@ export default function GuidanceReviewPage() {
                         </div>
                       </div>
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </section>
 
-                <Card className="border border-border/70 bg-white/80 dark:bg-slate-900/55 backdrop-blur shadow-sm">
-                  <CardContent className="pt-6">
+                <section className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
+                  <div className="p-5">
                     <Tabs defaultValue="events" className="space-y-4">
                       <TabsList className="grid grid-cols-4 w-full max-w-3xl">
                         <TabsTrigger value="events" className="gap-2">
@@ -1941,8 +1871,8 @@ export default function GuidanceReviewPage() {
                         )}
                       </TabsContent>
                     </Tabs>
-                  </CardContent>
-                </Card>
+                  </div>
+                </section>
               </>
             )}
           </div>
