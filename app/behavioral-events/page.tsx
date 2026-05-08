@@ -388,9 +388,11 @@ export default function BehavioralEventsPage() {
   }, []);
   return (
     <HeatmapZonesProvider initialZones={zones}>
-      <Suspense fallback={<BehavioralEventsSkeleton />}>
-        <BehavioralEventsPageContent />
-      </Suspense>
+      <DashboardLayout>
+        <Suspense fallback={<BehavioralEventsSkeleton />}>
+          <BehavioralEventsPageContent />
+        </Suspense>
+      </DashboardLayout>
     </HeatmapZonesProvider>
   );
 }
@@ -2082,13 +2084,12 @@ function BehavioralEventsPageContent() {
   }
 
   return (
-    <DashboardLayout>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="space-y-6"
-      >
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="space-y-6"
+    >
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -3676,7 +3677,6 @@ function BehavioralEventsPageContent() {
         <div className="mt-8">
           <MLDashboard />
         </div>
-      </motion.div>
-    </DashboardLayout>
+    </motion.div>
   );
 }

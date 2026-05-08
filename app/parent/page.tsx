@@ -79,7 +79,11 @@ export default function ParentDashboard() {
 
   if (!mounted || authLoading || !user || loading) {
     // Only show skeleton after hydration
-    return mounted ? <ParentDashboardSkeleton /> : null;
+    return mounted ? (
+      <DashboardLayout>
+        <ParentDashboardSkeleton />
+      </DashboardLayout>
+    ) : null;
   }
 
   // Filter children by search

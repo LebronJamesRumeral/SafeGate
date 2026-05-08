@@ -447,7 +447,11 @@ export default function ParentBehaviorPage() {
 
 
   if (!mounted || authLoading || !user || loading) {
-    return mounted ? <ParentBehaviorSkeleton /> : null;
+    return mounted ? (
+      <DashboardLayout>
+        <ParentBehaviorSkeleton />
+      </DashboardLayout>
+    ) : null;
   }
 
   const filteredChildren = children.filter((child) => {

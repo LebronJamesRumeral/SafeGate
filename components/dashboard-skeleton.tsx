@@ -1,77 +1,195 @@
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Brain, CheckCircle, Users } from 'lucide-react';
+import { CheckCircle, AlertTriangle, XCircle, TrendingUp, Activity } from 'lucide-react';
 
 export function DashboardSkeleton() {
   return (
-      <div className="space-y-5 sm:space-y-6 animate-fade-in-up">
-        {/* Page Header Skeleton */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <Skeleton className="h-8 sm:h-10 w-44 sm:w-64 mb-2" />
-            <Skeleton className="h-4 w-56 sm:w-80" />
-          </div>
+    <div className="space-y-6 animate-fade-in-up">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <Skeleton className="h-10 w-80 mb-2" />
+          <Skeleton className="h-4 w-full max-w-2xl" />
         </div>
 
-        {/* Summary Cards Skeleton */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-4">
-          {/* Children Linked */}
-          <div className="border-0 bg-sky-50 dark:bg-sky-950/30 shadow-xl rounded-2xl p-3 sm:p-6 flex items-center justify-between relative min-h-24 sm:min-h-33">
-            <div>
-              <Skeleton className="h-3 sm:h-4 w-16 sm:w-24 mb-2" />
-              <Skeleton className="h-7 sm:h-10 w-10 sm:w-16 mb-2" />
-              <Skeleton className="h-2.5 sm:h-3 w-14 sm:w-32" />
-            </div>
-            <div className="flex w-9 h-9 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-sky-500/10 items-center justify-center">
-              <Users className="w-4 h-4 sm:w-8 sm:h-8 text-sky-400" />
-            </div>
+        {/* Weather Widget Placeholder */}
+        <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-sm w-fit">
+          <div className="p-2 rounded-lg bg-sky-100 dark:bg-sky-900/40">
+            <Skeleton className="h-5 w-5 rounded" />
           </div>
-          {/* Attendance Card */}
-          <div className="border-0 bg-emerald-50 dark:bg-emerald-950/30 shadow-xl rounded-2xl p-3 sm:p-6 flex items-center justify-between relative min-h-24 sm:min-h-33">
-            <div>
-              <Skeleton className="h-3 sm:h-4 w-16 sm:w-24 mb-2" />
-              <Skeleton className="h-7 sm:h-10 w-10 sm:w-16 mb-2" />
-              <Skeleton className="h-2.5 sm:h-3 w-14 sm:w-32" />
-            </div>
-            <div className="flex w-9 h-9 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-emerald-500/10 items-center justify-center">
-              <CheckCircle className="w-4 h-4 sm:w-8 sm:h-8 text-emerald-400" />
-            </div>
-          </div>
-          {/* Behavior Card */}
-          <div className="border-0 bg-orange-50 dark:bg-orange-950/30 shadow-xl rounded-2xl p-3 sm:p-6 flex items-center justify-between relative min-h-24 sm:min-h-33">
-            <div>
-              <Skeleton className="h-3 sm:h-4 w-16 sm:w-24 mb-2" />
-              <Skeleton className="h-7 sm:h-10 w-10 sm:w-16 mb-2" />
-              <Skeleton className="h-2.5 sm:h-3 w-14 sm:w-32" />
-            </div>
-            <div className="flex w-9 h-9 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-orange-500/10 items-center justify-center">
-              <AlertCircle className="w-4 h-4 sm:w-8 sm:h-8 text-orange-400" />
-            </div>
-          </div>
-        </div>
-
-        {/* ML Risk Insights Skeleton */}
-        <div className="mt-6 sm:mt-8 space-y-5 sm:space-y-6">
-          <div className="flex items-start gap-3 sm:gap-4">
-            <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-blue-900 shadow-lg">
-              <Brain className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-            </div>
-            <div className="flex-1">
-              <Skeleton className="h-6 sm:h-8 w-44 sm:w-80 mb-2" />
-              <Skeleton className="h-4 w-full sm:w-96" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="rounded-2xl border bg-white/70 dark:bg-slate-800/70 p-4 sm:p-6 space-y-3 sm:space-y-4 shadow-md">
-                <Skeleton className="h-5 sm:h-6 w-36 sm:w-40 mb-1 sm:mb-2" />
-                <Skeleton className="h-4 w-28 sm:w-32 mb-1 sm:mb-2" />
-                <Skeleton className="h-3 w-20 sm:w-24 mb-1 sm:mb-2" />
-                <Skeleton className="h-4 w-full mb-1 sm:mb-2" />
-                <Skeleton className="h-4 w-3/4" />
-              </div>
-            ))}
+          <div className="space-y-1">
+            <Skeleton className="h-4 w-12" />
+            <Skeleton className="h-3 w-20" />
           </div>
         </div>
       </div>
+
+      {/* Date/Level Filter Placeholder */}
+      <div className="flex gap-3 items-center">
+        {[...Array(3)].map((_, i) => (
+          <Skeleton key={i} className="h-9 w-32 rounded-full" />
+        ))}
+        <Skeleton className="h-10 w-40 rounded-lg ml-auto" />
+      </div>
+
+      {/* Metric Cards (3 columns) */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-5">
+        {/* Positive Behavior Events */}
+        <div className="shadow-xl border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-12 -mb-12" />
+          <div className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+            <div className="flex-1">
+              <Skeleton className="h-3 w-28 mb-2" />
+              <Skeleton className="h-10 w-16" />
+              <Skeleton className="h-3 w-32 mt-2" />
+            </div>
+            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-emerald-500/30 dark:bg-emerald-900/50 items-center justify-center">
+              <CheckCircle className="w-8 h-8 text-emerald-500/60" />
+            </div>
+          </div>
+          <div className="h-1 w-full bg-emerald-500/40" />
+        </div>
+
+        {/* Students At Risk */}
+        <div className="shadow-xl border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 dark:bg-red-400/5 rounded-full -mr-16 -mt-16" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12" />
+          <div className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+            <div className="flex-1">
+              <Skeleton className="h-3 w-24 mb-2" />
+              <Skeleton className="h-10 w-16" />
+              <Skeleton className="h-3 w-28 mt-2" />
+            </div>
+            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-red-500/30 dark:bg-red-900/50 items-center justify-center">
+              <AlertTriangle className="w-8 h-8 text-red-500/60" />
+            </div>
+          </div>
+          <div className="h-1 w-full bg-red-500/40" />
+        </div>
+
+        {/* Major/Critical Incidents */}
+        <div className="shadow-xl border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12" />
+          <div className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+            <div className="flex-1">
+              <Skeleton className="h-3 w-32 mb-2" />
+              <Skeleton className="h-10 w-16" />
+              <Skeleton className="h-3 w-32 mt-2" />
+            </div>
+            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-orange-500/30 dark:bg-orange-900/50 items-center justify-center">
+              <XCircle className="w-8 h-8 text-orange-500/60" />
+            </div>
+          </div>
+          <div className="h-1 w-full bg-orange-500/40" />
+        </div>
+      </div>
+
+      {/* Info Text Placeholder */}
+      <Skeleton className="h-4 w-96" />
+
+      {/* Tables Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top Students Table */}
+        <div className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg">
+          <div className="border-b border-orange-200/50 dark:border-orange-700/40 bg-linear-to-r from-orange-50/60 via-orange-50/30 to-transparent dark:from-orange-950/30 dark:via-orange-950/15 dark:to-transparent pb-5 p-5">
+            <div className="flex items-center gap-3.5">
+              <div className="p-3 rounded-xl bg-orange-500/30">
+                <TrendingUp className="w-5 h-5 text-orange-500/60" />
+              </div>
+              <div>
+                <Skeleton className="h-6 w-44 mb-1" />
+                <Skeleton className="h-4 w-64" />
+              </div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-orange-100/50 dark:bg-orange-900/20 border-b border-orange-200/50 dark:border-orange-800/30">
+                  <th className="px-6 py-3">
+                    <Skeleton className="h-4 w-8" />
+                  </th>
+                  <th className="px-6 py-3">
+                    <Skeleton className="h-4 w-16" />
+                  </th>
+                  <th className="px-6 py-3">
+                    <Skeleton className="h-4 w-12" />
+                  </th>
+                  <th className="px-6 py-3">
+                    <Skeleton className="h-4 w-12" />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...Array(4)].map((_, i) => (
+                  <tr key={i} className="border-b border-orange-100/30 dark:border-orange-800/20 last:border-0">
+                    <td className="px-6 py-4">
+                      <Skeleton className="h-6 w-6 rounded-full" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <Skeleton className="h-4 w-24" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <Skeleton className="h-4 w-12" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <Skeleton className="h-4 w-12 rounded-full" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Top Behavior Categories Table */}
+        <div className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg">
+          <div className="border-b border-sky-200/50 dark:border-sky-700/40 bg-linear-to-r from-sky-50/60 via-sky-50/30 to-transparent dark:from-sky-950/30 dark:via-sky-950/15 dark:to-transparent pb-5 p-5">
+            <div className="flex items-center gap-3.5">
+              <div className="p-3 rounded-xl bg-sky-500/30">
+                <Activity className="w-5 h-5 text-sky-500/60" />
+              </div>
+              <div>
+                <Skeleton className="h-6 w-44 mb-1" />
+                <Skeleton className="h-4 w-64" />
+              </div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-sky-100/50 dark:bg-sky-900/20 border-b border-sky-200/50 dark:border-sky-800/30">
+                  <th className="px-6 py-3">
+                    <Skeleton className="h-4 w-8" />
+                  </th>
+                  <th className="px-6 py-3">
+                    <Skeleton className="h-4 w-20" />
+                  </th>
+                  <th className="px-6 py-3">
+                    <Skeleton className="h-4 w-12" />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...Array(4)].map((_, i) => (
+                  <tr key={i} className="border-b border-sky-100/30 dark:border-sky-800/20 last:border-0">
+                    <td className="px-6 py-4">
+                      <Skeleton className="h-6 w-6 rounded-full" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <Skeleton className="h-4 w-28" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <Skeleton className="h-4 w-12 rounded-full" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

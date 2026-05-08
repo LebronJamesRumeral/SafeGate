@@ -323,12 +323,11 @@ function SchoolHeatmapContent() {
   const [logs, setLogs] = useState<BehavioralLog[]>([]);
   const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [daysFilter, setDaysFilter] = useState<'7' | '30' | '90' | 'all'>('30');
+  const [daysFilter, setDaysFilter] = useState<'7' | '30' | '90' | 'all'>('all');
   const [highRiskStudents, setHighRiskStudents] = useState<HighRiskStudent[]>([]);
   const [newZoneName, setNewZoneName] = useState('');
   const [newZoneKeywords, setNewZoneKeywords] = useState('');
   const [recentLogsModalOpen, setRecentLogsModalOpen] = useState(false);
-  const [behaviorPatternsModalOpen, setBehaviorPatternsModalOpen] = useState(false);
   const [zoneDragState, setZoneDragState] = useState<ZoneDragState | null>(null);
 
   const { zones, loading: zonesLoading, loadZones, addZone, updateZone, deleteZone } = useHeatmapZones();
@@ -663,246 +662,132 @@ function SchoolHeatmapContent() {
 
   return (
     <DashboardLayout>
-        <div className="space-y-6">
-        <Card className="border-orange-200/70 dark:border-slate-800/70 bg-white/90 dark:bg-slate-900/70 shadow-sm">
-          <CardHeader>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-xl sm:text-2xl">
-                  <MapPinned className="h-6 w-6 text-orange-500" />
-                  School Safety Heatmap
-                </CardTitle>
-                <CardDescription>
-                  Click an area to inspect room-level severity reports. Heat intensity is based on behavioral log severity and ML-linked risk signals.
-                </CardDescription>
+      <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <MapPinned className="h-6 w-6 text-orange-500" />
+                <h1 className="text-2xl sm:text-3xl font-bold bg-linear-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">School Safety Heatmap</h1>
               </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <Dialog open={behaviorPatternsModalOpen} onOpenChange={setBehaviorPatternsModalOpen}>
-                  <DialogTrigger asChild>
-                    <Button type="button" size="sm" variant="outline">
-                      Behavior Patterns
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-                    <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <AlertCircle className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                            <DialogTitle className="text-xl font-bold">Behavior Patterns by School Area</DialogTitle>
-                          </div>
-                          <DialogDescription className="mt-2 text-sm">
-                            Complete behavior pattern record for mapped school areas based on recent behavioral logs.
-                          </DialogDescription>
-                        </div>
-                        {areaPatternRows.length > 0 && (
-                          <Badge className={`${modalSeverityStyle.badge} text-xs font-semibold px-3 py-1 whitespace-nowrap mr-8`}>
-                            {areaPatternRows.length} Incident{areaPatternRows.length !== 1 ? 's' : ''}
-                          </Badge>
-                        )}
-                      </div>
-                    </DialogHeader>
-
-                    <div className="flex-1 overflow-y-auto pr-4 space-y-3">
-                      {areaPatternRows.length === 0 ? (
-                        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-8 text-center">
-                          <ShieldAlert className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-                          <p className="text-sm text-slate-600 dark:text-slate-400">
-                            No mapped behavior patterns yet for the selected date range.
-                          </p>
-                        </div>
-                      ) : (
-                        areaPatternRows.map((entry, index) => {
-                          const latestLog = entry.logs[0];
-                          const style = getPatternSeverityStyle(entry.dominantSeverity);
-
-                          const observedTypes = Array.from(
-                            new Set(entry.logs.map((log) => getResolvedEventType(log)).filter(Boolean))
-                          )
-                            .slice(0, 2)
-                            .join(' • ');
-
-                          return (
-                            <div
-                              key={entry.zone.id}
-                              className={`rounded-lg border ${style.border} ${style.bg} p-4 hover:shadow-md transition-shadow`}
-                            >
-                              <div className="space-y-3">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <div className={style.iconColor}>
-                                        {entry.dominantSeverity === 'critical' ? <Flame className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
-                                      </div>
-                                      <p className={`font-bold text-sm ${style.textColor}`}>{entry.topIncidentType}</p>
-                                    </div>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                                      <Calendar className="w-3 h-3 inline mr-1" />
-                                      {latestLog?.event_date
-                                        ? `${new Date(latestLog.event_date).toLocaleDateString('en-US', {
-                                            weekday: 'short',
-                                            year: 'numeric',
-                                            month: 'short',
-                                            day: 'numeric',
-                                          })}${latestLog?.event_time ? ` at ${latestLog.event_time}` : ''}`
-                                        : 'No timestamp available'}
-                                    </p>
-                                  </div>
-
-                                  <Badge className={`${style.badge} font-semibold text-xs px-2.5 py-1 uppercase tracking-wider`}>
-                                    {entry.dominantSeverity}
-                                  </Badge>
-                                </div>
-
-                                <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
-                                  {latestLog?.description || 'Mapped recurring behavior incidents in this school area.'}
-                                </p>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-400">
-                                  <div className="flex items-center gap-2">
-                                    <Users className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                    <span>
-                                      <span className="font-semibold">Reported:</span> Heatmap pattern engine
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Activity className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                    <span>
-                                      <span className="font-semibold">Location:</span> {entry.zone.name}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Target className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                    <span>
-                                      <span className="font-semibold">Category:</span> {entry.topSituation}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Phone className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                    <span>
-                                      <span className="font-semibold">ML Risk Linked:</span> {Array.isArray(entry.highRiskInZone) && entry.highRiskInZone.length > 0 ? '✓ Yes' : '✗ No'}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Clock3 className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                    <span>
-                                      <span className="font-semibold">Follow-up:</span> {(entry.dominantSeverity === 'critical' || entry.dominantSeverity === 'major') ? 'Required' : 'Monitoring'}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-700">
-                                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                                    <span className="font-semibold">Action Taken:</span> Ranked #{index + 1} by mapped incident frequency ({entry.logs.length} total).
-                                  </p>
-                                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                                    <span className="font-semibold">Notes:</span> {observedTypes ? `Observed types: ${observedTypes}.` : 'No additional type metadata available.'}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </DialogContent>
-                </Dialog>
-
-                <div className="flex items-center gap-2 bg-orange-50/60 border border-orange-200 rounded-full px-2 py-1 shadow-sm">
-                  {[
-                    { label: '7 Days', value: '7' },
-                    { label: '30 Days', value: '30' },
-                    { label: '90 Days', value: '90' },
-                    { label: 'All', value: 'all' },
-                  ].map(opt => (
-                    <Button
-                      key={opt.value}
-                      type="button"
-                      aria-label={`Filter: ${opt.label}`}
-                      size="sm"
-                      variant={daysFilter === opt.value ? 'default' : 'outline'}
-                      className={
-                        daysFilter === opt.value
-                          ? 'bg-blue-600 text-white shadow font-bold border-blue-600'
-                          : 'bg-transparent text-orange-900 border-none hover:bg-orange-100'
-                      }
-                      style={{ borderRadius: 999 }}
-                      onClick={() => setDaysFilter(opt.value as typeof daysFilter)}
-                    >
-                      {opt.label}
-                    </Button>
-                  ))}
-                </div>
-                {/* Refresh button removed. Data is now dynamically fetched. */}
-              </div>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Click an area to inspect room-level severity reports. Heat intensity is based on behavioral log severity and ML-linked risk signals.</p>
             </div>
-          </CardHeader>
 
-          <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 bg-orange-50/60 border border-orange-200 rounded-full px-2 py-1 shadow-sm">
+                {[
+                  { label: 'All', value: 'all' },
+                  { label: '7 Days', value: '7' },
+                  { label: '30 Days', value: '30' },
+                  { label: '90 Days', value: '90' },
+                ].map(opt => (
+                  <Button
+                    key={opt.value}
+                    type="button"
+                    aria-label={`Filter: ${opt.label}`}
+                    size="sm"
+                    variant={daysFilter === opt.value ? 'default' : 'outline'}
+                    className={
+                      daysFilter === opt.value
+                        ? 'bg-blue-600 text-white shadow font-bold border-blue-600'
+                        : 'bg-transparent text-orange-900 border-none hover:bg-orange-100'
+                    }
+                    style={{ borderRadius: 999 }}
+                    onClick={() => setDaysFilter(opt.value as typeof daysFilter)}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
+              {/* Refresh button removed. Data is now dynamically fetched. */}
+            </div>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
             {/* Behavioral Logs */}
-            <Card className="shadow-xl border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/60">
-                  <Archive className="w-6 h-6 text-blue-600 dark:text-blue-300" />
+            <Card className="shadow-xl border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+                <div className="flex-1">
+                  <p className="text-xs text-blue-600 dark:text-blue-400 font-bold mb-2 uppercase tracking-wider leading-tight">Behavioral Logs</p>
+                  <div className="text-3xl sm:text-4xl font-black text-blue-700 dark:text-blue-300 tracking-tight">{logs.length}</div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-snug">Total reports</p>
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-blue-700 dark:text-blue-300">Behavioral Logs</p>
-                  <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-100">{logs.length}</p>
+                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/30 dark:shadow-blue-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
+                  <Archive className="w-8 h-8" />
                 </div>
               </CardContent>
+              <div className="h-1.5 w-full bg-linear-to-r from-blue-400 via-blue-500 to-blue-600 dark:from-blue-500 dark:via-blue-600 dark:to-blue-700" />
             </Card>
             {/* Critical Incidents */}
-            <Card className="shadow-xl border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 overflow-hidden">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/60">
-                  <Flame className="w-6 h-6 text-red-600 dark:text-red-300" />
+            <Card className="shadow-xl border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 dark:bg-red-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+                <div className="flex-1">
+                  <p className="text-xs text-red-600 dark:text-red-400 font-bold mb-2 uppercase tracking-wider leading-tight">Critical Incidents</p>
+                  <div className="text-3xl sm:text-4xl font-black text-red-700 dark:text-red-300 tracking-tight">{totalCritical}</div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-snug">High-severity events</p>
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-red-700 dark:text-red-300">Critical Incidents</p>
-                  <p className="mt-1 text-2xl font-bold text-red-900 dark:text-red-100">{totalCritical}</p>
+                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/30 dark:shadow-red-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
+                  <Flame className="w-8 h-8" />
                 </div>
               </CardContent>
+              <div className="h-1.5 w-full bg-linear-to-r from-red-400 via-red-500 to-red-600 dark:from-red-500 dark:via-red-600 dark:to-red-700" />
             </Card>
             {/* Mapped Areas */}
-            <Card className="shadow-xl border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 overflow-hidden">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/60">
-                  <MapPinned className="w-6 h-6 text-orange-600 dark:text-orange-300" />
+            <Card className="shadow-xl border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+                <div className="flex-1">
+                  <p className="text-xs text-orange-600 dark:text-orange-400 font-bold mb-2 uppercase tracking-wider leading-tight">Mapped Areas</p>
+                  <div className="text-3xl sm:text-4xl font-black text-orange-700 dark:text-orange-300 tracking-tight">{zones.length}</div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-snug">Configured zones</p>
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-orange-700 dark:text-orange-300">Mapped Areas</p>
-                  <p className="mt-1 text-2xl font-bold text-orange-900 dark:text-orange-100">{zones.length}</p>
+                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/30 dark:shadow-orange-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
+                  <MapPinned className="w-8 h-8" />
                 </div>
               </CardContent>
+              <div className="h-1.5 w-full bg-linear-to-r from-orange-400 via-orange-500 to-orange-600 dark:from-orange-500 dark:via-orange-600 dark:to-orange-700" />
             </Card>
             {/* ML High-Risk Students */}
-            <Card className="shadow-xl border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 overflow-hidden">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-900/60">
-                  <ShieldAlert className="w-6 h-6 text-rose-600 dark:text-rose-300" />
+            <Card className="shadow-xl border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+              <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+                <div className="flex-1">
+                  <p className="text-xs text-rose-600 dark:text-rose-400 font-bold mb-2 uppercase tracking-wider leading-tight">ML High-Risk Students</p>
+                  <div className="text-3xl sm:text-4xl font-black text-rose-700 dark:text-rose-300 tracking-tight">{highRiskStudents.length}</div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-snug">Risk signals linked</p>
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-rose-700 dark:text-rose-300">ML High-Risk Students</p>
-                  <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-100">{highRiskStudents.length}</p>
+                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-lg shadow-rose-500/30 dark:shadow-rose-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
+                  <ShieldAlert className="w-8 h-8" />
                 </div>
               </CardContent>
+              <div className="h-1.5 w-full bg-linear-to-r from-rose-400 via-rose-500 to-rose-600 dark:from-rose-500 dark:via-rose-600 dark:to-rose-700" />
             </Card>
-          </CardContent>
-        </Card>
+          </div>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <Card className="xl:col-span-8 h-170 overflow-auto border-orange-200/70 dark:border-slate-800/70 bg-white/90 dark:bg-slate-900/70">
-            <CardHeader>
-              <CardTitle className="text-lg">Satellite School View</CardTitle>
-              <CardDescription>
-                Hotter (redder) areas indicate rooms/zones with higher severity and recurring critical reports.
-              </CardDescription>
+          <Card className="xl:col-span-8 border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+            <CardHeader className="border-b border-orange-200/50 dark:border-orange-700/40 bg-linear-to-r from-orange-50/60 via-orange-50/30 to-transparent dark:from-orange-950/30 dark:via-orange-950/15 dark:to-transparent pb-5">
+              <div className="flex items-center gap-3.5">
+                <div className="p-3 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/30 dark:shadow-orange-500/20 hover:scale-110 transition-transform duration-300">
+                  <MapPinned className="w-5 h-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Satellite School View</CardTitle>
+                  <CardDescription className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+                    Hotter areas indicate zones with higher severity and recurring incidents.
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div
                 ref={mapContainerRef}
-                className="relative mx-auto h-130 w-full overflow-hidden rounded-xl border border-slate-300/70 shadow-sm dark:border-slate-700/70"
+                className="relative w-full h-80 sm:h-96 lg:h-130 overflow-hidden rounded-xl border border-orange-200/60 dark:border-orange-700/30 shadow-md"
                 onMouseMove={handleMapMouseMove}
                 onMouseLeave={handleMapMouseLeave}
                 onClick={handleMapClick}
@@ -1024,35 +909,39 @@ function SchoolHeatmapContent() {
             </CardContent>
           </Card>
 
-          <Card className="xl:col-span-4 border-orange-200/70 dark:border-slate-800/70 bg-white/90 dark:bg-slate-900/70">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Flame className="h-5 w-5 text-orange-500" />
-                {selectedZone?.zone.name || 'Area Overview'}
-              </CardTitle>
-              <CardDescription>
-                Live severity summary from logs matching this room/area location.
-              </CardDescription>
+          <Card className="xl:col-span-4 border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+            <CardHeader className="border-b border-sky-200/50 dark:border-sky-700/40 bg-linear-to-r from-sky-50/60 via-sky-50/30 to-transparent dark:from-sky-950/30 dark:via-sky-950/15 dark:to-transparent pb-5">
+              <div className="flex items-center gap-3.5">
+                <div className="p-3 rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white shadow-lg shadow-sky-500/30 dark:shadow-sky-500/20 hover:scale-110 transition-transform duration-300">
+                  <Flame className="w-5 h-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">{selectedZone?.zone.name || 'Area Overview'}</CardTitle>
+                  <CardDescription className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+                    Live severity summary from logs matching this room/area.
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5 pt-4">
               {selectedZone ? (
                 <>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
-                      <p className="text-xs text-slate-600 dark:text-slate-300">Heat Level</p>
-                      <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{selectedZone.heat.label}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-slate-200/80 bg-linear-to-br from-slate-50 to-slate-50/50 p-3.5 dark:border-slate-700/60 dark:bg-linear-to-br dark:from-slate-900/40 dark:to-slate-800/20 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
+                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Heat Level</p>
+                      <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{selectedZone.heat.label}</p>
                     </div>
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
-                      <p className="text-xs text-slate-600 dark:text-slate-300">Severity Score</p>
-                      <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{selectedZone.score}</p>
+                    <div className="rounded-lg border border-slate-200/80 bg-linear-to-br from-slate-50 to-slate-50/50 p-3.5 dark:border-slate-700/60 dark:bg-linear-to-br dark:from-slate-900/40 dark:to-slate-800/20 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
+                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Severity Score</p>
+                      <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{selectedZone.score}</p>
                     </div>
                   </div>
 
                   <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Severity Breakdown</p>
+                    <p className="mb-2.5 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Severity Breakdown</p>
                     <div className="flex flex-wrap gap-2">
                       {(Object.keys(selectedZone.breakdown) as Severity[]).map((severity) => (
-                        <Badge key={severity} className={SEVERITY_BADGE_CLASS[severity]}>
+                        <Badge key={severity} className={`${SEVERITY_BADGE_CLASS[severity]} transition-all hover:shadow-md hover:scale-105`}>
                           {severity}: {selectedZone.breakdown[severity]}
                         </Badge>
                       ))}
@@ -1168,31 +1057,39 @@ function SchoolHeatmapContent() {
           </Card>
         </div>
 
-        <Card className="border-orange-200/70 dark:border-slate-800/70 bg-white/90 dark:bg-slate-900/70">
-          <CardHeader>
-            <CardTitle className="text-lg">Area / Room Mapper</CardTitle>
-            <CardDescription>
-              Add rooms or zones from your satellite map. Use names/keywords that match your behavioral event location logs.
-            </CardDescription>
+        <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+          <CardHeader className="border-b border-amber-200/50 dark:border-amber-700/40 bg-linear-to-r from-amber-50/60 via-amber-50/30 to-transparent dark:from-amber-950/30 dark:via-amber-950/15 dark:to-transparent pb-5">
+            <div className="flex items-center gap-3.5">
+              <div className="p-3 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/30 dark:shadow-amber-500/20">
+                <MapPinned className="w-5 h-5" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Area / Room Mapper</CardTitle>
+                <CardDescription className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+                  Add rooms or zones from your satellite map. Use names/keywords that match your behavioral event location logs.
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <CardContent className="space-y-5 pt-4">
+            <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-4">
               <div className="xl:col-span-2">
-                <Label htmlFor="zone-name" className="mb-1 block">Area Name</Label>
-                <Input id="zone-name" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} placeholder="e.g., Room A-101" />
+                <Label htmlFor="zone-name" className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Area Name</Label>
+                <Input id="zone-name" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} placeholder="e.g., Room A-101" className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500" />
               </div>
               <div className="xl:col-span-2">
-                <Label htmlFor="zone-keywords" className="mb-1 block">Location Keywords</Label>
+                <Label htmlFor="zone-keywords" className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Location Keywords</Label>
                 <Input
                   id="zone-keywords"
                   value={newZoneKeywords}
                   onChange={(e) => setNewZoneKeywords(e.target.value)}
                   placeholder="room a-101, science lab"
+                  className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500"
                 />
               </div>
             </div>
 
-            <Button type="button" onClick={handleAddZone} className="w-full sm:w-auto">
+            <Button type="button" onClick={handleAddZone} className="w-full sm:w-auto bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5">
               <Plus className="mr-2 h-4 w-4" />
               Add Area to Heatmap
             </Button>
@@ -1216,11 +1113,11 @@ function SchoolHeatmapContent() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 lg:grid-cols-3">
               {zones.map((zone) => (
                 <div
                   key={zone.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-200/80 px-3 py-2 dark:border-slate-700/70"
+                  className="flex items-center justify-between rounded-lg border border-amber-200/60 bg-linear-to-r from-white to-amber-50/30 dark:from-slate-900/50 dark:to-slate-800/30 px-3.5 py-2.5 dark:border-amber-700/40 hover:border-amber-300 dark:hover:border-amber-600/60 hover:shadow-sm transition-all duration-200"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <Checkbox
@@ -1268,7 +1165,7 @@ function SchoolHeatmapContent() {
             </div>
           </CardContent>
         </Card>
-        </div>
+      </div>
       </DashboardLayout>
 
     );

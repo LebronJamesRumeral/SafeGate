@@ -1,5 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton';
-import { Activity, AlertTriangle, BarChart3, CheckCircle, XCircle } from 'lucide-react';
+import { Activity, AlertTriangle, BarChart3, CheckCircle, XCircle, TrendingUp } from 'lucide-react';
 
 export function AnalyticsPageSkeleton() {
   return (
@@ -7,12 +7,15 @@ export function AnalyticsPageSkeleton() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <Skeleton className="h-10 w-72 mb-2" />
-          <Skeleton className="h-5 w-96 max-w-full" />
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="h-6 w-6 text-slate-500" />
+            <Skeleton className="h-8 w-72" />
+          </div>
+          <Skeleton className="h-4 w-full max-w-2xl" />
         </div>
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <Skeleton className="h-9 w-full md:w-28 rounded-lg" />
-          <Skeleton className="h-9 w-full md:w-24 rounded-lg" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-9 w-28 rounded-lg" />
+          <Skeleton className="h-9 w-24 rounded-lg" />
         </div>
       </div>
 
@@ -22,63 +25,74 @@ export function AnalyticsPageSkeleton() {
         <Skeleton className="h-9 w-28 rounded-lg" />
       </div>
 
-      {/* Date and level filters */}
-      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm p-3 sm:p-6 rounded-xl border border-slate-200/60 dark:border-slate-700/40 shadow-lg">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
-          <Skeleton className="h-10 w-full rounded-lg" />
-          <Skeleton className="h-10 w-full rounded-lg" />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <Skeleton className="h-10 w-full rounded-lg" />
-          <Skeleton className="h-10 w-full rounded-lg" />
-          <Skeleton className="h-10 w-full rounded-lg" />
-        </div>
-      </div>
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
-        <div className="rounded-2xl bg-sky-50 dark:bg-sky-950/30 shadow-xl p-6 flex items-center justify-between">
-          <div>
-            <Skeleton className="h-4 w-28 mb-2" />
-            <Skeleton className="h-10 w-16 mb-2" />
-            <Skeleton className="h-3 w-32" />
+      {/* Summary cards with new pattern */}
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Analyzed Data Points */}
+        <div className="shadow-xl border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 dark:bg-sky-400/5 rounded-full -mr-16 -mt-16" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-sky-500/5 dark:bg-sky-400/5 rounded-full -ml-12 -mb-12" />
+          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+            <div className="flex-1">
+              <Skeleton className="h-3 w-24 mb-2" />
+              <Skeleton className="h-10 w-16" />
+              <Skeleton className="h-3 w-28 mt-2" />
+            </div>
+            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-sky-500/30 dark:bg-sky-900/50 items-center justify-center">
+              <BarChart3 className="w-8 h-8 text-sky-500/60" />
+            </div>
           </div>
-          <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-sky-500/10 items-center justify-center">
-            <BarChart3 className="w-7 h-7 text-sky-400" />
-          </div>
+          <div className="h-1.5 w-full bg-sky-500/40" />
         </div>
 
-        <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 shadow-xl p-6 flex items-center justify-between">
-          <div>
-            <Skeleton className="h-4 w-28 mb-2" />
-            <Skeleton className="h-10 w-16 mb-2" />
-            <Skeleton className="h-3 w-32" />
+        {/* Positive Events */}
+        <div className="shadow-xl border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-12 -mb-12" />
+          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+            <div className="flex-1">
+              <Skeleton className="h-3 w-24 mb-2" />
+              <Skeleton className="h-10 w-16" />
+              <Skeleton className="h-3 w-28 mt-2" />
+            </div>
+            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-emerald-500/30 dark:bg-emerald-900/50 items-center justify-center">
+              <CheckCircle className="w-8 h-8 text-emerald-500/60" />
+            </div>
           </div>
-          <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-emerald-500/10 items-center justify-center">
-            <CheckCircle className="w-7 h-7 text-emerald-400" />
-          </div>
+          <div className="h-1.5 w-full bg-emerald-500/40" />
         </div>
 
-        <div className="rounded-2xl bg-orange-50 dark:bg-orange-950/30 shadow-xl p-6 flex items-center justify-between">
-          <div>
-            <Skeleton className="h-4 w-28 mb-2" />
-            <Skeleton className="h-10 w-16 mb-2" />
-            <Skeleton className="h-3 w-32" />
+        {/* Notable Events */}
+        <div className="shadow-xl border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12" />
+          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+            <div className="flex-1">
+              <Skeleton className="h-3 w-24 mb-2" />
+              <Skeleton className="h-10 w-16" />
+              <Skeleton className="h-3 w-28 mt-2" />
+            </div>
+            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-orange-500/30 dark:bg-orange-900/50 items-center justify-center">
+              <AlertTriangle className="w-8 h-8 text-orange-500/60" />
+            </div>
           </div>
-          <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-orange-500/10 items-center justify-center">
-            <XCircle className="w-7 h-7 text-orange-400" />
-          </div>
+          <div className="h-1.5 w-full bg-orange-500/40" />
         </div>
 
-        <div className="rounded-2xl bg-red-50 dark:bg-red-950/30 shadow-xl p-6 flex items-center justify-between">
-          <div>
-            <Skeleton className="h-4 w-36 mb-2" />
-            <Skeleton className="h-10 w-16 mb-2" />
-            <Skeleton className="h-3 w-32" />
+        {/* Flagged Events */}
+        <div className="shadow-xl border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 dark:bg-red-400/5 rounded-full -mr-16 -mt-16" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12" />
+          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+            <div className="flex-1">
+              <Skeleton className="h-3 w-24 mb-2" />
+              <Skeleton className="h-10 w-16" />
+              <Skeleton className="h-3 w-28 mt-2" />
+            </div>
+            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-red-500/30 dark:bg-red-900/50 items-center justify-center">
+              <XCircle className="w-8 h-8 text-red-500/60" />
+            </div>
           </div>
-          <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-red-500/10 items-center justify-center">
-            <AlertTriangle className="w-7 h-7 text-red-400" />
-          </div>
+          <div className="h-1.5 w-full bg-red-500/40" />
         </div>
       </div>
 

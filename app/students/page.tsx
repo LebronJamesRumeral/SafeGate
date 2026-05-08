@@ -3249,7 +3249,11 @@ export default function StudentsPage() {
 
 
   if (loading) {
-    return <StudentsSkeleton />;
+    return (
+      <DashboardLayout>
+        <StudentsSkeleton />
+      </DashboardLayout>
+    );
   }
 
   return (

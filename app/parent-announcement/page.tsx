@@ -345,7 +345,11 @@ export default function ParentAnnouncementPage() {
   }, [announcements, filter]);
 
   if (loading) {
-    return <ParentAnnouncementSkeleton />;
+    return (
+      <DashboardLayout>
+        <ParentAnnouncementSkeleton />
+      </DashboardLayout>
+    );
   }
 
   const handleNotifyJoin = async (event: SchoolEvent) => {

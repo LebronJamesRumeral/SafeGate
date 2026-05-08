@@ -648,7 +648,11 @@ export default function AttendancePage() {
   }));
 
   if (loading && isInitialLoad) {
-    return <AttendanceSkeleton />;
+    return (
+      <DashboardLayout>
+        <AttendanceSkeleton />
+      </DashboardLayout>
+    );
   }
 
   const handleCancelClasses = async () => {

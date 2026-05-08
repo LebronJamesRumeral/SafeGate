@@ -1,119 +1,144 @@
-import { DashboardLayout } from '@/components/dashboard-layout';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertTriangle, CheckCircle, XCircle, Filter, Download, Plus, Wifi, WifiOff, CloudUpload } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle, Activity, Archive } from 'lucide-react';
 
 export default function BehavioralEventsSkeleton() {
   return (
-    <DashboardLayout>
-      <div className="space-y-6 animate-fade-in-up">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <Skeleton className="h-10 w-80 mb-2" />
-            <Skeleton className="h-5 w-96" />
+    <div className="space-y-6 animate-fade-in-up">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Archive className="h-6 w-6 text-orange-500" />
+            <Skeleton className="h-8 w-80" />
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <Skeleton className="h-7 w-20 rounded-lg" />
-            <Skeleton className="h-7 w-32 rounded-lg" />
-            <Skeleton className="h-7 w-24 rounded-lg" />
-            <Skeleton className="h-9 w-32 rounded-lg" />
-            <Skeleton className="h-9 w-32 rounded-lg" />
-            <Skeleton className="h-9 w-36 rounded-lg" />
+          <Skeleton className="h-4 w-full max-w-2xl" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-9 w-28 rounded-lg" />
+          <Skeleton className="h-9 w-32 rounded-lg" />
+        </div>
+      </div>
+
+      {/* Metric Cards */}
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Positive Events */}
+        <div className="shadow-xl border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-12 -mb-12" />
+          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+            <div className="flex-1">
+              <Skeleton className="h-3 w-24 mb-2" />
+              <Skeleton className="h-10 w-16" />
+              <Skeleton className="h-3 w-28 mt-2" />
+            </div>
+            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-emerald-500/30 dark:bg-emerald-900/50 items-center justify-center">
+              <CheckCircle className="w-8 h-8 text-emerald-500/60" />
+            </div>
           </div>
+          <div className="h-1.5 w-full bg-emerald-500/40" />
         </div>
 
-        {/* Stat Cards Skeleton */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 shadow-xl p-6 flex items-center justify-between relative">
-            <div>
-              <Skeleton className="h-4 w-24 mb-2" />
-              <Skeleton className="h-10 w-16 mb-2" />
-              <Skeleton className="h-3 w-32" />
+        {/* Major Events */}
+        <div className="shadow-xl border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12" />
+          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+            <div className="flex-1">
+              <Skeleton className="h-3 w-24 mb-2" />
+              <Skeleton className="h-10 w-16" />
+              <Skeleton className="h-3 w-28 mt-2" />
             </div>
-            <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-emerald-500/10 items-center justify-center">
-              <CheckCircle className="w-7 h-7 text-emerald-400" />
-            </div>
-          </div>
-          <div className="rounded-2xl bg-orange-50 dark:bg-orange-950/30 shadow-xl p-6 flex items-center justify-between relative">
-            <div>
-              <Skeleton className="h-4 w-24 mb-2" />
-              <Skeleton className="h-10 w-16 mb-2" />
-              <Skeleton className="h-3 w-32" />
-            </div>
-            <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-orange-500/10 items-center justify-center">
-              <AlertTriangle className="w-7 h-7 text-orange-400" />
+            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-orange-500/30 dark:bg-orange-900/50 items-center justify-center">
+              <AlertTriangle className="w-8 h-8 text-orange-500/60" />
             </div>
           </div>
-          <div className="rounded-2xl bg-red-50 dark:bg-red-950/30 shadow-xl p-6 flex items-center justify-between relative">
-            <div>
-              <Skeleton className="h-4 w-24 mb-2" />
-              <Skeleton className="h-10 w-16 mb-2" />
-              <Skeleton className="h-3 w-32" />
-            </div>
-            <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-red-500/10 items-center justify-center">
-              <XCircle className="w-7 h-7 text-red-400" />
-            </div>
-          </div>
-          <div className="rounded-2xl bg-blue-50 dark:bg-blue-950/30 shadow-xl p-6 flex items-center justify-between relative">
-            <div>
-              <Skeleton className="h-4 w-24 mb-2" />
-              <Skeleton className="h-10 w-16 mb-2" />
-              <Skeleton className="h-3 w-32" />
-            </div>
-            <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-blue-500/10 items-center justify-center">
-              <Filter className="w-7 h-7 text-blue-400" />
-            </div>
-          </div>
+          <div className="h-1.5 w-full bg-orange-500/40" />
         </div>
 
-        {/* Filter/Search Bar Skeleton */}
-        <div className="rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow p-6 flex flex-col gap-4">
+        {/* Critical Events */}
+        <div className="shadow-xl border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 dark:bg-red-400/5 rounded-full -mr-16 -mt-16" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12" />
+          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+            <div className="flex-1">
+              <Skeleton className="h-3 w-20 mb-2" />
+              <Skeleton className="h-10 w-16" />
+              <Skeleton className="h-3 w-24 mt-2" />
+            </div>
+            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-red-500/30 dark:bg-red-900/50 items-center justify-center">
+              <XCircle className="w-8 h-8 text-red-500/60" />
+            </div>
+          </div>
+          <div className="h-1.5 w-full bg-red-500/40" />
+        </div>
+
+        {/* Total Events */}
+        <div className="shadow-xl border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-12 -mb-12" />
+          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+            <div className="flex-1">
+              <Skeleton className="h-3 w-20 mb-2" />
+              <Skeleton className="h-10 w-16" />
+              <Skeleton className="h-3 w-24 mt-2" />
+            </div>
+            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-blue-500/30 dark:bg-blue-900/50 items-center justify-center">
+              <Activity className="w-8 h-8 text-blue-500/60" />
+            </div>
+          </div>
+          <div className="h-1.5 w-full bg-blue-500/40" />
+        </div>
+      </div>
+
+      {/* Filter Panel */}
+      <div className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg p-5 sm:p-6">
+        <div className="space-y-4">
           <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <div className="flex-1 flex items-center gap-3">
-              <Skeleton className="h-10 w-64 rounded-lg" />
-              <Skeleton className="h-10 w-32 rounded-lg" />
-              <Skeleton className="h-10 w-32 rounded-lg" />
-              <Skeleton className="h-10 w-32 rounded-lg" />
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-36" />
+            <Skeleton className="h-9 w-36" />
+          </div>
+        </div>
+      </div>
+
+      {/* Events Table */}
+      <div className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg">
+        <div className="border-b border-orange-200/50 dark:border-orange-700/40 bg-linear-to-r from-orange-50/60 via-orange-50/30 to-transparent dark:from-orange-950/30 dark:via-orange-950/15 dark:to-transparent pb-5 p-5">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-xl bg-orange-500/30">
+              <Archive className="w-5 h-5 text-orange-500/60" />
             </div>
-            <div className="flex gap-2 mt-2 md:mt-0">
-              <Skeleton className="h-9 w-36 rounded-lg" />
-              <Skeleton className="h-9 w-40 rounded-lg" />
+            <div>
+              <Skeleton className="h-6 w-56 mb-1" />
+              <Skeleton className="h-4 w-80" />
             </div>
           </div>
         </div>
-
-        {/* Table Skeleton */}
-        <div className="rounded-2xl border bg-white/70 dark:bg-slate-800/70 p-0 shadow-md overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
             <thead>
-              <tr>
-                <th className="px-6 py-4"><Skeleton className="h-4 w-16" /></th>
-                <th className="px-6 py-4"><Skeleton className="h-4 w-32" /></th>
-                <th className="px-6 py-4"><Skeleton className="h-4 w-24" /></th>
-                <th className="px-6 py-4"><Skeleton className="h-4 w-24" /></th>
-                <th className="px-6 py-4"><Skeleton className="h-4 w-32" /></th>
-                <th className="px-6 py-4"><Skeleton className="h-4 w-24" /></th>
-                <th className="px-6 py-4"><Skeleton className="h-4 w-20" /></th>
-                <th className="px-6 py-4"><Skeleton className="h-4 w-20" /></th>
+              <tr className="bg-orange-100/50 dark:bg-orange-900/20">
+                {[...Array(6)].map((_, i) => (
+                  <th key={i} className="px-6 py-3"><Skeleton className="h-4 w-16" /></th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {[...Array(6)].map((_, i) => (
-                <tr key={i} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
-                  <td className="px-6 py-4"><Skeleton className="h-6 w-16 rounded" /></td>
-                  <td className="px-6 py-4"><Skeleton className="h-6 w-32 rounded" /></td>
-                  <td className="px-6 py-4"><Skeleton className="h-6 w-24 rounded" /></td>
-                  <td className="px-6 py-4"><Skeleton className="h-6 w-24 rounded" /></td>
-                  <td className="px-6 py-4"><Skeleton className="h-6 w-32 rounded" /></td>
-                  <td className="px-6 py-4"><Skeleton className="h-6 w-24 rounded" /></td>
-                  <td className="px-6 py-4"><Skeleton className="h-6 w-20 rounded" /></td>
-                  <td className="px-6 py-4"><Skeleton className="h-6 w-20 rounded" /></td>
+              {[...Array(8)].map((_, i) => (
+                <tr key={i} className="border-b border-orange-100/30 dark:border-orange-800/20 last:border-0">
+                  {[...Array(6)].map((_, j) => (
+                    <td key={j} className="px-6 py-4"><Skeleton className="h-4 w-full" /></td>
+                  ))}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
-    </DashboardLayout>
+    </div>
   );
 }
