@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { CalendarDays, MapPin, Clock, Megaphone, BellRing, CheckCircle2, CalendarX2, TriangleAlert } from 'lucide-react';
 import ParentAnnouncementSkeleton from '@/components/parent-announcement-skeleton';
 import { fetchActiveSchoolEvents, ensureUpcomingSchoolEventReminders, type SchoolEvent } from '@/lib/school-events';
+import { toast } from '@/hooks/use-toast';
 import { createRoleNotification, fetchRoleNotifications, type RoleNotification } from '@/lib/role-notifications';
 import { supabase } from '@/lib/supabase';
 import { formatTime12h } from '@/lib/time-format';
@@ -40,6 +41,8 @@ export default function ParentAnnouncementPage() {
   const [loading, setLoading] = useState(true);
   const [joinNotifiedByEventId, setJoinNotifiedByEventId] = useState<Record<number, boolean>>({});
   const [savingJoinEventId, setSavingJoinEventId] = useState<number | null>(null);
+  const [willNotJoinByEventId, setWillNotJoinByEventId] = useState<Record<number, boolean>>({});
+  const [savingWillNotJoinEventId, setSavingWillNotJoinEventId] = useState<number | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<AnnouncementItem | null>(null);
   const [filter, setFilter] = useState<'all' | 'announcement' | 'holiday' | 'cancellation'>('all');
@@ -319,6 +322,24 @@ export default function ParentAnnouncementPage() {
             }
           });
           setJoinNotifiedByEventId(notifiedMap);
+
+          const { data: willNotJoinIntents } = await supabase
+            .from('role_notifications')
+            .select('id, meta')
+            .contains('meta', {
+              notification_kind: 'school_event_will_not_join_intent',
+              parent_email: user.username,
+            })
+            .limit(1000);
+
+          const willNotJoinMap: Record<number, boolean> = {};
+          (willNotJoinIntents || []).forEach((item: any) => {
+            const eventId = Number(item?.meta?.event_id);
+            if (!Number.isNaN(eventId) && eventId > 0) {
+              willNotJoinMap[eventId] = true;
+            }
+          });
+          setWillNotJoinByEventId(willNotJoinMap);
         }
         await ensureUpcomingSchoolEventReminders(events);
       } finally {
@@ -353,7 +374,15 @@ export default function ParentAnnouncementPage() {
   }
 
   const handleNotifyJoin = async (event: SchoolEvent) => {
-    if (!user?.username || joinNotifiedByEventId[event.id]) return;
+    if (!user?.username) {
+      toast({ title: 'Not signed in', description: 'Please sign in to send a response.', variant: 'destructive' });
+      return;
+    }
+    if ((user?.role || '').toLowerCase() !== 'parent') {
+      toast({ title: 'Not allowed', description: 'Only parent accounts can send attendance responses.', variant: 'destructive' });
+      return;
+    }
+    if (joinNotifiedByEventId[event.id] || willNotJoinByEventId[event.id]) return;
     setSavingJoinEventId(event.id);
     try {
       const parentName = user.full_name || user.username;
@@ -375,6 +404,40 @@ export default function ParentAnnouncementPage() {
       if (success) setJoinNotifiedByEventId((p) => ({ ...p, [event.id]: true }));
     } finally {
       setSavingJoinEventId(null);
+    }
+  };
+
+  const handleNotifyWillNotJoin = async (event: SchoolEvent) => {
+    if (!user?.username) {
+      toast({ title: 'Not signed in', description: 'Please sign in to send a response.', variant: 'destructive' });
+      return;
+    }
+    if ((user?.role || '').toLowerCase() !== 'parent') {
+      toast({ title: 'Not allowed', description: 'Only parent accounts can send attendance responses.', variant: 'destructive' });
+      return;
+    }
+    if (willNotJoinByEventId[event.id] || joinNotifiedByEventId[event.id]) return;
+    setSavingWillNotJoinEventId(event.id);
+    try {
+      const parentName = user.full_name || user.username;
+      const success = await createRoleNotification({
+        title: 'Parent Event Non-Attendance Notice',
+        message: `${parentName} notified they will not join "${event.title}" on ${event.event_date}.`,
+        targetRoles: ['teacher', 'admin'],
+        createdBy: user.username,
+        meta: {
+          notification_kind: 'school_event_will_not_join_intent',
+          event_id: event.id,
+          event_title: event.title,
+          event_date: event.event_date,
+          parent_name: parentName,
+          parent_email: user.username,
+          href: '/events',
+        },
+      });
+      if (success) setWillNotJoinByEventId((p) => ({ ...p, [event.id]: true }));
+    } finally {
+      setSavingWillNotJoinEventId(null);
     }
   };
 
@@ -440,12 +503,14 @@ export default function ParentAnnouncementPage() {
                     <p className="text-xs uppercase text-slate-500">Location</p>
                     <p className="text-sm flex items-center gap-2"><MapPin className="w-4 h-4" /> {featured.location || 'School campus'}</p>
                   </div>
-
-                  <div className="sm:col-span-3 pt-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <Button onClick={() => { setSelectedAnnouncement(featured); setDetailsOpen(true); }} variant="outline">Read more</Button>
-                      {featured.source === 'event' ? (
-                        <Button onClick={() => void handleNotifyJoin({
+                </CardContent>
+                <div className="px-6 pb-4 pt-2 border-t border-slate-200/50 space-y-2">
+                  <Button onClick={() => { setSelectedAnnouncement(featured); setDetailsOpen(true); }} variant="outline" className="w-full">Read more</Button>
+                  {featured.source === 'event' ? (
+                    <div className="flex gap-1.5">
+                      <Button
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm"
+                        onClick={() => void handleNotifyJoin({
                           id: featured.event_id || 0,
                           title: featured.title,
                           description: featured.description,
@@ -458,11 +523,34 @@ export default function ParentAnnouncementPage() {
                           is_active: true,
                           created_at: featured.created_at,
                           updated_at: featured.created_at,
-                        })} disabled={joinNotifiedByEventId[featured.event_id || 0] || savingJoinEventId === featured.event_id || isEventPassed(featured.event_date)}>{joinNotifiedByEventId[featured.event_id || 0] ? 'Join intent sent' : isEventPassed(featured.event_date) ? 'Event passed' : "Notify I'll Join"}</Button>
-                      ) : null}
+                        })}
+                        disabled={joinNotifiedByEventId[featured.event_id || 0] || willNotJoinByEventId[featured.event_id || 0] || savingJoinEventId === featured.event_id || isEventPassed(featured.event_date)}
+                      >
+                        {joinNotifiedByEventId[featured.event_id || 0] ? 'Join sent' : isEventPassed(featured.event_date) ? 'Event passed' : "I'll Join"}
+                      </Button>
+                      <Button
+                        className="flex-1 bg-orange-600 hover:bg-orange-700 text-white text-xs sm:text-sm"
+                        onClick={() => void handleNotifyWillNotJoin({
+                          id: featured.event_id || 0,
+                          title: featured.title,
+                          description: featured.description,
+                          image_url: featured.image_url,
+                          event_date: featured.event_date,
+                          start_time: featured.start_time,
+                          end_time: featured.end_time,
+                          location: featured.location,
+                          created_by: null,
+                          is_active: true,
+                          created_at: featured.created_at,
+                          updated_at: featured.created_at,
+                        })}
+                        disabled={joinNotifiedByEventId[featured.event_id || 0] || willNotJoinByEventId[featured.event_id || 0] || savingWillNotJoinEventId === featured.event_id || isEventPassed(featured.event_date)}
+                      >
+                        {willNotJoinByEventId[featured.event_id || 0] ? 'Not join sent' : isEventPassed(featured.event_date) ? 'Event passed' : 'Will not join'}
+                      </Button>
                     </div>
-                  </div>
-                </CardContent>
+                  ) : null}
+                </div>
               </Card>
             )}
 
@@ -478,17 +566,21 @@ export default function ParentAnnouncementPage() {
             <div className="space-y-3 pr-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
               {others.slice(0, 10).map((item) => (
                 <Card key={item.id} className="overflow-hidden border border-slate-200/80 bg-white shadow-sm">
-                  <div className="flex items-start gap-3 p-3">
-                    <div className="w-16 h-12 overflow-hidden rounded-md">{renderAnnouncementVisual(item, 'thumb')}</div>
-                    <div className="flex-1">
-                      <h5 className="text-sm font-medium line-clamp-2 leading-snug">{item.title}</h5>
-                      <p className="text-xs text-slate-500">{formatEventDate(item.event_date)}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <Button size="sm" variant="ghost" onClick={() => { setSelectedAnnouncement(item); setDetailsOpen(true); }}>Read</Button>
-                        {item.source === 'event' ? (
+                  <div className="p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-16 h-12 overflow-hidden rounded-md">{renderAnnouncementVisual(item, 'thumb')}</div>
+                      <div className="flex-1">
+                        <h5 className="text-sm font-medium line-clamp-2 leading-snug">{item.title}</h5>
+                        <p className="text-xs text-slate-500">{formatEventDate(item.event_date)}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-slate-200/50 space-y-2">
+                      <Button size="sm" variant="ghost" onClick={() => { setSelectedAnnouncement(item); setDetailsOpen(true); }} className="w-full">Read</Button>
+                      {item.source === 'event' ? (
+                        <div className="flex gap-1.5">
                           <Button
                             size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs"
                             onClick={() => void handleNotifyJoin({
                               id: item.event_id || 0,
                               title: item.title,
@@ -503,16 +595,41 @@ export default function ParentAnnouncementPage() {
                               created_at: item.created_at,
                               updated_at: item.created_at,
                             })}
-                            disabled={joinNotifiedByEventId[item.event_id || 0] || savingJoinEventId === item.event_id || isEventPassed(item.event_date)}
+                            disabled={joinNotifiedByEventId[item.event_id || 0] || willNotJoinByEventId[item.event_id || 0] || savingJoinEventId === item.event_id || isEventPassed(item.event_date)}
                           >
                             {joinNotifiedByEventId[item.event_id || 0]
-                              ? 'Join intent sent'
+                              ? 'Join sent'
                               : isEventPassed(item.event_date)
                                 ? 'Event passed'
-                                : "Notify I'll Join"}
+                                : "I'll Join"}
                           </Button>
-                        ) : null}
-                      </div>
+                          <Button
+                            size="sm"
+                            className="flex-1 bg-orange-600 hover:bg-orange-700 text-white text-xs"
+                            onClick={() => void handleNotifyWillNotJoin({
+                              id: item.event_id || 0,
+                              title: item.title,
+                              description: item.description,
+                              image_url: item.image_url,
+                              event_date: item.event_date,
+                              start_time: item.start_time,
+                              end_time: item.end_time,
+                              location: item.location,
+                              created_by: null,
+                              is_active: true,
+                              created_at: item.created_at,
+                              updated_at: item.created_at,
+                            })}
+                            disabled={joinNotifiedByEventId[item.event_id || 0] || willNotJoinByEventId[item.event_id || 0] || savingWillNotJoinEventId === item.event_id || isEventPassed(item.event_date)}
+                          >
+                            {willNotJoinByEventId[item.event_id || 0]
+                              ? 'Not join sent'
+                              : isEventPassed(item.event_date)
+                                ? 'Event passed'
+                                : 'Will not join'}
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </Card>

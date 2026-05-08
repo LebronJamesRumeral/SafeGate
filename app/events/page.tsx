@@ -25,6 +25,7 @@ type EventJoinIntent = {
   parent_name: string;
   parent_email: string;
   created_at: string;
+  status?: 'join' | 'not_join';
 };
 
 export default function EventsPage() {
@@ -97,27 +98,97 @@ export default function EventsPage() {
         return;
       }
       setLoadingJoinIntents(true);
-      const { data } = await supabase
-        .from('role_notifications')
-        .select('id, created_at, meta')
-        .contains('meta', {
-          notification_kind: 'school_event_join_intent',
-          event_id: selectedEvent.id,
-        })
-        .order('created_at', { ascending: false })
-        .limit(500);
+      // Fetch both join and will_not_join intents for the selected event
+      const [{ data: joinData }, { data: notJoinData }] = await Promise.all([
+        supabase
+          .from('role_notifications')
+          .select('id, created_at, meta')
+          .contains('meta', {
+            notification_kind: 'school_event_join_intent',
+            event_id: selectedEvent.id,
+          })
+          .order('created_at', { ascending: false })
+          .limit(1000),
+        supabase
+          .from('role_notifications')
+          .select('id, created_at, meta')
+          .contains('meta', {
+            notification_kind: 'school_event_will_not_join_intent',
+            event_id: selectedEvent.id,
+          })
+          .order('created_at', { ascending: false })
+          .limit(1000),
+      ]);
 
-      const mapped = (data || [])
+      const mappedJoin = (joinData || [])
         .map((item: any) => ({
           id: item.id,
           parent_name: item?.meta?.parent_name || 'Parent',
           parent_email: item?.meta?.parent_email || '',
           created_at: item.created_at,
+          status: 'join' as const,
         }))
         .filter((item) => item.parent_email);
 
-      // Keep latest confirmation per parent.
-      const deduped = Array.from(new Map(mapped.map((item) => [item.parent_email.toLowerCase(), item])).values());
+      const mappedNotJoin = (notJoinData || [])
+        .map((item: any) => ({
+          id: item.id,
+          parent_name: item?.meta?.parent_name || 'Parent',
+          parent_email: item?.meta?.parent_email || '',
+          created_at: item.created_at,
+          status: 'not_join' as const,
+        }))
+        .filter((item) => item.parent_email);
+
+      // Merge intents per parent email. Prefer the latest intent by created_at.
+      const combined = [...mappedJoin, ...mappedNotJoin];
+      const byEmail = new Map<string, EventJoinIntent>();
+      combined.forEach((item) => {
+        const key = item.parent_email.toLowerCase();
+        const existing = byEmail.get(key);
+        if (!existing) {
+          byEmail.set(key, item);
+          return;
+        }
+        // keep the most recent
+        if (new Date(item.created_at).getTime() > new Date(existing.created_at).getTime()) {
+          byEmail.set(key, item);
+        }
+      });
+
+      const deduped = Array.from(byEmail.values());
+      // Sort by most recent
+      deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      // If some intents don't have a proper parent_name, try to resolve from students table by parent_email
+      const emailsToLookup = deduped
+        .filter((it) => !it.parent_name || it.parent_name.trim() === '' || it.parent_name === it.parent_email)
+        .map((it) => it.parent_email.toLowerCase())
+        .filter(Boolean);
+
+      if (emailsToLookup.length > 0 && supabase) {
+        try {
+          const { data: parents } = await supabase
+            .from('students')
+            .select('parent_email, parent_name')
+            .in('parent_email', emailsToLookup)
+            .limit(500);
+
+          const nameByEmail = new Map<string, string>();
+          (parents || []).forEach((p: any) => {
+            if (p.parent_email && p.parent_name) nameByEmail.set(String(p.parent_email).toLowerCase(), String(p.parent_name));
+          });
+
+          deduped.forEach((it) => {
+            const lookup = nameByEmail.get(it.parent_email.toLowerCase());
+            if (lookup) it.parent_name = lookup;
+          });
+        } catch (e) {
+          // ignore lookup errors
+          // eslint-disable-next-line no-console
+          console.error('Failed to resolve parent names', e);
+        }
+      }
+
       setJoinIntents(deduped);
       setLoadingJoinIntents(false);
     };
@@ -493,11 +564,11 @@ export default function EventsPage() {
                   </p>
                 </div>
                 <div className="rounded-xl border border-emerald-200 dark:border-emerald-800/50 bg-white dark:bg-slate-900/40 p-4">
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Parents confirmed they will join</p>
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Parent responses</p>
                   {loadingJoinIntents ? (
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Loading confirmations...</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Loading responses...</p>
                   ) : joinIntents.length === 0 ? (
-                    <p className="text-sm text-slate-500 dark:text-slate-400">No parent confirmations yet.</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">No responses yet.</p>
                   ) : (
                     <div className="space-y-2">
                       {joinIntents.map((intent) => (
@@ -509,13 +580,19 @@ export default function EventsPage() {
                             <p className="text-sm font-medium text-slate-900 dark:text-white">{intent.parent_name}</p>
                             <p className="text-xs text-slate-500 dark:text-slate-400">{intent.parent_email}</p>
                           </div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {new Date(intent.created_at).toLocaleDateString()}
-                          </p>
+                          <div className="flex items-center gap-3">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${intent.status === 'join' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300'}`}>
+                              {intent.status === 'join' ? 'Will join' : 'Will not join'}
+                            </span>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              {new Date(intent.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
+                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Parents who did not respond are treated as <span className="font-semibold">Will not join</span> by default.</p>
                 </div>
               </div>
             )}
