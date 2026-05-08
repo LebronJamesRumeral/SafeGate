@@ -174,7 +174,7 @@ function isCompletedSummerStudent(enrollment: { start_date: string; end_date: st
   today.setHours(0, 0, 0, 0);
   const endDate = new Date(enrollment.end_date);
   endDate.setHours(0, 0, 0, 0);
-  return today > endDate;
+  return today >= endDate;
 }
 
 // Utility to generate a random temporary LRN
