@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { TimePickerInput } from '@/components/time-picker-input';
 import { Skeleton } from '@/components/ui/skeleton';
+import EventsSkeleton from '@/components/events-skeleton';
 import { CalendarDays, MapPin, Clock, Pencil, Trash2, ImagePlus, Megaphone, Info } from 'lucide-react';
 import { fetchActiveSchoolEvents, createSchoolEvent, ensureUpcomingSchoolEventReminders, type SchoolEvent } from '@/lib/school-events';
 import { supabase } from '@/lib/supabase';
@@ -362,15 +363,7 @@ export default function EventsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6 px-2 sm:px-0">
-        {showInitialSkeleton ? (
-          <div className="flex items-center justify-between gap-3">
-            <div className="space-y-2">
-              <Skeleton className="h-9 w-64" />
-              <Skeleton className="h-4 w-96 max-w-[70vw]" />
-            </div>
-            {isAdmin && <Skeleton className="h-9 w-28 rounded-md" />}
-          </div>
-        ) : (
+        {!showInitialSkeleton && (
           <div className="flex items-center justify-between gap-3">
             <div>
               <h1 className="text-3xl font-bold text-slate-900 dark:text-white font-mono">School Events Calendar</h1>
@@ -545,7 +538,7 @@ export default function EventsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/40 p-3">
                   <div className="space-y-1 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
                     <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
-                    <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><CalendarDays className="w-4 h-4 text-slate-500 dark:text-slate-400" /> {selectedEvent.event_date}</p>
+                    <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><CalendarDays className="w-4 h-4 text-slate-500 dark:text-slate-400" /> {new Date(selectedEvent.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                   </div>
                   <div className="space-y-1 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
                     <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Time</label>
@@ -585,7 +578,7 @@ export default function EventsPage() {
                               {intent.status === 'join' ? 'Will join' : 'Will not join'}
                             </span>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                              {new Date(intent.created_at).toLocaleDateString()}
+                              {new Date(intent.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                             </p>
                           </div>
                         </div>
@@ -600,55 +593,7 @@ export default function EventsPage() {
         </Dialog>
 
         {showInitialSkeleton ? (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.28, ease: 'easeOut' }}
-            className="space-y-5"
-          >
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-              {[...Array(4)].map((_, i) => (
-                <Card
-                  key={`stats-${i}`}
-                  className="relative overflow-hidden border-0 shadow-xl bg-linear-to-br from-slate-50 to-white dark:from-slate-900/60 dark:to-slate-800/70"
-                >
-                  <CardContent className="p-4 sm:p-5 flex items-center justify-between relative z-10">
-                    <div className="space-y-2 w-full">
-                      <Skeleton className="h-3 w-24" />
-                      <Skeleton className="h-8 w-12" />
-                    </div>
-                    <div className="w-9 h-9 rounded-lg bg-blue-100/80 dark:bg-blue-900/40 flex items-center justify-center">
-                      <Megaphone className="w-4 h-4 text-blue-400/80" />
-                    </div>
-                  </CardContent>
-                  <div className="h-1 w-full bg-linear-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
-                </Card>
-              ))}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {[...Array(6)].map((_, i) => (
-                <Card key={i} className="overflow-hidden border-2 border-blue-200/60 dark:border-blue-800/50 bg-linear-to-br from-white to-blue-50 dark:from-slate-900/70 dark:to-blue-950/20 shadow-lg">
-                  <div className="h-1.5 w-full bg-linear-to-r from-blue-500 to-cyan-500" />
-                  <Skeleton className="h-44 w-full rounded-none" />
-                  <CardHeader className="pb-2 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <Skeleton className="h-6 w-2/3" />
-                      <div className="w-8 h-8 rounded-lg bg-blue-100/80 dark:bg-blue-900/40 flex items-center justify-center">
-                        <Megaphone className="w-4 h-4 text-blue-400/80" />
-                      </div>
-                    </div>
-                    <Skeleton className="h-4 w-full" />
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <Skeleton className="h-4 w-1/2" />
-                    <Skeleton className="h-4 w-2/3" />
-                    <Skeleton className="h-4 w-1/2" />
-                    <Skeleton className="h-9 w-full mt-2" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </motion.div>
+          <EventsSkeleton />
         ) : (
           <motion.div
             key={`events-content-${isInitialLoad ? 'loading' : 'ready'}`}
@@ -663,104 +608,168 @@ export default function EventsPage() {
               </Card>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <Card className="relative overflow-hidden border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl">
-                    <CardContent className="p-4 sm:p-5 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-semibold">Total Events</p>
-                        <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{events.length}</div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">All posted school events</p>
-                      </div>
-                      <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-lg">
-                        <Megaphone className="w-5 h-5" />
-                      </div>
-                    </CardContent>
-                    <div className="h-1 w-full bg-linear-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
-                  </Card>
-                  <Card className="relative overflow-hidden border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl">
-                    <CardContent className="p-4 sm:p-5 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-semibold">Upcoming</p>
-                        <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{upcomingCount}</div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Events from today onward</p>
-                      </div>
-                      <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-lg">
-                        <CalendarDays className="w-5 h-5" />
-                      </div>
-                    </CardContent>
-                    <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
-                  </Card>
-                  <Card className="relative overflow-hidden border-0 bg-linear-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-slate-800/80 shadow-xl">
-                    <CardContent className="p-4 sm:p-5 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-wider text-violet-600 dark:text-violet-400 font-semibold">With Images</p>
-                        <div className="text-3xl font-bold text-violet-600 dark:text-violet-400">{eventsWithImagesCount}</div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Cards with visual posters</p>
-                      </div>
-                      <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-violet-500 to-violet-600 text-white flex items-center justify-center shadow-lg">
-                        <ImagePlus className="w-5 h-5" />
-                      </div>
-                    </CardContent>
-                    <div className="h-1 w-full bg-linear-to-r from-violet-400 to-violet-600 dark:from-violet-500 dark:to-violet-700" />
-                  </Card>
-                  <Card className="relative overflow-hidden border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-xl">
-                    <CardContent className="p-4 sm:p-5 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-wider text-amber-600 dark:text-amber-400 font-semibold">No Images</p>
-                        <div className="text-3xl font-bold text-amber-600 dark:text-amber-400">{events.length - eventsWithImagesCount}</div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Text-only event cards</p>
-                      </div>
-                      <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-lg">
-                        <Info className="w-5 h-5" />
-                      </div>
-                    </CardContent>
-                    <div className="h-1 w-full bg-linear-to-r from-amber-400 to-amber-600 dark:from-amber-500 dark:to-amber-700" />
-                  </Card>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                  {/* Total Events Card */}
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.1 }}
+                  >
+                    <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                      <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                        <div>
+                          <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Total Events</p>
+                          <div className="text-xl sm:text-4xl font-bold text-blue-600 dark:text-blue-400">{events.length}</div>
+                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">All posted school events</p>
+                        </div>
+                        <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                          <Megaphone className="w-8 h-8" />
+                        </div>
+                      </CardContent>
+                      <div className="h-1 w-full bg-linear-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
+                    </Card>
+                  </motion.div>
+
+                  {/* Upcoming Events Card */}
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                      <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                        <div>
+                          <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Upcoming</p>
+                          <div className="text-xl sm:text-4xl font-bold text-emerald-600 dark:text-emerald-400">{upcomingCount}</div>
+                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Events from today onward</p>
+                        </div>
+                        <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                          <CalendarDays className="w-8 h-8" />
+                        </div>
+                      </CardContent>
+                      <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
+                    </Card>
+                  </motion.div>
+
+                  {/* With Images Card */}
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <Card className="border-0 bg-linear-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 dark:bg-violet-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-violet-500/5 dark:bg-violet-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                      <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                        <div>
+                          <p className="text-[10px] sm:text-xs text-violet-600 dark:text-violet-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">With Images</p>
+                          <div className="text-xl sm:text-4xl font-bold text-violet-600 dark:text-violet-400">{eventsWithImagesCount}</div>
+                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Cards with visual posters</p>
+                        </div>
+                        <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-violet-500 to-violet-600 text-white items-center justify-center shadow-lg shadow-violet-500/25 dark:shadow-violet-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                          <ImagePlus className="w-8 h-8" />
+                        </div>
+                      </CardContent>
+                      <div className="h-1 w-full bg-linear-to-r from-violet-400 to-violet-600 dark:from-violet-500 dark:to-violet-700" />
+                    </Card>
+                  </motion.div>
+
+                  {/* No Images Card */}
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                  >
+                    <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 dark:bg-amber-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-amber-500/5 dark:bg-amber-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
+                      <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
+                        <div>
+                          <p className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">No Images</p>
+                          <div className="text-xl sm:text-4xl font-bold text-amber-600 dark:text-amber-400">{events.length - eventsWithImagesCount}</div>
+                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Text-only event cards</p>
+                        </div>
+                        <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-amber-500 to-amber-600 text-white items-center justify-center shadow-lg shadow-amber-500/25 dark:shadow-amber-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                          <Info className="w-8 h-8" />
+                        </div>
+                      </CardContent>
+                      <div className="h-1 w-full bg-linear-to-r from-amber-400 to-amber-600 dark:from-amber-500 dark:to-amber-700" />
+                    </Card>
+                  </motion.div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {events.map((event) => (
-                <Card key={event.id} className="overflow-hidden border-2 border-blue-200/60 dark:border-blue-800/50 bg-linear-to-br from-white to-blue-50 dark:from-slate-900/70 dark:to-blue-950/20 shadow-lg hover:shadow-2xl transition-all duration-300">
-                  <div className="h-1.5 w-full bg-linear-to-r from-blue-500 to-cyan-500" />
-                  {event.image_url ? (
-                    <div className="h-44 w-full bg-slate-100 dark:bg-slate-900">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={event.image_url} alt={event.title} className="h-full w-full object-cover" />
-                    </div>
-                  ) : (
-                    <div className="h-44 w-full flex items-center justify-center bg-linear-to-br from-blue-100 to-cyan-100 dark:from-blue-950/40 dark:to-cyan-950/40 text-blue-700 dark:text-blue-300">
-                      <Megaphone className="w-10 h-10 opacity-70" />
-                    </div>
-                  )}
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <CardTitle className="text-xl">{event.title}</CardTitle>
-                        <CardDescription className="mt-1 line-clamp-2">{event.description || 'No description.'}</CardDescription>
+              {events.sort((a, b) => {
+                const aDate = new Date(b.created_at || b.updated_at || '').getTime();
+                const bDate = new Date(a.created_at || a.updated_at || '').getTime();
+                return aDate - bDate;
+              }).map((event, index) => (
+                <motion.div
+                  key={event.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05, duration: 0.3 }}
+                >
+                  <Card className="overflow-hidden border-0 bg-linear-to-br from-white to-blue-50 dark:from-slate-900/70 dark:to-blue-950/20 shadow-lg hover:shadow-2xl transition-all duration-300 group hover:scale-105 h-full">
+                    <div className="h-1.5 w-full bg-linear-to-r from-blue-500 to-cyan-500" />
+                    {event.image_url ? (
+                      <div className="h-44 w-full bg-slate-100 dark:bg-slate-900 overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={event.image_url} alt={event.title} className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500" />
                       </div>
-                      <div className="w-8 h-8 rounded-lg bg-blue-100/80 dark:bg-blue-900/40 flex items-center justify-center">
-                        <Megaphone className="w-4 h-4 text-blue-600 dark:text-blue-300" />
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <p className="text-sm flex items-center gap-2"><CalendarDays className="w-4 h-4" /> {event.event_date}</p>
-                    <p className="text-sm flex items-center gap-2"><Clock className="w-4 h-4" /> {formatTime12h(event.start_time)} - {formatTime12h(event.end_time)}</p>
-                    <p className="text-sm flex items-center gap-2"><MapPin className="w-4 h-4" /> {event.location || 'School campus'}</p>
-                    <Button size="sm" variant="outline" className="w-full mt-2" onClick={() => { setSelectedEvent(event); setDetailsOpen(true); }}>
-                      View Details
-                    </Button>
-                    {isAdmin && (
-                      <div className="pt-2 flex justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={() => openEditDialog(event)}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => void handleDelete(event.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                    ) : (
+                      <div className="h-44 w-full flex items-center justify-center bg-linear-to-br from-blue-100 to-cyan-100 dark:from-blue-950/40 dark:to-cyan-950/40 text-blue-700 dark:text-blue-300">
+                        <Megaphone className="w-10 h-10 opacity-70 group-hover:scale-125 transition-transform duration-300" />
                       </div>
                     )}
-                  </CardContent>
-                </Card>
+                    <CardHeader className="pb-2 pt-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">{event.title}</CardTitle>
+                          <CardDescription className="mt-1 line-clamp-2 text-slate-600 dark:text-slate-400">{event.description || 'No description.'}</CardDescription>
+                        </div>
+                        <div className="w-8 h-8 rounded-lg bg-blue-100/80 dark:bg-blue-900/40 flex items-center justify-center shrink-0 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/60 transition-colors">
+                          <Megaphone className="w-4 h-4 text-blue-600 dark:text-blue-300" />
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-2.5 pb-4">
+                      <div className="space-y-1.5">
+                        <p className="text-sm flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                          <CalendarDays className="w-4 h-4 text-blue-500" /> 
+                          <span className="font-medium">{new Date(event.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        </p>
+                        <p className="text-sm flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                          <Clock className="w-4 h-4 text-blue-500" /> 
+                          <span className="font-medium">{formatTime12h(event.start_time)} - {formatTime12h(event.end_time)}</span>
+                        </p>
+                        <p className="text-sm flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                          <MapPin className="w-4 h-4 text-blue-500" /> 
+                          <span className="font-medium">{event.location || 'School campus'}</span>
+                        </p>
+                      </div>
+                      <div className="mt-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <Button size="sm" className="w-full md:flex-1 bg-blue-500 hover:bg-blue-600 text-white transition-all duration-200" onClick={() => { setSelectedEvent(event); setDetailsOpen(true); }}>
+                          View Details
+                        </Button>
+
+                        {isAdmin && (
+                          <div className="flex items-center gap-2 md:ml-3">
+                            <Button size="sm" variant="outline" className="h-9 w-9 p-0 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => openEditDialog(event)}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button size="sm" className="h-9 w-9 p-0 flex items-center justify-center rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors" onClick={() => void handleDelete(event.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
               ))}
             </div>
               </>
