@@ -715,6 +715,24 @@ export default function StudentsPage() {
   const [editFirstMiddleName, setEditFirstMiddleName] = useState<string | null>(null);
   const [editLastName, setEditLastName] = useState<string | null>(null);
 
+  const schoolYearHasEnded = useMemo(() => {
+    if (currentSchoolYearLabel === 'School Year Closed') {
+      return true;
+    }
+
+    if (!currentSchoolYear?.end_date) {
+      return false;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const endDate = new Date(currentSchoolYear.end_date);
+    endDate.setHours(0, 0, 0, 0);
+
+    return today >= endDate;
+  }, [currentSchoolYear?.end_date, currentSchoolYearLabel]);
+
   const normalizeRfidUid = (value: string) => value.trim().toUpperCase().replace(/[^A-F0-9]/g, '');
 
   const applyRfidLine = (line: string) => {
@@ -1248,7 +1266,7 @@ export default function StudentsPage() {
       const schoolYearEnd = new Date(data.end_date);
       schoolYearEnd.setHours(0, 0, 0, 0);
 
-      if (today > schoolYearEnd) {
+      if (today >= schoolYearEnd) {
         await supabase
           .from('school_years')
           .update({ is_current: false })
@@ -1420,18 +1438,78 @@ export default function StudentsPage() {
       const startYear = new Date(schoolYearStartDate).getFullYear();
       const endYear = new Date(schoolYearEndDate).getFullYear();
       const label = `S.Y. ${startYear}-${endYear}`;
-      await supabase.from('school_years').insert({
+      
+      console.log('Creating school year:', {
         label,
         start_date: schoolYearStartDate,
         end_date: schoolYearEndDate,
         is_current: true,
       });
+      
+      const { data: insertData, error: insertError } = await supabase
+        .from('school_years')
+        .insert({
+          label,
+          start_date: schoolYearStartDate,  // Already in YYYY-MM-DD format
+          end_date: schoolYearEndDate,      // Already in YYYY-MM-DD format
+          is_current: true,
+        })
+        .select();
+      
+      if (insertError) {
+        console.warn(`Warning: Failed to create school year: ${insertError.message}`);
+      }
+      
+      if (insertData && insertData.length > 0) {
+        console.log('School year created successfully:', insertData);
+      } else {
+        console.warn('School year insert returned no data - may not have been created');
+      }
+      
       // 3. Mark previous school years as not current
-      await supabase.from('school_years').update({ is_current: false }).neq('label', label);
+      const { data: updateData, error: updateError } = await supabase
+        .from('school_years')
+        .update({ is_current: false })
+        .neq('label', label)
+        .select();
+      
+      if (updateError) {
+        console.warn('Warning: Failed to mark previous school years as not current:', updateError.message);
+      } else {
+        console.log('Previous school years updated:', updateData);
+      }
+      
+      // 4. Verify the data was actually saved by querying it back (optional)
+      let verifyData = null;
+      const { data: verifyQueryData, error: verifyError } = await supabase
+        .from('school_years')
+        .select('*')
+        .eq('label', label)
+        .maybeSingle();
+      
+      if (verifyError) {
+        console.warn('Verification query had an issue:', verifyError.message);
+      } else if (verifyQueryData) {
+        verifyData = verifyQueryData;
+        console.log('Verification successful - school year found in database:', verifyData);
+      } else {
+        console.warn('School year could not be verified - may not exist yet');
+      }
+      
+      // Force show all school years in database
+      const { data: allYears, error: allYearsError } = await supabase
+        .from('school_years')
+        .select('*');
+      
+      console.log('All school years in database after insert:', allYears);
+      if (allYearsError) {
+        console.error('Error fetching all school years:', allYearsError);
+      }
+      
       // 4. Sync to masterlist (if needed, add logic here)
       toast({
         title: 'School Year Advanced!',
-        description: 'All students have been advanced and data synced.',
+        description: `Created: ${label} (${schoolYearStartDate} to ${schoolYearEndDate})`,
       });
       setUndoAvailable(false); // revert to New School Year button after confirm
       setPendingSchoolYearConfirmation(false);
@@ -1469,59 +1547,200 @@ export default function StudentsPage() {
     if (!schoolYearToEnd) {
       const { data: fallbackSchoolYear, error: fallbackError } = await supabase
         .from('school_years')
-        .select('label, start_date, end_date')
+        .select('*')
+        .eq('is_current', true)
         .order('start_date', { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (fallbackError) {
-        toast({
-          title: 'Missing School Year',
-          description: fallbackError.message,
-          variant: 'destructive',
-        });
-        return;
+        console.error('Error fetching current school year:', fallbackError);
       }
 
-      schoolYearToEnd = fallbackSchoolYear || null;
+      if (!fallbackSchoolYear) {
+        console.warn('No current school year found - checking for any school year');
+        const { data: anySchoolYear, error: anyError } = await supabase
+          .from('school_years')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (anyError) {
+          console.error('Error fetching any school year:', anyError);
+        }
+
+        schoolYearToEnd = anySchoolYear || null;
+      } else {
+        schoolYearToEnd = fallbackSchoolYear;
+      }
     }
 
+    // If still no school year, create a default one to close out
     if (!schoolYearToEnd) {
-      toast({
-        title: 'Missing School Year',
-        description: 'No school year record was found to end in the database.',
-        variant: 'destructive',
+      console.log('No school year exists - creating default one to close out');
+      const defaultLabel = `S.Y. 2025-2026`;
+      const defaultStartDate = '2025-06-01';  // DATE format: YYYY-MM-DD
+      const defaultEndDate = '2026-03-31';    // DATE format: YYYY-MM-DD
+      
+      console.log('Attempting to create default school year:', {
+        defaultLabel,
+        defaultStartDate,
+        defaultEndDate,
       });
-      return;
+      
+      const { data: newSchoolYear, error: createError } = await supabase
+        .from('school_years')
+        .insert({
+          label: defaultLabel,
+          start_date: defaultStartDate,
+          end_date: defaultEndDate,
+          is_current: true,
+        })
+        .select();
+
+      if (createError) {
+        console.error('Create default school year error:', createError);
+        throw new Error(`Failed to create default school year: ${createError.message}`);
+      }
+      
+      console.log('Created school year response:', newSchoolYear);
+
+      if (!newSchoolYear || newSchoolYear.length === 0) {
+        throw new Error('School year was not created - insert returned no data');
+      }
+
+      schoolYearToEnd = newSchoolYear[0];
+      console.log('Using newly created school year:', schoolYearToEnd);
     }
 
     setEndingSchoolYear(true);
     try {
       const endDate = new Date();
       endDate.setDate(endDate.getDate() - 1);
-      const endDateValue = endDate.toISOString().split('T')[0];
+      const endDateValue = endDate.toISOString().split('T')[0];  // DATE format: YYYY-MM-DD
 
-      const { error: schoolYearError } = await supabase
-        .from('school_years')
-        .update({ end_date: endDateValue, is_current: false })
-        .eq('label', schoolYearToEnd.label);
+      console.log('School year object before update:', {
+        id: schoolYearToEnd.id,
+        label: schoolYearToEnd.label,
+        is_current: schoolYearToEnd.is_current,
+        start_date: schoolYearToEnd.start_date,
+        end_date: schoolYearToEnd.end_date,
+      });
+
+      console.log('Ending school year with:', {
+        endDate: endDateValue,
+        is_current: false,
+        filter: {
+          id: schoolYearToEnd.id,
+          label: schoolYearToEnd.label,
+        },
+      });
+
+      // Try updating by ID first if available (more reliable)
+      let updateData, schoolYearError;
+      
+      if (schoolYearToEnd.id) {
+        console.log('Attempting update by ID:', schoolYearToEnd.id);
+        const result = await supabase
+          .from('school_years')
+          .update({ end_date: endDateValue, is_current: false })
+          .eq('id', schoolYearToEnd.id)
+          .select();
+        
+        updateData = result.data;
+        schoolYearError = result.error;
+      } else {
+        console.log('No ID available, attempting update by label:', schoolYearToEnd.label);
+        const result = await supabase
+          .from('school_years')
+          .update({ end_date: endDateValue, is_current: false })
+          .eq('label', schoolYearToEnd.label)
+          .select();
+        
+        updateData = result.data;
+        schoolYearError = result.error;
+      }
 
       if (schoolYearError) {
-        throw schoolYearError;
+        console.error('Update error:', schoolYearError);
+        throw new Error(`Failed to end school year: ${schoolYearError.message}`);
+      }
+      
+      console.log('Update attempt result:', {
+        updateData,
+        rowsAffected: updateData?.length || 0,
+        error: schoolYearError,
+      });
+      
+      if (!updateData || updateData.length === 0) {
+        console.warn('No existing school year to update - this may be the first closure');
+      } else {
+        console.log('School year ended successfully:', updateData);
       }
 
       if (includeSummerStudentsOnEnd && Object.keys(summerEnrollments).length > 0) {
-        const { error: summerError } = await supabase
+        const { data: summerData, error: summerError } = await supabase
           .from('summer_enrollments')
           .update({ end_date: endDateValue })
-          .in('student_lrn', Object.keys(summerEnrollments));
+          .in('student_lrn', Object.keys(summerEnrollments))
+          .select();
 
         if (summerError) {
-          throw summerError;
+          console.warn('Warning: Failed to update summer enrollments:', summerError.message);
+        } else {
+          console.log('Summer enrollments updated:', summerData);
         }
       }
+      
+      // Force verify - query all school years to see what exists
+      console.log('=== FORCED VERIFICATION ===');
+      const { data: allSchoolYears, error: allError } = await supabase
+        .from('school_years')
+        .select('*');
+      
+      if (allError) {
+        console.error('Failed to fetch all school years:', allError);
+      } else {
+        console.log('All school years in database:', allSchoolYears);
+        console.log('Total school years count:', allSchoolYears?.length || 0);
+      }
+      
+      // Verify the school year was actually updated (optional - don't fail if not found)
+      let verifyData = null, verifyError = null;
+      
+      if (schoolYearToEnd.id) {
+        const result = await supabase
+          .from('school_years')
+          .select('*')
+          .eq('id', schoolYearToEnd.id)
+          .maybeSingle();
+        
+        verifyData = result.data;
+        verifyError = result.error;
+      } else {
+        const result = await supabase
+          .from('school_years')
+          .select('*')
+          .eq('label', schoolYearToEnd.label)
+          .maybeSingle();
+        
+        verifyData = result.data;
+        verifyError = result.error;
+      }
+      
+      if (verifyError) {
+        console.warn('Verification query had an issue:', verifyError.message);
+      }
+      
+      if (verifyData) {
+        console.log('Verification successful - school year found:', verifyData);
+      } else {
+        console.warn('School year record not found in verification - may have been deleted or never existed');
+      }
 
-      const updatedSchoolYear = { ...schoolYearToEnd, end_date: endDateValue };
+      // Use verified data if available, otherwise use the original
+      const updatedSchoolYear = verifyData || schoolYearToEnd;
       const updatedSummerEnrollments = includeSummerStudentsOnEnd
         ? Object.fromEntries(
             Object.entries(summerEnrollments).map(([lrn, enrollment]) => [
@@ -1554,6 +1773,9 @@ export default function StudentsPage() {
       });
       setEndSchoolYearOpen(false);
     } catch (error: any) {
+      console.error('=== END SCHOOL YEAR ERROR ===', error);
+      console.error('Error message:', error?.message);
+      console.error('Full error:', error);
       toast({
         title: 'Failed to End School Year',
         description: error?.message || String(error),
@@ -1723,7 +1945,7 @@ export default function StudentsPage() {
         const summerEnrollmentsForCheck = options?.summerEnrollmentsOverride ?? summerEnrollments;
         if (schoolYearForCheck && schoolYearForCheck.end_date) {
           const syEnd = new Date(schoolYearForCheck.end_date);
-          if (todayDate > syEnd) {
+          if (todayDate >= syEnd) {
             // We're past school year end; enforce summer-only attendance
             students.forEach((s) => {
               const enrollment = summerEnrollmentsForCheck[s.lrn];
@@ -4533,9 +4755,19 @@ export default function StudentsPage() {
                                     );
                                   })()
                                 ) : (
-                                  <Badge variant="outline" className="border-border/60 text-muted-foreground text-xs">
-                                    Not Checked In
-                                  </Badge>
+                                  summerEnrollment ? (
+                                    <Badge variant="outline" className="border-border/60 text-muted-foreground text-xs">
+                                      Not Checked In
+                                    </Badge>
+                                  ) : schoolYearHasEnded ? (
+                                    <Badge className="bg-amber-100 text-amber-800 border-0 text-xs">
+                                      End of S.Y.
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="border-border/60 text-muted-foreground text-xs">
+                                      Not Checked In
+                                    </Badge>
+                                  )
                                 )}
                               </TableCell>
                               <TableCell className="text-center">

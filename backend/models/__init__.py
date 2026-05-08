@@ -113,10 +113,10 @@ class SchoolYear(Base):
     __tablename__ = "school_years"
     
     id = Column(Integer, primary_key=True, index=True)
-    year = Column(String(20), unique=True, index=True)  # e.g., "2023-2024"
+    label = Column(String(20), unique=True, index=True)  # e.g., "S.Y. 2023-2024"
     start_date = Column(DateTime)
     end_date = Column(DateTime)
-    is_active = Column(Boolean, default=False)
+    is_current = Column(Boolean, default=False)
     
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

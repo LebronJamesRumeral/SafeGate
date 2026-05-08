@@ -170,26 +170,26 @@ class RiskScoreResponse(RiskScoreBase):
 
 class SchoolYearBase(BaseModel):
     """Base schema for school year."""
-    year: str = Field(..., min_length=9, max_length=9)  # e.g., "2023-2024"
+    label: str = Field(..., min_length=4, max_length=20)  # e.g., "S.Y. 2023-2024"
     start_date: datetime
     end_date: datetime
 
 
 class SchoolYearCreate(SchoolYearBase):
     """Schema for creating school year."""
-    is_active: bool = False
+    is_current: bool = False
 
 
 class SchoolYearUpdate(BaseModel):
     """Schema for updating school year."""
-    is_active: Optional[bool] = None
+    is_current: Optional[bool] = None
     end_date: Optional[datetime] = None
 
 
 class SchoolYearResponse(SchoolYearBase):
     """Schema for school year response."""
     id: int
-    is_active: bool
+    is_current: bool
     created_at: datetime
     updated_at: datetime
     

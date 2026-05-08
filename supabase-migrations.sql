@@ -242,6 +242,7 @@ ALTER TABLE student_attendance_schedules ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Enable read for all on school years" ON school_years FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on school years" ON school_years FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on school years" ON school_years FOR UPDATE USING (true);
+CREATE POLICY "Enable delete for all on school years" ON school_years FOR DELETE USING (true);
 CREATE POLICY "Enable read for all on summer enrollments" ON summer_enrollments FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all on summer enrollments" ON summer_enrollments FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on summer enrollments" ON summer_enrollments FOR UPDATE USING (true);
