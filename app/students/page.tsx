@@ -1980,11 +1980,13 @@ export default function StudentsPage() {
       // only students enrolled in summer classes should have attendance considered. Others should be marked out_of_session.
       try {
         const todayDate = new Date(today);
+        todayDate.setHours(0, 0, 0, 0);
         const schoolYearForCheck = options?.currentSchoolYear ?? currentSchoolYear;
         const summerEnrollmentsForCheck = options?.summerEnrollmentsOverride ?? summerEnrollments;
         if (schoolYearForCheck && schoolYearForCheck.end_date) {
           const syEnd = new Date(schoolYearForCheck.end_date);
-          if (todayDate >= syEnd) {
+          syEnd.setHours(0, 0, 0, 0);
+          if (todayDate > syEnd) {
             // We're past school year end; enforce summer-only attendance
             students.forEach((s) => {
               const enrollment = summerEnrollmentsForCheck[s.lrn];
@@ -2584,6 +2586,16 @@ export default function StudentsPage() {
     
     try {
       setLoadingBehavioral(true);
+
+      // Fetch current school year end date
+      const { data: schoolYearData } = await supabase
+        .from('school_years')
+        .select('end_date, is_current')
+        .eq('is_current', true)
+        .single();
+      
+      const schoolYearEnd = schoolYearData?.end_date ? new Date(schoolYearData.end_date) : null;
+      schoolYearEnd?.setHours(0, 0, 0, 0);
       
       // Fetch recent behavioral events
       const { data: events, error: eventsError } = await supabase
@@ -2620,12 +2632,16 @@ export default function StudentsPage() {
       // Generate all weekdays in the 30-day period
       const current = new Date(thirtyDaysAgo);
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
       while (current <= today) {
         const dateStr = current.toISOString().split('T')[0];
         const dayOfWeek = current.getDay();
         
-        // Only check weekdays (Monday=1 to Friday=5)
-        if (dayOfWeek >= 1 && dayOfWeek <= 5 && !existingDates.has(dateStr)) {
+        // Only check weekdays (Monday=1 to Friday=5) and respect school year end date
+        const isBeforeSchoolYearEnd = !schoolYearEnd || current <= schoolYearEnd;
+        
+        if (dayOfWeek >= 1 && dayOfWeek <= 5 && !existingDates.has(dateStr) && isBeforeSchoolYearEnd) {
           // Add an absent entry for this missing weekday
           enrichedAttendance.push({
             student_lrn: studentLrn,
@@ -2642,8 +2658,18 @@ export default function StudentsPage() {
         current.setDate(current.getDate() + 1);
       }
       
+      // Filter attendance records to exclude dates after school year end
+      let filteredAttendance = enrichedAttendance;
+      if (schoolYearEnd) {
+        filteredAttendance = enrichedAttendance.filter(a => {
+          const recordDate = new Date(a.date);
+          recordDate.setHours(0, 0, 0, 0);
+          return recordDate <= schoolYearEnd;
+        });
+      }
+      
       // Sort by date descending (most recent first)
-      enrichedAttendance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      filteredAttendance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       // Fetch student's attendance schedule to get their entry_time
       const { data: scheduleData, error: scheduleError } = await supabase
@@ -2665,7 +2691,7 @@ export default function StudentsPage() {
       
       setBehavioralData({
         events: events || [],
-        attendance: enrichedAttendance,
+        attendance: filteredAttendance,
         entryTime: scheduleData?.entry_time || null,
         stats: {
           positiveEvents,

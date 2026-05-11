@@ -225,6 +225,13 @@ export default function AttendancePage() {
     try {
       setLoading(true);
 
+      // Fetch current school year to get end date
+      const { data: schoolYearData } = await supabase
+        .from('school_years')
+        .select('end_date, is_current')
+        .eq('is_current', true)
+        .single();
+
       let studentsQuery = supabase.from('students').select('lrn, name, level');
       
       if (selectedLevel !== 'all') {
@@ -277,6 +284,17 @@ export default function AttendancePage() {
         const [normalizedStart, normalizedEnd] = normalizeRange(rangeStart, rangeEnd);
         start = normalizedStart;
         end = normalizedEnd;
+      }
+
+      // Constrain end date to school year end date if school year has ended
+      if (schoolYearData?.end_date) {
+        const schoolYearEnd = new Date(schoolYearData.end_date);
+        schoolYearEnd.setHours(0, 0, 0, 0);
+        const endDateObj = new Date(end);
+        endDateObj.setHours(0, 0, 0, 0);
+        if (endDateObj > schoolYearEnd) {
+          end = schoolYearData.end_date;
+        }
       }
 
       let attendanceQuery = supabase

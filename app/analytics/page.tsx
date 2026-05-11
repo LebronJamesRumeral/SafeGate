@@ -188,6 +188,13 @@ export default function AnalyticsPage() {
 
       const totalStudents = students?.length || 0;
 
+      // Fetch current school year to get end date
+      const { data: schoolYearData } = await supabase
+        .from('school_years')
+        .select('end_date, is_current')
+        .eq('is_current', true)
+        .single();
+
       const normalizeRange = (start: string, end: string) => {
         if (!start || !end) return [end, end];
         return start <= end ? [start, end] : [end, start];
@@ -208,6 +215,19 @@ export default function AnalyticsPage() {
                 ];
               })();
 
+      let constrainedEnd = normalizedEnd;
+      
+      // Constrain end date to school year end date if school year has ended
+      if (schoolYearData?.end_date) {
+        const schoolYearEnd = new Date(schoolYearData.end_date);
+        schoolYearEnd.setHours(0, 0, 0, 0);
+        const endDateObj = new Date(normalizedEnd);
+        endDateObj.setHours(0, 0, 0, 0);
+        if (endDateObj > schoolYearEnd) {
+          constrainedEnd = schoolYearData.end_date;
+        }
+      }
+
       const buildDateRange = (start: string, end: string) => {
         const days: string[] = [];
         const startDate = new Date(start);
@@ -220,7 +240,7 @@ export default function AnalyticsPage() {
         return days;
       };
 
-      const dateRange = buildDateRange(normalizedStart, normalizedEnd);
+      const dateRange = buildDateRange(normalizedStart, constrainedEnd);
       // Filter to only weekdays (Monday-Friday, not Saturday-Sunday)
       const last7Days = dateRange.slice(-7).filter(dateStr => {
         const date = new Date(dateStr);
