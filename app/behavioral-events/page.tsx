@@ -217,7 +217,7 @@ const extractReportGroupId = (notes?: string | null): string | null => {
 
 const removeReportMetadataFromNotes = (notes?: string | null): string => {
   if (!notes) return '';
-  return notes
+  const cleaned = notes
     .split('\n')
     .filter(
       (line) =>
@@ -226,6 +226,49 @@ const removeReportMetadataFromNotes = (notes?: string | null): string => {
     )
     .join('\n')
     .trim();
+
+  // If notes are JSON (from parent daily report), parse and format to friendly text
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const lines: string[] = [];
+      const activities = Array.isArray(parsed.activities)
+        ? parsed.activities.map((a: unknown) => String(a).trim()).filter(Boolean)
+        : [];
+      if (activities.length) lines.push(`Activities: ${activities.join(', ')}`);
+      if (parsed.other_activity) lines.push(`Other activity: ${String(parsed.other_activity).trim()}`);
+      if (parsed.mood) lines.push(`Mood: ${String(parsed.mood).trim()}`);
+      if (parsed.health) lines.push(`Health: ${String(parsed.health).trim()}`);
+      if (parsed.challenges) lines.push(`Challenges: ${String(parsed.challenges).trim()}`);
+      if (parsed.goals) lines.push(`Goals: ${String(parsed.goals).trim()}`);
+
+      if (lines.length > 0) return lines.join('\n');
+    }
+  } catch {
+    // fall back to cleaned string below
+  }
+
+  return cleaned;
+};
+
+const formatGuidanceInterventionNotes = (notes?: string | null) => {
+  if (!notes) return null;
+  const raw = String(notes || '').trim();
+  const scoreMatch = raw.match(/\[Behavioral Score:\s*(\d{1,3})(?:\s*,\s*([^\]]+))?\]/i);
+  if (scoreMatch) {
+    const score = Number(scoreMatch[1]);
+    const remaining = raw.replace(/\[Behavioral Score:\s*\d{1,3}(?:\s*,\s*[^\]]+)?\]\s*/gi, '').trim();
+    return (
+      <div>
+        <div className="mb-2">
+          <Badge className="bg-amber-100 text-amber-700 border-0">Behavioral Score: {isNaN(score) ? 'N/A' : score}</Badge>
+        </div>
+        {remaining ? <div className="text-sm whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">{remaining}</div> : null}
+      </div>
+    );
+  }
+
+  return <div className="text-sm whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">{raw}</div>;
 };
 
 const SEVERITY_COLORS = {
@@ -3606,8 +3649,12 @@ function BehavioralEventsPageContent() {
                       <BookOpen className="w-4 h-4" />
                       Guidance Intervention Notes
                     </h3>
-                    <div className="p-3 bg-white dark:bg-slate-900/50 rounded-lg border border-amber-100 dark:border-amber-900/30 min-h-[100px] text-sm whitespace-pre-wrap">
-                      {selectedEvent.guidance_intervention_notes || <span className="text-muted-foreground italic">No guidance notes recorded yet</span>}
+                    <div className="p-3 bg-white dark:bg-slate-900/50 rounded-lg border border-amber-100 dark:border-amber-900/30 min-h-[100px] text-sm">
+                      {selectedEvent.guidance_intervention_notes ? (
+                        formatGuidanceInterventionNotes(selectedEvent.guidance_intervention_notes)
+                      ) : (
+                        <span className="text-muted-foreground italic">No guidance notes recorded yet</span>
+                      )}
                     </div>
                   </div>
 

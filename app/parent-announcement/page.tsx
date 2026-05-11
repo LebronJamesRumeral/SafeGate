@@ -667,7 +667,7 @@ export default function ParentAnnouncementPage() {
                 {selectedAnnouncement?.title}
               </DialogTitle>
               <DialogDescription>
-                {selectedAnnouncement?.id} • Announcement details
+                {selectedAnnouncement ? `${formatEventDate(selectedAnnouncement.event_date, selectedAnnouncement.end_date)} • Announcement details` : 'Announcement details'}
               </DialogDescription>
             </DialogHeader>
             {selectedAnnouncement && (

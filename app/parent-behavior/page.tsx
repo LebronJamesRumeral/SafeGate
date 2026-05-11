@@ -117,6 +117,26 @@ function formatParentBehaviorNotes(notes?: string | null, description?: string |
     .trim() || (description || '').trim();
 }
 
+function formatGuidanceInterventionNotes(notes?: string | null) {
+  if (!notes) return null;
+  const raw = String(notes || '').trim();
+  const scoreMatch = raw.match(/\[Behavioral Score:\s*(\d{1,3})(?:\s*,\s*([^\]]+))?\]/i);
+  if (scoreMatch) {
+    const score = Number(scoreMatch[1]);
+    const remaining = raw.replace(/\[Behavioral Score:\s*\d{1,3}(?:\s*,\s*[^\]]+)?\]\s*/gi, '').trim();
+    return (
+      <div>
+        <div className="mb-2">
+          <Badge className="bg-amber-100 text-amber-700 border-0">Behavioral Score: {isNaN(score) ? 'N/A' : score}</Badge>
+        </div>
+        {remaining ? <div className="text-sm whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">{remaining}</div> : null}
+      </div>
+    );
+  }
+
+  return <div className="text-sm whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">{raw}</div>;
+}
+
 export default function ParentBehaviorPage() {
   const mounted = useIsMounted();
   const { user, loading: authLoading } = useAuth();
