@@ -31,6 +31,22 @@ type StudentScheduleRow = {
   teacher_name: string | null;
 };
 
+function getSchoolDays(start: string, end: string) {
+  if (!start || !end) return [] as string[];
+  const days: string[] = [];
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  const current = new Date(startDate);
+  while (current <= endDate) {
+    const day = current.getDay();
+    if (day >= 1 && day <= 5) {
+      days.push(current.toISOString().split('T')[0]);
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return days;
+}
+
 export default function ParentAttendancePage() {
   const { user, loading: authLoading } = useAuth();
   const [children, setChildren] = useState<any[]>([]);
@@ -88,6 +104,50 @@ export default function ParentAttendancePage() {
             .eq('student_lrn', child.lrn)
             .order('date', { ascending: false });
 
+          // Add synthetic absent rows for school days without a check-in (match admin attendance behavior)
+          const todayDate = new Date().toISOString().slice(0, 10);
+          const thirtyDaysAgo = (() => {
+            const d = new Date();
+            d.setDate(d.getDate() - 30);
+            return d.toISOString().slice(0, 10);
+          })();
+
+          const existingLogs = (attLogs || []).slice();
+          const presentDates = new Set<string>();
+          const isNoClassStatus = (s: any) => ['cancelled_class', 'holiday'].includes(String(s || '').toLowerCase());
+          for (const l of existingLogs) {
+            const d = String(l.date || '').slice(0, 10);
+            if (!d) continue;
+            // treat only actual check-ins as present
+            if (isNoClassStatus(l.attendance_status)) continue;
+            if (l.is_present === false) continue;
+            presentDates.add(d);
+          }
+
+          const recentSchoolDays = getSchoolDays(thirtyDaysAgo, todayDate);
+          const syntheticAbsents: any[] = [];
+          for (const d of recentSchoolDays) {
+            if (!presentDates.has(d)) {
+              syntheticAbsents.push({
+                id: `abs-${child.lrn}-${d}`,
+                student_lrn: child.lrn,
+                check_in_time: null,
+                check_out_time: null,
+                date: d,
+                attendance_status: 'absent',
+                is_present: false,
+              });
+            }
+          }
+
+          // merge synthetic absent rows with real logs and sort by date desc
+          const merged = [...existingLogs, ...syntheticAbsents].sort((a: any, b: any) => {
+            const da = String(a.date || '').slice(0, 10);
+            const db = String(b.date || '').slice(0, 10);
+            if (da === db) return 0;
+            return da < db ? 1 : -1;
+          });
+
           const { data: behEvents } = await supabase
             .from('behavioral_events')
             .select('event_date, event_time, severity, event_type, description, location, reported_by, parent_notified, follow_up_required, notes')
@@ -129,7 +189,7 @@ export default function ParentAttendancePage() {
             }
           }
 
-          logs[child.lrn] = attLogs || [];
+          logs[child.lrn] = merged || [];
           behaviorByDate[child.lrn] = childBehaviorMap;
           behaviorDetailsByDate[child.lrn] = childBehaviorDetailsMap;
           for (const note of noteRows || []) {
