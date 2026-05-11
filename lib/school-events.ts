@@ -7,6 +7,7 @@ export type SchoolEvent = {
   description: string | null;
   image_url: string | null;
   event_date: string;
+  end_date: string | null;
   start_time: string | null;
   end_time: string | null;
   location: string | null;
@@ -38,6 +39,7 @@ export async function createSchoolEvent(input: {
   description?: string | null;
   image_url?: string | null;
   event_date: string;
+  end_date?: string | null;
   start_time?: string | null;
   end_time?: string | null;
   location?: string | null;
@@ -52,6 +54,7 @@ export async function createSchoolEvent(input: {
       description: input.description?.trim() || null,
       image_url: input.image_url || null,
       event_date: input.event_date,
+      end_date: input.end_date || null,
       start_time: input.start_time || null,
       end_time: input.end_time || null,
       location: input.location?.trim() || null,
@@ -69,7 +72,7 @@ export async function createSchoolEvent(input: {
   const event = data as SchoolEvent;
     await createRoleNotification({
     title: 'New School Event Posted',
-    message: `${event.title} is scheduled on ${event.event_date}.`,
+    message: `${event.title} is scheduled from ${event.event_date}${event.end_date && event.end_date !== event.event_date ? ` to ${event.end_date}` : ''}.`,
     targetRoles: ['parent'],
     createdBy: input.created_by || 'system',
     meta: {
@@ -77,6 +80,7 @@ export async function createSchoolEvent(input: {
       event_id: event.id,
       event_title: event.title,
       event_date: event.event_date,
+      end_date: event.end_date,
         href: '/parent-announcement',
     },
   });

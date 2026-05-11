@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { TimePickerInput } from '@/components/time-picker-input';
+import { DatePickerInput } from '@/components/date-picker-input';
 import { Skeleton } from '@/components/ui/skeleton';
 import EventsSkeleton from '@/components/events-skeleton';
 import { CalendarDays, MapPin, Clock, Pencil, Trash2, ImagePlus, Megaphone, Info } from 'lucide-react';
@@ -48,12 +49,16 @@ export default function EventsPage() {
     title?: string;
     description?: string;
     event_date?: string;
+    end_date?: string;
+    start_time?: string;
+    end_time?: string;
   }>({});
   const [form, setForm] = useState({
     title: '',
     description: '',
     image_url: '',
     event_date: '',
+    end_date: '',
     start_time: '',
     end_time: '',
     location: '',
@@ -63,7 +68,30 @@ export default function EventsPage() {
   const showInitialSkeleton = loading && isInitialLoad;
   const todayIso = new Date().toISOString().slice(0, 10);
   const eventsWithImagesCount = events.filter((item) => Boolean(item.image_url)).length;
-  const upcomingCount = events.filter((item) => (item.event_date || '') >= todayIso).length;
+  const upcomingCount = events.filter((item) => (item.end_date || item.event_date || '') >= todayIso).length;
+  const classStartTime = '08:00';
+  const classEndTime = '17:00';
+
+  const getEventEndDate = (event: Pick<SchoolEvent, 'event_date' | 'end_date'>): string => {
+    return event.end_date || event.event_date;
+  };
+
+  const isEventDatePassed = (event: Pick<SchoolEvent, 'event_date' | 'end_date'> | string): boolean => {
+    const endDate = typeof event === 'string' ? event : getEventEndDate(event);
+    return endDate < todayIso;
+  };
+
+  const formatEventDateRange = (event: Pick<SchoolEvent, 'event_date' | 'end_date'>): string => {
+    const startDate = new Date(`${event.event_date}T00:00:00`);
+    const endDateValue = getEventEndDate(event);
+    const endDate = new Date(`${endDateValue}T00:00:00`);
+    if (Number.isNaN(startDate.getTime())) return event.event_date;
+    if (Number.isNaN(endDate.getTime())) return new Date(`${event.event_date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    const startLabel = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const endLabel = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return event.end_date && event.end_date !== event.event_date ? `${startLabel} - ${endLabel}` : startLabel;
+  };
 
   const loadEvents = async (options?: { withMinimumDelay?: boolean }) => {
     const withMinimumDelay = options?.withMinimumDelay === true;
@@ -225,6 +253,7 @@ export default function EventsPage() {
       description: '',
       image_url: '',
       event_date: '',
+      end_date: '',
       start_time: '',
       end_time: '',
       location: '',
@@ -233,17 +262,30 @@ export default function EventsPage() {
 
   const openCreateDialog = () => {
     resetForm();
+    setForm((prev) => ({
+      ...prev,
+      event_date: todayIso,
+    }));
     setDialogOpen(true);
   };
 
   const openEditDialog = (event: SchoolEvent) => {
     if (!isAdmin) return;
+    if (isEventDatePassed(event)) {
+      toast({
+        title: 'Cannot edit past event',
+        description: 'Events cannot be edited once the date has passed. This is to prevent modification of historical records.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setEditingEvent(event);
     setForm({
       title: event.title || '',
       description: event.description || '',
       image_url: event.image_url || '',
       event_date: event.event_date || '',
+      end_date: event.end_date || '',
       start_time: event.start_time?.slice(0, 5) || '',
       end_time: event.end_time?.slice(0, 5) || '',
       location: event.location || '',
@@ -253,15 +295,27 @@ export default function EventsPage() {
 
   const handleSave = async () => {
     if (!isAdmin) return;
-    const errors: { title?: string; description?: string; event_date?: string } = {};
+    const errors: { title?: string; description?: string; event_date?: string; end_date?: string; start_time?: string; end_time?: string } = {};
     if (!form.title.trim()) errors.title = 'Please provide event title.';
     if (!form.description.trim()) errors.description = 'Please provide event description.';
     if (!form.event_date) errors.event_date = 'Please select event date.';
+    if (form.event_date && form.event_date < todayIso) errors.event_date = 'Event start date cannot be in the past.';
+    if (form.end_date && form.end_date < todayIso) errors.end_date = 'Event end date cannot be in the past.';
+    if (form.end_date && form.end_date < form.event_date) errors.end_date = 'End date must be on or after the start date.';
+    if (form.start_time && (form.start_time < classStartTime || form.start_time > classEndTime)) {
+      errors.start_time = 'Start time must be between 8:00 AM and 5:00 PM.';
+    }
+    if (form.end_time && (form.end_time < classStartTime || form.end_time > classEndTime)) {
+      errors.end_time = 'End time must be between 8:00 AM and 5:00 PM.';
+    }
+    if (form.start_time && form.end_time && form.end_time < form.start_time) {
+      errors.end_time = 'End time must be on or after start time.';
+    }
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       toast({
-        title: 'Missing required fields',
-        description: 'Please complete the event title, description, and date.',
+        title: 'Invalid event details',
+        description: 'Please complete required fields and use valid date/time within class hours (8:00 AM to 5:00 PM).',
         variant: 'destructive',
       });
       return;
@@ -280,6 +334,7 @@ export default function EventsPage() {
             description: form.description.trim() || null,
             image_url: form.image_url || null,
             event_date: form.event_date,
+            end_date: form.end_date || null,
             start_time: form.start_time || null,
             end_time: form.end_time || null,
             location: form.location.trim() || null,
@@ -293,6 +348,7 @@ export default function EventsPage() {
           description: form.description,
           image_url: form.image_url || null,
           event_date: form.event_date,
+          end_date: form.end_date || null,
           start_time: form.start_time || null,
           end_time: form.end_time || null,
           location: form.location,
@@ -408,20 +464,37 @@ export default function EventsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="event-date" className="flex items-center gap-1">
-                  Event Date <span className="text-red-500">*</span>
+                  Start Date <span className="text-red-500">*</span>
                 </Label>
-                <Input
+                <DatePickerInput
                   id="event-date"
-                  type="date"
+                  minDate={todayIso}
                   value={form.event_date}
                   onChange={(e) => {
-                    setForm((prev) => ({ ...prev, event_date: e.target.value }));
-                    if (e.target.value) {
+                    setForm((prev) => ({ ...prev, event_date: e }));
+                    if (e && e >= todayIso) {
                       setFormErrors((prev) => ({ ...prev, event_date: undefined }));
                     }
                   }}
                 />
                 {formErrors.event_date && <p className="text-sm text-red-600 dark:text-red-400">{formErrors.event_date}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="event-end-date" className="flex items-center gap-1">
+                  End Date <span className="text-slate-400 text-xs font-normal">(optional)</span>
+                </Label>
+                <DatePickerInput
+                  id="event-end-date"
+                  value={form.end_date}
+                  minDate={form.event_date || todayIso}
+                  onChange={(e) => {
+                    setForm((prev) => ({ ...prev, end_date: e }));
+                    if (!e || (e >= form.event_date && e >= todayIso)) {
+                      setFormErrors((prev) => ({ ...prev, end_date: undefined }));
+                    }
+                  }}
+                />
+                {formErrors.end_date && <p className="text-sm text-red-600 dark:text-red-400">{formErrors.end_date}</p>}
               </div>
               </div>
               <div className="space-y-2">
@@ -487,16 +560,32 @@ export default function EventsPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <TimePickerInput
                       value={form.start_time}
-                      onChange={(value) => setForm((prev) => ({ ...prev, start_time: value }))}
+                      minTime={classStartTime}
+                      maxTime={classEndTime}
+                      onChange={(value) => {
+                        setForm((prev) => ({ ...prev, start_time: value }));
+                        if (!value || (value >= classStartTime && value <= classEndTime)) {
+                          setFormErrors((prev) => ({ ...prev, start_time: undefined }));
+                        }
+                      }}
                     />
                     <TimePickerInput
                       value={form.end_time}
-                      onChange={(value) => setForm((prev) => ({ ...prev, end_time: value }))}
+                      minTime={classStartTime}
+                      maxTime={classEndTime}
+                      onChange={(value) => {
+                        setForm((prev) => ({ ...prev, end_time: value }));
+                        if (!value || (value >= classStartTime && value <= classEndTime)) {
+                          setFormErrors((prev) => ({ ...prev, end_time: undefined }));
+                        }
+                      }}
                     />
                   </div>
+                  {formErrors.start_time && <p className="text-sm text-red-600 dark:text-red-400">{formErrors.start_time}</p>}
+                  {formErrors.end_time && <p className="text-sm text-red-600 dark:text-red-400">{formErrors.end_time}</p>}
                   <Card className="border-blue-200/60 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/30">
                     <CardContent className="p-3 text-sm text-blue-800 dark:text-blue-200">
-                      Parents receive immediate notice when you publish, plus an automatic reminder one week before.
+                      Parents receive immediate notice when you publish, plus an automatic reminder one week before. Events are limited to class hours (8:00 AM to 5:00 PM).
                     </CardContent>
                   </Card>
                 </div>
@@ -538,7 +627,7 @@ export default function EventsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/40 p-3">
                   <div className="space-y-1 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
                     <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
-                    <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><CalendarDays className="w-4 h-4 text-slate-500 dark:text-slate-400" /> {new Date(selectedEvent.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                    <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><CalendarDays className="w-4 h-4 text-slate-500 dark:text-slate-400" /> {formatEventDateRange(selectedEvent)}</p>
                   </div>
                   <div className="space-y-1 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
                     <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Time</label>
@@ -740,7 +829,7 @@ export default function EventsPage() {
                       <div className="space-y-1.5">
                         <p className="text-sm flex items-center gap-2 text-slate-700 dark:text-slate-300">
                           <CalendarDays className="w-4 h-4 text-blue-500" /> 
-                          <span className="font-medium">{new Date(event.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                          <span className="font-medium">{formatEventDateRange(event)}</span>
                         </p>
                         <p className="text-sm flex items-center gap-2 text-slate-700 dark:text-slate-300">
                           <Clock className="w-4 h-4 text-blue-500" /> 
@@ -758,9 +847,17 @@ export default function EventsPage() {
 
                         {isAdmin && (
                           <div className="flex items-center gap-2 md:ml-3">
-                            <Button size="sm" variant="outline" className="h-9 w-9 p-0 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => openEditDialog(event)}>
-                              <Pencil className="w-4 h-4" />
-                            </Button>
+                            <div title={isEventDatePassed(event) ? 'Cannot edit past events' : 'Edit event'}>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="h-9 w-9 p-0 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                onClick={() => openEditDialog(event)}
+                                disabled={isEventDatePassed(event)}
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                            </div>
                             <Button size="sm" className="h-9 w-9 p-0 flex items-center justify-center rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors" onClick={() => void handleDelete(event.id)}>
                               <Trash2 className="w-4 h-4" />
                             </Button>

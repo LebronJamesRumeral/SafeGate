@@ -25,6 +25,7 @@ type AnnouncementItem = {
   description: string | null;
   image_url: string | null;
   event_date: string;
+  end_date?: string | null;
   start_time: string | null;
   end_time: string | null;
   location: string | null;
@@ -48,19 +49,35 @@ export default function ParentAnnouncementPage() {
   const [filter, setFilter] = useState<'all' | 'announcement' | 'holiday' | 'cancellation'>('all');
   const minimumInitialSkeletonMs = 600;
 
-  const formatEventDate = (date: string) => {
+  const formatEventDate = (date: string, endDate?: string | null) => {
     const parsed = new Date(`${date}T00:00:00`);
     if (Number.isNaN(parsed.getTime())) return date;
-    return parsed.toLocaleDateString([], {
+
+    const startLabel = parsed.toLocaleDateString([], {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
       year: 'numeric',
     });
+
+    if (!endDate || endDate === date) return startLabel;
+
+    const parsedEnd = new Date(`${endDate}T00:00:00`);
+    if (Number.isNaN(parsedEnd.getTime())) return startLabel;
+
+    const endLabel = parsedEnd.toLocaleDateString([], {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    return `${startLabel} - ${endLabel}`;
   };
 
-  const isEventPassed = (eventDate: string): boolean => {
-    const eventDateObj = new Date(`${eventDate}T23:59:59`);
+  const isEventPassed = (eventDate: string, endDate?: string | null): boolean => {
+    const resolvedEndDate = endDate || eventDate;
+    const eventDateObj = new Date(`${resolvedEndDate}T23:59:59`);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return eventDateObj < today;
@@ -81,6 +98,7 @@ export default function ParentAnnouncementPage() {
     description: event.description,
     image_url: event.image_url,
     event_date: event.event_date,
+    end_date: event.end_date,
     start_time: event.start_time,
     end_time: event.end_time,
     location: event.location,
@@ -493,7 +511,7 @@ export default function ParentAnnouncementPage() {
                 <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <p className="text-xs uppercase text-slate-500">Date</p>
-                    <p className="text-sm flex items-center gap-2"><CalendarDays className="w-4 h-4" /> {formatEventDate(featured.event_date)}</p>
+                    <p className="text-sm flex items-center gap-2"><CalendarDays className="w-4 h-4" /> {formatEventDate(featured.event_date, featured.end_date)}</p>
                   </div>
                   <div>
                     <p className="text-xs uppercase text-slate-500">Time</p>
@@ -515,7 +533,8 @@ export default function ParentAnnouncementPage() {
                           title: featured.title,
                           description: featured.description,
                           image_url: featured.image_url,
-                          event_date: featured.event_date,
+                          event_date: featured.event_date || null,
+                          end_date: featured.end_date || null,
                           start_time: featured.start_time,
                           end_time: featured.end_time,
                           location: featured.location,
@@ -524,9 +543,9 @@ export default function ParentAnnouncementPage() {
                           created_at: featured.created_at,
                           updated_at: featured.created_at,
                         })}
-                        disabled={joinNotifiedByEventId[featured.event_id || 0] || willNotJoinByEventId[featured.event_id || 0] || savingJoinEventId === featured.event_id || isEventPassed(featured.event_date)}
+                        disabled={joinNotifiedByEventId[featured.event_id || 0] || willNotJoinByEventId[featured.event_id || 0] || savingJoinEventId === featured.event_id || isEventPassed(featured.event_date, featured.end_date)}
                       >
-                        {joinNotifiedByEventId[featured.event_id || 0] ? 'Join sent' : isEventPassed(featured.event_date) ? 'Event passed' : "I'll Join"}
+                        {joinNotifiedByEventId[featured.event_id || 0] ? 'Join sent' : isEventPassed(featured.event_date, featured.end_date) ? 'Event passed' : "I'll Join"}
                       </Button>
                       <Button
                         className="flex-1 bg-orange-600 hover:bg-orange-700 text-white text-xs sm:text-sm"
@@ -535,7 +554,8 @@ export default function ParentAnnouncementPage() {
                           title: featured.title,
                           description: featured.description,
                           image_url: featured.image_url,
-                          event_date: featured.event_date,
+                          event_date: featured.event_date || null,
+                          end_date: featured.end_date || null,
                           start_time: featured.start_time,
                           end_time: featured.end_time,
                           location: featured.location,
@@ -544,9 +564,9 @@ export default function ParentAnnouncementPage() {
                           created_at: featured.created_at,
                           updated_at: featured.created_at,
                         })}
-                        disabled={joinNotifiedByEventId[featured.event_id || 0] || willNotJoinByEventId[featured.event_id || 0] || savingWillNotJoinEventId === featured.event_id || isEventPassed(featured.event_date)}
+                        disabled={joinNotifiedByEventId[featured.event_id || 0] || willNotJoinByEventId[featured.event_id || 0] || savingWillNotJoinEventId === featured.event_id || isEventPassed(featured.event_date, featured.end_date)}
                       >
-                        {willNotJoinByEventId[featured.event_id || 0] ? 'Not join sent' : isEventPassed(featured.event_date) ? 'Event passed' : 'Will not join'}
+                        {willNotJoinByEventId[featured.event_id || 0] ? 'Not join sent' : isEventPassed(featured.event_date, featured.end_date) ? 'Event passed' : 'Will not join'}
                       </Button>
                     </div>
                   ) : null}
@@ -571,7 +591,7 @@ export default function ParentAnnouncementPage() {
                       <div className="w-16 h-12 overflow-hidden rounded-md">{renderAnnouncementVisual(item, 'thumb')}</div>
                       <div className="flex-1">
                         <h5 className="text-sm font-medium line-clamp-2 leading-snug">{item.title}</h5>
-                        <p className="text-xs text-slate-500">{formatEventDate(item.event_date)}</p>
+                        <p className="text-xs text-slate-500">{formatEventDate(item.event_date, item.end_date)}</p>
                       </div>
                     </div>
                     <div className="mt-3 pt-3 border-t border-slate-200/50 space-y-2">
@@ -586,7 +606,8 @@ export default function ParentAnnouncementPage() {
                               title: item.title,
                               description: item.description,
                               image_url: item.image_url,
-                              event_date: item.event_date,
+                              event_date: item.event_date || null,
+                              end_date: item.end_date || null,
                               start_time: item.start_time,
                               end_time: item.end_time,
                               location: item.location,
@@ -595,11 +616,11 @@ export default function ParentAnnouncementPage() {
                               created_at: item.created_at,
                               updated_at: item.created_at,
                             })}
-                            disabled={joinNotifiedByEventId[item.event_id || 0] || willNotJoinByEventId[item.event_id || 0] || savingJoinEventId === item.event_id || isEventPassed(item.event_date)}
+                            disabled={joinNotifiedByEventId[item.event_id || 0] || willNotJoinByEventId[item.event_id || 0] || savingJoinEventId === item.event_id || isEventPassed(item.event_date, item.end_date)}
                           >
                             {joinNotifiedByEventId[item.event_id || 0]
                               ? 'Join sent'
-                              : isEventPassed(item.event_date)
+                              : isEventPassed(item.event_date, item.end_date)
                                 ? 'Event passed'
                                 : "I'll Join"}
                           </Button>
@@ -611,7 +632,8 @@ export default function ParentAnnouncementPage() {
                               title: item.title,
                               description: item.description,
                               image_url: item.image_url,
-                              event_date: item.event_date,
+                              event_date: item.event_date || null,
+                              end_date: item.end_date || null,
                               start_time: item.start_time,
                               end_time: item.end_time,
                               location: item.location,
@@ -620,11 +642,11 @@ export default function ParentAnnouncementPage() {
                               created_at: item.created_at,
                               updated_at: item.created_at,
                             })}
-                            disabled={joinNotifiedByEventId[item.event_id || 0] || willNotJoinByEventId[item.event_id || 0] || savingWillNotJoinEventId === item.event_id || isEventPassed(item.event_date)}
+                            disabled={joinNotifiedByEventId[item.event_id || 0] || willNotJoinByEventId[item.event_id || 0] || savingWillNotJoinEventId === item.event_id || isEventPassed(item.event_date, item.end_date)}
                           >
                             {willNotJoinByEventId[item.event_id || 0]
                               ? 'Not join sent'
-                              : isEventPassed(item.event_date)
+                              : isEventPassed(item.event_date, item.end_date)
                                 ? 'Event passed'
                                 : 'Will not join'}
                           </Button>
@@ -662,7 +684,7 @@ export default function ParentAnnouncementPage() {
                       <CalendarDays className="w-3 h-3" />
                       Date
                     </p>
-                    <p className="font-semibold text-foreground">{formatEventDate(selectedAnnouncement.event_date)}</p>
+                    <p className="font-semibold text-foreground">{formatEventDate(selectedAnnouncement.event_date, selectedAnnouncement.end_date)}</p>
                   </div>
                   <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
                     <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">

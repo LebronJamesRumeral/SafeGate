@@ -740,15 +740,18 @@ CREATE TABLE IF NOT EXISTS school_events (
   description TEXT,
   image_url TEXT,
   event_date DATE NOT NULL,
+  end_date DATE,
   start_time TIME,
   end_time TIME,
   location VARCHAR(255),
   created_by VARCHAR(255),
   is_active BOOLEAN DEFAULT true,
+  CONSTRAINT school_event_dates_valid CHECK (end_date IS NULL OR end_date >= event_date),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_school_events_event_date ON school_events(event_date);
+CREATE INDEX IF NOT EXISTS idx_school_events_end_date ON school_events(end_date);
 CREATE INDEX IF NOT EXISTS idx_school_events_active ON school_events(is_active);
 ALTER TABLE school_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Enable read for all on school events" ON school_events FOR SELECT USING (true);

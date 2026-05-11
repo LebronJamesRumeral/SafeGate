@@ -16,6 +16,8 @@ type TimePickerInputProps = {
   disabled?: boolean;
   id?: string;
   name?: string;
+  minTime?: string;
+  maxTime?: string;
 };
 
 function clampNumber(value: number, min: number, max: number) {
@@ -70,6 +72,8 @@ export function TimePickerInput({
   disabled,
   id,
   name,
+  minTime,
+  maxTime,
 }: TimePickerInputProps) {
   const safeValue = value ?? '';
   const parsedValue = React.useMemo(() => parseTimeValue(safeValue), [safeValue]);
@@ -86,9 +90,51 @@ export function TimePickerInput({
     }
   }, [parsedValue, open]);
 
+  const toMinutes = (time?: string | null) => {
+    if (!time) return null;
+    const parsed = parseTimeValue(time);
+    if (!parsed) return null;
+    return parsed.hours24 * 60 + parsed.minutes;
+  };
+
+  const minMinutes = toMinutes(minTime);
+  const maxMinutes = toMinutes(maxTime);
+
+  const isWithinRange = (hours12Value: number, minutesValue: number, meridiemValue: 'AM' | 'PM') => {
+    const candidate = formatTimeValue(hours12Value, minutesValue, meridiemValue);
+    const candidateMinutes = toMinutes(candidate);
+    if (candidateMinutes === null) return false;
+    if (minMinutes !== null && candidateMinutes < minMinutes) return false;
+    if (maxMinutes !== null && candidateMinutes > maxMinutes) return false;
+    return true;
+  };
+
+  const hasAnyValidTimeForPeriod = (period: 'AM' | 'PM') => {
+    for (let hour = 1; hour <= 12; hour++) {
+      for (let minute = 0; minute < 60; minute++) {
+        if (isWithinRange(hour, minute, period)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const getFirstValidTimeForPeriod = (period: 'AM' | 'PM') => {
+    for (let hour = 1; hour <= 12; hour++) {
+      for (let minute = 0; minute < 60; minute++) {
+        if (isWithinRange(hour, minute, period)) {
+          return { hour, minute };
+        }
+      }
+    }
+    return null;
+  };
+
   const displayValue = formatDisplayTime(safeValue);
 
   const commitValue = (nextHours = hours, nextMinutes = minutes, nextMeridiem = meridiem) => {
+    if (!isWithinRange(nextHours, nextMinutes, nextMeridiem)) return;
     onChange(formatTimeValue(nextHours, nextMinutes, nextMeridiem));
   };
 
@@ -132,10 +178,12 @@ export function TimePickerInput({
                 <div className="space-y-1">
                   {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => {
                     const selected = hour === hours;
+                    const hourDisabled = !isWithinRange(hour, minutes, meridiem);
                     return (
                       <button
                         key={hour}
                         type="button"
+                        disabled={hourDisabled}
                         onClick={() => {
                           setHours(hour);
                           commitValue(hour, minutes, meridiem);
@@ -145,6 +193,7 @@ export function TimePickerInput({
                           selected
                             ? 'bg-blue-600 text-white shadow-md'
                             : 'text-slate-700 hover:bg-blue-50 dark:text-slate-200 dark:hover:bg-slate-800',
+                          hourDisabled ? 'opacity-40 cursor-not-allowed hover:bg-transparent dark:hover:bg-transparent' : '',
                         )}
                       >
                         <span>{String(hour).padStart(2, '0')}</span>
@@ -162,10 +211,12 @@ export function TimePickerInput({
                 <div className="space-y-1">
                   {Array.from({ length: 60 }, (_, index) => index).map((minute) => {
                     const selected = minute === minutes;
+                    const minuteDisabled = !isWithinRange(hours, minute, meridiem);
                     return (
                       <button
                         key={minute}
                         type="button"
+                        disabled={minuteDisabled}
                         onClick={() => {
                           setMinutes(minute);
                           commitValue(hours, minute, meridiem);
@@ -175,6 +226,7 @@ export function TimePickerInput({
                           selected
                             ? 'bg-blue-600 text-white shadow-md'
                             : 'text-slate-700 hover:bg-blue-50 dark:text-slate-200 dark:hover:bg-slate-800',
+                          minuteDisabled ? 'opacity-40 cursor-not-allowed hover:bg-transparent dark:hover:bg-transparent' : '',
                         )}
                       >
                         <span>{String(minute).padStart(2, '0')}</span>
@@ -191,11 +243,23 @@ export function TimePickerInput({
               <div className="space-y-1">
                 {(['AM', 'PM'] as const).map((period) => {
                   const selected = period === meridiem;
+                  const periodDisabled = !hasAnyValidTimeForPeriod(period);
                   return (
                     <button
                       key={period}
                       type="button"
+                      disabled={periodDisabled}
                       onClick={() => {
+                        if (periodDisabled) return;
+                        if (!isWithinRange(hours, minutes, period)) {
+                          const firstValid = getFirstValidTimeForPeriod(period);
+                          if (!firstValid) return;
+                          setHours(firstValid.hour);
+                          setMinutes(firstValid.minute);
+                          setMeridiem(period);
+                          commitValue(firstValid.hour, firstValid.minute, period);
+                          return;
+                        }
                         setMeridiem(period);
                         commitValue(hours, minutes, period);
                       }}
@@ -204,6 +268,7 @@ export function TimePickerInput({
                         selected
                           ? 'bg-blue-600 text-white shadow-md'
                           : 'text-slate-700 hover:bg-blue-50 dark:text-slate-200 dark:hover:bg-slate-800',
+                        periodDisabled ? 'opacity-40 cursor-not-allowed hover:bg-transparent dark:hover:bg-transparent' : '',
                       )}
                     >
                       <span>{period}</span>

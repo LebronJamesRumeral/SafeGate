@@ -10,6 +10,29 @@ function ScrollArea({
   children,
   ...props
 }: React.ComponentProps<typeof ScrollAreaPrimitive.Root>) {
+  const viewportRef = React.useRef<HTMLDivElement | null>(null)
+
+  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    const viewport = viewportRef.current
+    if (!viewport) return
+
+    const canScrollVertically = viewport.scrollHeight > viewport.clientHeight
+    const canScrollHorizontally = viewport.scrollWidth > viewport.clientWidth
+
+    if (canScrollVertically && event.deltaY !== 0) {
+      viewport.scrollTop += event.deltaY
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
+
+    if (canScrollHorizontally && event.deltaX !== 0) {
+      viewport.scrollLeft += event.deltaX
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }
+
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
@@ -18,6 +41,8 @@ function ScrollArea({
     >
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
+        ref={viewportRef}
+        onWheel={handleWheel}
         className="focus-visible:ring-ring/50 size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1"
       >
         {children}

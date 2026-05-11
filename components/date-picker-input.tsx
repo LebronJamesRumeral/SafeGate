@@ -15,6 +15,8 @@ type DatePickerInputProps = {
   disabled?: boolean;
   id?: string;
   name?: string;
+  minDate?: string;
+  maxDate?: string;
 };
 
 function toIsoDate(d: Date) {
@@ -42,9 +44,11 @@ function formatDisplayDate(value?: string | null) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-export function DatePickerInput({ value, onChange, placeholder = 'dd/mm/yyyy', className, disabled, id, name }: DatePickerInputProps) {
+export function DatePickerInput({ value, onChange, placeholder = 'dd/mm/yyyy', className, disabled, id, name, minDate, maxDate }: DatePickerInputProps) {
   const safeValue = value ?? '';
   const parsed = React.useMemo(() => parseIsoDate(safeValue), [safeValue]);
+  const parsedMinDate = React.useMemo(() => parseIsoDate(minDate), [minDate]);
+  const parsedMaxDate = React.useMemo(() => parseIsoDate(maxDate), [maxDate]);
   const [open, setOpen] = React.useState(false);
   const [viewDate, setViewDate] = React.useState<Date>(() => parsed ?? new Date());
   const [showYearPicker, setShowYearPicker] = React.useState(false);
@@ -72,7 +76,14 @@ export function DatePickerInput({ value, onChange, placeholder = 'dd/mm/yyyy', c
     return cells;
   }, [viewDate]);
 
+  const isOutOfRange = (dt: Date) => {
+    if (parsedMinDate && dt < parsedMinDate) return true;
+    if (parsedMaxDate && dt > parsedMaxDate) return true;
+    return false;
+  };
+
   const handleSelect = (dt: Date) => {
+    if (isOutOfRange(dt)) return;
     onChange(toIsoDate(dt));
     setOpen(false);
   };
@@ -84,6 +95,7 @@ export function DatePickerInput({ value, onChange, placeholder = 'dd/mm/yyyy', c
 
   const handleToday = () => {
     const t = new Date();
+    if (isOutOfRange(new Date(t.getFullYear(), t.getMonth(), t.getDate()))) return;
     onChange(toIsoDate(t));
     setViewDate(t);
     setOpen(false);
@@ -113,7 +125,7 @@ export function DatePickerInput({ value, onChange, placeholder = 'dd/mm/yyyy', c
           </Button>
         </PopoverTrigger>
 
-        <PopoverContent className="w-[22rem] rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-950" align="start">
+        <PopoverContent className="w-88 rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-950" align="start">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Pick a date</p>
@@ -144,14 +156,17 @@ export function DatePickerInput({ value, onChange, placeholder = 'dd/mm/yyyy', c
                   if (!cell.date) return <div key={idx} className="h-9" />;
                   const isSelected = safeValue && toIsoDate(cell.date) === safeValue;
                   const isToday = toIsoDate(cell.date) === toIsoDate(new Date());
+                  const isDisabled = isOutOfRange(cell.date);
                   return (
                     <button
                       key={idx}
                       type="button"
+                      disabled={isDisabled}
                       onClick={() => handleSelect(cell.date as Date)}
                       className={cn(
                         'h-9 w-9 rounded-md text-sm',
                         isSelected ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-blue-50 dark:text-slate-200 dark:hover:bg-slate-800',
+                        isDisabled ? 'opacity-40 cursor-not-allowed hover:bg-transparent dark:hover:bg-transparent' : '',
                         isToday && !isSelected ? 'ring-1 ring-slate-200' : '',
                       )}
                     >
@@ -164,7 +179,15 @@ export function DatePickerInput({ value, onChange, placeholder = 'dd/mm/yyyy', c
               <div className="mt-3 flex items-center justify-between gap-2">
                 <Button type="button" variant="ghost" size="sm" className="rounded-full px-4" onClick={handleClear}>Clear</Button>
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" className="rounded-full px-4" onClick={handleToday}>Today</Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="rounded-full px-4"
+                    onClick={handleToday}
+                    disabled={isOutOfRange(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()))}
+                  >
+                    Today
+                  </Button>
                 </div>
               </div>
             </>
@@ -175,7 +198,7 @@ export function DatePickerInput({ value, onChange, placeholder = 'dd/mm/yyyy', c
                   <button type="button" className="rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => setViewDate(new Date(viewDate.getFullYear() - 10, viewDate.getMonth(), 1))}>
                     ◀◀
                   </button>
-                  <div className="text-sm font-medium min-w-[80px] text-center">{viewDate.getFullYear()}-{viewDate.getFullYear() + 9}</div>
+                  <div className="text-sm font-medium min-w-20 text-center">{viewDate.getFullYear()}-{viewDate.getFullYear() + 9}</div>
                   <button type="button" className="rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => setViewDate(new Date(viewDate.getFullYear() + 10, viewDate.getMonth(), 1))}>
                     ▶▶
                   </button>
