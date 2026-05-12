@@ -738,7 +738,7 @@ export default function EventsPage() {
               </Card>
             ) : (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
                   {/* Total Events Card */}
                   <motion.div
                     initial={{ scale: 0.95, opacity: 0 }}

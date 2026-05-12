@@ -87,10 +87,10 @@ export function Sidebar() {
 
   return (
     <>
-        {/* Desktop sidebar */}
+        {/* Desktop/Tablet sidebar */}
         <div
           className={cn(
-            "hidden lg:flex fixed left-0 top-0 h-screen border-r transition-all duration-300 ease-out z-30 shadow-2xl flex-col bg-gradient-to-b from-[#1e3a8a] via-[#1e3a8a] to-[#2563eb] dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 border-white/20 dark:border-slate-800/60",
+            "hidden md:flex fixed left-0 top-0 h-screen border-r transition-all duration-300 ease-out z-30 shadow-2xl flex-col bg-gradient-to-b from-[#1e3a8a] via-[#1e3a8a] to-[#2563eb] dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 border-white/20 dark:border-slate-800/60",
             collapsed ? "w-20" : "w-64",
           )}
         >
@@ -122,7 +122,7 @@ export function Sidebar() {
             <button
               onClick={() => setCollapsed(!collapsed)}
               className={cn(
-                "hidden lg:flex items-center justify-center w-8 h-8 rounded-lg font-semibold transition-all duration-300 ease-out shrink-0 group shadow-sm hover:shadow-md",
+                "hidden md:flex items-center justify-center w-8 h-8 rounded-lg font-semibold transition-all duration-300 ease-out shrink-0 group shadow-sm hover:shadow-md",
                 collapsed 
                   ? "bg-[#2563eb] hover:bg-[#1e3a8a] text-white active:scale-95" 
                   : "bg-white/20 hover:bg-white/30 text-white active:scale-95"
@@ -189,9 +189,9 @@ export function Sidebar() {
           </div>
         </div>
 
-        {/* Mobile bottom nav */}
+        {/* Mobile bottom nav - only on small mobile screens */}
         {isMobile && mobilePrimaryNavItems.length > 0 && (
-          <nav className="fixed inset-x-2 bottom-2 z-40 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-xl lg:hidden flex justify-center">
+          <nav className="fixed inset-x-2 bottom-2 z-40 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-xl md:hidden flex justify-center">
             <div className={cn(
               `flex items-center justify-center gap-1 w-full px-2 py-2`
             )}>
