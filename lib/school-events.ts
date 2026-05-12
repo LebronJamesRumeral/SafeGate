@@ -136,4 +136,134 @@ export async function ensureUpcomingSchoolEventReminders(events?: SchoolEvent[])
       },
     });
   }
+
+      await ensurePastSchoolEventDefaultNonResponses(sourceEvents);
 }
+
+    async function ensurePastSchoolEventDefaultNonResponses(events?: SchoolEvent[]): Promise<void> {
+      if (!supabase) return;
+
+      const sourceEvents = events || (await fetchActiveSchoolEvents());
+      if (sourceEvents.length === 0) return;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const pastEvents = sourceEvents.filter((event) => {
+        const eventDate = new Date(`${event.event_date}T00:00:00`);
+        return !Number.isNaN(eventDate.getTime()) && eventDate < today;
+      });
+
+      if (pastEvents.length === 0) return;
+
+      const { data: studentRows, error: studentError } = await supabase
+        .from('students')
+        .select('parent_email, parent_name, name');
+
+      if (studentError) {
+        console.error('Failed to fetch student parent roster:', studentError);
+        return;
+      }
+
+      type ParentRoster = {
+        parent_name: string;
+        child_names: string[];
+      };
+
+      const rosterByEmail = new Map<string, ParentRoster>();
+
+      (studentRows || []).forEach((row: any) => {
+        const parentEmail = typeof row?.parent_email === 'string' ? row.parent_email.trim().toLowerCase() : '';
+        if (!parentEmail) return;
+
+        const parentName = typeof row?.parent_name === 'string' && row.parent_name.trim() ? row.parent_name.trim() : 'Parent';
+        const childName = typeof row?.name === 'string' ? row.name.trim() : '';
+
+        const existing = rosterByEmail.get(parentEmail) || { parent_name: parentName, child_names: [] };
+        if (parentName && existing.parent_name === 'Parent') {
+          existing.parent_name = parentName;
+        }
+        if (childName && !existing.child_names.includes(childName)) {
+          existing.child_names.push(childName);
+        }
+        rosterByEmail.set(parentEmail, existing);
+      });
+
+      if (rosterByEmail.size === 0) return;
+
+      for (const event of pastEvents) {
+        const eventDate = new Date(`${event.event_date}T00:00:00`);
+        if (Number.isNaN(eventDate.getTime())) continue;
+
+        const [joinResult, notJoinResult] = await Promise.all([
+          supabase
+            .from('role_notifications')
+            .select('id, meta')
+            .contains('meta', {
+              notification_kind: 'school_event_join_intent',
+              event_id: event.id,
+            })
+            .limit(1000),
+          supabase
+            .from('role_notifications')
+            .select('id, meta')
+            .contains('meta', {
+              notification_kind: 'school_event_will_not_join_intent',
+              event_id: event.id,
+            })
+            .limit(1000),
+        ]);
+
+        if (joinResult.error) {
+          console.error('Failed to load existing join intents:', joinResult.error);
+          continue;
+        }
+
+        if (notJoinResult.error) {
+          console.error('Failed to load existing not-join intents:', notJoinResult.error);
+          continue;
+        }
+
+        const respondedEmails = new Set<string>();
+        [...(joinResult.data || []), ...(notJoinResult.data || [])].forEach((row: any) => {
+          const parentEmail = typeof row?.meta?.parent_email === 'string' ? row.meta.parent_email.trim().toLowerCase() : '';
+          if (parentEmail) respondedEmails.add(parentEmail);
+        });
+
+        for (const [parentEmail, roster] of rosterByEmail.entries()) {
+          if (respondedEmails.has(parentEmail)) {
+            continue;
+          }
+
+          const childNames = roster.child_names;
+          const childSummary =
+            childNames.length === 0
+              ? 'their child'
+              : childNames.length === 1
+                ? childNames[0]
+                : `${childNames.length} children`;
+
+          const success = await createRoleNotification({
+            title: 'Parent Event Non-Attendance Notice',
+            message: `${roster.parent_name} notified ${childSummary} will not join "${event.title}" on ${event.event_date}.`,
+            targetRoles: ['parent', `parent:${parentEmail}`],
+            createdBy: 'system',
+            meta: {
+              notification_kind: 'school_event_will_not_join_intent',
+              event_id: event.id,
+              event_title: event.title,
+              event_date: event.event_date,
+              parent_name: roster.parent_name,
+              parent_email: parentEmail,
+              selected_children: childNames,
+              selected_children_names: childNames.join(', '),
+              href: '/events',
+            },
+          });
+
+          if (!success) {
+            console.error('Failed to create default will-not-join notification for', parentEmail, event.id);
+          }
+        }
+      }
+    }

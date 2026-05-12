@@ -7,12 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { CalendarDays, MapPin, Clock, Megaphone, BellRing, CheckCircle2, CalendarX2, TriangleAlert } from 'lucide-react';
 import ParentAnnouncementSkeleton from '@/components/parent-announcement-skeleton';
 import { fetchActiveSchoolEvents, ensureUpcomingSchoolEventReminders, type SchoolEvent } from '@/lib/school-events';
 import { toast } from '@/hooks/use-toast';
 import { createRoleNotification, fetchRoleNotifications, type RoleNotification } from '@/lib/role-notifications';
 import { supabase } from '@/lib/supabase';
+import { getParentStudents } from '@/lib/parent-data';
 import { formatTime12h } from '@/lib/time-format';
 
 type AnnouncementKind = 'announcement' | 'holiday' | 'cancellation';
@@ -36,10 +39,24 @@ type AnnouncementItem = {
   notification_kind?: string | null;
 };
 
+type Student = {
+  id: string;
+  name: string;
+  lrn: string;
+  parent_email: string;
+  parent_name: string;
+};
+
+type PendingEventIntent = {
+  event: SchoolEvent;
+  action: 'join' | 'not_join';
+};
+
 export default function ParentAnnouncementPage() {
   const { user } = useAuth();
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [children, setChildren] = useState<Student[]>([]);
   const [joinNotifiedByEventId, setJoinNotifiedByEventId] = useState<Record<number, boolean>>({});
   const [savingJoinEventId, setSavingJoinEventId] = useState<number | null>(null);
   const [willNotJoinByEventId, setWillNotJoinByEventId] = useState<Record<number, boolean>>({});
@@ -47,6 +64,9 @@ export default function ParentAnnouncementPage() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<AnnouncementItem | null>(null);
   const [filter, setFilter] = useState<'all' | 'announcement' | 'holiday' | 'cancellation'>('all');
+  const [childSelectionOpen, setChildSelectionOpen] = useState(false);
+  const [selectedChildren, setSelectedChildren] = useState<Set<string>>(new Set());
+  const [pendingEventIntent, setPendingEventIntent] = useState<PendingEventIntent | null>(null);
   const minimumInitialSkeletonMs = 600;
 
   const formatEventDate = (date: string, endDate?: string | null) => {
@@ -360,6 +380,17 @@ export default function ParentAnnouncementPage() {
           setWillNotJoinByEventId(willNotJoinMap);
         }
         await ensureUpcomingSchoolEventReminders(events);
+
+        // Fetch parent's children for multi-child selection
+        if (user?.username) {
+          try {
+            const studentData = await getParentStudents(user.username);
+            setChildren(studentData || []);
+          } catch (e) {
+            console.error('Failed to fetch children:', e);
+            setChildren([]);
+          }
+        }
       } finally {
         const elapsed = Date.now() - start;
         if (elapsed < minimumInitialSkeletonMs) await new Promise((r) => setTimeout(r, minimumInitialSkeletonMs - elapsed));
@@ -391,7 +422,7 @@ export default function ParentAnnouncementPage() {
     );
   }
 
-  const handleNotifyJoin = async (event: SchoolEvent) => {
+  const handleNotifyJoin = (event: SchoolEvent) => {
     if (!user?.username) {
       toast({ title: 'Not signed in', description: 'Please sign in to send a response.', variant: 'destructive' });
       return;
@@ -401,31 +432,20 @@ export default function ParentAnnouncementPage() {
       return;
     }
     if (joinNotifiedByEventId[event.id] || willNotJoinByEventId[event.id]) return;
-    setSavingJoinEventId(event.id);
-    try {
-      const parentName = user.full_name || user.username;
-      const success = await createRoleNotification({
-        title: 'Parent Event Attendance Confirmation',
-        message: `${parentName} confirmed they plan to join "${event.title}" on ${event.event_date}.`,
-        targetRoles: ['teacher', 'admin'],
-        createdBy: user.username,
-        meta: {
-          notification_kind: 'school_event_join_intent',
-          event_id: event.id,
-          event_title: event.title,
-          event_date: event.event_date,
-          parent_name: parentName,
-          parent_email: user.username,
-          href: '/events',
-        },
-      });
-      if (success) setJoinNotifiedByEventId((p) => ({ ...p, [event.id]: true }));
-    } finally {
-      setSavingJoinEventId(null);
+
+    // If multiple children, show selection modal
+    if (children.length > 1) {
+      setPendingEventIntent({ event, action: 'join' });
+      setSelectedChildren(new Set(children.map((c) => c.id)));
+      setChildSelectionOpen(true);
+      return;
     }
+
+    // If single child or no children, proceed directly
+    void submitEventIntent(event, 'join');
   };
 
-  const handleNotifyWillNotJoin = async (event: SchoolEvent) => {
+  const handleNotifyWillNotJoin = (event: SchoolEvent) => {
     if (!user?.username) {
       toast({ title: 'Not signed in', description: 'Please sign in to send a response.', variant: 'destructive' });
       return;
@@ -435,27 +455,88 @@ export default function ParentAnnouncementPage() {
       return;
     }
     if (willNotJoinByEventId[event.id] || joinNotifiedByEventId[event.id]) return;
-    setSavingWillNotJoinEventId(event.id);
+
+    // If multiple children, show selection modal
+    if (children.length > 1) {
+      setPendingEventIntent({ event, action: 'not_join' });
+      setSelectedChildren(new Set(children.map((c) => c.id)));
+      setChildSelectionOpen(true);
+      return;
+    }
+
+    // If single child or no children, proceed directly
+    void submitEventIntent(event, 'not_join');
+  };
+
+  const submitEventIntent = async (event: SchoolEvent, action: 'join' | 'not_join') => {
+    if (!user?.username) return;
+
+    const isJoin = action === 'join';
+    const resolvedSelectedChildren =
+      selectedChildren.size > 0
+        ? selectedChildren
+        : children.length === 1
+          ? new Set([children[0].id])
+          : new Set<string>();
+    const resolvedSelectedChildNames = children
+      .filter((child) => resolvedSelectedChildren.has(child.id))
+      .map((child) => child.name)
+      .filter(Boolean);
+    const childSummary =
+      resolvedSelectedChildNames.length === 0
+        ? 'their child'
+        : resolvedSelectedChildNames.length === 1
+          ? resolvedSelectedChildNames[0]
+          : `${resolvedSelectedChildNames.length} children`;
+
+    if (isJoin) {
+      setSavingJoinEventId(event.id);
+    } else {
+      setSavingWillNotJoinEventId(event.id);
+    }
+
     try {
       const parentName = user.full_name || user.username;
+      const selectedChildrenList = Array.from(resolvedSelectedChildren);
+      const selectedChildNames = resolvedSelectedChildNames.join(', ');
+
       const success = await createRoleNotification({
-        title: 'Parent Event Non-Attendance Notice',
-        message: `${parentName} notified they will not join "${event.title}" on ${event.event_date}.`,
+        title:
+          isJoin
+            ? 'Parent Event Attendance Confirmation'
+            : 'Parent Event Non-Attendance Notice',
+        message: isJoin
+          ? `${parentName} confirmed ${childSummary} will join "${event.title}" on ${event.event_date}.`
+          : `${parentName} notified ${childSummary} will not join "${event.title}" on ${event.event_date}.`,
         targetRoles: ['teacher', 'admin'],
         createdBy: user.username,
         meta: {
-          notification_kind: 'school_event_will_not_join_intent',
+          notification_kind: isJoin ? 'school_event_join_intent' : 'school_event_will_not_join_intent',
           event_id: event.id,
           event_title: event.title,
           event_date: event.event_date,
           parent_name: parentName,
           parent_email: user.username,
+          selected_children: selectedChildrenList,
+          selected_children_names: selectedChildNames,
           href: '/events',
         },
       });
-      if (success) setWillNotJoinByEventId((p) => ({ ...p, [event.id]: true }));
+      if (success) {
+        if (isJoin) {
+          setJoinNotifiedByEventId((p) => ({ ...p, [event.id]: true }));
+        } else {
+          setWillNotJoinByEventId((p) => ({ ...p, [event.id]: true }));
+        }
+        setChildSelectionOpen(false);
+        setPendingEventIntent(null);
+      }
     } finally {
-      setSavingWillNotJoinEventId(null);
+      if (isJoin) {
+        setSavingJoinEventId(null);
+      } else {
+        setSavingWillNotJoinEventId(null);
+      }
     }
   };
 
@@ -533,7 +614,7 @@ export default function ParentAnnouncementPage() {
                           title: featured.title,
                           description: featured.description,
                           image_url: featured.image_url,
-                          event_date: featured.event_date || null,
+                          event_date: featured.event_date || '',
                           end_date: featured.end_date || null,
                           start_time: featured.start_time,
                           end_time: featured.end_time,
@@ -554,7 +635,7 @@ export default function ParentAnnouncementPage() {
                           title: featured.title,
                           description: featured.description,
                           image_url: featured.image_url,
-                          event_date: featured.event_date || null,
+                          event_date: featured.event_date || '',
                           end_date: featured.end_date || null,
                           start_time: featured.start_time,
                           end_time: featured.end_time,
@@ -606,7 +687,7 @@ export default function ParentAnnouncementPage() {
                               title: item.title,
                               description: item.description,
                               image_url: item.image_url,
-                              event_date: item.event_date || null,
+                              event_date: item.event_date || '',
                               end_date: item.end_date || null,
                               start_time: item.start_time,
                               end_time: item.end_time,
@@ -632,7 +713,7 @@ export default function ParentAnnouncementPage() {
                               title: item.title,
                               description: item.description,
                               image_url: item.image_url,
-                              event_date: item.event_date || null,
+                              event_date: item.event_date || '',
                               end_date: item.end_date || null,
                               start_time: item.start_time,
                               end_time: item.end_time,
@@ -707,6 +788,90 @@ export default function ParentAnnouncementPage() {
                     </p>
                     <p className="text-sm text-foreground whitespace-pre-wrap">{selectedAnnouncement.description || 'No description provided.'}</p>
                   </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Child Selection Modal */}
+        <Dialog open={childSelectionOpen} onOpenChange={setChildSelectionOpen}>
+          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-md">
+            <DialogHeader>
+              <DialogTitle>Select Children</DialogTitle>
+              <DialogDescription>
+                Choose which children will {pendingEventIntent?.action === 'join' ? 'join' : 'not join'} the event
+              </DialogDescription>
+            </DialogHeader>
+            {pendingEventIntent && (
+              <div className="space-y-4">
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    {pendingEventIntent.event.title}
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-200 mt-1">
+                    {formatEventDate(pendingEventIntent.event.event_date, pendingEventIntent.event.end_date)}
+                  </p>
+                </div>
+
+                <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                  {children.map((child) => (
+                    <div
+                      key={child.id}
+                      className="flex items-center space-x-3 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                    >
+                      <Checkbox
+                        id={`child-${child.id}`}
+                        checked={selectedChildren.has(child.id)}
+                        onCheckedChange={(checked) => {
+                          const newSelected = new Set(selectedChildren);
+                          if (checked) {
+                            newSelected.add(child.id);
+                          } else {
+                            newSelected.delete(child.id);
+                          }
+                          setSelectedChildren(newSelected);
+                        }}
+                      />
+                      <Label
+                        htmlFor={`child-${child.id}`}
+                        className="flex-1 cursor-pointer text-sm font-medium text-slate-900 dark:text-white"
+                      >
+                        <div>
+                          <p>{child.name}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">LRN: {child.lrn}</p>
+                        </div>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <Button
+                    variant="outline"
+                    onClick={() => setChildSelectionOpen(false)}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() =>
+                      void submitEventIntent(
+                        pendingEventIntent.event,
+                        pendingEventIntent.action
+                      )
+                    }
+                    disabled={selectedChildren.size === 0 || savingJoinEventId === pendingEventIntent.event.id || savingWillNotJoinEventId === pendingEventIntent.event.id}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {pendingEventIntent.action === 'join'
+                      ? savingJoinEventId === pendingEventIntent.event.id
+                        ? 'Confirming...'
+                        : 'Confirm Join'
+                      : savingWillNotJoinEventId === pendingEventIntent.event.id
+                        ? 'Confirming...'
+                        : 'Confirm Not Joining'}
+                  </Button>
                 </div>
               </div>
             )}

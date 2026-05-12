@@ -26,8 +26,25 @@ type EventJoinIntent = {
   id: number;
   parent_name: string;
   parent_email: string;
+  child_names: string[];
+  child_count: number;
   created_at: string;
   status?: 'join' | 'not_join';
+};
+
+const parseChildNames = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
 };
 
 export default function EventsPage() {
@@ -154,6 +171,8 @@ export default function EventsPage() {
           id: item.id,
           parent_name: item?.meta?.parent_name || 'Parent',
           parent_email: item?.meta?.parent_email || '',
+          child_names: parseChildNames(item?.meta?.selected_children_names),
+          child_count: parseChildNames(item?.meta?.selected_children_names).length,
           created_at: item.created_at,
           status: 'join' as const,
         }))
@@ -164,6 +183,8 @@ export default function EventsPage() {
           id: item.id,
           parent_name: item?.meta?.parent_name || 'Parent',
           parent_email: item?.meta?.parent_email || '',
+          child_names: parseChildNames(item?.meta?.selected_children_names),
+          child_count: parseChildNames(item?.meta?.selected_children_names).length,
           created_at: item.created_at,
           status: 'not_join' as const,
         }))
@@ -198,18 +219,33 @@ export default function EventsPage() {
         try {
           const { data: parents } = await supabase
             .from('students')
-            .select('parent_email, parent_name')
+            .select('parent_email, parent_name, name')
             .in('parent_email', emailsToLookup)
             .limit(500);
 
           const nameByEmail = new Map<string, string>();
+          const childNamesByEmail = new Map<string, string[]>();
           (parents || []).forEach((p: any) => {
-            if (p.parent_email && p.parent_name) nameByEmail.set(String(p.parent_email).toLowerCase(), String(p.parent_name));
+            const emailKey = p.parent_email ? String(p.parent_email).toLowerCase() : '';
+            if (!emailKey) return;
+            if (p.parent_name) nameByEmail.set(emailKey, String(p.parent_name));
+            if (p.name) {
+              const existing = childNamesByEmail.get(emailKey) || [];
+              const nextName = String(p.name).trim();
+              if (nextName && !existing.includes(nextName)) {
+                childNamesByEmail.set(emailKey, [...existing, nextName]);
+              }
+            }
           });
 
           deduped.forEach((it) => {
-            const lookup = nameByEmail.get(it.parent_email.toLowerCase());
+            const emailKey = it.parent_email.toLowerCase();
+            const lookup = nameByEmail.get(emailKey);
             if (lookup) it.parent_name = lookup;
+            if (it.child_names.length === 0) {
+              it.child_names = childNamesByEmail.get(emailKey) || [];
+              it.child_count = it.child_names.length;
+            }
           });
         } catch (e) {
           // ignore lookup errors
@@ -656,11 +692,16 @@ export default function EventsPage() {
                       {joinIntents.map((intent) => (
                         <div
                           key={intent.id}
-                          className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 px-3 py-2 flex items-center justify-between gap-2"
+                          className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 px-3 py-2 flex items-start justify-between gap-2"
                         >
                           <div>
                             <p className="text-sm font-medium text-slate-900 dark:text-white">{intent.parent_name}</p>
                             <p className="text-xs text-slate-500 dark:text-slate-400">{intent.parent_email}</p>
+                            {intent.child_names.length > 0 && (
+                              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                                Children: {intent.child_names.join(', ')}
+                              </p>
+                            )}
                           </div>
                           <div className="flex items-center gap-3">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${intent.status === 'join' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300'}`}>
