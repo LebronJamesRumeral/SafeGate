@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { buildParentAccountCreatedEmail, createMailTransporter } from '@/lib/email-service';
 
 export async function POST(request: Request) {
   try {
@@ -49,7 +50,37 @@ export async function POST(request: Request) {
       ]);
     }
 
-    return Response.json({ success: true, user: data.user });
+    let notificationSent = false;
+
+    if (role === 'parent') {
+      const transporterResult = createMailTransporter();
+      if (!('error' in transporterResult)) {
+        try {
+          const logoUrl = new URL('/SGCDC.png', request.url).toString();
+          const emailContent = buildParentAccountCreatedEmail({
+            parentName: full_name || email,
+            parentEmail: email,
+            defaultPassword: password,
+            schoolName: 'Subic Gateway Child Development Center',
+            schoolLogoUrl: logoUrl,
+          });
+
+          await transporterResult.transporter.sendMail({
+            from: transporterResult.config.fromEmail,
+            to: email,
+            subject: emailContent.subject,
+            text: emailContent.text,
+            html: emailContent.html,
+            attachments: emailContent.attachments,
+          });
+          notificationSent = true;
+        } catch (mailError) {
+          console.error('Parent onboarding email failed:', mailError);
+        }
+      }
+    }
+
+    return Response.json({ success: true, user: data.user, notificationSent });
   } catch (error) {
     return Response.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }

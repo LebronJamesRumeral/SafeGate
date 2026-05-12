@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import { createMailTransporter } from '@/lib/email-service';
 
 interface ScheduleRowPayload {
   dayOfWeek: string;
@@ -234,33 +234,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const smtpHost = process.env.GMAIL_SMTP_HOST || 'smtp.gmail.com';
-    const smtpPort = Number(process.env.GMAIL_SMTP_PORT || 465);
-    const smtpSecure = (process.env.GMAIL_SMTP_SECURE || 'true').toLowerCase() === 'true';
-    const smtpUser = process.env.GMAIL_SMTP_USER;
-    const smtpPass = process.env.GMAIL_SMTP_APP_PASSWORD;
-    const fromEmail = process.env.GMAIL_FROM_EMAIL || smtpUser;
+    const transporterResult = createMailTransporter();
 
-    if (!smtpUser || !smtpPass || !fromEmail) {
+    if ('error' in transporterResult) {
       return Response.json(
         {
           success: false,
-          error: 'Missing Gmail SMTP configuration',
-          detail: 'Set GMAIL_SMTP_USER, GMAIL_SMTP_APP_PASSWORD, and optional GMAIL_FROM_EMAIL in environment variables.',
+          error: transporterResult.error,
+          detail: transporterResult.detail,
         },
         { status: 500 }
       );
     }
-
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-    });
 
     const emailContent = buildScheduleChangeEmailContent({
       studentName: body.studentName,
@@ -271,8 +256,8 @@ export async function POST(request: Request) {
       scheduleRows: body.scheduleRows,
     });
 
-    const emailResult = await transporter.sendMail({
-      from: fromEmail,
+    const emailResult = await transporterResult.transporter.sendMail({
+      from: transporterResult.config.fromEmail,
       to: body.parentEmail,
       subject: emailContent.subject,
       text: emailContent.text,

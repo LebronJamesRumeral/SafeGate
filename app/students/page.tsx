@@ -587,7 +587,9 @@ export default function StudentsPage() {
         }
         toast({
           title: 'Parent Account Created',
-          description: `Account for ${parentEmail} created successfully. Password: ${password}`,
+          description: addData.notificationSent
+            ? `Account for ${parentEmail} created successfully and the parent was emailed.`
+            : `Account for ${parentEmail} created successfully, but the email notification could not be sent.`,
           variant: 'default',
         });
         // Update validated emails state so button disappears
@@ -639,9 +641,21 @@ export default function StudentsPage() {
         }
       }
 
+      const notifyRes = await fetch('/api/auth/notify-parent-unlinked', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: parentEmail,
+          parentName: student.parentName || student.parent_name || '',
+        }),
+      });
+      const notifyData = await notifyRes.json();
+
       toast({
         title: 'Parent Account Unlinked',
-        description: `Account for ${parentEmail} has been unlinked.`,
+        description: notifyData.success
+          ? `Account for ${parentEmail} has been unlinked and the parent was notified.`
+          : `Account for ${parentEmail} has been unlinked, but the notification email could not be sent.`,
         variant: 'default',
       });
 
