@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
+import ParentAttendanceSkeleton from '@/components/parent-attendance-skeleton';
 import DatePickerInput from '@/components/date-picker-input';
 import { getParentStudents } from '@/lib/parent-data';
 import { supabase } from '@/lib/supabase';
@@ -274,7 +274,7 @@ export default function ParentAttendancePage() {
 
     setSavingExcuse(true);
     try {
-      const parentDisplayName = user.full_name || user.display_name || user.username;
+      const parentDisplayName = user.full_name || (user as any).display_name || user.username;
       const title = `Parent Excuse Letter (${excuseStatus === 'late' ? 'Late' : 'Absence'})`;
       const message = `${parentDisplayName} submitted an excuse letter for ${selectedChild.name} on ${excuseDate}.`;
 
@@ -527,41 +527,7 @@ export default function ParentAttendancePage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="space-y-6 px-2 sm:px-0">
-          <div>
-            <Skeleton className="h-10 w-56 mb-2" />
-            <Skeleton className="h-5 w-80" />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 p-5 bg-white/80 dark:bg-slate-800/70 shadow-lg space-y-3">
-                <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-10 w-16" />
-                <Skeleton className="h-3 w-28" />
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="rounded-2xl border-2 border-slate-200/70 dark:border-slate-700/60 bg-white/80 dark:bg-slate-800/70 shadow-xl overflow-hidden">
-                <div className="h-1.5 bg-slate-200 dark:bg-slate-700" />
-                <div className="p-4 space-y-3">
-                  <Skeleton className="h-6 w-36" />
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-16 w-full rounded-lg" />
-                  <div className="grid grid-cols-3 gap-2.5">
-                    <Skeleton className="h-14 rounded-lg" />
-                    <Skeleton className="h-14 rounded-lg" />
-                    <Skeleton className="h-14 rounded-lg" />
-                  </div>
-                  <Skeleton className="h-9 w-full rounded-lg" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <ParentAttendanceSkeleton />
       </DashboardLayout>
     );
   }
@@ -696,7 +662,7 @@ export default function ParentAttendancePage() {
                   <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-300 leading-tight">{attendanceSummary.present}</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Days present</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
+                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
                   <CheckCircle2 className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>
@@ -711,7 +677,7 @@ export default function ParentAttendancePage() {
                   <div className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-300 leading-tight">{attendanceSummary.late}</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Late arrivals</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20 dark:shadow-amber-500/10 group-hover:scale-105 transition-all duration-300">
+                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20 dark:shadow-amber-500/10 group-hover:scale-105 transition-all duration-300">
                   <Clock3 className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>
@@ -726,7 +692,7 @@ export default function ParentAttendancePage() {
                   <div className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-300 leading-tight">{attendanceSummary.absent}</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Days absent</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
+                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
                   <XCircle className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>

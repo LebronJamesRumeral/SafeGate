@@ -1,5 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton';
-import { Activity, Heart, AlertCircle } from 'lucide-react';
+import { Activity, Heart, AlertCircle, Star } from 'lucide-react';
 
 export default function ParentBehaviorSkeleton() {
   return (
@@ -19,56 +19,69 @@ export default function ParentBehaviorSkeleton() {
       </div>
 
       {/* Summary Cards with new pattern */}
-      <div className="grid gap-5 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
         {/* Total Events */}
-        <div className="shadow-xl border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-12 -mb-12" />
-          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-            <div className="flex-1">
-              <Skeleton className="h-3 w-24 mb-2" />
-              <Skeleton className="h-10 w-16" />
-              <Skeleton className="h-3 w-28 mt-2" />
+        <div className="shadow-lg border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/15 dark:bg-blue-400/10 rounded-full -mr-8 -mt-8" />
+          <div className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+            <div className="flex-1 min-w-0">
+              <Skeleton className="h-3 w-20 mb-1" />
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-3 w-24 mt-1" />
             </div>
-            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-blue-500/30 dark:bg-blue-900/50 items-center justify-center">
-              <Activity className="w-8 h-8 text-blue-500/60" />
+            <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-blue-500/30 dark:bg-blue-900/50 items-center justify-center hidden sm:flex">
+              <Activity className="w-6 h-6 text-blue-500/60" />
             </div>
           </div>
-          <div className="h-1.5 w-full bg-blue-500/40" />
+          <div className="h-1 w-full bg-blue-500/40" />
         </div>
 
         {/* Positive Events */}
-        <div className="shadow-xl border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-12 -mb-12" />
-          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-            <div className="flex-1">
-              <Skeleton className="h-3 w-24 mb-2" />
-              <Skeleton className="h-10 w-16" />
-              <Skeleton className="h-3 w-28 mt-2" />
+        <div className="shadow-lg border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/15 dark:bg-emerald-400/10 rounded-full -mr-8 -mt-8" />
+          <div className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+            <div className="flex-1 min-w-0">
+              <Skeleton className="h-3 w-20 mb-1" />
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-3 w-24 mt-1" />
             </div>
-            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-emerald-500/30 dark:bg-emerald-900/50 items-center justify-center">
-              <Heart className="w-8 h-8 text-emerald-500/60" />
+            <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-emerald-500/30 dark:bg-emerald-900/50 items-center justify-center hidden sm:flex">
+              <Heart className="w-6 h-6 text-emerald-500/60" />
             </div>
           </div>
-          <div className="h-1.5 w-full bg-emerald-500/40" />
+          <div className="h-1 w-full bg-emerald-500/40" />
         </div>
 
         {/* Negative Events */}
-        <div className="shadow-xl border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 dark:bg-red-400/5 rounded-full -mr-16 -mt-16" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12" />
-          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-            <div className="flex-1">
-              <Skeleton className="h-3 w-24 mb-2" />
-              <Skeleton className="h-10 w-16" />
-              <Skeleton className="h-3 w-28 mt-2" />
+        <div className="shadow-lg border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/15 dark:bg-red-400/10 rounded-full -mr-8 -mt-8" />
+          <div className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+            <div className="flex-1 min-w-0">
+              <Skeleton className="h-3 w-20 mb-1" />
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-3 w-24 mt-1" />
             </div>
-            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-red-500/30 dark:bg-red-900/50 items-center justify-center">
-              <AlertCircle className="w-8 h-8 text-red-500/60" />
+            <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-red-500/30 dark:bg-red-900/50 items-center justify-center hidden sm:flex">
+              <AlertCircle className="w-6 h-6 text-red-500/60" />
             </div>
           </div>
-          <div className="h-1.5 w-full bg-red-500/40" />
+          <div className="h-1 w-full bg-red-500/40" />
+        </div>
+
+        {/* Total Achievements */}
+        <div className="shadow-lg border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-8 -mt-8" />
+          <div className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+            <div className="flex-1 min-w-0">
+              <Skeleton className="h-3 w-24 mb-1" />
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-3 w-24 mt-1" />
+            </div>
+            <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-orange-500/30 dark:bg-orange-900/50 items-center justify-center hidden sm:flex">
+              <Star className="w-6 h-6 text-orange-500/60" />
+            </div>
+          </div>
+          <div className="h-1 w-full bg-orange-500/40" />
         </div>
       </div>
 
