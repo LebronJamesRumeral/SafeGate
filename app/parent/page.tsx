@@ -113,55 +113,52 @@ export default function ParentDashboard() {
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
           {/* Children Linked */}
-          <Card className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 dark:bg-sky-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-            <div className="absolute bottom-0 left-0 w-16 h-16 bg-sky-500/5 dark:bg-sky-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
-            <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-              <div>
-                <p className="text-[10px] sm:text-xs text-sky-600 dark:text-sky-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Children Linked</p>
-                <div className="text-xl sm:text-4xl font-bold text-sky-600 dark:text-sky-400">{children.length}</div>
-                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Total children linked</p>
+          <Card className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-sky-500/15 dark:bg-sky-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+            <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] sm:text-[10px] text-sky-600 dark:text-sky-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Children Linked</p>
+                <div className="text-lg sm:text-2xl font-bold text-sky-600 dark:text-sky-400 leading-tight">{children.length}</div>
+                <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Total children linked</p>
               </div>
-              <div className="hidden sm:flex w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-linear-to-br from-sky-500 to-sky-600 text-white items-center justify-center shadow-lg shadow-sky-500/25 dark:shadow-sky-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <Users className="w-8 h-8" />
+              <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white flex items-center justify-center shadow-md shadow-sky-500/20 dark:shadow-sky-500/10 group-hover:scale-105 transition-all duration-300">
+                <Users className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
             <div className="h-1 w-full bg-linear-to-r from-sky-400 to-sky-600 dark:from-sky-500 dark:to-sky-700" />
           </Card>
 
           {/* Attendance Card */}
-          <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-            <div className="absolute bottom-0 left-0 w-16 h-16 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
-            <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-              <div>
-                <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Attendance Records</p>
+          <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/15 dark:bg-emerald-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+            <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] sm:text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Attendance Records</p>
                 <div className="text-xl sm:text-4xl font-bold text-emerald-600 dark:text-emerald-400">{
                   Object.values(attendanceLogs).reduce((acc: number, logs: any) => acc + (Array.isArray(logs) ? logs.length : 0), 0)
                 }</div>
-                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Total attendance logs</p>
+                <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Total attendance logs</p>
               </div>
-              <div className="hidden sm:flex w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <CheckCircle className="w-8 h-8" />
+              <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
+                <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
             <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
           </Card>
 
           {/* Behavior Card */}
-          <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-            <div className="absolute bottom-0 left-0 w-16 h-16 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
-            <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-              <div>
-                <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Behavioral Events</p>
-                <div className="text-xl sm:text-4xl font-bold text-orange-600 dark:text-orange-400">{
+          <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+            <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] sm:text-[10px] text-orange-600 dark:text-orange-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Behavioral Events</p>
+                <div className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">{
                   Object.values(behavioralEvents).reduce((acc: number, events: any) => acc + (Array.isArray(events) ? events.length : 0), 0)
                 }</div>
-                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Total behavioral events</p>
+                <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Total behavioral events</p>
               </div>
-              <div className="hidden sm:flex w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <AlertCircle className="w-8 h-8" />
+              <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
+                <AlertCircle className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
             <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />

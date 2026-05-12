@@ -1367,20 +1367,19 @@ export default function AnalyticsPage() {
               className="space-y-6"
             >
               {/* Behavioral Summary Cards - Dashboard Style */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
                 {/* Total Events Card */}
                 <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.05 }}>
-                  <Card className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 dark:bg-sky-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-sky-500/5 dark:bg-sky-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[10px] sm:text-xs text-sky-600 dark:text-sky-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Total Events</p>
-                        <div className="text-xl sm:text-4xl font-bold text-sky-600 dark:text-sky-400">{behavioralStats.totalEvents}</div>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">all behavioral events</p>
+                  <Card className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-sky-500/15 dark:bg-sky-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                    <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] sm:text-[10px] text-sky-600 dark:text-sky-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Total Events</p>
+                        <div className="text-lg sm:text-2xl font-bold text-sky-600 dark:text-sky-400 leading-tight">{behavioralStats.totalEvents}</div>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">all behavioral events</p>
                       </div>
-                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-sky-500 to-sky-600 text-white items-center justify-center shadow-lg shadow-sky-500/25 dark:shadow-sky-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <BarChart3 className="w-8 h-8" />
+                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white flex items-center justify-center shadow-md shadow-sky-500/20 dark:shadow-sky-500/10 group-hover:scale-105 transition-all duration-300">
+                        <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
                     <div className="h-1 w-full bg-linear-to-r from-sky-400 to-sky-600 dark:from-sky-500 dark:to-sky-700" />
@@ -1389,17 +1388,16 @@ export default function AnalyticsPage() {
 
                 {/* Positive Events Card */}
                 <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1 }}>
-                  <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Positive Behavior Events</p>
-                        <div className="text-xl sm:text-4xl font-bold text-emerald-600 dark:text-emerald-400">{behavioralStats.positiveEvents}</div>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">reinforcing student progress</p>
+                  <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/15 dark:bg-emerald-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                    <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] sm:text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Positive Behavior Events</p>
+                        <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{behavioralStats.positiveEvents}</div>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">reinforcing student progress</p>
                       </div>
-                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <CheckCircle className="w-8 h-8" />
+                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
+                        <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
                     <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
@@ -1408,17 +1406,16 @@ export default function AnalyticsPage() {
 
                 {/* Negative Events Card */}
                 <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.2 }}>
-                  <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Major/Critical Incidents</p>
-                        <div className="text-xl sm:text-4xl font-bold text-orange-600 dark:text-orange-400">{behavioralStats.negativeEvents}</div>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">major and critical incidents</p>
+                  <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                    <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] sm:text-[10px] text-orange-600 dark:text-orange-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Major/Critical Incidents</p>
+                        <div className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">{behavioralStats.negativeEvents}</div>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">major and critical incidents</p>
                       </div>
-                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <XCircle className="w-8 h-8" />
+                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
+                        <XCircle className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
                     <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
@@ -1427,17 +1424,16 @@ export default function AnalyticsPage() {
 
                 {/* At Risk Students Card */}
                 <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.3 }}>
-                  <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 dark:bg-red-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students Needing Intervention</p>
-                        <div className="text-xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{behavioralStats.studentsAtRisk}</div>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">high or critical risk level</p>
+                  <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/15 dark:bg-red-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                    <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] sm:text-[10px] text-red-600 dark:text-red-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Students Needing Intervention</p>
+                        <div className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400 leading-tight">{behavioralStats.studentsAtRisk}</div>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">high or critical risk level</p>
                       </div>
-                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <AlertTriangle className="w-8 h-8" />
+                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
+                        <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
                     <div className="h-1 w-full bg-linear-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
@@ -1608,19 +1604,18 @@ export default function AnalyticsPage() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
                 <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.05 }}>
-                  <Card className="border-0 bg-linear-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 dark:bg-violet-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-violet-500/5 dark:bg-violet-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[10px] sm:text-xs text-violet-600 dark:text-violet-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students Analyzed</p>
-                        <div className="text-xl sm:text-4xl font-bold text-violet-600 dark:text-violet-400">{mlInsights.totalStudentsAnalyzed}</div>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">ML analysis complete</p>
+                  <Card className="border-0 bg-linear-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-violet-500/15 dark:bg-violet-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                    <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] sm:text-[10px] text-violet-600 dark:text-violet-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Students Analyzed</p>
+                        <div className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400 leading-tight">{mlInsights.totalStudentsAnalyzed}</div>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">ML analysis complete</p>
                       </div>
-                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-violet-500 to-violet-600 text-white items-center justify-center shadow-lg shadow-violet-500/25 dark:shadow-violet-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <Brain className="w-8 h-8" />
+                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-violet-500 to-violet-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20 dark:shadow-violet-500/10 group-hover:scale-105 transition-all duration-300">
+                        <Brain className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
                     <div className="h-1 w-full bg-linear-to-r from-violet-400 to-violet-600 dark:from-violet-500 dark:to-violet-700" />
@@ -1628,17 +1623,16 @@ export default function AnalyticsPage() {
                 </motion.div>
 
                 <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1 }}>
-                  <Card className="border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[10px] sm:text-xs text-rose-600 dark:text-rose-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Critical Risk Students</p>
-                        <div className="text-xl sm:text-4xl font-bold text-rose-600 dark:text-rose-400">{mlInsights.criticalRiskStudents}</div>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">immediate attention needed</p>
+                  <Card className="border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-rose-500/15 dark:bg-rose-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                    <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] sm:text-[10px] text-rose-600 dark:text-rose-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Critical Risk Students</p>
+                        <div className="text-lg sm:text-2xl font-bold text-rose-600 dark:text-rose-400 leading-tight">{mlInsights.criticalRiskStudents}</div>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">immediate attention needed</p>
                       </div>
-                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-lg shadow-rose-500/25 dark:shadow-rose-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <Shield className="w-8 h-8" />
+                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-rose-500 to-rose-600 text-white flex items-center justify-center shadow-md shadow-rose-500/20 dark:shadow-rose-500/10 group-hover:scale-105 transition-all duration-300">
+                        <Shield className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
                     <div className="h-1 w-full bg-linear-to-r from-rose-400 to-rose-600 dark:from-rose-500 dark:to-rose-700" />
@@ -1646,17 +1640,16 @@ export default function AnalyticsPage() {
                 </motion.div>
 
                 <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.15 }}>
-                  <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 dark:bg-amber-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-amber-500/5 dark:bg-amber-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">High Risk Students</p>
-                        <div className="text-xl sm:text-4xl font-bold text-amber-600 dark:text-amber-400">{mlInsights.highRiskStudents}</div>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">requiring monitoring</p>
+                  <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/15 dark:bg-amber-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                    <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] sm:text-[10px] text-amber-600 dark:text-amber-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">High Risk Students</p>
+                        <div className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400 leading-tight">{mlInsights.highRiskStudents}</div>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">requiring monitoring</p>
                       </div>
-                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-amber-500 to-amber-600 text-white items-center justify-center shadow-lg shadow-amber-500/25 dark:shadow-amber-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <Eye className="w-8 h-8" />
+                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20 dark:shadow-amber-500/10 group-hover:scale-105 transition-all duration-300">
+                        <Eye className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
                     <div className="h-1 w-full bg-linear-to-r from-amber-400 to-amber-600 dark:from-amber-500 dark:to-amber-700" />
@@ -1664,17 +1657,16 @@ export default function AnalyticsPage() {
                 </motion.div>
 
                 <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.2 }}>
-                  <Card className="border-0 bg-linear-to-br from-cyan-50 to-white dark:from-cyan-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 dark:bg-cyan-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-cyan-500/5 dark:bg-cyan-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[10px] sm:text-xs text-cyan-600 dark:text-cyan-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students At Risk</p>
-                        <div className="text-xl sm:text-4xl font-bold text-cyan-600 dark:text-cyan-400">{mlInsights.atRiskStudents}</div>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">high + critical risk level</p>
+                  <Card className="border-0 bg-linear-to-br from-cyan-50 to-white dark:from-cyan-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-cyan-500/15 dark:bg-cyan-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                    <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] sm:text-[10px] text-cyan-600 dark:text-cyan-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Students At Risk</p>
+                        <div className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400 leading-tight">{mlInsights.atRiskStudents}</div>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">high + critical risk level</p>
                       </div>
-                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-cyan-500 to-cyan-600 text-white items-center justify-center shadow-lg shadow-cyan-500/25 dark:shadow-cyan-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <Zap className="w-8 h-8" />
+                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-cyan-500 to-cyan-600 text-white flex items-center justify-center shadow-md shadow-cyan-500/20 dark:shadow-cyan-500/10 group-hover:scale-105 transition-all duration-300">
+                        <Zap className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
                     <div className="h-1 w-full bg-linear-to-r from-cyan-400 to-cyan-600 dark:from-cyan-500 dark:to-cyan-700" />
@@ -1779,17 +1771,16 @@ export default function AnalyticsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
                 {/* Total Events Card */}
                 <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.05 }}>
-                  <Card className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 dark:bg-sky-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-sky-500/5 dark:bg-sky-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[10px] sm:text-xs text-sky-600 dark:text-sky-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Total Events</p>
-                        <div className="text-xl sm:text-4xl font-bold text-sky-600 dark:text-sky-400">{behavioralStats.totalEvents}</div>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">all behavioral events</p>
+                  <Card className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-sky-500/15 dark:bg-sky-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                    <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] sm:text-[10px] text-sky-600 dark:text-sky-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Total Events</p>
+                        <div className="text-lg sm:text-2xl font-bold text-sky-600 dark:text-sky-400 leading-tight">{behavioralStats.totalEvents}</div>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">all behavioral events</p>
                       </div>
-                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-sky-500 to-sky-600 text-white items-center justify-center shadow-lg shadow-sky-500/25 dark:shadow-sky-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <BarChart3 className="w-8 h-8" />
+                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white flex items-center justify-center shadow-md shadow-sky-500/20 dark:shadow-sky-500/10 group-hover:scale-105 transition-all duration-300">
+                        <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
                     <div className="h-1 w-full bg-linear-to-r from-sky-400 to-sky-600 dark:from-sky-500 dark:to-sky-700" />
@@ -1798,17 +1789,16 @@ export default function AnalyticsPage() {
 
                 {/* Positive Events Card */}
                 <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1 }}>
-                  <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Positive Behavior Events</p>
-                        <div className="text-xl sm:text-4xl font-bold text-emerald-600 dark:text-emerald-400">{behavioralStats.positiveEvents}</div>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">reinforcing student progress</p>
+                  <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/15 dark:bg-emerald-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                    <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] sm:text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Positive Behavior Events</p>
+                        <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{behavioralStats.positiveEvents}</div>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">reinforcing student progress</p>
                       </div>
-                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <CheckCircle className="w-8 h-8" />
+                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
+                        <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
                     <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
@@ -1817,17 +1807,16 @@ export default function AnalyticsPage() {
 
                 {/* Negative Events Card */}
                 <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.2 }}>
-                  <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Major/Critical Incidents</p>
-                        <div className="text-xl sm:text-4xl font-bold text-orange-600 dark:text-orange-400">{behavioralStats.negativeEvents}</div>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">major and critical incidents</p>
+                  <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                    <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] sm:text-[10px] text-orange-600 dark:text-orange-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Major/Critical Incidents</p>
+                        <div className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">{behavioralStats.negativeEvents}</div>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">major and critical incidents</p>
                       </div>
-                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <XCircle className="w-8 h-8" />
+                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
+                        <XCircle className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
                     <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
@@ -1836,17 +1825,16 @@ export default function AnalyticsPage() {
 
                 {/* At Risk Students Card */}
                 <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.3 }}>
-                  <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 dark:bg-red-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                    <CardContent className="p-3 sm:p-6 flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students At Risk</p>
-                        <div className="text-xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{behavioralStats.studentsAtRisk}</div>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">high + critical risk level</p>
+                  <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/15 dark:bg-red-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                    <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] sm:text-[10px] text-red-600 dark:text-red-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Students At Risk</p>
+                        <div className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400 leading-tight">{behavioralStats.studentsAtRisk}</div>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">high + critical risk level</p>
                       </div>
-                      <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                        <AlertTriangle className="w-8 h-8" />
+                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
+                        <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
                     <div className="h-1 w-full bg-linear-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />

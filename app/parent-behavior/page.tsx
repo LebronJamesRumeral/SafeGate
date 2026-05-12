@@ -715,67 +715,63 @@ export default function ParentBehaviorPage() {
         {/* Summary Cards Row - Updated Design */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Total Events */}
-          <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-            <div className="absolute bottom-0 left-0 w-16 h-16 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
-            <CardContent className="p-3 sm:p-6 flex items-center justify-between gap-4 relative z-10">
-              <div className="min-w-0 pr-2">
-                <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Total Events</p>
-                <div className="text-xl sm:text-4xl font-bold text-blue-600 dark:text-blue-400">{children.reduce((acc, child) => acc + (behavioralEvents[child.lrn]?.length || 0), 0)}</div>
-                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">All behavioral events</p>
+          <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/15 dark:bg-blue-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+            <CardContent className="p-2.5 sm:p-4 flex items-start justify-between gap-4 relative z-10">
+              <div className="min-w-0 flex-1">
+                <p className="text-[9px] sm:text-[10px] text-blue-600 dark:text-blue-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Total Events</p>
+                <div className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400 leading-tight">{children.reduce((acc, child) => acc + (behavioralEvents[child.lrn]?.length || 0), 0)}</div>
+                <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">All behavioral events</p>
               </div>
-              <div className="hidden sm:flex w-12 h-12 sm:w-16 sm:h-16 shrink-0 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <Activity className="w-8 h-8" />
+              <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 dark:shadow-blue-500/10 group-hover:scale-105 transition-all duration-300">
+                <Activity className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
             <div className="h-1 w-full bg-linear-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
           </Card>
           {/* Positive Events */}
-          <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-            <div className="absolute bottom-0 left-0 w-16 h-16 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
-            <CardContent className="p-3 sm:p-6 flex items-center justify-between gap-4 relative z-10">
-              <div className="min-w-0 pr-2">
-                <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Positive Behaviors</p>
-                <div className="text-xl sm:text-4xl font-bold text-emerald-600 dark:text-emerald-400">{children.reduce((acc, child) => acc + (behavioralEvents[child.lrn]?.filter((e: any) => e.event_type !== 'parent_report' && e.severity === 'positive').length || 0), 0)}</div>
-                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Positive actions by teachers</p>
+          <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/15 dark:bg-emerald-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+            <CardContent className="p-2.5 sm:p-4 flex items-start justify-between gap-4 relative z-10">
+              <div className="min-w-0 flex-1">
+                <p className="text-[9px] sm:text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Positive Behaviors</p>
+                <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{children.reduce((acc, child) => acc + (behavioralEvents[child.lrn]?.filter((e: any) => e.event_type !== 'parent_report' && e.severity === 'positive').length || 0), 0)}</div>
+                <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Positive actions by teachers</p>
               </div>
-              <div className="hidden sm:flex w-12 h-12 sm:w-16 sm:h-16 shrink-0 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <Heart className="w-8 h-8" />
+              <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
+                <Heart className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
             <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
           </Card>
           {/* Negative Events */}
-          <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 dark:bg-red-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-            <div className="absolute bottom-0 left-0 w-16 h-16 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
-            <CardContent className="p-3 sm:p-6 flex items-center justify-between gap-4 relative z-10">
-              <div className="min-w-0 pr-2">
-                <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Needs Attention</p>
-                <div className="text-xl sm:text-4xl font-bold text-red-600 dark:text-red-400">{children.reduce((acc, child) => acc + (behavioralEvents[child.lrn]?.filter((e: any) => e.event_type !== 'parent_report' && e.severity !== 'positive').length || 0), 0)}</div>
-                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Behaviors needing guidance support</p>
+          <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/15 dark:bg-red-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+            <CardContent className="p-2.5 sm:p-4 flex items-start justify-between gap-4 relative z-10">
+              <div className="min-w-0 flex-1">
+                <p className="text-[9px] sm:text-[10px] text-red-600 dark:text-red-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Needs Attention</p>
+                <div className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400 leading-tight">{children.reduce((acc, child) => acc + (behavioralEvents[child.lrn]?.filter((e: any) => e.event_type !== 'parent_report' && e.severity !== 'positive').length || 0), 0)}</div>
+                <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Behaviors needing guidance support</p>
               </div>
-              <div className="hidden sm:flex w-12 h-12 sm:w-16 sm:h-16 shrink-0 rounded-2xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/25 dark:shadow-red-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <Frown className="w-8 h-8" />
+              <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
+                <Frown className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
             <div className="h-1 w-full bg-linear-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
           </Card>
           {/* Achievements */}
-          <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-            <div className="absolute bottom-0 left-0 w-16 h-16 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-8 -mb-8 group-hover:scale-150 transition-transform duration-500" />
-            <CardContent className="p-3 sm:p-6 flex items-center justify-between gap-4 relative z-10">
-              <div className="min-w-0 pr-2">
-                <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Total Achievements</p>
-                <div className="text-xl sm:text-4xl font-bold text-orange-600 dark:text-orange-400">
+          <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+            <CardContent className="p-2.5 sm:p-4 flex items-start justify-between gap-4 relative z-10">
+              <div className="min-w-0 flex-1">
+                <p className="text-[9px] sm:text-[10px] text-orange-600 dark:text-orange-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Total Achievements</p>
+                <div className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">
                   {children.reduce((acc, child) => acc + (achievementsByStudent[child.lrn]?.length || 0), 0)}
                 </div>
-                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">All linked students combined</p>
+                <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">All linked students combined</p>
               </div>
-              <div className="hidden sm:flex w-12 h-12 sm:w-16 sm:h-16 shrink-0 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <Award className="w-8 h-8" />
+              <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
+                <Award className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
             <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />

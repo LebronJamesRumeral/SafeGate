@@ -704,68 +704,64 @@ function SchoolHeatmapContent() {
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
             {/* Behavioral Logs */}
-            <Card className="shadow-xl border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-              <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-                <div className="flex-1">
-                  <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Behavioral Logs</p>
-                  <div className="text-xl sm:text-4xl font-bold text-blue-700 dark:text-blue-300">{logs.length}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Total reports</p>
+            <Card className="shadow-lg border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/15 dark:bg-blue-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+              <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[9px] sm:text-[10px] text-blue-600 dark:text-blue-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Behavioral Logs</p>
+                  <div className="text-lg sm:text-2xl font-bold text-blue-700 dark:text-blue-300 leading-tight">{logs.length}</div>
+                  <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Total reports</p>
                 </div>
-                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/30 dark:shadow-blue-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
-                  <Archive className="w-8 h-8" />
+                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 dark:shadow-blue-500/10 group-hover:scale-105 transition-all duration-300">
+                  <Archive className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>
-              <div className="h-1.5 w-full bg-linear-to-r from-blue-400 via-blue-500 to-blue-600 dark:from-blue-500 dark:via-blue-600 dark:to-blue-700" />
+              <div className="h-1 w-full bg-linear-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
             </Card>
             {/* Critical Incidents */}
-            <Card className="shadow-xl border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 dark:bg-red-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/5 dark:bg-red-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-              <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-                <div className="flex-1">
-                  <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Critical Incidents</p>
-                  <div className="text-xl sm:text-4xl font-bold text-red-700 dark:text-red-300">{totalCritical}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">High-severity events</p>
+            <Card className="shadow-lg border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/15 dark:bg-red-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+              <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[9px] sm:text-[10px] text-red-600 dark:text-red-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Critical Incidents</p>
+                  <div className="text-lg sm:text-2xl font-bold text-red-700 dark:text-red-300 leading-tight">{totalCritical}</div>
+                  <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">High-severity events</p>
                 </div>
-                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-lg shadow-red-500/30 dark:shadow-red-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
-                  <Flame className="w-8 h-8" />
+                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
+                  <Flame className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>
-              <div className="h-1.5 w-full bg-linear-to-r from-red-400 via-red-500 to-red-600 dark:from-red-500 dark:via-red-600 dark:to-red-700" />
+              <div className="h-1 w-full bg-linear-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
             </Card>
             {/* Mapped Areas */}
-            <Card className="shadow-xl border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-              <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-                <div className="flex-1">
-                  <p className="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Mapped Areas</p>
-                  <div className="text-xl sm:text-4xl font-bold text-orange-700 dark:text-orange-300">{zones.length}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Configured zones</p>
+            <Card className="shadow-lg border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+              <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[9px] sm:text-[10px] text-orange-600 dark:text-orange-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Mapped Areas</p>
+                  <div className="text-lg sm:text-2xl font-bold text-orange-700 dark:text-orange-300 leading-tight">{zones.length}</div>
+                  <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Configured zones</p>
                 </div>
-                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-lg shadow-orange-500/30 dark:shadow-orange-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
-                  <MapPinned className="w-8 h-8" />
+                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
+                  <MapPinned className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>
-              <div className="h-1.5 w-full bg-linear-to-r from-orange-400 via-orange-500 to-orange-600 dark:from-orange-500 dark:via-orange-600 dark:to-orange-700" />
+              <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
             </Card>
             {/* ML High-Risk Students */}
-            <Card className="shadow-xl border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-              <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-                <div className="flex-1">
-                  <p className="text-[10px] sm:text-xs text-rose-600 dark:text-rose-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">ML High-Risk Students</p>
-                  <div className="text-xl sm:text-4xl font-bold text-rose-700 dark:text-rose-300">{highRiskStudents.length}</div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Risk signals linked</p>
+            <Card className="shadow-lg border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-rose-500/15 dark:bg-rose-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+              <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[9px] sm:text-[10px] text-rose-600 dark:text-rose-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">ML High-Risk Students</p>
+                  <div className="text-lg sm:text-2xl font-bold text-rose-700 dark:text-rose-300 leading-tight">{highRiskStudents.length}</div>
+                  <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Risk signals linked</p>
                 </div>
-                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-lg shadow-rose-500/30 dark:shadow-rose-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
-                  <ShieldAlert className="w-8 h-8" />
+                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-rose-500 to-rose-600 text-white flex items-center justify-center shadow-md shadow-rose-500/20 dark:shadow-rose-500/10 group-hover:scale-105 transition-all duration-300">
+                  <ShieldAlert className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>
-              <div className="h-1.5 w-full bg-linear-to-r from-rose-400 via-rose-500 to-rose-600 dark:from-rose-500 dark:via-rose-600 dark:to-rose-700" />
+              <div className="h-1 w-full bg-linear-to-r from-rose-400 to-rose-600 dark:from-rose-500 dark:to-rose-700" />
             </Card>
           </div>
 
