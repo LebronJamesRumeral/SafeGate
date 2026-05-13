@@ -6,15 +6,18 @@ export default function ParentBehaviorSkeleton() {
     <div className="space-y-6 animate-fade-in-up">
       {/* Page Header Skeleton */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Activity className="h-6 w-6 text-slate-500" />
-            <Skeleton className="h-8 w-64" />
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 animate-pulse w-14 h-14" />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Activity className="h-6 w-6 text-orange-500" />
+              <div className="h-8 bg-linear-to-r from-orange-200 to-orange-100 dark:from-orange-800 dark:to-orange-700 rounded-lg w-64 animate-pulse" />
+            </div>
+            <div className="h-4 bg-linear-to-r from-orange-100 to-orange-50 dark:from-orange-900 dark:to-orange-800 rounded-lg w-full max-w-2xl animate-pulse" />
           </div>
-          <Skeleton className="h-4 w-full max-w-2xl" />
         </div>
         <div>
-          <Skeleton className="h-9 w-full sm:w-48" />
+          <Skeleton className="h-9 w-full sm:w-48 bg-orange-200/70 dark:bg-orange-900/50" />
         </div>
       </div>
 

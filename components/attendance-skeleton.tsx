@@ -6,16 +6,19 @@ export default function AttendanceSkeleton() {
     <div className="space-y-6 animate-fade-in-up">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Calendar className="h-6 w-6 text-emerald-500" />
-            <Skeleton className="h-8 w-64" />
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 animate-pulse w-14 h-14" />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-6 w-6 text-emerald-500" />
+              <div className="h-8 bg-linear-to-r from-emerald-200 to-emerald-100 dark:from-emerald-800 dark:to-emerald-700 rounded-lg w-64 animate-pulse" />
+            </div>
+            <div className="h-4 bg-linear-to-r from-emerald-100 to-emerald-50 dark:from-emerald-900 dark:to-emerald-800 rounded-lg w-full max-w-2xl animate-pulse" />
           </div>
-          <Skeleton className="h-4 w-full max-w-2xl" />
         </div>
         <div className="flex items-center gap-2">
-          <Skeleton className="h-9 w-28 rounded-lg" />
-          <Skeleton className="h-9 w-28 rounded-lg" />
+          <Skeleton className="h-9 w-28 rounded-lg bg-emerald-200/70 dark:bg-emerald-900/50" />
+          <Skeleton className="h-9 w-28 rounded-lg bg-emerald-200/70 dark:bg-emerald-900/50" />
         </div>
       </div>
 
@@ -87,7 +90,7 @@ export default function AttendanceSkeleton() {
           </div>
         </div>
         <div className="p-5">
-          <Skeleton className="h-64 w-full rounded-lg" />
+          <Skeleton className="h-64 w-full rounded-lg bg-sky-100/70 dark:bg-sky-900/35" />
         </div>
       </div>
 

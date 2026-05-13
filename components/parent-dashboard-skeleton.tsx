@@ -6,12 +6,15 @@ export default function ParentDashboardSkeleton() {
     <div className="space-y-6 animate-fade-in-up px-2 sm:px-0">
       {/* Page Header Skeleton */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Brain className="h-6 w-6 text-slate-500" />
-            <Skeleton className="h-8 w-64" />
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 animate-pulse w-14 h-14" />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Brain className="h-6 w-6 text-blue-500" />
+              <div className="h-8 bg-linear-to-r from-blue-200 to-blue-100 dark:from-blue-800 dark:to-blue-700 rounded-lg w-64 animate-pulse" />
+            </div>
+            <div className="h-4 bg-linear-to-r from-blue-100 to-blue-50 dark:from-blue-900 dark:to-blue-800 rounded-lg w-full max-w-2xl animate-pulse" />
           </div>
-          <Skeleton className="h-4 w-full max-w-2xl" />
         </div>
       </div>
 
@@ -81,8 +84,8 @@ export default function ParentDashboardSkeleton() {
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl rounded-lg p-5 space-y-3">
+          {['from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80', 'from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80', 'from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80'].map((shell, i) => (
+            <div key={i} className={`border-0 bg-linear-to-br ${shell} shadow-xl rounded-lg p-5 space-y-3`}>
               <Skeleton className="h-5 w-40 mb-2" />
               <Skeleton className="h-4 w-32 mb-2" />
               <Skeleton className="h-4 w-full" />

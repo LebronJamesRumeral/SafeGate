@@ -738,41 +738,97 @@ export function MLDashboard() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6 animate-fade-in-up">
         {/* Header Skeleton */}
-        <div className="flex items-start gap-4 mb-6">
-          <div className="p-3 rounded-2xl bg-linear-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 animate-pulse w-14 h-14" />
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 animate-pulse w-14 h-14" />
           <div className="flex-1 space-y-2">
-            <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-lg w-64 animate-pulse" />
-            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded-lg w-96 animate-pulse" />
+            <div className="h-8 bg-linear-to-r from-blue-200 to-blue-100 dark:from-blue-800 dark:to-blue-700 rounded-lg w-64 animate-pulse" />
+            <div className="h-4 bg-linear-to-r from-blue-100 to-blue-50 dark:from-blue-900 dark:to-blue-800 rounded-lg w-96 animate-pulse" />
           </div>
         </div>
+        
         {/* Filter Skeleton */}
-        <div className="flex gap-3 mb-4">
-          <div className="h-10 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-          <div className="h-10 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-          <div className="h-10 w-48 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+        <div className="w-full bg-white/80 dark:bg-slate-900/55 backdrop-blur rounded-xl border border-border/70 shadow-sm p-4 sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
+            <div className="flex flex-col gap-2 w-full max-w-xs">
+              <div className="h-4 bg-slate-300 dark:bg-slate-600 rounded w-24 animate-pulse" />
+              <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+            </div>
+            <div className="flex flex-col gap-2 w-full max-w-xs">
+              <div className="h-4 bg-slate-300 dark:bg-slate-600 rounded w-20 animate-pulse" />
+              <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+            </div>
+            <div className="flex flex-col gap-2 w-full">
+              <div className="h-4 bg-slate-300 dark:bg-slate-600 rounded w-16 animate-pulse" />
+              <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Summary Skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
+          {/* Critical Risk Skeleton */}
+          <div className="bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 rounded-lg animate-pulse border border-red-200 dark:border-red-900/30 shadow-lg overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/15 dark:bg-red-400/10 rounded-full -mr-8 -mt-8" />
+            <div className="h-1 bg-red-300 dark:bg-red-600" />
+            <div className="p-2.5 sm:p-4 flex items-start justify-between gap-2 relative z-10">
+              <div className="flex-1 space-y-2">
+                <div className="h-3 bg-red-300 dark:bg-red-600 rounded w-1/2" />
+                <div className="h-6 bg-red-300 dark:bg-red-600 rounded w-2/3" />
+                <div className="h-2.5 bg-red-300 dark:bg-red-600 rounded w-3/4" />
+              </div>
+              <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 bg-red-400/40 dark:bg-red-700/40 rounded-xl" />
+            </div>
+          </div>
+          {/* High Risk Skeleton */}
+          <div className="bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 rounded-lg animate-pulse border border-orange-200 dark:border-orange-900/30 shadow-lg overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-8 -mt-8" />
+            <div className="h-1 bg-orange-300 dark:bg-orange-600" />
+            <div className="p-2.5 sm:p-4 flex items-start justify-between gap-2 relative z-10">
+              <div className="flex-1 space-y-2">
+                <div className="h-3 bg-orange-300 dark:bg-orange-600 rounded w-1/2" />
+                <div className="h-6 bg-orange-300 dark:bg-orange-600 rounded w-2/3" />
+                <div className="h-2.5 bg-orange-300 dark:bg-orange-600 rounded w-3/4" />
+              </div>
+              <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 bg-orange-400/40 dark:bg-orange-700/40 rounded-xl" />
+            </div>
+          </div>
+          {/* Medium Risk Skeleton */}
+          <div className="bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 rounded-lg animate-pulse border border-amber-200 dark:border-amber-900/30 shadow-lg overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/15 dark:bg-amber-400/10 rounded-full -mr-8 -mt-8" />
+            <div className="h-1 bg-amber-300 dark:bg-amber-600" />
+            <div className="p-2.5 sm:p-4 flex items-start justify-between gap-2 relative z-10">
+              <div className="flex-1 space-y-2">
+                <div className="h-3 bg-amber-300 dark:bg-amber-600 rounded w-1/2" />
+                <div className="h-6 bg-amber-300 dark:bg-amber-600 rounded w-2/3" />
+                <div className="h-2.5 bg-amber-300 dark:bg-amber-600 rounded w-3/4" />
+              </div>
+              <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 bg-amber-400/40 dark:bg-amber-700/40 rounded-xl" />
+            </div>
+          </div>
         </div>
         {/* Cards Skeleton */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3].map((i) => (
             <div 
               key={i} 
-              className="bg-linear-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl animate-pulse border border-slate-200 dark:border-slate-700 shadow-lg"
+              className="bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 rounded-2xl animate-pulse border border-blue-200 dark:border-blue-900/30 shadow-lg overflow-hidden relative"
               style={{ animationDelay: `${i * 100}ms` }}
             >
-              <div className="h-1.5 bg-slate-300 dark:bg-slate-600 rounded-t-2xl" />
-              <div className="p-5 space-y-3">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-12 -mt-12" />
+              <div className="h-1.5 bg-blue-300 dark:bg-blue-600" />
+              <div className="p-5 space-y-3 relative z-10">
                 <div className="flex justify-between">
                   <div className="space-y-2 flex-1">
-                    <div className="h-5 bg-slate-300 dark:bg-slate-600 rounded w-3/4" />
-                    <div className="h-3 bg-slate-300 dark:bg-slate-600 rounded w-1/2" />
+                    <div className="h-5 bg-blue-300 dark:bg-blue-600 rounded w-3/4" />
+                    <div className="h-3 bg-blue-300 dark:bg-blue-600 rounded w-1/2" />
                   </div>
-                  <div className="h-6 bg-slate-300 dark:bg-slate-600 rounded-full w-16" />
+                  <div className="h-6 bg-blue-300 dark:bg-blue-600 rounded-full w-16" />
                 </div>
-                <div className="h-16 bg-slate-200 dark:bg-slate-700 rounded-lg" />
-                <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded-lg" />
-                <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+                <div className="h-16 bg-blue-200 dark:bg-blue-700 rounded-lg" />
+                <div className="h-12 bg-blue-200 dark:bg-blue-700 rounded-lg" />
+                <div className="h-12 bg-blue-200 dark:bg-blue-700 rounded-lg" />
               </div>
             </div>
           ))}
@@ -854,45 +910,54 @@ export function MLDashboard() {
 
       {/* Stats Summary (filtered) */}
       {!error && filteredStudents.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/50 shadow-lg">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/40">
-                <AlertOctagon className="w-5 h-5 text-red-600 dark:text-red-400" />
-              </div>
-              <div>
-                <p className="text-xs text-red-600 dark:text-red-400 font-semibold">Critical Risk</p>
-                <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/15 dark:bg-red-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+            <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] sm:text-[10px] text-red-600 dark:text-red-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Critical Risk</p>
+                <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400 leading-tight">
                   {filteredStudents.filter(s => s.riskLevel === 'critical').length}
                 </p>
+                <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Immediate Attention Required</p>
+              </div>
+              <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
+                <AlertOctagon className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
+            <div className="h-1 w-full bg-linear-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
           </Card>
-          <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/50 shadow-lg">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/40">
-                <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <p className="text-xs text-orange-600 dark:text-orange-400 font-semibold">High Risk</p>
-                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+          <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+            <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] sm:text-[10px] text-orange-600 dark:text-orange-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">High Risk</p>
+                <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">
                   {filteredStudents.filter(s => s.riskLevel === 'high').length}
                 </p>
+                <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Close Monitoring Needed</p>
+              </div>
+              <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
+                <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
+            <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
           </Card>
-          <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/50 shadow-lg">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/40">
-                <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold">Medium Risk</p>
-                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+          <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/15 dark:bg-amber-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+            <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] sm:text-[10px] text-amber-600 dark:text-amber-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Medium Risk</p>
+                <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400 leading-tight">
                   {filteredStudents.filter(s => s.riskLevel === 'medium').length}
                 </p>
+                <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Preventive Measures Recommended</p>
+              </div>
+              <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20 dark:shadow-amber-500/10 group-hover:scale-105 transition-all duration-300">
+                <Clock className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
+            <div className="h-1 w-full bg-linear-to-r from-amber-400 to-amber-600 dark:from-amber-500 dark:to-amber-700" />
           </Card>
         </div>
       )}

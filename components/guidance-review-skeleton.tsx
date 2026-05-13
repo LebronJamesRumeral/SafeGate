@@ -7,22 +7,29 @@ export function GuidanceReviewPageSkeleton() {
       {/* Header & Quick Stats */}
       <div className="space-y-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-80 max-w-full" />
-            <Skeleton className="h-4 w-full max-w-2xl" />
+          <div className="flex items-start gap-4">
+            <div className="p-3 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 animate-pulse w-14 h-14" />
+            <div className="space-y-2">
+              <div className="h-10 bg-linear-to-r from-blue-200 to-blue-100 dark:from-blue-800 dark:to-blue-700 rounded-lg w-80 max-w-full animate-pulse" />
+              <div className="h-4 bg-linear-to-r from-blue-100 to-blue-50 dark:from-blue-900 dark:to-blue-800 rounded-lg w-full max-w-2xl animate-pulse" />
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-            <Skeleton className="h-8 w-36 rounded-full" />
-            <Skeleton className="h-8 w-28 rounded-full" />
-            <Skeleton className="h-8 w-40 rounded-full" />
+            <Skeleton className="h-8 w-36 rounded-full bg-blue-200/70 dark:bg-blue-900/50" />
+            <Skeleton className="h-8 w-28 rounded-full bg-amber-200/70 dark:bg-amber-900/50" />
+            <Skeleton className="h-8 w-40 rounded-full bg-emerald-200/70 dark:bg-emerald-900/50" />
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="shadow-xl border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-slate-500/10 dark:bg-slate-400/5 rounded-full -mr-16 -mt-16" />
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-slate-500/5 dark:bg-slate-400/5 rounded-full -ml-12 -mb-12" />
+          {[
+            { shell: 'from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80', dotTop: 'bg-blue-500/10 dark:bg-blue-400/5', dotBottom: 'bg-blue-500/5 dark:bg-blue-400/5', bar: 'bg-blue-300/50 dark:bg-blue-700/50' },
+            { shell: 'from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80', dotTop: 'bg-amber-500/10 dark:bg-amber-400/5', dotBottom: 'bg-amber-500/5 dark:bg-amber-400/5', bar: 'bg-amber-300/50 dark:bg-amber-700/50' },
+            { shell: 'from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80', dotTop: 'bg-emerald-500/10 dark:bg-emerald-400/5', dotBottom: 'bg-emerald-500/5 dark:bg-emerald-400/5', bar: 'bg-emerald-300/50 dark:bg-emerald-700/50' },
+          ].map((variant, i) => (
+            <div key={i} className={`shadow-xl border-0 bg-linear-to-br ${variant.shell} overflow-hidden relative rounded-lg`}>
+              <div className={`absolute top-0 right-0 w-32 h-32 ${variant.dotTop} rounded-full -mr-16 -mt-16`} />
+              <div className={`absolute bottom-0 left-0 w-24 h-24 ${variant.dotBottom} rounded-full -ml-12 -mb-12`} />
               <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
                 <div className="space-y-2">
                   <Skeleton className="h-3 w-28" />
@@ -31,7 +38,7 @@ export function GuidanceReviewPageSkeleton() {
                 </div>
                 <Skeleton className="hidden sm:block h-16 w-16 rounded-2xl" />
               </div>
-              <div className="h-1.5 w-full bg-slate-300/50 dark:bg-slate-700/50" />
+              <div className={`h-1.5 w-full ${variant.bar}`} />
             </div>
           ))}
         </div>
@@ -94,8 +101,8 @@ export function GuidanceReviewPageSkeleton() {
 
         {/* Review Details */}
         <div className="xl:col-span-7 space-y-4">
-          <section className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
-            <div className="border-b border-slate-200/50 dark:border-slate-700/40 bg-linear-to-r from-slate-50/60 via-slate-50/30 to-transparent dark:from-slate-950/30 dark:via-slate-950/15 dark:to-transparent p-5">
+          <section className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
+            <div className="border-b border-blue-200/50 dark:border-blue-700/40 bg-linear-to-r from-blue-50/60 via-blue-50/30 to-transparent dark:from-blue-950/30 dark:via-blue-950/15 dark:to-transparent p-5">
               <div className="flex items-center gap-3">
                 <div className="p-3 rounded-xl bg-blue-500/30">
                   <UserCircle2 className="w-5 h-5 text-blue-500/60" />
@@ -109,7 +116,7 @@ export function GuidanceReviewPageSkeleton() {
             <div className="p-5">
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 {[...Array(5)].map((_, i) => (
-                  <div key={i} className="rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-white/70 dark:bg-slate-900/40 p-3 space-y-2">
+                  <div key={i} className="rounded-xl border border-blue-200/70 dark:border-blue-700/50 bg-blue-50/70 dark:bg-blue-950/25 p-3 space-y-2">
                     <Skeleton className="h-3 w-20" />
                     <Skeleton className="h-7 w-12" />
                   </div>
@@ -118,7 +125,7 @@ export function GuidanceReviewPageSkeleton() {
             </div>
           </section>
 
-          <section className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
+          <section className="border-0 bg-linear-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
             <div className="p-5 space-y-4">
               <div className="flex flex-wrap gap-2">
                 {[...Array(4)].map((_, i) => (

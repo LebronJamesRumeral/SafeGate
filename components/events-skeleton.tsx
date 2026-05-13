@@ -7,11 +7,14 @@ export default function EventsSkeleton() {
     <div className="space-y-6 animate-fade-in-up">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <Skeleton className="h-9 w-64" />
-          <Skeleton className="h-4 w-96 max-w-[70vw] mt-2" />
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 animate-pulse w-14 h-14" />
+          <div className="space-y-2">
+            <div className="h-9 bg-linear-to-r from-blue-200 to-blue-100 dark:from-blue-800 dark:to-blue-700 rounded-lg w-64 animate-pulse" />
+            <div className="h-4 bg-linear-to-r from-blue-100 to-blue-50 dark:from-blue-900 dark:to-blue-800 rounded-lg w-96 max-w-[70vw] animate-pulse" />
+          </div>
         </div>
-        <Skeleton className="h-9 w-28 rounded-md" />
+        <Skeleton className="h-9 w-28 rounded-md bg-blue-200/70 dark:bg-blue-900/50" />
       </div>
 
       {/* Metric Cards (4) */}
@@ -88,12 +91,12 @@ export default function EventsSkeleton() {
       {/* Event Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="shadow-lg border-0 bg-linear-to-br from-white to-blue-50 dark:from-slate-900/70 dark:to-blue-950/20 overflow-hidden rounded-lg">
+          <div key={i} className="shadow-lg border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden rounded-lg">
             {/* Blue top border */}
             <div className="h-1.5 w-full bg-linear-to-r from-blue-500 to-cyan-500" />
             
             {/* Image placeholder */}
-            <Skeleton className="h-44 w-full rounded-none" />
+            <Skeleton className="h-44 w-full rounded-none bg-blue-100/70 dark:bg-blue-900/35" />
             
             {/* Title and description */}
             <div className="p-4 space-y-3">

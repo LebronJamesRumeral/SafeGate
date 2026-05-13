@@ -6,24 +6,27 @@ export function MasterlistPageSkeleton() {
     <div className="space-y-6 animate-fade-in-up">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Archive size={28} className="text-primary/40" />
-            <Skeleton className="h-9 w-64" />
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 animate-pulse w-14 h-14" />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Archive size={28} className="text-blue-500/70" />
+              <div className="h-9 bg-linear-to-r from-blue-200 to-blue-100 dark:from-blue-800 dark:to-blue-700 rounded-lg w-64 animate-pulse" />
+            </div>
+            <div className="h-5 bg-linear-to-r from-blue-100 to-blue-50 dark:from-blue-900 dark:to-blue-800 rounded-lg w-md max-w-full animate-pulse" />
           </div>
-          <Skeleton className="h-5 w-md max-w-full" />
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          <div className="h-9 w-32 rounded-lg border border-border/60 bg-background/70 px-3 flex items-center gap-2">
-            <Search size={14} className="text-muted-foreground/70" />
+          <div className="h-9 w-32 rounded-lg border border-blue-200/60 dark:border-blue-800/40 bg-blue-50/70 dark:bg-blue-950/35 px-3 flex items-center gap-2">
+            <Search size={14} className="text-blue-500/70" />
             <Skeleton className="h-4 w-16" />
           </div>
-          <div className="h-9 w-24 rounded-lg border border-border/60 bg-background/70 px-3 flex items-center gap-2">
-            <Upload size={14} className="text-muted-foreground/70" />
+          <div className="h-9 w-24 rounded-lg border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-50/70 dark:bg-emerald-950/35 px-3 flex items-center gap-2">
+            <Upload size={14} className="text-emerald-500/70" />
             <Skeleton className="h-4 w-12" />
           </div>
-          <div className="h-9 w-24 rounded-lg border border-border/60 bg-background/70 px-3 flex items-center gap-2">
-            <Download size={14} className="text-muted-foreground/70" />
+          <div className="h-9 w-24 rounded-lg border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/70 dark:bg-violet-950/35 px-3 flex items-center gap-2">
+            <Download size={14} className="text-violet-500/70" />
             <Skeleton className="h-4 w-12" />
           </div>
         </div>
@@ -84,12 +87,12 @@ export function MasterlistPageSkeleton() {
       </div>
 
       {/* Filters */}
-      <div className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg p-5 sm:p-6">
+      <div className="border-0 bg-linear-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg p-5 sm:p-6">
         <div className="space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-            <Skeleton className="h-10 flex-1 min-w-55 rounded-lg" />
-            <Skeleton className="h-10 w-full lg:w-40 rounded-lg" />
-            <Skeleton className="h-10 w-full lg:w-40 rounded-lg" />
+            <Skeleton className="h-10 flex-1 min-w-55 rounded-lg bg-violet-200/70 dark:bg-violet-900/50" />
+            <Skeleton className="h-10 w-full lg:w-40 rounded-lg bg-violet-200/70 dark:bg-violet-900/50" />
+            <Skeleton className="h-10 w-full lg:w-40 rounded-lg bg-violet-200/70 dark:bg-violet-900/50" />
           </div>
         </div>
       </div>

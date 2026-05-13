@@ -5,23 +5,26 @@ export default function ParentAnnouncementSkeleton() {
   return (
     <div className="space-y-6 animate-fade-in-up px-2 sm:px-0">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Megaphone className="h-6 w-6 text-blue-500" />
-            <Skeleton className="h-8 w-72" />
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-2xl bg-linear-to-br from-sky-500 to-sky-600 animate-pulse w-14 h-14" />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Megaphone className="h-6 w-6 text-blue-500" />
+              <div className="h-8 bg-linear-to-r from-sky-200 to-sky-100 dark:from-sky-800 dark:to-sky-700 rounded-lg w-72 animate-pulse" />
+            </div>
+            <div className="h-4 bg-linear-to-r from-sky-100 to-sky-50 dark:from-sky-900 dark:to-sky-800 rounded-lg w-full max-w-2xl animate-pulse" />
           </div>
-          <Skeleton className="h-4 w-full max-w-2xl" />
         </div>
-        <Skeleton className="h-9 w-28 rounded-full" />
+        <Skeleton className="h-9 w-28 rounded-full bg-sky-200/70 dark:bg-sky-900/50" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Skeleton className="h-9 w-16 rounded-full" />
-            <Skeleton className="h-9 w-28 rounded-full" />
-            <Skeleton className="h-9 w-20 rounded-full" />
-            <Skeleton className="h-9 w-28 rounded-full" />
+            <Skeleton className="h-9 w-16 rounded-full bg-sky-200/70 dark:bg-sky-900/50" />
+            <Skeleton className="h-9 w-28 rounded-full bg-sky-200/70 dark:bg-sky-900/50" />
+            <Skeleton className="h-9 w-20 rounded-full bg-sky-200/70 dark:bg-sky-900/50" />
+            <Skeleton className="h-9 w-28 rounded-full bg-sky-200/70 dark:bg-sky-900/50" />
           </div>
 
           <div className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg">
@@ -73,9 +76,9 @@ export default function ParentAnnouncementSkeleton() {
 
           <div className="space-y-3 max-h-[calc(100vh-220px)] overflow-hidden pr-1">
             {Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className="overflow-hidden rounded-lg border border-slate-200/50 dark:border-slate-700/40 bg-white dark:bg-slate-800/50 shadow-sm hover:shadow-md transition-shadow">
+              <div key={index} className="overflow-hidden rounded-lg border border-sky-200/50 dark:border-sky-700/40 bg-sky-50/70 dark:bg-sky-950/25 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-start gap-3 p-3">
-                  <Skeleton className="h-12 w-16 rounded-md" />
+                  <Skeleton className="h-12 w-16 rounded-md bg-sky-100/70 dark:bg-sky-900/40" />
                   <div className="flex-1 space-y-2">
                     <Skeleton className="h-4 w-11/12" />
                     <Skeleton className="h-3 w-24" />

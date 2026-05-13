@@ -6,23 +6,26 @@ export function AnalyticsPageSkeleton() {
     <div className="space-y-6 animate-fade-in-up">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="h-6 w-6 text-slate-500" />
-            <Skeleton className="h-8 w-72" />
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 animate-pulse w-14 h-14" />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-6 w-6 text-blue-500" />
+              <div className="h-8 bg-linear-to-r from-blue-200 to-blue-100 dark:from-blue-800 dark:to-blue-700 rounded-lg w-72 animate-pulse" />
+            </div>
+            <div className="h-4 bg-linear-to-r from-blue-100 to-blue-50 dark:from-blue-900 dark:to-blue-800 rounded-lg w-full max-w-2xl animate-pulse" />
           </div>
-          <Skeleton className="h-4 w-full max-w-2xl" />
         </div>
         <div className="flex items-center gap-2">
-          <Skeleton className="h-9 w-28 rounded-lg" />
-          <Skeleton className="h-9 w-24 rounded-lg" />
+          <Skeleton className="h-9 w-28 rounded-lg bg-blue-200/70 dark:bg-blue-900/50" />
+          <Skeleton className="h-9 w-24 rounded-lg bg-blue-200/70 dark:bg-blue-900/50" />
         </div>
       </div>
 
       {/* Tab strip */}
-      <div className="flex w-full gap-2 overflow-x-auto p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl sm:w-fit">
-        <Skeleton className="h-9 w-28 rounded-lg" />
-        <Skeleton className="h-9 w-28 rounded-lg" />
+      <div className="flex w-full gap-2 overflow-x-auto p-1 bg-linear-to-r from-blue-50 to-blue-100 dark:from-blue-950/35 dark:to-blue-900/25 rounded-xl sm:w-fit border border-blue-200/60 dark:border-blue-800/40">
+        <Skeleton className="h-9 w-28 rounded-lg bg-blue-200/70 dark:bg-blue-900/55" />
+        <Skeleton className="h-9 w-28 rounded-lg bg-blue-200/70 dark:bg-blue-900/55" />
       </div>
 
       {/* Summary cards with new pattern */}
@@ -98,24 +101,33 @@ export function AnalyticsPageSkeleton() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {[...Array(2)].map((_, i) => (
-          <div key={i} className="rounded-2xl border bg-white/80 dark:bg-slate-800/70 p-5 shadow-md space-y-4">
-            <Skeleton className="h-6 w-52" />
-            <Skeleton className="h-4 w-64" />
-            <Skeleton className="h-72 w-full rounded-xl" />
+        {[
+          {
+            shell: 'rounded-2xl border border-blue-200/60 dark:border-blue-800/40 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 p-5 shadow-md space-y-4',
+            block: 'bg-blue-100/70 dark:bg-blue-900/35',
+          },
+          {
+            shell: 'rounded-2xl border border-orange-200/60 dark:border-orange-800/40 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 p-5 shadow-md space-y-4',
+            block: 'bg-orange-100/70 dark:bg-orange-900/35',
+          },
+        ].map((variant, i) => (
+          <div key={i} className={variant.shell}>
+            <Skeleton className={`h-6 w-52 ${variant.block}`} />
+            <Skeleton className={`h-4 w-64 ${variant.block}`} />
+            <Skeleton className={`h-72 w-full rounded-xl ${variant.block}`} />
           </div>
         ))}
       </div>
 
       {/* Grade level cards */}
-      <div className="rounded-2xl border bg-white/80 dark:bg-slate-800/70 p-4 sm:p-5 shadow-md space-y-4">
+      <div className="rounded-2xl border border-violet-200/60 dark:border-violet-800/40 bg-linear-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-slate-800/80 p-4 sm:p-5 shadow-md space-y-4">
         <div className="flex items-center gap-2">
           <Activity className="h-5 w-5 text-violet-500/70" />
           <Skeleton className="h-6 w-60" />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="rounded-xl border border-slate-200/60 dark:border-slate-700/40 p-4 space-y-3">
+            <div key={i} className="rounded-xl border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/70 dark:bg-violet-950/25 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <Skeleton className="h-4 w-20" />
                 <Skeleton className="h-5 w-14 rounded-full" />

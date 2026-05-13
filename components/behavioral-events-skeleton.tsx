@@ -6,16 +6,19 @@ export default function BehavioralEventsSkeleton() {
     <div className="space-y-6 animate-fade-in-up">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Archive className="h-6 w-6 text-orange-500" />
-            <Skeleton className="h-8 w-80" />
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 animate-pulse w-14 h-14" />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Archive className="h-6 w-6 text-orange-500" />
+              <div className="h-8 bg-linear-to-r from-orange-200 to-orange-100 dark:from-orange-800 dark:to-orange-700 rounded-lg w-80 animate-pulse" />
+            </div>
+            <div className="h-4 bg-linear-to-r from-orange-100 to-orange-50 dark:from-orange-900 dark:to-orange-800 rounded-lg w-full max-w-2xl animate-pulse" />
           </div>
-          <Skeleton className="h-4 w-full max-w-2xl" />
         </div>
         <div className="flex items-center gap-2">
-          <Skeleton className="h-9 w-28 rounded-lg" />
-          <Skeleton className="h-9 w-32 rounded-lg" />
+          <Skeleton className="h-9 w-28 rounded-lg bg-orange-200/70 dark:bg-orange-900/50" />
+          <Skeleton className="h-9 w-32 rounded-lg bg-orange-200/70 dark:bg-orange-900/50" />
         </div>
       </div>
 
@@ -91,16 +94,16 @@ export default function BehavioralEventsSkeleton() {
       </div>
 
       {/* Filter Panel */}
-      <div className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg p-5 sm:p-6">
+      <div className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg p-5 sm:p-6">
         <div className="space-y-4">
           <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <Skeleton className="h-10 w-64" />
-            <Skeleton className="h-10 w-32" />
-            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-64 bg-blue-200/70 dark:bg-blue-900/50" />
+            <Skeleton className="h-10 w-32 bg-blue-200/70 dark:bg-blue-900/50" />
+            <Skeleton className="h-10 w-32 bg-blue-200/70 dark:bg-blue-900/50" />
           </div>
           <div className="flex gap-2">
-            <Skeleton className="h-9 w-36" />
-            <Skeleton className="h-9 w-36" />
+            <Skeleton className="h-9 w-36 bg-blue-200/70 dark:bg-blue-900/50" />
+            <Skeleton className="h-9 w-36 bg-blue-200/70 dark:bg-blue-900/50" />
           </div>
         </div>
       </div>

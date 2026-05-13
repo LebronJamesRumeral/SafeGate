@@ -6,17 +6,20 @@ export function SchoolHeatmapSkeleton() {
     <div className="space-y-6 animate-fade-in-up">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <MapPinned className="h-6 w-6 text-orange-500" />
-            <Skeleton className="h-8 w-80 sm:w-96" />
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-2xl bg-linear-to-br from-orange-500 to-orange-600 animate-pulse w-14 h-14" />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <MapPinned className="h-6 w-6 text-orange-500" />
+              <div className="h-8 bg-linear-to-r from-orange-200 to-orange-100 dark:from-orange-800 dark:to-orange-700 rounded-lg w-80 sm:w-96 animate-pulse" />
+            </div>
+            <div className="h-4 bg-linear-to-r from-orange-100 to-orange-50 dark:from-orange-900 dark:to-orange-800 rounded-lg w-full max-w-2xl animate-pulse" />
           </div>
-          <Skeleton className="h-4 w-full max-w-2xl mt-2" />
         </div>
 
         <div className="flex items-center gap-2 bg-orange-50/60 border border-orange-200 rounded-full px-2 py-1 shadow-sm">
           {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-8 w-16 rounded-full" />
+            <Skeleton key={i} className="h-8 w-16 rounded-full bg-orange-200/70 dark:bg-orange-900/50" />
           ))}
         </div>
       </div>
