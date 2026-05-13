@@ -68,7 +68,7 @@ export function DateLevelFilter({
   };
 
   return (
-    <div className="w-full bg-card/50 dark:bg-slate-950/60 rounded-xl border border-border/40 dark:border-slate-800/60 p-4 sm:p-6 shadow-lg backdrop-blur-sm">
+    <div className="w-full bg-card/50 dark:bg-slate-950/60 rounded-xl p-4 sm:p-6 shadow-lg backdrop-blur-sm">
       {isMobile && (
         <div className="mb-4 rounded-lg border border-border/40 bg-slate-50/60 p-3 dark:bg-slate-900/50">
           <div className="flex items-center justify-between gap-3">

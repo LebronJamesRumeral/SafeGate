@@ -1341,20 +1341,18 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Date and Level Filter */}
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm p-3 sm:p-6 rounded-xl border border-slate-200/60 dark:border-slate-700/40 shadow-lg">
-          <DateLevelFilter
-            dateMode={dateMode}
-            setDateMode={setDateMode}
-            singleDate={singleDate}
-            setSingleDate={setSingleDate}
-            rangeStart={rangeStart}
-            setRangeStart={setRangeStart}
-            rangeEnd={rangeEnd}
-            setRangeEnd={setRangeEnd}
-            selectedLevel={selectedLevel}
-            setSelectedLevel={setSelectedLevel}
-          />
-        </div>
+        <DateLevelFilter
+          dateMode={dateMode}
+          setDateMode={setDateMode}
+          singleDate={singleDate}
+          setSingleDate={setSingleDate}
+          rangeStart={rangeStart}
+          setRangeStart={setRangeStart}
+          rangeEnd={rangeEnd}
+          setRangeEnd={setRangeEnd}
+          selectedLevel={selectedLevel}
+          setSelectedLevel={setSelectedLevel}
+        />
 
         <AnimatePresence mode="wait">
           {activeTab === 'overview' && (
