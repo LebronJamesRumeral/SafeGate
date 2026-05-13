@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -57,7 +58,9 @@ import {
   ArrowUpDown,
   Wifi,
   WifiOff,
-  CloudUpload
+  CloudUpload,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatReporterLabel, humanizeEventType } from '@/lib/event-types';
@@ -479,6 +482,7 @@ function BehavioralEventsPageContent() {
   const [activeTab, setActiveTab] = useState('list');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'created_at', direction: 'desc' });
   const [showEventLog, setShowEventLog] = useState(false);
+  const [currentPageEvents, setCurrentPageEvents] = useState(1);
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [syncing, setSyncing] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
@@ -864,6 +868,13 @@ function BehavioralEventsPageContent() {
     });
   }, [filteredEvents]);
 
+  // Pagination for events log
+  const EVENTS_PAGE_SIZE = 10;
+  const totalEventsPages = Math.max(1, Math.ceil(groupedLogEvents.length / EVENTS_PAGE_SIZE));
+  const paginatedLogEvents = groupedLogEvents.slice((currentPageEvents - 1) * EVENTS_PAGE_SIZE, currentPageEvents * EVENTS_PAGE_SIZE);
+  const eventsShowingFrom = groupedLogEvents.length === 0 ? 0 : (currentPageEvents - 1) * EVENTS_PAGE_SIZE + 1;
+  const eventsShowingTo = Math.min(currentPageEvents * EVENTS_PAGE_SIZE, groupedLogEvents.length);
+
   // Filter students by grade/level and search
   const filteredStudentOptions = useMemo(() => {
     let filtered = students;
@@ -1193,6 +1204,7 @@ function BehavioralEventsPageContent() {
     });
 
     setFilteredEvents(filtered);
+    setCurrentPageEvents(1);
   };
 
   const handleSort = (key: string) => {
@@ -2153,15 +2165,6 @@ function BehavioralEventsPageContent() {
               Pending Sync: {pendingSyncCount}
             </Badge>
             {syncing && <Badge className="bg-indigo-100 text-indigo-700">Syncing...</Badge>}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportToCSV}
-              className="gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Export
-            </Button>
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="default" className="gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600">
@@ -3009,32 +3012,33 @@ function BehavioralEventsPageContent() {
         </div>
 
         {/* Filters */}
-        <Card className="border-0 shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Filter className="w-5 h-5 text-blue-500" />
-              Filters
+        <Card className="overflow-hidden rounded-[28px] border-0 bg-white shadow-[0_24px_70px_-30px_rgba(15,23,42,0.28)] dark:bg-slate-950/70 dark:shadow-[0_24px_70px_-30px_rgba(15,23,42,0.58)]">
+          <CardHeader className="border-b border-orange-100/70 bg-linear-to-r from-white via-orange-50/60 to-white py-3 dark:border-orange-900/30 dark:from-slate-950/80 dark:via-orange-950/10 dark:to-slate-950/80">
+            <CardTitle className="flex items-center gap-3 text-lg font-semibold text-slate-900 dark:text-slate-100">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/20 ring-4 ring-blue-100/70 dark:ring-blue-950/40">
+                <Filter className="w-5 h-5" />
+              </span>
+              Search & Filter Events
             </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="search">Search</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="search"
-                    placeholder="Search events..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
+            <div className="mt-4 max-w-2xl">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-400" />
+                <Input
+                  id="search"
+                  placeholder="Search events..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] transition-colors focus-visible:border-orange-300 focus-visible:ring-orange-200 dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none"
+                />
               </div>
-              <div className="space-y-2">
+            </div>
+          </CardHeader>
+          <CardContent className="pt-3 pb-4">
+            <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2 xl:grid-cols-5">
+              <div className="space-y-1">
                 <Label htmlFor="severity-filter">Severity</Label>
                 <Select value={severityFilter} onValueChange={setSeverityFilter}>
-                  <SelectTrigger id="severity-filter">
+                  <SelectTrigger id="severity-filter" className="h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
                     <SelectValue placeholder="All Severities" />
                   </SelectTrigger>
                   <SelectContent>
@@ -3050,10 +3054,10 @@ function BehavioralEventsPageContent() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label htmlFor="category-filter">Category</Label>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger id="category-filter">
+                  <SelectTrigger id="category-filter" className="h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
                     <SelectValue placeholder="All Categories" />
                   </SelectTrigger>
                   <SelectContent>
@@ -3066,10 +3070,10 @@ function BehavioralEventsPageContent() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label htmlFor="event-type-category-filter">Event Type Category</Label>
                 <Select value={eventCategoryFilter} onValueChange={setEventCategoryFilter}>
-                  <SelectTrigger id="event-type-category-filter">
+                  <SelectTrigger id="event-type-category-filter" className="h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
                     <SelectValue placeholder="All Event Categories" />
                   </SelectTrigger>
                   <SelectContent>
@@ -3082,10 +3086,10 @@ function BehavioralEventsPageContent() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label htmlFor="student-level-filter">Student Level</Label>
                 <Select value={studentLevelFilter} onValueChange={setStudentLevelFilter}>
-                  <SelectTrigger id="student-level-filter">
+                  <SelectTrigger id="student-level-filter" className="h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
                     <SelectValue placeholder="All Levels" />
                   </SelectTrigger>
                   <SelectContent>
@@ -3098,10 +3102,10 @@ function BehavioralEventsPageContent() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label htmlFor="date-filter">Date Range</Label>
                 <Select value={dateFilter} onValueChange={setDateFilter}>
-                  <SelectTrigger id="date-filter">
+                  <SelectTrigger id="date-filter" className="h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
                     <SelectValue placeholder="All Time" />
                   </SelectTrigger>
                   <SelectContent>
@@ -3143,7 +3147,9 @@ function BehavioralEventsPageContent() {
                       Showing {groupedLogEvents.length} report entries from {filteredEvents.length} student records
                     </CardDescription>
                   </div>
-                  <Badge variant="outline" className="bg-white dark:bg-slate-800 self-start sm:self-auto text-xs whitespace-nowrap">
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="bg-white dark:bg-slate-800 text-xs whitespace-nowrap">
                       {{
                        created_at: 'Logged Time',
                        event_date: 'Date',
@@ -3156,8 +3162,15 @@ function BehavioralEventsPageContent() {
                       {' \u2014 '}
                       {sortConfig.direction === 'asc' ? 'Oldest First' : 'Newest First'}
                   </Badge>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={exportToCSV}
+                    className="gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export
+                  </Button>
                   <Button
                     size="sm"
                     variant={showEventLog ? 'outline' : 'default'}
@@ -3176,28 +3189,57 @@ function BehavioralEventsPageContent() {
                       </>
                     )}
                   </Button>
-                  {showEventLog && (
-                    <Button size="sm" variant="ghost" onClick={() => setShowEventLog(false)}>
-                      Close Log
-                    </Button>
-                  )}
                 </div>
               </CardHeader>
               {showEventLog && (
                 <CardContent className="p-0">
                 {loading ? (
-                  <div className="p-6 space-y-3">
-                    {[...Array(4)].map((_, i) => (
-                      <div key={i} className="border rounded-lg p-4 space-y-2 animate-pulse">
-                        <div className="flex justify-between items-start gap-4">
-                          <div className="flex-1 space-y-2">
-                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
-                            <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
-                          </div>
-                          <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-16"></div>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="space-y-0">
+                    <div className="overflow-x-auto">
+                      <Table className="min-w-full">
+                        <TableHeader className="bg-blue-50/50 dark:bg-blue-900/50">
+                          <TableRow>
+                            <TableHead className="w-20 whitespace-nowrap">Severity</TableHead>
+                            <TableHead className="whitespace-nowrap">Student</TableHead>
+                            <TableHead className="hidden md:table-cell whitespace-nowrap">Event Type</TableHead>
+                            <TableHead className="hidden sm:table-cell whitespace-nowrap">Date</TableHead>
+                            <TableHead className="hidden lg:table-cell whitespace-nowrap">Reporter</TableHead>
+                            <TableHead className="hidden md:table-cell whitespace-nowrap">Status</TableHead>
+                            <TableHead className="text-center w-12">Action</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {[...Array(5)].map((_, i) => (
+                            <TableRow key={i} className="border-b border-slate-200 dark:border-slate-700">
+                              <TableCell className="w-20">
+                                <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-8 animate-pulse"></div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="space-y-2">
+                                  <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32 animate-pulse"></div>
+                                  <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-24 animate-pulse"></div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="hidden md:table-cell">
+                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-28 animate-pulse"></div>
+                              </TableCell>
+                              <TableCell className="hidden sm:table-cell">
+                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-20 animate-pulse"></div>
+                              </TableCell>
+                              <TableCell className="hidden lg:table-cell">
+                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24 animate-pulse"></div>
+                              </TableCell>
+                              <TableCell className="hidden md:table-cell">
+                                <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-20 animate-pulse"></div>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-8 mx-auto animate-pulse"></div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 ) : groupedLogEvents.length === 0 ? (
                   <div className="text-center py-12">
@@ -3225,111 +3267,108 @@ function BehavioralEventsPageContent() {
                     </div>
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {groupedLogEvents.map((event, index) => (
-                      <motion.div
-                        key={event.report_group_id ? `group-${event.report_group_id}` : event.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.03 }}
-                        className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-                        onClick={() => {
-                          setSelectedEvent(event);
-                          setGuidanceReviewNote(event.guidance_intervention_notes || '');
-                          setIsDialogOpen(true);
-                        }}
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
-                          <div className="flex items-start gap-3 flex-1">
-                            <div className="mt-1">
-                              {getSeverityIcon(event.severity)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="font-semibold text-slate-900 dark:text-white">
-                                  {event.report_group_id
-                                    ? `General Report • ${event.report_student_count || 1} students`
-                                    : event.students?.name || event.student_lrn}
-                                </h3>
-                                <Badge variant="outline" className="border-slate-200 dark:border-slate-700">
-                                  {event.report_group_id
-                                    ? 'Multiple Levels'
-                                    : event.students?.level}
-                                </Badge>
-                                {getSeverityBadge(event.severity)}
-                                {event.event_categories && (
-                                  <Badge 
-                                    variant="outline" 
-                                    style={{ 
-                                      borderColor: event.event_categories.color_code,
-                                      color: event.event_categories.color_code
-                                    }}
-                                  >
-                                    {event.event_categories.category_type}
-                                  </Badge>
-                                )}
-                              </div>
-
-                              {event.report_group_id && event.report_student_names && (
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                  Students: {event.report_student_names.join(', ')}
-                                </p>
-                              )}
-                              
-                              <p className="font-medium text-sm mt-1 text-slate-800 dark:text-slate-200">
-                                {humanizeEventType(event.event_type)}
-                              </p>
-                              
-                              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
-                                {event.description}
-                              </p>
-                              {event.proof_image_url && (
-                                <div className="mt-2 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden max-w-xs">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={event.proof_image_url} alt="Event proof" className="h-24 w-full object-cover" />
+                  <div className="space-y-0">
+                    <div className="overflow-x-auto">
+                      <Table className="min-w-full">
+                        <TableHeader className="bg-blue-50/50 dark:bg-blue-900/50">
+                          <TableRow>
+                            <TableHead className="w-20 whitespace-nowrap">Severity</TableHead>
+                            <TableHead className="whitespace-nowrap">Student</TableHead>
+                            <TableHead className="hidden md:table-cell whitespace-nowrap">Event Type</TableHead>
+                            <TableHead className="hidden sm:table-cell whitespace-nowrap">Date</TableHead>
+                            <TableHead className="hidden lg:table-cell whitespace-nowrap">Reporter</TableHead>
+                            <TableHead className="hidden md:table-cell whitespace-nowrap">Status</TableHead>
+                            <TableHead className="text-center w-12">Action</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedLogEvents.map((event, index) => (
+                            <motion.tr
+                              key={event.report_group_id ? `group-${event.report_group_id}` : event.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.03 }}
+                              className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                            >
+                              <TableCell className="whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                  {getSeverityIcon(event.severity)}
+                                  <span className="text-xs font-medium hidden sm:inline">{getSeverityBadge(event.severity)}</span>
                                 </div>
-                              )}
-                              
-                              <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500 dark:text-slate-500">
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="w-3 h-3" />
-                                  {new Date(event.event_date).toLocaleDateString()} at {event.event_time}
-                                </span>
-                                {event.location && (
-                                  <span className="flex items-center gap-1">
-                                    <MapPin className="w-3 h-3" />
-                                    {event.location}
-                                  </span>
-                                )}
-                                <span className="flex items-center gap-1">
-                                  <User className="w-3 h-3" />
-                                  {formatReporterLabel(event)}
-                                </span>
-                              </div>
-                              
-                              <div className="flex flex-wrap items-center gap-2 mt-2">
-                                {getGuidanceStatusBadge(event.guidance_status)}
-                                {event.parent_notified && (
-                                  <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700 text-xs">
-                                    <CheckCircle className="w-3 h-3 mr-1" />
-                                    Parent Notified
-                                  </Badge>
-                                )}
-                                {event.follow_up_required && (
-                                  <Badge variant="outline" className="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-700 text-xs">
-                                    <AlertTriangle className="w-3 h-3 mr-1" />
-                                    Follow-up Required
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <Button variant="ghost" size="sm" className="self-end sm:self-auto shrink-0">
-                            <Eye className="w-4 h-4" />
-                          </Button>
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                <div className="max-w-xs truncate">
+                                  {event.report_group_id
+                                    ? `General Report (${event.report_student_count || 1} students)`
+                                    : event.students?.name || event.student_lrn}
+                                </div>
+                              </TableCell>
+                              <TableCell className="hidden md:table-cell">
+                                <div className="truncate max-w-xs">
+                                  {humanizeEventType(event.event_type)}
+                                </div>
+                              </TableCell>
+                              <TableCell className="hidden sm:table-cell text-sm whitespace-nowrap">
+                                {new Date(event.event_date).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell className="hidden lg:table-cell text-sm whitespace-nowrap">
+                                {formatReporterLabel(event)}
+                              </TableCell>
+                              <TableCell className="hidden md:table-cell">
+                                <div className="flex flex-col gap-1">
+                                  {getGuidanceStatusBadge(event.guidance_status)}
+                                  {event.parent_notified && (
+                                    <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700 text-xs w-fit">
+                                      <CheckCircle className="w-3 h-3 mr-1" />
+                                      Parent Notified
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => {
+                                    setSelectedEvent(event);
+                                    setGuidanceReviewNote(event.guidance_intervention_notes || '');
+                                    setIsDialogOpen(true);
+                                  }}
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                              </TableCell>
+                            </motion.tr>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <div className="flex items-center justify-between p-3 border-t border-slate-200 dark:border-slate-700">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {eventsShowingFrom}-{eventsShowingTo} of {groupedLogEvents.length}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPageEvents((p) => Math.max(1, p - 1))}
+                          disabled={currentPageEvents === 1}
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <div className="text-sm min-w-24 text-center">
+                          Page {currentPageEvents} / {totalEventsPages}
                         </div>
-                      </motion.div>
-                    ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPageEvents((p) => Math.min(totalEventsPages, p + 1))}
+                          disabled={currentPageEvents === totalEventsPages}
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
                 </CardContent>
