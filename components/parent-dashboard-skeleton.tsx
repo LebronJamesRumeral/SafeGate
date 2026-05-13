@@ -1,95 +1,107 @@
 import { Skeleton } from '@/components/ui/skeleton';
-import { Brain, Users, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function ParentDashboardSkeleton() {
   return (
     <div className="space-y-6 animate-fade-in-up px-2 sm:px-0">
       {/* Page Header Skeleton */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <div className="p-3 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 animate-pulse w-14 h-14" />
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Brain className="h-6 w-6 text-blue-500" />
-              <div className="h-8 bg-linear-to-r from-blue-200 to-blue-100 dark:from-blue-800 dark:to-blue-700 rounded-lg w-64 animate-pulse" />
-            </div>
-            <div className="h-4 bg-linear-to-r from-blue-100 to-blue-50 dark:from-blue-900 dark:to-blue-800 rounded-lg w-full max-w-2xl animate-pulse" />
-          </div>
-        </div>
+      <div>
+        <div className="h-8 sm:h-10 bg-linear-to-r from-slate-300 to-slate-200 dark:from-slate-600 dark:to-slate-700 rounded-lg w-80 max-w-full animate-pulse mb-2" />
+        <div className="h-4 sm:h-5 bg-linear-to-r from-slate-200 to-slate-100 dark:from-slate-700 dark:to-slate-800 rounded-lg w-full max-w-md animate-pulse" />
       </div>
 
-      {/* Summary Cards with new pattern */}
-      <div className="grid gap-5 sm:grid-cols-3">
+      {/* Summary Cards with exact live styling */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
         {/* Children Linked */}
-        <div className="shadow-xl border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 dark:bg-sky-400/5 rounded-full -mr-16 -mt-16" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-sky-500/5 dark:bg-sky-400/5 rounded-full -ml-12 -mb-12" />
-          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-            <div className="flex-1">
-              <Skeleton className="h-3 w-24 mb-2" />
-              <Skeleton className="h-10 w-16" />
-              <Skeleton className="h-3 w-28 mt-2" />
+        <div className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group rounded-lg">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-sky-500/15 dark:bg-sky-400/10 rounded-full -mr-8 -mt-8" />
+          <div className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="h-2.5 bg-sky-300 dark:bg-sky-600 rounded w-20 mb-1 animate-pulse" />
+              <div className="h-6 sm:h-8 bg-sky-300 dark:bg-sky-600 rounded w-12 mb-1 animate-pulse" />
+              <div className="h-2 sm:h-2.5 bg-sky-300 dark:bg-sky-600 rounded w-24 animate-pulse" />
             </div>
-            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-sky-500/30 dark:bg-sky-900/50 items-center justify-center">
-              <Users className="w-8 h-8 text-sky-500/60" />
-            </div>
+            <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-sky-500/40 dark:bg-sky-700/40" />
           </div>
-          <div className="h-1.5 w-full bg-sky-500/40" />
+          <div className="h-1 w-full bg-linear-to-r from-sky-400 to-sky-600 dark:from-sky-500 dark:to-sky-700" />
         </div>
 
-        {/* Attendance */}
-        <div className="shadow-xl border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-12 -mb-12" />
-          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-            <div className="flex-1">
-              <Skeleton className="h-3 w-24 mb-2" />
-              <Skeleton className="h-10 w-16" />
-              <Skeleton className="h-3 w-28 mt-2" />
+        {/* Attendance Records */}
+        <div className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group rounded-lg">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/15 dark:bg-emerald-400/10 rounded-full -mr-8 -mt-8" />
+          <div className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="h-2.5 bg-emerald-300 dark:bg-emerald-600 rounded w-24 mb-1 animate-pulse" />
+              <div className="h-7 sm:h-10 bg-emerald-300 dark:bg-emerald-600 rounded w-12 mb-1 animate-pulse" />
+              <div className="h-2 sm:h-2.5 bg-emerald-300 dark:bg-emerald-600 rounded w-28 animate-pulse" />
             </div>
-            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-emerald-500/30 dark:bg-emerald-900/50 items-center justify-center">
-              <CheckCircle className="w-8 h-8 text-emerald-500/60" />
-            </div>
+            <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-emerald-500/40 dark:bg-emerald-700/40" />
           </div>
-          <div className="h-1.5 w-full bg-emerald-500/40" />
+          <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
         </div>
 
-        {/* Behavior */}
-        <div className="shadow-xl border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-400/5 rounded-full -mr-16 -mt-16" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/5 dark:bg-orange-400/5 rounded-full -ml-12 -mb-12" />
-          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-            <div className="flex-1">
-              <Skeleton className="h-3 w-24 mb-2" />
-              <Skeleton className="h-10 w-16" />
-              <Skeleton className="h-3 w-28 mt-2" />
+        {/* Behavioral Events */}
+        <div className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group rounded-lg">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-8 -mt-8" />
+          <div className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="h-2.5 bg-orange-300 dark:bg-orange-600 rounded w-20 mb-1 animate-pulse" />
+              <div className="h-6 sm:h-8 bg-orange-300 dark:bg-orange-600 rounded w-12 mb-1 animate-pulse" />
+              <div className="h-2 sm:h-2.5 bg-orange-300 dark:bg-orange-600 rounded w-24 animate-pulse" />
             </div>
-            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-orange-500/30 dark:bg-orange-900/50 items-center justify-center">
-              <AlertCircle className="w-8 h-8 text-orange-500/60" />
-            </div>
+            <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-orange-500/40 dark:bg-orange-700/40" />
           </div>
-          <div className="h-1.5 w-full bg-orange-500/40" />
+          <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
         </div>
       </div>
 
       {/* ML Risk Insights */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-3 rounded-xl bg-blue-500/30">
-            <Brain className="w-6 h-6 text-blue-500/60" />
-          </div>
-          <div>
-            <Skeleton className="h-6 w-80 mb-1" />
-            <Skeleton className="h-4 w-full max-w-2xl" />
+      <div className="space-y-6 mt-8">
+        {/* Section Header */}
+        <div className="flex flex-col sm:flex-row items-start gap-2 sm:gap-4">
+          <div className="p-2 sm:p-3 rounded-2xl bg-linear-to-br from-blue-900 to-blue-700 shadow-lg shadow-blue-600/25 mb-2 sm:mb-0 shrink-0 w-10 h-10 sm:w-12 sm:h-12 animate-pulse" />
+          <div className="flex-1 space-y-2">
+            <div className="h-7 sm:h-8 bg-linear-to-r from-blue-300 to-blue-200 dark:from-blue-600 dark:to-blue-700 rounded-lg w-full sm:w-80 animate-pulse" />
+            <div className="h-4 sm:h-5 bg-linear-to-r from-slate-300 to-slate-200 dark:from-slate-600 dark:to-slate-700 rounded-lg w-full max-w-2xl animate-pulse" />
           </div>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {['from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80', 'from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80', 'from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80'].map((shell, i) => (
-            <div key={i} className={`border-0 bg-linear-to-br ${shell} shadow-xl rounded-lg p-5 space-y-3`}>
-              <Skeleton className="h-5 w-40 mb-2" />
-              <Skeleton className="h-4 w-32 mb-2" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-3/4" />
+
+        {/* StudentRiskCard Grid */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 rounded-2xl animate-pulse border border-blue-200 dark:border-blue-900/30 shadow-lg overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-12 -mt-12" />
+              <div className="h-1.5 bg-blue-300 dark:bg-blue-600" />
+              <div className="p-5 space-y-4 relative z-10">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="h-5 bg-blue-300 dark:bg-blue-600 rounded w-3/4" />
+                    <div className="h-3 bg-blue-300 dark:bg-blue-600 rounded w-1/2" />
+                  </div>
+                  <div className="h-6 bg-blue-300 dark:bg-blue-600 rounded-full w-16 shrink-0" />
+                </div>
+
+                <div className="p-3 rounded-lg bg-blue-100/70 dark:bg-blue-900/35 space-y-2 border border-blue-200/60 dark:border-blue-800/30">
+                  <div className="h-3 bg-blue-300 dark:bg-blue-600 rounded w-24" />
+                  <div className="h-3 bg-blue-300 dark:bg-blue-600 rounded w-full" />
+                  <div className="h-3 bg-blue-300 dark:bg-blue-600 rounded w-5/6" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="rounded-lg bg-red-100/80 dark:bg-red-950/35 p-2.5 border border-red-200/70 dark:border-red-900/35 space-y-2">
+                    <div className="h-3 bg-red-300 dark:bg-red-600 rounded w-16" />
+                    <div className="h-6 bg-red-300 dark:bg-red-600 rounded w-12" />
+                  </div>
+                  <div className="rounded-lg bg-emerald-100/80 dark:bg-emerald-950/35 p-2.5 border border-emerald-200/70 dark:border-emerald-900/35 space-y-2">
+                    <div className="h-3 bg-emerald-300 dark:bg-emerald-600 rounded w-16" />
+                    <div className="h-6 bg-emerald-300 dark:bg-emerald-600 rounded w-12" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2.5">
+                  <div className="h-10 bg-blue-200 dark:bg-blue-700 rounded-lg" />
+                  <div className="h-10 bg-amber-200 dark:bg-amber-700 rounded-lg" />
+                </div>
+              </div>
             </div>
           ))}
         </div>

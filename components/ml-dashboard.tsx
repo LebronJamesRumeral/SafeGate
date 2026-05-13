@@ -1231,19 +1231,39 @@ export function StudentRiskCard({ studentLrn, name, lrn }: { studentLrn: string,
 
   if (loading) {
     return (
-      <div className="bg-linear-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl animate-pulse border border-slate-200 dark:border-slate-700 shadow-lg overflow-hidden">
-        <div className="h-1.5 bg-slate-300 dark:bg-slate-600" />
-        <div className="p-4 space-y-3">
-          <div className="flex justify-between">
-            <div className="space-y-2 flex-1">
-              <div className="h-5 bg-slate-300 dark:bg-slate-600 rounded w-3/4" />
-              <div className="h-3 bg-slate-300 dark:bg-slate-600 rounded w-1/2" />
+      <div className="bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 rounded-2xl animate-pulse border border-blue-200 dark:border-blue-900/30 shadow-lg overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-12 -mt-12" />
+        <div className="h-1.5 bg-blue-300 dark:bg-blue-600" />
+        <div className="p-4 space-y-4 relative z-10">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className="h-5 bg-blue-300 dark:bg-blue-600 rounded w-3/4" />
+              <div className="h-3 bg-blue-300 dark:bg-blue-600 rounded w-1/2" />
             </div>
-            <div className="h-6 bg-slate-300 dark:bg-slate-600 rounded-full w-16" />
+            <div className="h-6 bg-blue-300 dark:bg-blue-600 rounded-full w-16 shrink-0" />
           </div>
-          <div className="h-14 bg-slate-200 dark:bg-slate-700 rounded-lg" />
-          <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded-lg" />
-          <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+
+          <div className="p-3 rounded-lg bg-blue-100/70 dark:bg-blue-900/35 space-y-2 border border-blue-200/60 dark:border-blue-800/30">
+            <div className="h-3 bg-blue-300 dark:bg-blue-600 rounded w-24" />
+            <div className="h-3 bg-blue-300 dark:bg-blue-600 rounded w-full" />
+            <div className="h-3 bg-blue-300 dark:bg-blue-600 rounded w-5/6" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="rounded-lg bg-red-100/80 dark:bg-red-950/35 p-2.5 border border-red-200/70 dark:border-red-900/35 space-y-2">
+              <div className="h-3 bg-red-300 dark:bg-red-600 rounded w-16" />
+              <div className="h-6 bg-red-300 dark:bg-red-600 rounded w-12" />
+            </div>
+            <div className="rounded-lg bg-emerald-100/80 dark:bg-emerald-950/35 p-2.5 border border-emerald-200/70 dark:border-emerald-900/35 space-y-2">
+              <div className="h-3 bg-emerald-300 dark:bg-emerald-600 rounded w-16" />
+              <div className="h-6 bg-emerald-300 dark:bg-emerald-600 rounded w-12" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2.5">
+            <div className="h-10 bg-blue-200 dark:bg-blue-700 rounded-lg" />
+            <div className="h-10 bg-amber-200 dark:bg-amber-700 rounded-lg" />
+          </div>
         </div>
       </div>
     );
