@@ -287,6 +287,39 @@
   }
 }
 
+@keyframes slide-up-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes expand-down {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @layer utilities {
   /* Gradient utilities */
   .gradient-primary {
@@ -331,6 +364,18 @@
 
   .animate-slide-down {
     animation: slide-down 0.5s ease-out;
+  }
+
+  .animate-slide-up-in {
+    animation: slide-up-in 0.3s ease-out;
+  }
+
+  .animate-expand-down {
+    animation: expand-down 0.3s ease-out;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
   }
 
   .animate-pulse-soft {

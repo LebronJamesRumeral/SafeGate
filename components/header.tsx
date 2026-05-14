@@ -15,12 +15,7 @@ import { ensureFridayParentWeeklyCheckInNotification, fetchRoleNotifications, ge
 const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
 
 const headerNavItems = [
-  { label: "Behavioral Events", href: "/behavioral-events", roles: ["teacher", "admin", "guidance"], icon: AlertTriangle },
-  { label: "Guidance Review", href: "/guidance-review", roles: ["guidance"], icon: ClipboardCheck },
-  { label: "School Heatmap", href: "/school-heatmap", roles: ["teacher", "admin", "guidance"], icon: MapPinned },
-  { label: "Analytics", href: "/analytics", roles: ["admin"], icon: BarChart3 },
-  { label: "School Events", href: "/events", roles: ["teacher", "admin"], icon: Megaphone },
-  { label: "Settings", href: "/settings", roles: ["admin"], icon: Settings },
+  { label: "Settings", href: "/settings", roles: ["admin"], icon: Settings }
 ]
 
 const ROLE_LABELS: Record<string, string> = {

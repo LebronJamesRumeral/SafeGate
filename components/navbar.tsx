@@ -2,13 +2,12 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Menu, X, Moon, Sun, LogOut } from 'lucide-react';
+import { Moon, Sun, LogOut } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 
 export function Navbar() {
-  const [isOpen, setIsOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const { user, logout } = useAuth();
 
@@ -96,34 +95,13 @@ export function Navbar() {
             >
               <LogOut size={20} className="text-red-600 dark:text-red-400 group-hover:scale-110 transition-transform" />
             </button>
-
-            {/* Mobile Menu Button */}
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className="md:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              aria-label="Toggle menu"
-            >
-              {isOpen ? <X size={20} className="text-slate-700 dark:text-slate-300" /> : <Menu size={20} className="text-slate-700 dark:text-slate-300" />}
-            </button>
           </div>
         </div>
 
-        {/* Mobile Navigation */}
-        {isOpen && (
-          <div className="md:hidden pb-4 space-y-1">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="block px-4 py-2 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        )}
+        {/* Mobile Navigation - Now handled by MobileBottomNavbar */}
       </div>
     </nav>
+
+    {/* Mobile Bottom Navigation handled in DashboardLayout on mobile */}
   );
 }

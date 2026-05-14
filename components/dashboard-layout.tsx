@@ -3,6 +3,7 @@
 import type React from "react"
 import { Sidebar, SidebarContext } from "@/components/sidebar"
 import { Header } from "@/components/header"
+import { MobileBottomNavbar } from "@/components/mobile-bottom-navbar"
 import { useContext, useState, useEffect } from "react"
 import { useIsMobile } from "@/hooks/use-mobile"
 
@@ -105,6 +106,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation - only visible on mobile (md:hidden) */}
+      <MobileBottomNavbar />
     </div>
   )
 }
