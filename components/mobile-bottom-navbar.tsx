@@ -116,6 +116,7 @@ export function MobileBottomNavbar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Filter items based on user role
@@ -137,8 +138,25 @@ export function MobileBottomNavbar() {
     }
   }, [isMenuOpen]);
 
+  useEffect(() => {
+    if (isMenuOpen) {
+      setIsMenuVisible(true);
+      return;
+    }
+
+    const hideTimer = window.setTimeout(() => {
+      setIsMenuVisible(false);
+    }, 180);
+
+    return () => window.clearTimeout(hideTimer);
+  }, [isMenuOpen]);
+
   // Close menu on navigation
   const handleNavigation = () => {
+    setIsMenuOpen(false);
+  };
+
+  const closeMenu = () => {
     setIsMenuOpen(false);
   };
 
@@ -156,18 +174,24 @@ export function MobileBottomNavbar() {
       {/* Mobile Bottom Navigation Bar - only visible on mobile (md:hidden) */}
       <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40 md:hidden w-11/12 max-w-2xl">
         {/* Backdrop overlay when menu is open (covers whole screen; navbar is higher z-index) */}
-        {isMenuOpen && (
+        {isMenuVisible && (
           <div
-            className="fixed inset-0 bg-black/30 dark:bg-black/50 animate-fade-in md:hidden z-30"
-            onClick={() => setIsMenuOpen(false)}
+            className={cn(
+              'fixed inset-0 bg-transparent md:hidden z-30',
+              isMenuOpen ? 'animate-fade-in' : 'animate-fade-out'
+            )}
+            onClick={closeMenu}
           />
         )}
 
         {/* Floating Popup Menu */}
-        {isMenuOpen && (
+        {isMenuVisible && (
           <div
             ref={menuRef}
-            className="absolute bottom-20 left-1/2 transform -translate-x-1/2 w-11/12 max-w-sm bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 dark:border-slate-700/50 z-50 animate-slide-up-in"
+            className={cn(
+              'absolute bottom-20 left-1/2 transform -translate-x-1/2 w-11/12 max-w-sm bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 dark:border-slate-700/50 z-50',
+              isMenuOpen ? 'animate-slide-up-in' : 'animate-slide-down-out'
+            )}
           >
             {/* Popup Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/50 dark:border-slate-700/50">
@@ -175,7 +199,7 @@ export function MobileBottomNavbar() {
                 Navigation
               </h3>
               <button
-                onClick={() => setIsMenuOpen(false)}
+                onClick={closeMenu}
                 className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
               >
                 <X size={18} className="text-slate-500 dark:text-slate-400" />
@@ -223,7 +247,7 @@ export function MobileBottomNavbar() {
         )}
 
         {/* Floating Bottom Navigation Card */}
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border border-slate-200/50 dark:border-slate-700/50 shadow-2xl h-20 rounded-xl px-3">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700/50 shadow-2xl h-20 rounded-xl px-3">
           <div className="h-full flex items-center justify-between max-w-2xl mx-auto relative">
             {/* Home/Dashboard Button */}
             <Link
@@ -236,18 +260,18 @@ export function MobileBottomNavbar() {
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
               )}
             >
-              <Home size={24} />
-              <span className="text-xs font-medium">Home</span>
+              <LayoutDashboard size={24} />
+              <span className="text-xs font-medium">Dashboard</span>
             </Link>
 
             {/* Center floating Menu Button */}
             <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              onClick={() => setIsMenuOpen((current) => !current)}
               className={cn(
-                'absolute left-1/2 transform -translate-x-1/2 -mt-6 w-14 h-14 rounded-full shadow-lg transition-all duration-300 flex items-center justify-center font-semibold text-white',
+                'absolute left-1/2 top-1/2 z-10 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-white shadow-lg transition-all duration-300 font-semibold touch-manipulation focus:outline-none active:scale-100',
                 isMenuOpen
-                  ? 'bg-gradient-to-br from-orange-500 to-orange-600 scale-110'
-                  : 'bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 hover:scale-105 active:scale-95'
+                  ? 'bg-orange-500 scale-110'
+                  : 'bg-orange-500 hover:bg-orange-500 hover:scale-105 active:scale-100'
               )}
             >
               {isMenuOpen ? <X size={24} /> : <Menu size={24} />}

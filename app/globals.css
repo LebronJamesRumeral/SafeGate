@@ -320,6 +320,26 @@
   }
 }
 
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes slide-down-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
 @layer utilities {
   /* Gradient utilities */
   .gradient-primary {
@@ -376,6 +396,14 @@
 
   .animate-fade-in {
     animation: fade-in 0.3s ease-out;
+  }
+
+  .animate-fade-out {
+    animation: fade-out 0.18s ease-in forwards;
+  }
+
+  .animate-slide-down-out {
+    animation: slide-down-out 0.18s ease-in forwards;
   }
 
   .animate-pulse-soft {
