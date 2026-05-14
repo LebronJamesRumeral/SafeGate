@@ -25,6 +25,7 @@ import {
 interface NavItem {
   icon: React.ReactNode;
   label: string;
+  mobileLabel?: string;
   href: string;
   roles: string[];
   subItems?: NavItem[];
@@ -87,26 +88,30 @@ const allNavItems: NavItem[] = [
   },
   // Parent role items
   {
-    icon: <LayoutDashboard size={18} />,
+    icon: <LayoutDashboard size={24} />,
     label: 'Parent Dashboard',
+    mobileLabel: 'Dashboard',
     href: '/parent',
     roles: ['parent'],
   },
   {
-    icon: <CalendarDays size={18} />,
+    icon: <CalendarDays size={24} />,
     label: 'Attendance',
+    mobileLabel: 'Attendance',
     href: '/parent-attendance',
     roles: ['parent'],
   },
   {
-    icon: <AlertTriangle size={18} />,
+    icon: <AlertTriangle size={24} />,
     label: "Child's Activity",
+    mobileLabel: 'Behavior',
     href: '/parent-behavior',
     roles: ['parent'],
   },
   {
-    icon: <Megaphone size={18} />,
+    icon: <Megaphone size={24} />,
     label: 'Announcement/Advisory',
+    mobileLabel: 'Announcements',
     href: '/parent-announcement',
     roles: ['parent'],
   },
@@ -119,9 +124,14 @@ export function MobileBottomNavbar() {
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Filter items based on user role
+  // Filter items based on user role.
+  // Exclude actions that are already present as the right-side quick action
+  // (Guidance review and QR scan) to avoid redundancy in the popup menu.
   const filteredItems = user
-    ? allNavItems.filter((item) => item.roles.includes(user.role))
+    ? allNavItems.filter((item) => {
+        if (item.href === '/guidance-review' || item.href === '/scan') return false;
+        return item.roles.includes(user.role);
+      })
     : [];
 
   // Close menu when clicking outside
@@ -168,13 +178,16 @@ export function MobileBottomNavbar() {
 
   const isDashboard = pathname === '/';
   const isQRScan = pathname === '/scan';
+  const role = (user?.role || '').toLowerCase();
+  const isGuidance = role === 'guidance';
+  const isParent = role === 'parent';
 
   return (
     <>
       {/* Mobile Bottom Navigation Bar - only visible on mobile (md:hidden) */}
       <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40 md:hidden w-11/12 max-w-2xl">
         {/* Backdrop overlay when menu is open (covers whole screen; navbar is higher z-index) */}
-        {isMenuVisible && (
+        {!isParent && isMenuVisible && (
           <div
             className={cn(
               'fixed inset-0 bg-transparent md:hidden z-30',
@@ -185,7 +198,7 @@ export function MobileBottomNavbar() {
         )}
 
         {/* Floating Popup Menu */}
-        {isMenuVisible && (
+        {!isParent && isMenuVisible && (
           <div
             ref={menuRef}
             className={cn(
@@ -249,48 +262,92 @@ export function MobileBottomNavbar() {
         {/* Floating Bottom Navigation Card */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700/50 shadow-2xl h-20 rounded-xl px-3">
           <div className="h-full flex items-center justify-between max-w-2xl mx-auto relative">
-            {/* Home/Dashboard Button */}
-            <Link
-              href="/"
-              onClick={handleNavigation}
-              className={cn(
-                'flex flex-col items-center justify-center gap-1 px-4 py-2 rounded-lg transition-all duration-200 flex-1',
-                isDashboard
-                  ? 'text-orange-600 dark:text-orange-400'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
-              )}
-            >
-              <LayoutDashboard size={24} />
-              <span className="text-xs font-medium">Dashboard</span>
-            </Link>
+            {isParent ? (
+              // Render parent-specific links directly on the bottom navbar
+                filteredItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={handleNavigation}
+                    className={cn(
+                      'flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-all duration-200',
+                      pathname === item.href
+                        ? 'text-orange-600 dark:text-orange-400'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                    )}
+                  >
+                    <div className={cn(pathname === item.href ? 'text-orange-600 dark:text-orange-400' : 'text-slate-600 dark:text-slate-400')}>
+                      {item.icon}
+                    </div>
+                    <span className="text-xs font-medium mt-0.5 whitespace-nowrap text-center">{item.mobileLabel || item.label}</span>
+                  </Link>
+                ))
+            ) : (
+              <>
+                {/* Home/Dashboard Button (hidden for parents) */}
+                {!isParent && (
+                  <Link
+                    href="/"
+                    onClick={handleNavigation}
+                    className={cn(
+                      'flex flex-col items-center justify-center gap-1 px-4 py-2 rounded-lg transition-all duration-200 flex-1',
+                      isDashboard
+                        ? 'text-orange-600 dark:text-orange-400'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                    )}
+                  >
+                    <LayoutDashboard size={24} />
+                    <span className="text-xs font-medium">Dashboard</span>
+                  </Link>
+                )}
 
-            {/* Center floating Menu Button */}
-            <button
-              onClick={() => setIsMenuOpen((current) => !current)}
-              className={cn(
-                'absolute left-1/2 top-1/2 z-10 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-white shadow-lg transition-all duration-300 font-semibold touch-manipulation focus:outline-none active:scale-100',
-                isMenuOpen
-                  ? 'bg-orange-500 scale-110'
-                  : 'bg-orange-500 hover:bg-orange-500 hover:scale-105 active:scale-100'
-              )}
-            >
-              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
+                {/* Center floating Menu Button */}
+                <button
+                  onClick={() => setIsMenuOpen((current) => !current)}
+                  className={cn(
+                    'absolute left-1/2 top-1/2 z-10 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-white shadow-lg transition-all duration-300 font-semibold touch-manipulation focus:outline-none active:scale-100',
+                    isMenuOpen
+                      ? 'bg-orange-500 scale-110'
+                      : 'bg-orange-500 hover:bg-orange-500 hover:scale-105 active:scale-100'
+                  )}
+                >
+                  {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                </button>
 
-            {/* QR Scanner Button */}
-            <Link
-              href="/scan"
-              onClick={handleNavigation}
-              className={cn(
-                'flex flex-col items-center justify-center gap-1 px-4 py-2 rounded-lg transition-all duration-200 flex-1',
-                isQRScan
-                  ? 'text-orange-600 dark:text-orange-400'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
-              )}
-            >
-              <ScanLine size={24} />
-              <span className="text-xs font-medium">QR Scan</span>
-            </Link>
+                {/* Right action: QR Scan (default) or Guidance action for guidance users; hidden for parents */}
+                {!isParent && (
+                  isGuidance ? (
+                    <Link
+                      href="/guidance-review"
+                      onClick={handleNavigation}
+                      className={cn(
+                        'flex flex-col items-center justify-center gap-1 px-4 py-2 rounded-lg transition-all duration-200 flex-1',
+                        pathname === '/guidance-review'
+                          ? 'text-orange-600 dark:text-orange-400'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                      )}
+                    >
+                      <ClipboardCheck size={24} />
+                      <span className="text-xs font-medium">Guidance</span>
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/scan"
+                      onClick={handleNavigation}
+                      className={cn(
+                        'flex flex-col items-center justify-center gap-1 px-4 py-2 rounded-lg transition-all duration-200 flex-1',
+                        isQRScan
+                          ? 'text-orange-600 dark:text-orange-400'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                      )}
+                    >
+                      <ScanLine size={24} />
+                      <span className="text-xs font-medium">QR Scan</span>
+                    </Link>
+                  )
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
