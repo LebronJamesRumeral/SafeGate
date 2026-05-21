@@ -6,11 +6,11 @@ import { Sun, Moon, Bell, Lock, User as UserIcon, LogOut, Settings, Calendar, Al
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
-import { useTheme } from "next-themes"
 import { useCallback, useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
 import { ensureFridayParentWeeklyCheckInNotification, fetchRoleNotifications, getUnreadCount, markRoleNotificationsAsRead, resolveRoleNotificationHref, RoleNotification } from "@/lib/role-notifications"
+import { useTheme } from "@/components/theme-provider"
 
 const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
 

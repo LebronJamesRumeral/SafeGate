@@ -433,7 +433,7 @@ export default function BehavioralEventsPage() {
     }
   }, []);
   return (
-    <HeatmapZonesProvider initialZones={zones}>
+    <HeatmapZonesProvider>
       <DashboardLayout>
         <Suspense fallback={<BehavioralEventsSkeleton />}>
           <BehavioralEventsPageContent />
@@ -486,6 +486,11 @@ function BehavioralEventsPageContent() {
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [syncing, setSyncing] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
+  const [dateMode, setDateMode] = useState<'all' | 'single' | 'range'>('all');
+  const [singleDate, setSingleDate] = useState('');
+  const [rangeStart, setRangeStart] = useState('');
+  const [rangeEnd, setRangeEnd] = useState('');
   const [guidanceReviewNote, setGuidanceReviewNote] = useState('');
   const [guidanceSubmitting, setGuidanceSubmitting] = useState(false);
   const [reportSubmitting, setReportSubmitting] = useState(false);
@@ -523,6 +528,7 @@ function BehavioralEventsPageContent() {
     student?: string;
     event_type?: string;
     description?: string;
+    severity?: string;
   }>({});
 
   const [achievementFormData, setAchievementFormData] = useState({
@@ -1411,6 +1417,10 @@ function BehavioralEventsPageContent() {
     }
 
     setReportSubmitting(true);
+    if (!supabase) {
+      setReportSubmitting(false);
+      throw new Error('Supabase is not configured in this environment.');
+    }
     try {
       const ensuredStudentLrnMap = new Map<number, string>();
       for (const student of targetStudents) {
@@ -1530,7 +1540,7 @@ function BehavioralEventsPageContent() {
               // Find matching zone by name
               const matchingZone = zones.find(zone => zone.name === formData.location);
               if (matchingZone) {
-                await addDataPoint({
+                const heatmapPayload = {
                   zone_id: matchingZone.id,
                   event_type: 'behavioral',
                   event_id: eventId,
@@ -1540,10 +1550,19 @@ function BehavioralEventsPageContent() {
                     event_type: formData.event_type,
                     severity: formData.severity,
                     description: trimmedDescription,
-                    reported_by: reporterName
+                    reported_by: reporterName,
                   },
-                  severity: formData.severity
-                });
+                  severity: formData.severity,
+                };
+                try {
+                  await fetch('/api/heatmap/data-points', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(heatmapPayload),
+                  });
+                } catch (err) {
+                  console.error('Failed to post heatmap data point:', err);
+                }
               }
             } catch (heatmapError) {
               console.error('Failed to create heatmap data point:', heatmapError);
@@ -1952,8 +1971,8 @@ function BehavioralEventsPageContent() {
         });
 
         // Always include parent in targetRoles and fetch parent info if missing
-        let parentEmail = selectedEvent.students?.parent_email || null;
-        let parentName = selectedEvent.students?.parent_name || null;
+        let parentEmail = (selectedEvent as any).parent_email || null;
+        let parentName = (selectedEvent as any).parent_name || null;
         if (!parentEmail || !parentName) {
           const { data: studentData } = await supabase
             .from('students')
@@ -1965,16 +1984,12 @@ function BehavioralEventsPageContent() {
             parentName = studentData.parent_name;
           }
         }
+        const targetRoles = (['teacher', 'admin', 'parent', parentEmail ? `parent:${parentEmail}` : undefined].filter(Boolean) as string[]);
 
         await createRoleNotification({
           title: 'Log Reviewed By Guidance',
-          message: `${selectedEvent.students?.name || selectedEvent.student_lrn} (${humanizeEventType(selectedEvent.event_type)}) was approved by guidance.`,
-          targetRoles: [
-            'teacher',
-            'admin',
-            'parent',
-            parentEmail ? `parent:${parentEmail}` : null
-          ].filter(Boolean),
+          message: `${(selectedEvent as any).students?.name || selectedEvent.student_lrn} (${humanizeEventType(selectedEvent.event_type)}) was approved by guidance.`,
+          targetRoles,
           createdBy: reviewerName,
           relatedEventId: selectedEvent.id,
           meta: {
@@ -2148,7 +2163,7 @@ function BehavioralEventsPageContent() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-4xl font-bold bg-linear-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
               Behavioral Events
             </h1>
             <p className="text-base text-gray-600 dark:text-gray-300 mt-2">
@@ -2167,12 +2182,12 @@ function BehavioralEventsPageContent() {
             {syncing && <Badge className="bg-indigo-100 text-indigo-700">Syncing...</Badge>}
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="default" className="gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600">
+                <Button variant="default" className="gap-2 bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600">
                   <Plus className="w-4 h-4" />
                   Log Event
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[96vw] sm:w-[92vw] max-w-5xl lg:max-w-4xl h-auto sm:h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
+              <DialogContent className="w-[90vw] sm:w-[92vw] max-w-5xl lg:max-w-4xl h-auto sm:h-[86vh] max-h-[88vh] overflow-hidden p-0 flex flex-col">
                 <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40">
                   <DialogTitle className="text-3xl leading-tight">Log Student Behavior Incident</DialogTitle>
                   <DialogDescription>
@@ -2667,7 +2682,7 @@ function BehavioralEventsPageContent() {
                   Achievements
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[96vw] sm:w-[92vw] max-w-5xl lg:max-w-4xl h-auto sm:h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
+              <DialogContent className="w-[90vw] sm:w-[92vw] max-w-4xl lg:max-w-3xl h-auto sm:h-[82vh] max-h-[88vh] overflow-hidden p-0 flex flex-col rounded-xl">
                 <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40">
                   <DialogTitle className="text-3xl leading-tight">Log Achievement</DialogTitle>
                   <DialogDescription>
@@ -2936,7 +2951,7 @@ function BehavioralEventsPageContent() {
                   <div className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400 leading-tight">{stats.total}</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">all behavioral events</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 dark:shadow-blue-500/10 group-hover:scale-105 transition-all duration-300">
+                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-md shadow-blue-500/20 dark:shadow-blue-500/10 group-hover:scale-105 transition-all duration-300 hidden sm:flex">
                   <Activity className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>
@@ -2958,7 +2973,7 @@ function BehavioralEventsPageContent() {
                   <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{stats.positive}</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">reinforcing progress</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
+                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300 hidden sm:flex">
                   <Heart className="w-7 h-7" />
                 </div>
               </CardContent>
@@ -2980,7 +2995,7 @@ function BehavioralEventsPageContent() {
                   <div className="text-lg sm:text-2xl font-bold text-rose-600 dark:text-rose-400 leading-tight">{stats.negative}</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">major/critical incidents</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-rose-500 to-rose-600 text-white flex items-center justify-center shadow-md shadow-rose-500/20 dark:shadow-rose-500/10 group-hover:scale-105 transition-all duration-300">
+                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-md shadow-rose-500/20 dark:shadow-rose-500/10 group-hover:scale-105 transition-all duration-300 hidden sm:flex">
                   <AlertOctagon className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>
@@ -3002,7 +3017,7 @@ function BehavioralEventsPageContent() {
                   <div className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">{stats.achievementsCount}</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">positive recognitions</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
+                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300 hidden sm:flex">
                   <Award className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>
@@ -3011,136 +3026,251 @@ function BehavioralEventsPageContent() {
           </motion.div>
         </div>
 
-        {/* Filters */}
-        <Card className="overflow-hidden rounded-[28px] border-0 bg-white shadow-[0_24px_70px_-30px_rgba(15,23,42,0.28)] dark:bg-slate-950/70 dark:shadow-[0_24px_70px_-30px_rgba(15,23,42,0.58)]">
-          <CardHeader className="border-b border-orange-100/70 bg-linear-to-r from-white via-orange-50/60 to-white py-3 dark:border-orange-900/30 dark:from-slate-950/80 dark:via-orange-950/10 dark:to-slate-950/80">
-            <CardTitle className="flex items-center gap-3 text-lg font-semibold text-slate-900 dark:text-slate-100">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/20 ring-4 ring-blue-100/70 dark:ring-blue-950/40">
-                <Filter className="w-5 h-5" />
-              </span>
-              Search & Filter Events
-            </CardTitle>
-            <div className="mt-4 max-w-2xl">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-400" />
-                <Input
-                  id="search"
-                  placeholder="Search events..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] transition-colors focus-visible:border-orange-300 focus-visible:ring-orange-200 dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none"
-                />
+        {/* Filters (collapsible on mobile) */}
+        <AnimatePresence>
+          {!showFilters ? (
+            <motion.div
+              key="filters-summary"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="mb-3"
+            >
+              <div className="flex items-center justify-between gap-3 px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-700/40">
+                <div className="text-sm truncate">
+                  <strong className="mr-2">Filters</strong>
+                  <span className="text-muted-foreground">
+                    {dateMode === 'all' ? 'All dates' : dateMode === 'single' ? (singleDate || 'Single date') : (rangeStart && rangeEnd ? `${rangeStart} — ${rangeEnd}` : 'Date range')}
+                    {' • '}
+                    {studentLevelFilter === 'all' ? 'All Levels' : studentLevelFilter}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setShowFilters(true)} className="gap-2">
+                    Show
+                  </Button>
+                </div>
               </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-3 pb-4">
-            <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2 xl:grid-cols-5">
-              <div className="space-y-1">
-                <Label htmlFor="severity-filter">Severity</Label>
-                <Select value={severityFilter} onValueChange={setSeverityFilter}>
-                  <SelectTrigger id="severity-filter" className="h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
-                    <SelectValue placeholder="All Severities" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Severities</SelectItem>
-                    {Object.keys(SEVERITY_COLORS).map(severity => (
-                      <SelectItem key={severity} value={severity}>
-                        <div className="flex items-center gap-2">
-                          {getSeverityIcon(severity)}
-                          <span>{severity.charAt(0).toUpperCase() + severity.slice(1)}</span>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="filters-expanded"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.28 }}
+            >
+              <Card className="overflow-hidden rounded-[28px] border-0 bg-white shadow-[0_24px_70px_-30px_rgba(15,23,42,0.28)] dark:bg-slate-950/70 dark:shadow-[0_24px_70px_-30px_rgba(15,23,42,0.58)]">
+                <CardHeader className="border-b border-orange-100/70 bg-linear-to-r from-white via-orange-50/60 to-white py-3 dark:border-orange-900/30 dark:from-slate-950/80 dark:via-orange-950/10 dark:to-slate-950/80">
+                  <div className="flex items-start justify-between w-full">
+                    <CardTitle className="flex items-center gap-3 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                      <span className="hidden sm:flex h-10 w-10 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/20 ring-4 ring-blue-100/70 dark:ring-blue-950/40">
+                        <Filter className="w-5 h-5" />
+                      </span>
+                      Search & Filter Events
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="gap-2">
+                        Hide
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="mt-4 w-full">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-400" />
+                      <Input
+                        id="search"
+                        placeholder="Search events..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] transition-colors focus-visible:border-orange-300 focus-visible:ring-orange-200 dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none w-full"
+                      />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-3 pb-4">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-slate-100/40 dark:bg-slate-800/50 p-2">
+                      <button
+                        type="button"
+                        onClick={() => setDateMode('all')}
+                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${dateMode === 'all' ? 'bg-orange-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-white/40 dark:hover:bg-slate-700/40'}`}
+                      >
+                        All dates
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDateMode('single')}
+                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${dateMode === 'single' ? 'bg-orange-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-white/40 dark:hover:bg-slate-700/40'}`}
+                      >
+                        Single date
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDateMode('range')}
+                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${dateMode === 'range' ? 'bg-orange-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-white/40 dark:hover:bg-slate-700/40'}`}
+                      >
+                        Date range
+                      </button>
+                    </div>
+
+                    {/* Date inputs conditional */}
+                    {dateMode === 'single' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label>Choose date</Label>
+                          <Input type="date" value={singleDate} onChange={(e) => setSingleDate(e.target.value)} className="h-11 w-full" />
                         </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="category-filter">Category</Label>
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger id="category-filter" className="h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
-                    <SelectValue placeholder="All Categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {Array.from(new Set(categories.map((category) => category.category_type))).map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="event-type-category-filter">Event Type Category</Label>
-                <Select value={eventCategoryFilter} onValueChange={setEventCategoryFilter}>
-                  <SelectTrigger id="event-type-category-filter" className="h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
-                    <SelectValue placeholder="All Event Categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Event Categories</SelectItem>
-                    {Array.from(new Set(availableCategoryTemplates.map((template) => template.categoryType))).map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="student-level-filter">Student Level</Label>
-                <Select value={studentLevelFilter} onValueChange={setStudentLevelFilter}>
-                  <SelectTrigger id="student-level-filter" className="h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
-                    <SelectValue placeholder="All Levels" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Levels</SelectItem>
-                    {Array.from(new Set(students.map((student) => student.level))).sort().map((level) => (
-                      <SelectItem key={level} value={level}>
-                        {level}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="date-filter">Date Range</Label>
-                <Select value={dateFilter} onValueChange={setDateFilter}>
-                  <SelectTrigger id="date-filter" className="h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
-                    <SelectValue placeholder="All Time" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Time</SelectItem>
-                    <SelectItem value="today">Today</SelectItem>
-                    <SelectItem value="week">Past Week</SelectItem>
-                    <SelectItem value="month">Past Month</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                      </div>
+                    )}
 
-        {/* Tabs for List and Analytics */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="list" className="gap-2">
-              <FileText className="w-4 h-4" />
+                    {dateMode === 'range' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label>Start date</Label>
+                          <Input type="date" value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} className="h-11 w-full" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>End date</Label>
+                          <Input type="date" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} className="h-11 w-full" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 gap-1.5 md:grid-cols-2 xl:grid-cols-5">
+                    <div className="space-y-1">
+                      <Label htmlFor="severity-filter">Severity</Label>
+                      <Select value={severityFilter} onValueChange={setSeverityFilter}>
+                        <SelectTrigger id="severity-filter" className="h-11 w-full rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
+                          <SelectValue placeholder="All Severities" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Severities</SelectItem>
+                          {Object.keys(SEVERITY_COLORS).map(severity => (
+                            <SelectItem key={severity} value={severity}>
+                              <div className="flex items-center gap-2">
+                                {getSeverityIcon(severity)}
+                                <span>{severity.charAt(0).toUpperCase() + severity.slice(1)}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="category-filter">Category</Label>
+                      <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                        <SelectTrigger id="category-filter" className="h-11 w-full rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
+                          <SelectValue placeholder="All Categories" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Categories</SelectItem>
+                          {Array.from(new Set(categories.map((category) => category.category_type))).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="event-type-category-filter">Event Type Category</Label>
+                      <Select value={eventCategoryFilter} onValueChange={setEventCategoryFilter}>
+                        <SelectTrigger id="event-type-category-filter" className="h-11 w-full rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
+                          <SelectValue placeholder="All Event Categories" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Event Categories</SelectItem>
+                          {Array.from(new Set(availableCategoryTemplates.map((template) => template.categoryType))).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="student-level-filter">Student Level</Label>
+                      <Select value={studentLevelFilter} onValueChange={setStudentLevelFilter}>
+                        <SelectTrigger id="student-level-filter" className="h-11 w-full rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
+                          <SelectValue placeholder="All Levels" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Levels</SelectItem>
+                          {Array.from(new Set(students.map((student) => student.level))).sort().map((level) => (
+                            <SelectItem key={level} value={level}>
+                              {level}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="date-filter">Date Range</Label>
+                      <Select value={dateFilter} onValueChange={setDateFilter}>
+                        <SelectTrigger id="date-filter" className="h-11 w-full rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
+                          <SelectValue placeholder="All Time" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Time</SelectItem>
+                          <SelectItem value="today">Today</SelectItem>
+                          <SelectItem value="week">Past Week</SelectItem>
+                          <SelectItem value="month">Past Month</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Tabs for List and Analytics (animated) */}
+        <div className="space-y-4">
+          <div className="flex gap-2 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg border border-slate-200 dark:border-slate-700 max-w-md">
+            <button
+              onClick={() => setActiveTab('list')}
+              className={`flex-1 px-3 py-1.5 rounded-md font-medium text-sm transition-all duration-200 ${
+                activeTab === 'list'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300'
+              }`}
+            >
+              <FileText className="w-4 h-4 mr-2 hidden sm:inline-flex" />
               Events List
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="gap-2">
-              <PieChart className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`flex-1 px-3 py-1.5 rounded-md font-medium text-sm transition-all duration-200 ${
+                activeTab === 'analytics'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300'
+              }`}
+            >
+              <PieChart className="w-4 h-4 mr-2 hidden sm:inline-flex" />
               Analytics
-            </TabsTrigger>
-          </TabsList>
+            </button>
+          </div>
 
-          <TabsContent value="list" className="space-y-4">
-            {/* Events List */}
-            <Card className="border-0 shadow-lg overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+          <AnimatePresence mode="wait" initial={false}>
+            {activeTab === 'list' ? (
+              <motion.div
+                key="events-list"
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 8 }}
+                transition={{ duration: 0.28 }}
+                className="space-y-4"
+              >
+                {/* Events List */}
+                <Card className="border-0 shadow-lg overflow-hidden">
+              <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2 text-lg">
-                      <FileText className="w-5 h-5 text-blue-500" />
+                      <FileText className="w-5 h-5 text-blue-500 hidden sm:inline-flex" />
                       Events Log
                     </CardTitle>
                     <CardDescription>
@@ -3269,79 +3399,128 @@ function BehavioralEventsPageContent() {
                 ) : (
                   <div className="space-y-0">
                     <div className="overflow-x-auto">
-                      <Table className="min-w-full">
-                        <TableHeader className="bg-blue-50/50 dark:bg-blue-900/50">
-                          <TableRow>
-                            <TableHead className="w-20 whitespace-nowrap">Severity</TableHead>
-                            <TableHead className="whitespace-nowrap">Student</TableHead>
-                            <TableHead className="hidden md:table-cell whitespace-nowrap">Event Type</TableHead>
-                            <TableHead className="hidden sm:table-cell whitespace-nowrap">Date</TableHead>
-                            <TableHead className="hidden lg:table-cell whitespace-nowrap">Reporter</TableHead>
-                            <TableHead className="hidden md:table-cell whitespace-nowrap">Status</TableHead>
-                            <TableHead className="text-center w-12">Action</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {paginatedLogEvents.map((event, index) => (
-                            <motion.tr
-                              key={event.report_group_id ? `group-${event.report_group_id}` : event.id}
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: index * 0.03 }}
-                              className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                            >
-                              <TableCell className="whitespace-nowrap">
-                                <div className="flex items-center gap-2">
-                                  {getSeverityIcon(event.severity)}
-                                  <span className="text-xs font-medium hidden sm:inline">{getSeverityBadge(event.severity)}</span>
+                      {isMobile ? (
+                        <div className="space-y-3">
+                          <AnimatePresence initial={false} mode="wait">
+                            {paginatedLogEvents.map((event, index) => (
+                              <motion.div
+                                key={event.report_group_id ? `group-${event.report_group_id}` : event.id}
+                                initial={{ opacity: 0, y: 8, scale: 0.99 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 6, scale: 0.995 }}
+                                transition={{ duration: 0.22, delay: index * 0.02 }}
+                                className="bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 rounded-lg p-3 shadow-sm"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex items-start gap-3 min-w-0">
+                                    <div className="w-10 h-10 rounded-md flex items-center justify-center shrink-0">
+                                      {getSeverityIcon(event.severity)}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="font-medium truncate">
+                                        {event.report_group_id ? `General Report (${event.report_student_count || 1} students)` : event.students?.name || event.student_lrn}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground truncate">
+                                        {humanizeEventType(event.event_type)} • {new Date(event.event_date).toLocaleDateString()}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setSelectedEvent(event);
+                                        setGuidanceReviewNote(event.guidance_intervention_notes || '');
+                                        setIsDialogOpen(true);
+                                      }}
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
+                                  </div>
                                 </div>
-                              </TableCell>
-                              <TableCell className="font-medium">
-                                <div className="max-w-xs truncate">
-                                  {event.report_group_id
-                                    ? `General Report (${event.report_student_count || 1} students)`
-                                    : event.students?.name || event.student_lrn}
-                                </div>
-                              </TableCell>
-                              <TableCell className="hidden md:table-cell">
-                                <div className="truncate max-w-xs">
-                                  {humanizeEventType(event.event_type)}
-                                </div>
-                              </TableCell>
-                              <TableCell className="hidden sm:table-cell text-sm whitespace-nowrap">
-                                {new Date(event.event_date).toLocaleDateString()}
-                              </TableCell>
-                              <TableCell className="hidden lg:table-cell text-sm whitespace-nowrap">
-                                {formatReporterLabel(event)}
-                              </TableCell>
-                              <TableCell className="hidden md:table-cell">
-                                <div className="flex flex-col gap-1">
-                                  {getGuidanceStatusBadge(event.guidance_status)}
-                                  {event.parent_notified && (
-                                    <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700 text-xs w-fit">
-                                      <CheckCircle className="w-3 h-3 mr-1" />
-                                      Parent Notified
-                                    </Badge>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={() => {
-                                    setSelectedEvent(event);
-                                    setGuidanceReviewNote(event.guidance_intervention_notes || '');
-                                    setIsDialogOpen(true);
-                                  }}
-                                >
-                                  <Eye className="w-4 h-4" />
-                                </Button>
-                              </TableCell>
-                            </motion.tr>
-                          ))}
-                        </TableBody>
-                      </Table>
+                                {event.description ? (
+                                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 line-clamp-3">{event.description}</p>
+                                ) : null}
+                              </motion.div>
+                            ))}
+                          </AnimatePresence>
+                        </div>
+                      ) : (
+                        <Table className="min-w-full">
+                          <TableHeader className="bg-blue-50/50 dark:bg-blue-900/50">
+                            <TableRow>
+                              <TableHead className="w-20 whitespace-nowrap">Severity</TableHead>
+                              <TableHead className="whitespace-nowrap">Student</TableHead>
+                              <TableHead className="hidden md:table-cell whitespace-nowrap">Event Type</TableHead>
+                              <TableHead className="hidden sm:table-cell whitespace-nowrap">Date</TableHead>
+                              <TableHead className="hidden lg:table-cell whitespace-nowrap">Reporter</TableHead>
+                              <TableHead className="hidden md:table-cell whitespace-nowrap">Status</TableHead>
+                              <TableHead className="text-center w-12">Action</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {paginatedLogEvents.map((event, index) => (
+                              <motion.tr
+                                key={event.report_group_id ? `group-${event.report_group_id}` : event.id}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: index * 0.03 }}
+                                className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                              >
+                                <TableCell className="whitespace-nowrap">
+                                  <div className="flex items-center gap-2">
+                                    {getSeverityIcon(event.severity)}
+                                    <span className="text-xs font-medium hidden sm:inline">{getSeverityBadge(event.severity)}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="font-medium">
+                                  <div className="max-w-xs truncate">
+                                    {event.report_group_id
+                                      ? `General Report (${event.report_student_count || 1} students)`
+                                      : event.students?.name || event.student_lrn}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="hidden md:table-cell">
+                                  <div className="truncate max-w-xs">
+                                    {humanizeEventType(event.event_type)}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="hidden sm:table-cell text-sm whitespace-nowrap">
+                                  {new Date(event.event_date).toLocaleDateString()}
+                                </TableCell>
+                                <TableCell className="hidden lg:table-cell text-sm whitespace-nowrap">
+                                  {formatReporterLabel(event)}
+                                </TableCell>
+                                <TableCell className="hidden md:table-cell">
+                                  <div className="flex flex-col gap-1">
+                                    {getGuidanceStatusBadge(event.guidance_status)}
+                                    {event.parent_notified && (
+                                      <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700 text-xs w-fit">
+                                        <CheckCircle className="w-3 h-3 mr-1" />
+                                        Parent Notified
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => {
+                                      setSelectedEvent(event);
+                                      setGuidanceReviewNote(event.guidance_intervention_notes || '');
+                                      setIsDialogOpen(true);
+                                    }}
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </Button>
+                                </TableCell>
+                              </motion.tr>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
                     </div>
                     <div className="flex items-center justify-between p-3 border-t border-slate-200 dark:border-slate-700">
                       <div className="text-sm text-muted-foreground">
@@ -3374,11 +3553,18 @@ function BehavioralEventsPageContent() {
                 </CardContent>
               )}
             </Card>
-          </TabsContent>
-
-          <TabsContent value="analytics" className="space-y-4">
-            {/* Analytics Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              </motion.div>
+            ) : (
+              <motion.div
+                key="analytics"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.28 }}
+                className="space-y-4"
+              >
+                {/* Analytics Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Severity Distribution */}
               <Card className="border-0 shadow-lg overflow-hidden">
                 <CardHeader>
@@ -3493,7 +3679,7 @@ function BehavioralEventsPageContent() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 rounded-lg bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20">
+                  <div className="p-4 rounded-lg bg-linear-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20">
                     <div className="flex items-center gap-2 mb-2">
                       <Heart className="w-4 h-4 text-emerald-600" />
                       <span className="font-semibold text-emerald-700 dark:text-emerald-300">Positive Ratio</span>
@@ -3506,7 +3692,7 @@ function BehavioralEventsPageContent() {
                     </p>
                   </div>
 
-                  <div className="p-4 rounded-lg bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20">
+                  <div className="p-4 rounded-lg bg-linear-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20">
                     <div className="flex items-center gap-2 mb-2">
                       <Bell className="w-4 h-4 text-orange-600" />
                       <span className="font-semibold text-orange-700 dark:text-orange-300">Follow-up Rate</span>
@@ -3519,7 +3705,7 @@ function BehavioralEventsPageContent() {
                     </p>
                   </div>
 
-                  <div className="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20">
+                  <div className="p-4 rounded-lg bg-linear-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20">
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle className="w-4 h-4 text-blue-600" />
                       <span className="font-semibold text-blue-700 dark:text-blue-300">Parent Notification</span>
@@ -3533,9 +3719,11 @@ function BehavioralEventsPageContent() {
                   </div>
                 </div>
               </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              </Card>
+          </motion.div>
+        )}
+          </AnimatePresence>
+        </div>
 
         {/* Event Details Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -3544,23 +3732,23 @@ function BehavioralEventsPageContent() {
               <>
                 <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700">
                   <div className="flex items-center gap-2 mb-2">
-                    {getSeverityIcon(selectedEvent.severity)}
-                    <DialogTitle className="text-2xl">{humanizeEventType(selectedEvent.event_type)}</DialogTitle>
+                    {getSeverityIcon(selectedEvent!.severity)}
+                    <DialogTitle className="text-2xl">{humanizeEventType(selectedEvent!.event_type)}</DialogTitle>
                   </div>
                   <DialogDescription>
-                    {selectedEvent.report_group_id
-                      ? `General report details for ${selectedEvent.report_student_count || 1} students`
-                      : `Event details for ${selectedEvent.students?.name || selectedEvent.student_lrn}`}
+                    {selectedEvent!.report_group_id
+                      ? `General report details for ${selectedEvent!.report_student_count || 1} students`
+                      : `Event details for ${selectedEvent!.students?.name || selectedEvent!.student_lrn}`}
                   </DialogDescription>
                   <div className="flex flex-wrap gap-2 mt-3">
-                    {getGuidanceStatusBadge(selectedEvent.guidance_status)}
-                    {selectedEvent.parent_notified && (
+                    {getGuidanceStatusBadge(selectedEvent!.guidance_status)}
+                    {selectedEvent!.parent_notified && (
                       <Badge className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-0 gap-1">
                         <CheckCircle className="w-3 h-3" />
                         Parent Notified
                       </Badge>
                     )}
-                    {selectedEvent.follow_up_required && (
+                    {selectedEvent!.follow_up_required && (
                       <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400 border-0 gap-1">
                         <AlertTriangle className="w-3 h-3" />
                         Follow-up Required
@@ -3583,31 +3771,31 @@ function BehavioralEventsPageContent() {
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                       <div>
                         <Label className="text-xs text-muted-foreground">
-                          {selectedEvent.report_group_id ? 'Students Included' : 'Student'}
+                          {selectedEvent!.report_group_id ? 'Students Included' : 'Student'}
                         </Label>
                         {selectedEvent.report_group_id ? (
                           <p className="font-medium text-sm mt-1">
-                            {selectedEvent.report_student_names?.join(', ') || selectedEvent.students?.name || selectedEvent.student_lrn}
+                            {selectedEvent!.report_student_names?.join(', ') || selectedEvent!.students?.name || selectedEvent!.student_lrn}
                           </p>
                         ) : (
                           <>
-                            <p className="font-medium mt-1">{selectedEvent.students?.name}</p>
-                            <p className="text-xs text-muted-foreground">{selectedEvent.student_lrn}</p>
+                            <p className="font-medium mt-1">{selectedEvent!.students?.name}</p>
+                            <p className="text-xs text-muted-foreground">{selectedEvent!.student_lrn}</p>
                           </>
                         )}
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">Level</Label>
-                        <p className="font-medium mt-1">{selectedEvent.report_group_id ? 'Multiple Levels' : selectedEvent.students?.level}</p>
+                        <p className="font-medium mt-1">{selectedEvent!.report_group_id ? 'Multiple Levels' : selectedEvent!.students?.level}</p>
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">Date & Time</Label>
-                        <p className="font-medium mt-1">{new Date(selectedEvent.event_date).toLocaleDateString()}</p>
-                        <p className="text-xs text-muted-foreground">{selectedEvent.event_time}</p>
+                        <p className="font-medium mt-1">{new Date(selectedEvent!.event_date).toLocaleDateString()}</p>
+                        <p className="text-xs text-muted-foreground">{selectedEvent!.event_time}</p>
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">Severity</Label>
-                        <div className="mt-1">{getSeverityBadge(selectedEvent.severity)}</div>
+                        <div className="mt-1">{getSeverityBadge(selectedEvent!.severity)}</div>
                       </div>
                     </div>
                   </div>
@@ -3618,51 +3806,51 @@ function BehavioralEventsPageContent() {
                       <FileText className="w-4 h-4" />
                       Event Description
                     </h3>
-                    <p className="text-sm whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">
-                      {selectedEvent.description}
+                      <p className="text-sm whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">
+                      {selectedEvent!.description}
                     </p>
                   </div>
 
                   {/* Image & Location Section */}
-                  {(selectedEvent.proof_image_url || selectedEvent.location) && (
+                  {(selectedEvent!.proof_image_url || selectedEvent!.location) && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {selectedEvent.proof_image_url && (
+                      {selectedEvent!.proof_image_url && (
                         <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-900/50">
                           <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3">Proof Image</h3>
                           <div className="rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={selectedEvent.proof_image_url} alt="Behavior proof" className="max-h-48 w-full object-contain bg-slate-50 dark:bg-slate-900/40" />
+                            <img src={selectedEvent!.proof_image_url} alt="Behavior proof" className="max-h-48 w-full object-contain bg-slate-50 dark:bg-slate-900/40" />
                           </div>
                         </div>
                       )}
-                      {selectedEvent.location && (
+                      {selectedEvent!.location && (
                         <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-900/50">
                           <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
                             <MapPin className="w-4 h-4" />
                             Location
                           </h3>
-                          <p className="text-sm">{selectedEvent.location}</p>
+                          <p className="text-sm">{selectedEvent!.location}</p>
                         </div>
                       )}
                     </div>
                   )}
 
                   {/* Action & Notes Section */}
-                  {(selectedEvent.action_taken || removeReportMetadataFromNotes(selectedEvent.notes)) && (
+                  {(selectedEvent!.action_taken || removeReportMetadataFromNotes(selectedEvent!.notes)) && (
                     <div className="space-y-4">
-                      {selectedEvent.action_taken && (
+                      {selectedEvent!.action_taken && (
                         <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-900/50">
                           <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3">Action Taken</h3>
                           <p className="text-sm whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">
-                            {selectedEvent.action_taken}
+                                {selectedEvent!.action_taken}
                           </p>
                         </div>
                       )}
-                      {removeReportMetadataFromNotes(selectedEvent.notes) && (
+                              {removeReportMetadataFromNotes(selectedEvent!.notes) && (
                         <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-900/50">
                           <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3">Additional Notes</h3>
                           <p className="text-sm whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">
-                            {removeReportMetadataFromNotes(selectedEvent.notes)}
+                            {removeReportMetadataFromNotes(selectedEvent!.notes)}
                           </p>
                         </div>
                       )}
@@ -3675,7 +3863,7 @@ function BehavioralEventsPageContent() {
                       <User className="w-4 h-4" />
                       Reported By
                     </h3>
-                    <p className="text-sm">{selectedEvent.reported_by}</p>
+                    <p className="text-sm">{selectedEvent!.reported_by}</p>
                   </div>
 
                   {/* Guidance Section */}
@@ -3684,9 +3872,9 @@ function BehavioralEventsPageContent() {
                       <BookOpen className="w-4 h-4" />
                       Guidance Intervention Notes
                     </h3>
-                    <div className="p-3 bg-white dark:bg-slate-900/50 rounded-lg border border-amber-100 dark:border-amber-900/30 min-h-[100px] text-sm">
-                      {selectedEvent.guidance_intervention_notes ? (
-                        formatGuidanceInterventionNotes(selectedEvent.guidance_intervention_notes)
+                    <div className="p-3 bg-white dark:bg-slate-900/50 rounded-lg border border-amber-100 dark:border-amber-900/30 min-h-25 text-sm">
+                      {selectedEvent!.guidance_intervention_notes ? (
+                        formatGuidanceInterventionNotes(selectedEvent!.guidance_intervention_notes)
                       ) : (
                         <span className="text-muted-foreground italic">No guidance notes recorded yet</span>
                       )}
@@ -3694,18 +3882,18 @@ function BehavioralEventsPageContent() {
                   </div>
 
                   {/* Actions Section */}
-                  {(selectedEvent.follow_up_required || isGuidanceUser) && (
+                  {(selectedEvent!.follow_up_required || isGuidanceUser) && (
                     <div className="border border-blue-200 dark:border-blue-800/50 rounded-lg p-4 bg-blue-50/40 dark:bg-blue-950/20">
                       <h3 className="font-semibold text-sm text-blue-900 dark:text-blue-200 mb-4 flex items-center gap-2">
                         <Zap className="w-4 h-4" />
                         Actions
                       </h3>
                       <div className="flex flex-wrap gap-2">
-                        {selectedEvent.follow_up_required && (
+                        {selectedEvent!.follow_up_required && (
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            onClick={() => handleFollowUp(selectedEvent)}
+                            onClick={() => handleFollowUp(selectedEvent!)}
                             className="gap-2 bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100 dark:bg-orange-950/30 dark:text-orange-200 dark:border-orange-800"
                           >
                             <CheckCircle className="w-4 h-4" />
@@ -3713,7 +3901,7 @@ function BehavioralEventsPageContent() {
                           </Button>
                         )}
 
-                        {isGuidanceUser && selectedEvent.guidance_status !== 'approved_for_ml' && (
+                        {isGuidanceUser && selectedEvent!.guidance_status !== 'approved_for_ml' && (
                           <Button
                             variant="outline"
                             size="sm"

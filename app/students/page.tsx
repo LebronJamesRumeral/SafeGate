@@ -69,6 +69,22 @@ import { supabase, type Student as BaseStudent } from '@/lib/supabase';
 
 // Extend Student type to include isLinked for local use
 type Student = BaseStudent & { isLinked?: boolean };
+type SchoolYearRecord = {
+  id?: number;
+  label: string;
+  start_date: string;
+  end_date: string;
+  is_current?: boolean;
+};
+type SchoolYearUndoState = {
+  createdAt: string;
+  expiresAt: string;
+  previousSchoolYear: SchoolYearRecord | null;
+  previousStudents: Student[];
+  newSchoolYearId: number | null;
+  newSchoolYearLabel: string;
+  id?: number;
+};
 import { toast } from '@/hooks/use-toast';
 import { formatTime12h } from '@/lib/time-format';
 import { sortByLevel } from '@/lib/level-order';
@@ -299,6 +315,7 @@ const GRADE_LEVEL_OPTIONS = [
   'Grade 7',
   'Grade 8',
 ];
+const STUDENT_STATUS_OPTIONS = ['active', 'inactive'] as const;
 const WEEKDAY_OPTIONS = [
   { label: 'Monday', dayNumber: 1 },
   { label: 'Tuesday', dayNumber: 2 },
@@ -709,7 +726,7 @@ export default function StudentsPage() {
   const [endSchoolYearOpen, setEndSchoolYearOpen] = useState(false);
   const [includeSummerStudentsOnEnd, setIncludeSummerStudentsOnEnd] = useState(false);
   const [endingSchoolYear, setEndingSchoolYear] = useState(false);
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const [activeTab, setActiveTab] = useState('list');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
   const [addStudentOpen, setAddStudentOpen] = useState(false);
@@ -746,6 +763,29 @@ export default function StudentsPage() {
 
     return today >= endDate;
   }, [currentSchoolYear?.end_date, currentSchoolYearLabel]);
+
+  const availableLevelOptions = useMemo(() => {
+    const discoveredLevels = new Set<string>(YEAR_LEVEL_OPTIONS);
+
+    students.forEach((student) => {
+      const level = String(student.level || '').trim();
+      if (level) {
+        discoveredLevels.add(level);
+      }
+    });
+
+    const selectedLevel = String(selectedStudent?.level || '').trim();
+    if (selectedLevel) {
+      discoveredLevels.add(selectedLevel);
+    }
+
+    const orderedKnownLevels = YEAR_LEVEL_OPTIONS.filter((level) => discoveredLevels.has(level));
+    const extraLevels = Array.from(discoveredLevels)
+      .filter((level) => !YEAR_LEVEL_OPTIONS.includes(level))
+      .sort((a, b) => a.localeCompare(b));
+
+    return [...orderedKnownLevels, ...extraLevels];
+  }, [students, selectedStudent?.level]);
 
   const normalizeRfidUid = (value: string) => value.trim().toUpperCase().replace(/[^A-F0-9]/g, '');
 
@@ -1004,6 +1044,8 @@ export default function StudentsPage() {
 
     const payload = {
       name: updatedName,
+      level: (selectedStudent.level || '').trim() || null,
+      status: (selectedStudent.status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active',
       gender: (selectedStudent.gender || '').trim() || null,
       birthday: (selectedStudent.birthday || '').trim() || null,
       address: (selectedStudent.address || '').trim() || null,
@@ -1121,6 +1163,77 @@ export default function StudentsPage() {
       setSavingStudentInfo(false);
     }
   };
+
+  const handleConfirmInactive = async () => {
+    if (!selectedStudent || !supabase) return;
+    setSavingStudentInfo(true);
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ status: 'inactive', inactive_confirmed: true, updated_at: new Date().toISOString() })
+        .eq('id', selectedStudent.id);
+
+      if (error) {
+        toast({ title: 'Failed to mark inactive', description: error.message || String(error), variant: 'destructive' });
+        return;
+      }
+
+      setSelectedStudent(prev => prev ? { ...prev, status: 'inactive', inactive_confirmed: true } : prev);
+      await fetchStudents();
+      toast({ title: 'Student marked inactive', description: 'Student will be excluded from next year processing.' });
+    } catch (err) {
+      toast({ title: 'Failed to mark inactive', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
+    } finally {
+      setSavingStudentInfo(false);
+    }
+  };
+
+  const handleReactivateStudent = async () => {
+    if (!selectedStudent || !supabase) return;
+    setSavingStudentInfo(true);
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ status: 'active', inactive_confirmed: false, updated_at: new Date().toISOString() })
+        .eq('id', selectedStudent.id);
+
+      if (error) {
+        toast({ title: 'Failed to reactivate', description: error.message || String(error), variant: 'destructive' });
+        return;
+      }
+
+      setSelectedStudent(prev => prev ? { ...prev, status: 'active', inactive_confirmed: false } : prev);
+      await fetchStudents();
+      toast({ title: 'Student reactivated', description: 'Student is now active.' });
+    } catch (err) {
+      toast({ title: 'Failed to reactivate', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
+    } finally {
+      setSavingStudentInfo(false);
+    }
+  };
+
+  const handleReactivateById = async (studentId: number) => {
+    if (!studentId || !supabase) return;
+    setSavingStudentInfo(true);
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ status: 'active', inactive_confirmed: false, updated_at: new Date().toISOString() })
+        .eq('id', studentId);
+
+      if (error) {
+        toast({ title: 'Failed to reactivate', description: error.message || String(error), variant: 'destructive' });
+        return;
+      }
+
+      await fetchStudents();
+      toast({ title: 'Student reactivated', description: 'Student is now active.' });
+    } catch (err) {
+      toast({ title: 'Failed to reactivate', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
+    } finally {
+      setSavingStudentInfo(false);
+    }
+  };
   const [scheduleTimeSlots, setScheduleTimeSlots] = useState<Array<{ label: string; startTime: string; endTime: string }>>([...DEFAULT_SCHEDULE_SLOTS]);
   const [newStudentForm, setNewStudentForm] = useState({
     lrn: '',
@@ -1171,7 +1284,9 @@ export default function StudentsPage() {
 
   useEffect(() => {
     setSummerCurrentPage(1);
-  }, [summerEnrollments]);
+  }, [summerEnrollments, search, filterGrade, filterGender, filterRisk]);
+
+ 
 
   useEffect(() => {
     if (summerModalOpen) {
@@ -1202,6 +1317,8 @@ export default function StudentsPage() {
   const [processedCount, setProcessedCount] = useState(0);
   const [previousStudentData, setPreviousStudentData] = useState<Student[]>([]);
   const [undoAvailable, setUndoAvailable] = useState(false);
+  const [undoDeadline, setUndoDeadline] = useState<string | null>(null);
+  const [undoState, setUndoState] = useState<SchoolYearUndoState | null>(null);
   const [undoInProgress, setUndoInProgress] = useState(false);
   // Track if school year advancement is pending confirmation
   const [pendingSchoolYearConfirmation, setPendingSchoolYearConfirmation] = useState(false);
@@ -1213,6 +1330,11 @@ export default function StudentsPage() {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [behavioralData, setBehavioralData] = useState<any>(null);
   const [loadingBehavioral, setLoadingBehavioral] = useState(false);
+  const [attendancePage, setAttendancePage] = useState(1);
+  const ATTENDANCE_PAGE_SIZE = 5;
+  useEffect(() => {
+    setAttendancePage(1);
+  }, [behavioralData, selectedStudent]);
   const [excuseLettersByLrn, setExcuseLettersByLrn] = useState<Record<string, Array<{
     id: number;
     title: string;
@@ -1253,11 +1375,47 @@ export default function StudentsPage() {
     'Grade 8': '16:00',
   });
   const schoolYearClosureKey = 'schoolYearEndedAt';
+  const schoolYearUndoKey = 'schoolYearUndoState';
+  const schoolYearUndoWindowMs = 7 * 24 * 60 * 60 * 1000;
+  const formatLocalDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const clearSchoolYearUndoState = async (db?: any) => {
+    setUndoAvailable(false);
+    setUndoDeadline(null);
+    setUndoState(null);
+    setPreviousStudentData([]);
+    setUndoDialogOpen(false);
+    if (db && undoState?.id) {
+      try {
+        await db.from('school_year_undos').update({ is_active: false }).eq('id', undoState.id);
+      } catch (err) {
+        console.warn('Failed to deactivate undo record in DB:', err);
+      }
+    }
+  };
+  const resolveSchoolYearEndDate = async () => {
+    if (!supabase) {
+      return currentSchoolYear?.end_date || (typeof window !== 'undefined' ? localStorage.getItem(schoolYearClosureKey) : null);
+    }
+
+    const { data } = await supabase
+      .from('school_years')
+      .select('end_date')
+      .order('end_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return data?.end_date || currentSchoolYear?.end_date || (typeof window !== 'undefined' ? localStorage.getItem(schoolYearClosureKey) : null);
+  };
   const schoolYearMinimumStartDate = useMemo(() => {
     const baseDate = currentSchoolYear?.end_date ? new Date(currentSchoolYear.end_date) : new Date();
     baseDate.setDate(baseDate.getDate() + 1);
     baseDate.setHours(0, 0, 0, 0);
-    return baseDate.toISOString().split('T')[0];
+    return formatLocalDate(baseDate);
   }, [currentSchoolYear?.end_date]);
 
   const loadSchoolYearMetadata = async () => {
@@ -1373,6 +1531,64 @@ export default function StudentsPage() {
     });
   }, [isMobile]);
 
+  useEffect(() => {
+    const restore = async () => {
+      if (!supabase) return;
+      try {
+        const { data, error } = await supabase
+          .from('school_year_undos')
+          .select('*')
+          .eq('is_active', true)
+          .gt('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) {
+          console.warn('Error fetching undo state from DB:', error.message);
+          return;
+        }
+
+        if (!data) return;
+
+        const parsedState: SchoolYearUndoState = {
+          id: data.id,
+          createdAt: data.created_at,
+          expiresAt: data.expires_at,
+          previousSchoolYear: data.previous_school_year || null,
+          previousStudents: data.previous_students || [],
+          newSchoolYearId: data.new_school_year_id || null,
+          newSchoolYearLabel: data.new_school_year_label || '',
+        };
+
+        setPreviousStudentData(Array.isArray(parsedState.previousStudents) ? parsedState.previousStudents : []);
+        setUndoState(parsedState);
+        setUndoDeadline(parsedState.expiresAt);
+        setUndoAvailable(true);
+      } catch (err) {
+        console.warn('Failed to restore school year undo state from DB:', err);
+      }
+    };
+
+    restore();
+  }, []);
+
+  useEffect(() => {
+    if (!undoDeadline) {
+      return;
+    }
+
+    const tick = () => {
+      if (new Date(undoDeadline).getTime() <= Date.now()) {
+        clearSchoolYearUndoState();
+      }
+    };
+
+    tick();
+    const interval = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(interval);
+  }, [undoDeadline]);
+
   // Function to calculate duration
   const calculateDuration = (startTime: string, endTime: string): string => {
     const start = new Date(startTime);
@@ -1443,8 +1659,28 @@ export default function StudentsPage() {
     setProcessingStudents({});
     setProcessedCount(0);
     setUndoAvailable(false);
+    setUndoDeadline(null);
+    setUndoState(null);
     setUndoInProgress(false);
     try {
+      const client = supabase;
+      if (!client) {
+        throw new Error('Supabase client not initialized');
+      }
+      const db = client;
+
+      const { data: previousSchoolYearRow, error: previousSchoolYearError } = await db
+        .from('school_years')
+        .select('*')
+        .eq('is_current', true)
+        .order('end_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (previousSchoolYearError) {
+        console.warn('Unable to snapshot current school year before advancement:', previousSchoolYearError.message);
+      }
+
       // 1. Advance students to next grade or graduate
       let processed = 0;
       for (const student of students) {
@@ -1470,7 +1706,7 @@ export default function StudentsPage() {
           }
         }
         // Update student in DB
-        const { error } = await supabase
+        const { error } = await db
           .from('students')
           .update({
             level: newLevel,
@@ -1499,7 +1735,7 @@ export default function StudentsPage() {
         is_current: true,
       });
       
-      const { data: insertData, error: insertError } = await supabase
+      const { data: insertData, error: insertError } = await db
         .from('school_years')
         .insert({
           label,
@@ -1518,13 +1754,21 @@ export default function StudentsPage() {
       } else {
         console.warn('School year insert returned no data - may not have been created');
       }
+
+      const newSchoolYearId = insertData?.[0]?.id;
       
       // 3. Mark previous school years as not current
-      const { data: updateData, error: updateError } = await supabase
+      let updateQuery = db
         .from('school_years')
-        .update({ is_current: false })
-        .neq('label', label)
-        .select();
+        .update({ is_current: false });
+
+      if (newSchoolYearId) {
+        updateQuery = updateQuery.neq('id', newSchoolYearId);
+      } else {
+        updateQuery = updateQuery.neq('label', label);
+      }
+
+      const { data: updateData, error: updateError } = await updateQuery.select();
       
       if (updateError) {
         console.warn('Warning: Failed to mark previous school years as not current:', updateError.message);
@@ -1534,7 +1778,7 @@ export default function StudentsPage() {
       
       // 4. Verify the data was actually saved by querying it back (optional)
       let verifyData = null;
-      const { data: verifyQueryData, error: verifyError } = await supabase
+      const { data: verifyQueryData, error: verifyError } = await db
         .from('school_years')
         .select('*')
         .eq('label', label)
@@ -1548,9 +1792,51 @@ export default function StudentsPage() {
       } else {
         console.warn('School year could not be verified - may not exist yet');
       }
+
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(schoolYearClosureKey);
+      }
+
+      const undoExpiresAt = new Date(Date.now() + schoolYearUndoWindowMs).toISOString();
+      // persist undo state to DB
+      try {
+        const { data: insertedUndo, error: insertUndoError } = await db
+          .from('school_year_undos')
+          .insert({
+            expires_at: undoExpiresAt,
+            previous_school_year: previousSchoolYearRow || null,
+            previous_students: students,
+            new_school_year_id: newSchoolYearId ?? null,
+            new_school_year_label: label,
+            is_active: true,
+          })
+          .select()
+          .maybeSingle();
+
+        if (insertUndoError) {
+          console.warn('Failed to persist undo state to DB:', insertUndoError.message);
+        }
+
+        const undoPayload: SchoolYearUndoState = {
+          id: insertedUndo?.id ?? undefined,
+          createdAt: new Date().toISOString(),
+          expiresAt: undoExpiresAt,
+          previousSchoolYear: (previousSchoolYearRow as SchoolYearRecord | null) || null,
+          previousStudents: students,
+          newSchoolYearId: newSchoolYearId ?? null,
+          newSchoolYearLabel: label,
+        };
+
+        setPreviousStudentData(students);
+        setUndoAvailable(true);
+        setUndoDeadline(undoExpiresAt);
+        setUndoState(undoPayload);
+      } catch (err) {
+        console.warn('Error creating DB undo payload:', err);
+      }
       
       // Force show all school years in database
-      const { data: allYears, error: allYearsError } = await supabase
+      const { data: allYears, error: allYearsError } = await db
         .from('school_years')
         .select('*');
       
@@ -1564,7 +1850,6 @@ export default function StudentsPage() {
         title: 'School Year Advanced!',
         description: `Created: ${label} (${schoolYearStartDate} to ${schoolYearEndDate})`,
       });
-      setUndoAvailable(false); // revert to New School Year button after confirm
       setPendingSchoolYearConfirmation(false);
       fetchStudents();
     } catch (error: any) {
@@ -1586,7 +1871,8 @@ export default function StudentsPage() {
   };
 
   const handleEndSchoolYear = async () => {
-    if (!supabase) {
+    const client = supabase;
+    if (!client) {
       toast({
         title: 'Internal Error',
         description: 'Supabase client not initialized.',
@@ -1595,10 +1881,10 @@ export default function StudentsPage() {
       return;
     }
 
-    let schoolYearToEnd = currentSchoolYear;
+    let schoolYearToEnd: any = currentSchoolYear;
 
     if (!schoolYearToEnd) {
-      const { data: fallbackSchoolYear, error: fallbackError } = await supabase
+      const { data: fallbackSchoolYear, error: fallbackError } = await client
         .from('school_years')
         .select('*')
         .eq('is_current', true)
@@ -1612,7 +1898,7 @@ export default function StudentsPage() {
 
       if (!fallbackSchoolYear) {
         console.warn('No current school year found - checking for any school year');
-        const { data: anySchoolYear, error: anyError } = await supabase
+        const { data: anySchoolYear, error: anyError } = await client
           .from('school_years')
           .select('*')
           .order('created_at', { ascending: false })
@@ -1642,7 +1928,7 @@ export default function StudentsPage() {
         defaultEndDate,
       });
       
-      const { data: newSchoolYear, error: createError } = await supabase
+      const { data: newSchoolYear, error: createError } = await client
         .from('school_years')
         .insert({
           label: defaultLabel,
@@ -1670,8 +1956,7 @@ export default function StudentsPage() {
     setEndingSchoolYear(true);
     try {
       const endDate = new Date();
-      endDate.setDate(endDate.getDate() - 1);
-      const endDateValue = endDate.toISOString().split('T')[0];  // DATE format: YYYY-MM-DD
+      const endDateValue = formatLocalDate(endDate);  // DATE format: YYYY-MM-DD
 
       console.log('School year object before update:', {
         id: schoolYearToEnd.id,
@@ -1695,7 +1980,7 @@ export default function StudentsPage() {
       
       if (schoolYearToEnd.id) {
         console.log('Attempting update by ID:', schoolYearToEnd.id);
-        const result = await supabase
+        const result = await client
           .from('school_years')
           .update({ end_date: endDateValue, is_current: false })
           .eq('id', schoolYearToEnd.id)
@@ -1705,7 +1990,7 @@ export default function StudentsPage() {
         schoolYearError = result.error;
       } else {
         console.log('No ID available, attempting update by label:', schoolYearToEnd.label);
-        const result = await supabase
+        const result = await client
           .from('school_years')
           .update({ end_date: endDateValue, is_current: false })
           .eq('label', schoolYearToEnd.label)
@@ -1733,7 +2018,7 @@ export default function StudentsPage() {
       }
 
       if (includeSummerStudentsOnEnd && Object.keys(summerEnrollments).length > 0) {
-        const { data: summerData, error: summerError } = await supabase
+        const { data: summerData, error: summerError } = await client
           .from('summer_enrollments')
           .update({ end_date: endDateValue })
           .in('student_lrn', Object.keys(summerEnrollments))
@@ -1748,7 +2033,7 @@ export default function StudentsPage() {
       
       // Force verify - query all school years to see what exists
       console.log('=== FORCED VERIFICATION ===');
-      const { data: allSchoolYears, error: allError } = await supabase
+      const { data: allSchoolYears, error: allError } = await client
         .from('school_years')
         .select('*');
       
@@ -1763,7 +2048,7 @@ export default function StudentsPage() {
       let verifyData = null, verifyError = null;
       
       if (schoolYearToEnd.id) {
-        const result = await supabase
+        const result = await client
           .from('school_years')
           .select('*')
           .eq('id', schoolYearToEnd.id)
@@ -1772,7 +2057,7 @@ export default function StudentsPage() {
         verifyData = result.data;
         verifyError = result.error;
       } else {
-        const result = await supabase
+        const result = await client
           .from('school_years')
           .select('*')
           .eq('label', schoolYearToEnd.label)
@@ -2601,15 +2886,22 @@ export default function StudentsPage() {
     try {
       setLoadingBehavioral(true);
 
-      // Fetch current school year end date
-      const { data: schoolYearData } = await supabase
-        .from('school_years')
-        .select('end_date, is_current')
-        .eq('is_current', true)
-        .single();
-      
-      const schoolYearEnd = schoolYearData?.end_date ? new Date(schoolYearData.end_date) : null;
+      // Use the closed/current school year cutoff if available so we do not
+      // synthesize absences beyond the end of the school year.
+      const knownSchoolYearEnd = await resolveSchoolYearEndDate();
+      let schoolYearEnd = knownSchoolYearEnd ? new Date(knownSchoolYearEnd) : null;
       schoolYearEnd?.setHours(0, 0, 0, 0);
+
+      if (!schoolYearEnd) {
+        const { data: schoolYearData } = await supabase
+          .from('school_years')
+          .select('end_date')
+          .eq('is_current', true)
+          .maybeSingle();
+
+        schoolYearEnd = schoolYearData?.end_date ? new Date(schoolYearData.end_date) : null;
+        schoolYearEnd?.setHours(0, 0, 0, 0);
+      }
       
       // Fetch recent behavioral events
       const { data: events, error: eventsError } = await supabase
@@ -2628,7 +2920,7 @@ export default function StudentsPage() {
       // Fetch attendance data for the month
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const startDateStr = thirtyDaysAgo.toISOString().split('T')[0];
+      const startDateStr = formatLocalDate(thirtyDaysAgo);
       
       const { data: attendance, error: attendanceError } = await supabase
         .from('attendance_logs')
@@ -2649,7 +2941,7 @@ export default function StudentsPage() {
       today.setHours(0, 0, 0, 0);
       
       while (current <= today) {
-        const dateStr = current.toISOString().split('T')[0];
+        const dateStr = formatLocalDate(current);
         const dayOfWeek = current.getDay();
         
         // Only check weekdays (Monday=1 to Friday=5) and respect school year end date
@@ -3168,7 +3460,27 @@ export default function StudentsPage() {
   };
 
   const handleUndoSchoolYear = async () => {
-    if (previousStudentData.length === 0) return;
+    const client = supabase;
+    if (!client) {
+      toast({
+        title: 'Internal Error',
+        description: 'Supabase client not initialized.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!undoState || previousStudentData.length === 0) return;
+
+    if (new Date(undoState.expiresAt).getTime() <= Date.now()) {
+      await clearSchoolYearUndoState(client);
+      toast({
+        title: 'Undo Window Expired',
+        description: 'The one-week undo window has passed.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setUndoInProgress(true);
     setProcessedCount(0);
@@ -3178,7 +3490,7 @@ export default function StudentsPage() {
         const student = previousStudentData[i];
         
         // Revert to original level and status
-        const { error } = await supabase
+        const { error } = await client
           .from('students')
           .update({
             level: student.level,
@@ -3197,10 +3509,45 @@ export default function StudentsPage() {
         await new Promise(resolve => setTimeout(resolve, 50));
       }
 
+      if (undoState.newSchoolYearId) {
+        const { error: deleteError } = await client
+          .from('school_years')
+          .delete()
+          .eq('id', undoState.newSchoolYearId);
+
+        if (deleteError) {
+          console.warn('Failed to delete new school year row during undo:', deleteError.message);
+        }
+      }
+
+      if (undoState.previousSchoolYear?.id) {
+        const { error: restoreError } = await client
+          .from('school_years')
+          .update({ is_current: true })
+          .eq('id', undoState.previousSchoolYear.id);
+
+        if (restoreError) {
+          console.warn('Failed to restore previous school year during undo:', restoreError.message);
+        }
+      } else if (undoState.previousSchoolYear?.label) {
+        const { error: restoreError } = await client
+          .from('school_years')
+          .update({ is_current: true })
+          .eq('label', undoState.previousSchoolYear.label);
+
+        if (restoreError) {
+          console.warn('Failed to restore previous school year during undo:', restoreError.message);
+        }
+      }
+
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(schoolYearClosureKey);
+      }
+
       // Refresh students list after all updates
       await fetchStudents();
-      setUndoAvailable(false);
-      setPreviousStudentData([]);
+      await clearSchoolYearUndoState(client);
+      await loadSchoolYearMetadata();
       
     } catch (error) {
       console.error('Error undoing school year changes:', error);
@@ -3339,13 +3686,30 @@ export default function StudentsPage() {
       .filter(Boolean) as Array<{ student: Student; enrollment: { id?: number; start_date: string; end_date: string } }>;
   }, [students, summerEnrollments]);
 
-  const totalSummerPages = Math.max(1, Math.ceil(summerStudents.length / PAGE_SIZE));
-  const paginatedSummerStudents = summerStudents.slice((summerCurrentPage - 1) * PAGE_SIZE, summerCurrentPage * PAGE_SIZE);
-  const summerShowingFrom = summerStudents.length === 0 ? 0 : (summerCurrentPage - 1) * PAGE_SIZE + 1;
-  const summerShowingTo = Math.min(summerCurrentPage * PAGE_SIZE, summerStudents.length);
+  const filteredSummerStudents = useMemo(() => {
+    return summerStudents.filter(({ student }) => {
+      const term = search.toLowerCase();
+      const matchesSearch = student.name.toLowerCase().includes(term) ||
+                            student.lrn.toLowerCase().includes(term) ||
+                            student.parentName.toLowerCase().includes(term);
+      const matchesLevel = filterGrade === 'all' || student.level === filterGrade;
+      const matchesGender = filterGender === 'all' || student.gender === filterGender;
+      if (filterRisk !== 'all') {
+        const riskScore = riskScores[student.lrn];
+        if (!riskScore) return false;
+        return matchesSearch && matchesLevel && matchesGender && riskScore.risk_level === filterRisk;
+      }
+      return matchesSearch && matchesLevel && matchesGender;
+    });
+  }, [summerStudents, search, filterGrade, filterGender, filterRisk, riskScores]);
+
+  const totalSummerPages = Math.max(1, Math.ceil(filteredSummerStudents.length / PAGE_SIZE));
+  const paginatedSummerStudents = filteredSummerStudents.slice((summerCurrentPage - 1) * PAGE_SIZE, summerCurrentPage * PAGE_SIZE);
+  const summerShowingFrom = filteredSummerStudents.length === 0 ? 0 : (summerCurrentPage - 1) * PAGE_SIZE + 1;
+  const summerShowingTo = Math.min(summerCurrentPage * PAGE_SIZE, filteredSummerStudents.length);
 
   const exportToCSV = async () => {
-    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Parent Name', 'Parent Contact', 'Parent Email', 'Additional Parent Name', 'Additional Parent Contact', 'Address', 'Status'];
+    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Parent Name', 'Parent Contact', 'Parent Email', 'Parent/Guardian 2 Name', 'Parent/Guardian 2 Contact', 'Address', 'Status'];
     const exportRows = filteredStudents.map((student) => {
       const age = shouldShowAge(student.level) ? calculateAgeWithDecimal(student.birthday) : 'N/A';
       const riskLevel = student.riskLevel || '';
@@ -3360,8 +3724,8 @@ export default function StudentsPage() {
         'Parent Name': student.parentName || '',
         'Parent Contact': student.parentContact || '',
         'Parent Email': student.parentEmail || '',
-        'Additional Parent Name': (student as any).parent2Name || '',
-        'Additional Parent Contact': (student as any).parent2Contact || '',
+        'Parent/Guardian 2 Name': (student as any).parent2Name || '',
+        'Parent/Guardian 2 Contact': (student as any).parent2Contact || '',
         Address: student.address || '',
         Status: student.status || 'active',
       };
@@ -3373,37 +3737,96 @@ export default function StudentsPage() {
       .trim();
     const baseFileName = `SGCDC (${sanitizedSchoolYear || 'School Year'})`;
 
-    try {
-      const XLSX = await import('xlsx');
-      const worksheet = XLSX.utils.json_to_sheet(exportRows, { header: headers });
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
-      XLSX.writeFile(workbook, `${baseFileName}.xlsx`);
-      return;
-    } catch (excelError) {
-      console.warn('XLSX export failed, falling back to CSV:', excelError);
-    }
+    // Use ExcelJS and apply letterhead header like analytics
+    void (async () => {
+      try {
+        const mod = await import('exceljs');
+        const ExcelJS = (mod && (mod.default || mod)) as any;
 
-    const csvContent = [
-      headers.join(','),
-      ...exportRows.map((row) =>
-        headers
-          .map((header) => {
-            const rawValue = String(row[header as keyof typeof row] ?? '');
-            const escaped = rawValue.replace(/"/g, '""');
-            return `"${escaped}"`;
-          })
-          .join(','),
-      ),
-    ].join('\n');
+        const theme = { slate200: 'FFE2E8F0', slate100: 'FFF1F5F9', slate50: 'FFF8FAFC' };
+        const solidFill = (argb: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb } });
+        const borderAll = (argb = theme.slate200) => ({ top: { style: 'thin' as any, color: { argb } }, left: { style: 'thin' as any, color: { argb } }, bottom: { style: 'thin' as any, color: { argb } }, right: { style: 'thin' as any, color: { argb } } });
+        const blobToBase64 = (blob: Blob) => new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onloadend = () => { const result = reader.result as string; resolve(result.split(',')[1] || ''); }; reader.onerror = reject; reader.readAsDataURL(blob); });
 
-    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${baseFileName}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'SafeGate';
+        wb.created = new Date();
+        wb.title = baseFileName;
+
+        const colNumberToName = (n: number) => {
+          let s = '';
+          while (n > 0) {
+            const m = (n - 1) % 26;
+            s = String.fromCharCode(65 + m) + s;
+            n = Math.floor((n - 1) / 26);
+          }
+          return s;
+        };
+
+        const applyEmailHeader = async (sheet: any) => {
+          sheet.properties.defaultRowHeight = 22;
+          // freeze just after the header rows (2 header rows)
+          sheet.views = [{ showGridLines: false, state: 'frozen', ySplit: 3 }];
+          sheet.pageSetup = { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.25, right: 0.25, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 } };
+          // sheet.columns should be set to headers length before calling this
+
+          try {
+            const logoResponse = await fetch('/SGCDC.png');
+            if (logoResponse.ok) {
+              const logoBlob = await logoResponse.blob();
+              const logoBase64 = await blobToBase64(logoBlob);
+              const img = new (window as any).Image();
+              img.src = `data:image/png;base64,${logoBase64}`;
+              await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = (e: any) => reject(e); });
+              const maxHeight = 72;
+              const ratio = (img.naturalWidth && img.naturalHeight) ? img.naturalWidth / img.naturalHeight : 1;
+              const height = Math.min(maxHeight, img.naturalHeight || maxHeight);
+              const width = Math.round(height * ratio);
+              const logoId = wb.addImage({ base64: logoBase64, extension: 'png' });
+              const lastCol = Math.max(1, (sheet.columns && sheet.columns.length) || 1);
+              const centerCol = lastCol / 2;
+              const approxColsForImage = Math.max(1, Math.round(width / 40));
+              const tlCol = Math.max(0.25, centerCol - approxColsForImage / 2);
+              sheet.addImage(logoId, { tl: { col: tlCol, row: 0.08 }, ext: { width, height }, editAs: 'oneCell' });
+            }
+          } catch (logoError) {
+            console.warn('SGCDC logo could not be embedded in Students export:', logoError);
+          }
+
+          sheet.getRow(1).height = 80;
+          sheet.getRow(2).height = 44;
+          const lastColLetter = colNumberToName(Math.max(1, sheet.columns.length || 1));
+          sheet.mergeCells(`A1:${lastColLetter}1`);
+          const kickerCell = sheet.getCell('A1');
+          kickerCell.value = { richText: [ { text: 'SUBIC GATEWAY CHILD DEVELOPMENT CENTER, INC.\n', font: { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF000000' } } }, { text: 'Building 5144 & 5145, Argonaut Highway, West Kalayaan,\nSubic Bay Freeport Zone, 2222\nTel. No.: (047)639-4690\n', font: { name: 'Calibri', size: 11, color: { argb: 'FF000000' } } }, { text: 'subicgatewayedc@gmail.com', font: { name: 'Calibri', size: 11, color: { argb: 'FF0563C1' } } } ] } as any;
+          kickerCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          kickerCell.border = borderAll();
+        };
+
+        const ws = wb.addWorksheet('Students', { views: [{ state: 'frozen', ySplit: 3 }] });
+        ws.columns = headers.map((h) => ({ width: Math.min(40, Math.max(12, String(h).length + 8)) }));
+        await applyEmailHeader(ws);
+
+        const headerRowIndex = 3;
+        ws.getRow(headerRowIndex).values = headers;
+        ws.getRow(headerRowIndex).eachCell((cell: any) => { cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF000000' } }; cell.border = borderAll(); });
+        exportRows.forEach((r) => { const row = ws.addRow(headers.map((h) => r[h as keyof typeof r])); row.eachCell((cell: any) => { cell.font = { name: 'Calibri', size: 10, color: { argb: 'FF000000' } }; cell.border = borderAll(); }); });
+
+        ws.columns.forEach((c: any, i: number) => { if (!c.width) ws.getColumn(i + 1).width = 18; });
+
+        const buf = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${baseFileName}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error('Failed to export students as Excel:', err);
+        toast({ title: 'Export failed', description: 'Unable to generate Excel file. Try again or contact support.', variant: 'destructive' });
+      }
+    })();
   };
 
   const handleImportStudents = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -3717,6 +4140,118 @@ export default function StudentsPage() {
                     </div>
                   </DialogContent>
                 </Dialog>
+                  {/* Summer Class button (also available while Undo is shown) */}
+                  <Dialog open={summerModalOpen} onOpenChange={setSummerModalOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="default" size="sm" className="gap-2 bg-orange-400 hover:bg-orange-500 text-white font-semibold">
+                        <Users size={16} />
+                        Summer Class
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl font-bold">Summer Class Enrollment</DialogTitle>
+                        <DialogDescription>Select students to enroll in the summer class and set the summer dates.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 mt-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-medium">Summer Start Date</label>
+                            <Input type="date" value={summerStartDate} onChange={(e) => setSummerStartDate(e.target.value)} />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-medium">Summer End Date</label>
+                            <Input type="date" value={summerEndDate} onChange={(e) => setSummerEndDate(e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="relative">
+                          <Command shouldFilter={false} className="border rounded-lg">
+                            <CommandInput
+                              placeholder="Type student name, LRN, or level"
+                              value={summerSearchQuery}
+                              onValueChange={setSummerSearchQuery}
+                            />
+                            <CommandList className="max-h-80">
+                              <CommandEmpty>No student found. Try another name or LRN.</CommandEmpty>
+                              <CommandGroup>
+                                {students
+                                  .filter((s) => {
+                                    const query = summerSearchQuery.toLowerCase();
+                                    return (
+                                      s.name.toLowerCase().includes(query) ||
+                                      s.lrn.toLowerCase().includes(query) ||
+                                      s.level.toLowerCase().includes(query)
+                                    );
+                                  })
+                                  .map((s) => {
+                                    const isSelected = selectedSummerStudents.includes(s.lrn);
+                                    return (
+                                      <CommandItem
+                                        key={s.lrn}
+                                        value={`${s.name} ${s.lrn} ${s.level}`}
+                                        onSelect={() => {
+                                          setSelectedSummerStudents(prev =>
+                                            prev.includes(s.lrn) ? prev.filter(x => x !== s.lrn) : [...prev, s.lrn]
+                                          );
+                                        }}
+                                        className="cursor-pointer"
+                                      >
+                                        <Checkbox checked={isSelected} className="pointer-events-none" />
+                                        <div className="flex flex-col">
+                                          <span className="font-medium">{s.name}</span>
+                                          <span className="text-xs text-muted-foreground">
+                                            {s.lrn} • {s.level}
+                                          </span>
+                                        </div>
+                                      </CommandItem>
+                                    );
+                                  })}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </div>
+                        <div className="flex gap-3 justify-end">
+                          <Button variant="outline" onClick={() => setSummerModalOpen(false)}>Cancel</Button>
+                          <Button
+                            onClick={async () => {
+                              if (!summerStartDate || !summerEndDate) {
+                                toast({ title: 'Missing Dates', description: 'Please select both start and end dates for the summer class.', variant: 'destructive' });
+                                return;
+                              }
+                              if (!supabase) {
+                                toast({ title: 'Database not connected', description: 'Supabase client not initialized.', variant: 'destructive' });
+                                return;
+                              }
+                              try {
+                                // Upsert enrollments for selected students
+                                const rows = selectedSummerStudents.map(lrn => ({ student_lrn: lrn, start_date: summerStartDate, end_date: summerEndDate }));
+                                const { error } = await supabase.from('summer_enrollments').upsert(rows, { onConflict: 'student_lrn' });
+                                if (error) throw error;
+                                // Refresh enrollments
+                                const { data: summerData } = await supabase.from('summer_enrollments').select('*');
+                                const map: Record<string, { id?: number; start_date: string; end_date: string }> = {};
+                                (summerData || []).forEach((row: any) => {
+                                  map[row.student_lrn] = { id: row.id, start_date: row.start_date, end_date: row.end_date };
+                                });
+                                setSummerEnrollments(map);
+                                setSummerModalOpen(false);
+                                setSelectedSummerStudents([]);
+                                toast({ title: 'Summer enrollments saved', description: `${rows.length} students enrolled for summer class.` });
+                                await fetchStudents();
+                                void fetchTodaysAttendance();
+                              } catch (err: any) {
+                                console.error('Failed to save summer enrollments:', err);
+                                toast({ title: 'Failed to save', description: err?.message || String(err), variant: 'destructive' });
+                              }
+                            }}
+                            className="bg-orange-500 hover:bg-orange-600 text-white"
+                          >
+                            Save Enrollments
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
               </>
             ) : (
               <Dialog open={newSchoolYearOpen} onOpenChange={handleSchoolYearDialogChange}>
@@ -3734,7 +4269,7 @@ export default function StudentsPage() {
                       Summer Class
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
+                  <DialogContent className="w-[90%] max-w-sm sm:max-w-md p-4 sm:p-6">
                     <DialogHeader>
                       <DialogTitle className="text-2xl font-bold">Summer Class Enrollment</DialogTitle>
                       <DialogDescription>Select students to enroll in the summer class and set the summer dates.</DialogDescription>
@@ -3845,7 +4380,7 @@ export default function StudentsPage() {
                       End School Year
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-md">
+                  <DialogContent className="w-[90%] max-w-sm sm:max-w-md p-4 sm:p-6">
                     <DialogHeader>
                       <DialogTitle className="text-2xl font-bold">End Current School Year</DialogTitle>
                       <DialogDescription>
@@ -3882,7 +4417,7 @@ export default function StudentsPage() {
                     </div>
                   </DialogContent>
                 </Dialog>
-                <DialogContent className="max-w-md">
+                <DialogContent className="w-[90%] max-w-sm sm:max-w-md p-4 sm:p-6">
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-bold">
                       {schoolYearStartDate && schoolYearEndDate
@@ -4028,8 +4563,8 @@ export default function StudentsPage() {
                   Add Student
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[96vw] sm:w-[92vw] max-w-5xl lg:max-w-4xl h-auto sm:h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
-                <div className="flex-1 max-h-[92vh] overflow-y-auto p-6 md:p-8 space-y-4">
+              <DialogContent className="w-[94vw] sm:w-[92vw] max-w-4xl lg:max-w-5xl p-0 flex flex-col max-h-[86dvh] sm:max-h-[90vh] overflow-hidden">
+                <div className="flex-1 max-h-[86dvh] sm:max-h-[90vh] overflow-y-auto p-6 md:p-8 space-y-4">
                   <DialogHeader>
                     <DialogTitle className="text-xl font-bold">Add New Student</DialogTitle>
                     <DialogDescription>Fill out the required details to register a student.</DialogDescription>
@@ -4320,15 +4855,15 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="md:col-span-2 space-y-1 pt-2 border-t border-gray-200 dark:border-gray-700 mt-2">
-                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Additional Parent/Guardian (optional)</p>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Parent/Guardian 2 Information (optional)</p>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium"> Parent/Guardian Name (optional)</label>
+                    <label className="text-sm font-medium">Parent/Guardian 2 Name (optional)</label>
                     <Input
                       value={newStudentForm.parent2Name}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parent2Name: e.target.value }))}
-                      placeholder="Additional Parent/Guardian Full Name"
+                      placeholder="Parent/Guardian 2 Full Name (optional)"
                       className="capitalize"
                     />
                   </div>
@@ -4457,84 +4992,6 @@ export default function StudentsPage() {
           </motion.div>
         </div>
 
-        {/* Filters */}
-        <AnimatePresence>
-          {showFilters && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Filter className="w-5 h-5 text-blue-500" />
-                    Search & Filter Students
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
-                    <div className="relative lg:col-span-5">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search by LRN, name, or parent..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-9 h-10"
-                      />
-                    </div>
-                    <Select value={filterGrade} onValueChange={setFilterGrade}>
-                      <SelectTrigger className="h-10 lg:col-span-2">
-                        <SelectValue placeholder="Filter By Level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Levels</SelectItem>
-                        {Object.keys(LEVEL_COLORS).map(level => (
-                          <SelectItem key={level} value={level}>{level.replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={filterGender} onValueChange={setFilterGender}>
-                      <SelectTrigger className="h-10 lg:col-span-2">
-                        <SelectValue placeholder="Filter By Gender" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Genders</SelectItem>
-                        <SelectItem value="Male">Male</SelectItem>
-                        <SelectItem value="Female">Female</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={filterRisk} onValueChange={setFilterRisk}>
-                      <SelectTrigger className="h-10 lg:col-span-3">
-                        <SelectValue placeholder="Filter By Risk" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Risk Levels</SelectItem>
-                        <SelectItem value="low">Low Risk</SelectItem>
-                        <SelectItem value="medium">Medium Risk</SelectItem>
-                        <SelectItem value="high">High Risk</SelectItem>
-                        <SelectItem value="critical">Critical Risk</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                    <p>
-                      Showing <span className="font-bold text-foreground">{filteredStudents.length}</span> of{' '}
-                      <span className="font-bold text-foreground">{students.length}</span> students
-                    </p>
-                    {showOnlySummer && (
-                      <span className="inline-flex w-fit rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-orange-700 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300">
-                        Summer filter active
-                      </span>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Tabs for List and Analytics */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid w-full max-w-lg grid-cols-3">
@@ -4553,8 +5010,1109 @@ export default function StudentsPage() {
           </TabsList>
 
           <TabsContent value="list" className="space-y-4">
-            {/* Students Table */}
-            <Card className="border-0 shadow-lg overflow-hidden">
+            <AnimatePresence mode="wait">
+              {activeTab === 'list' && (
+                <motion.div key="tab-list" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.25 }}>
+            {/* Filters */}
+            <AnimatePresence>
+              {!showFilters && (
+                <motion.div
+                  key="students-filters-summary"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="mb-3"
+                >
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/60 bg-slate-50 px-4 py-2 dark:border-slate-700/40 dark:bg-slate-900/50">
+                    <div className="min-w-0 text-sm truncate">
+                      <strong className="mr-2">Filters</strong>
+                      <span className="text-muted-foreground">
+                        {search.trim() ? `Search: ${search.trim()}` : 'No search'} • {filterGrade === 'all' ? 'All Levels' : filterGrade} • {filterGender === 'all' ? 'All Genders' : filterGender} • {filterRisk === 'all' ? 'All Risk Levels' : filterRisk}
+                      </span>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => setShowFilters(true)} className="gap-2">
+                      Show
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+              {showFilters && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <Card className="border-0 shadow-lg">
+                    <CardHeader>
+                      <div className="flex w-full items-start justify-between gap-3">
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Filter className="w-5 h-5 text-blue-500" />
+                          Search & Filter Students
+                        </CardTitle>
+                        <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="gap-2">
+                          Hide
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+                        <div className="relative lg:col-span-5">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search by LRN, name, or parent..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="pl-9 h-10 w-full"
+                          />
+                        </div>
+                        <div className="lg:col-span-2">
+                          <Select value={filterGrade} onValueChange={setFilterGrade}>
+                            <SelectTrigger className="h-10 w-full">
+                              <SelectValue placeholder="Filter By Level" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Levels</SelectItem>
+                              {Object.keys(LEVEL_COLORS).map(level => (
+                                <SelectItem key={level} value={level}>{level.replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="lg:col-span-2">
+                          <Select value={filterGender} onValueChange={setFilterGender}>
+                            <SelectTrigger className="h-10 w-full">
+                              <SelectValue placeholder="Filter By Gender" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Genders</SelectItem>
+                              <SelectItem value="Male">Male</SelectItem>
+                              <SelectItem value="Female">Female</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="lg:col-span-3">
+                          <Select value={filterRisk} onValueChange={setFilterRisk}>
+                            <SelectTrigger className="h-10 w-full">
+                              <SelectValue placeholder="Filter By Risk" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Risk Levels</SelectItem>
+                              <SelectItem value="low">Low Risk</SelectItem>
+                              <SelectItem value="medium">Medium Risk</SelectItem>
+                              <SelectItem value="high">High Risk</SelectItem>
+                              <SelectItem value="critical">Critical Risk</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                        <p>
+                          Showing <span className="font-bold text-foreground">{filteredStudents.length}</span> of{' '}
+                          <span className="font-bold text-foreground">{students.length}</span> students
+                        </p>
+                        {showOnlySummer && (
+                          <span className="inline-flex w-fit rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-orange-700 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300">
+                            Summer filter active
+                          </span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Mobile-optimized Students (visible on small screens) */}
+            {isMobile ? (
+              <div className="space-y-3">
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={`mobile-students-${currentPage}`}
+                    initial={{ opacity: 0, x: 12, scale: 0.995 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: -12, scale: 0.995 }}
+                    transition={{ duration: 0.22, ease: 'easeOut' }}
+                    className="space-y-3 px-2"
+                  >
+                    {paginatedStudents.map((student) => (
+                      <div key={student.id} className="bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{student.name}</p>
+                            <p className="text-xs text-gray-500 truncate">{student.lrn} • {student.level}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="mb-1 flex justify-end">
+                              {(student.status || 'active') === 'active' ? (
+                                <Badge className="bg-success/20 text-success border-success/30 font-medium">Active</Badge>
+                              ) : student.substatus === 'undergrad' ? (
+                                <Badge className="bg-info/20 text-info border-info/30 font-medium">Undergrad</Badge>
+                              ) : student.substatus === 'transferred' ? (
+                                <Badge className="bg-blue-500/20 text-blue-700 border-blue-500/30 font-medium dark:text-blue-300">Transferred</Badge>
+                              ) : student.substatus === 'dropped' ? (
+                                <Badge className="bg-destructive/20 text-destructive border-destructive/30 font-medium">Dropped</Badge>
+                              ) : (
+                                <Badge className="bg-muted/20 text-muted-foreground border-muted/30 font-medium">Inactive</Badge>
+                              )}
+                            </div>
+                            <Dialog
+                              open={selectedStudent?.id === student.id && detailsOpen}
+                              onOpenChange={(open) => {
+                                if (!open) {
+                                  setSelectedStudent(null);
+                                  setDetailsOpen(false);
+                                  setEditingSchedule(false);
+                                  setScheduleDraft([]);
+                                  setDetailsTab('overview');
+                                  setHighlightExcuseDate('');
+                                  setPendingLrn('');
+                                  setEditingStudentInfo(false);
+                                }
+                              }}
+                            >
+                              <DialogTrigger asChild>
+                                <Button size="sm" variant="ghost" onClick={() => openStudentDetails(student, { tab: 'overview' })}>View</Button>
+                              </DialogTrigger>
+                              <DialogContent className="w-[94vw] sm:w-[92vw] max-w-4xl lg:max-w-5xl p-0 flex flex-col max-h-[86dvh] sm:max-h-[90vh] overflow-hidden">
+                                <div className="relative p-3 sm:p-6 md:p-8 max-h-[86dvh] sm:max-h-[90vh] overflow-y-auto">
+                                  {selectedStudent && (
+                                    <>
+                                      <DialogHeader className="text-left">
+                                        <div className="flex items-center gap-3">
+                                          <Avatar className="h-12 w-12">
+                                            <AvatarFallback className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 text-lg">
+                                              {selectedStudent.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                            </AvatarFallback>
+                                          </Avatar>
+                                          <div>
+                                            <DialogTitle className="text-2xl">
+                                              {selectedStudent.name}
+                                              {selectedStudent.is_special_case && (
+                                                <img src="/Helping-Hand.png" alt="Special Case" className="w-5 h-5 inline-block ml-3" />
+                                              )}
+                                            </DialogTitle>
+                                            <DialogDescription asChild>
+                                              <div className="space-y-2">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                <Input
+                                                  value={pendingLrn}
+                                                  onChange={e => setPendingLrn(e.target.value)}
+                                                  placeholder="Enter LRN"
+                                                  className="capitalize w-48"
+                                                  disabled={!editingStudentInfo}
+                                                />
+                                                <Select
+                                                  value={selectedStudent.level || undefined}
+                                                  onValueChange={(value) => setSelectedStudent({ ...selectedStudent, level: value })}
+                                                  disabled={!isAdmin || !editingStudentInfo}
+                                                >
+                                                  <SelectTrigger className="w-40">
+                                                    <SelectValue placeholder="Grade level" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    {availableLevelOptions.map((level) => (
+                                                      <SelectItem key={level} value={level}>{level}</SelectItem>
+                                                    ))}
+                                                  </SelectContent>
+                                                </Select>
+                                                <Select
+                                                  value={(selectedStudent.status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active'}
+                                                  onValueChange={(value) => setSelectedStudent({ ...selectedStudent, status: value })}
+                                                  disabled={!isAdmin || !editingStudentInfo}
+                                                >
+                                                  <SelectTrigger className="w-32">
+                                                    <SelectValue placeholder="Status" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    {STUDENT_STATUS_OPTIONS.map((status) => (
+                                                      <SelectItem key={status} value={status}>
+                                                        {status === 'active' ? 'Active' : 'Inactive'}
+                                                      </SelectItem>
+                                                    ))}
+                                                  </SelectContent>
+                                                </Select>
+                                                {selectedStudent.lrn && selectedStudent.lrn.startsWith('TEMP-') && (
+                                                  <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-1">Temporary LRN</span>
+                                                )}
+                                              </div>
+                                              </div>
+                                            </DialogDescription>
+                                          </div>
+                                        </div>
+                                      </DialogHeader>
+
+                                      <Tabs defaultValue="overview" className="mt-6 space-y-4">
+                                        <TabsList
+                                          className="grid h-auto w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 p-1.5 text-xs sm:text-sm md:text-base relative z-10 bg-white/90 dark:bg-slate-900/80 mb-3 sm:mb-4"
+                                          style={{ boxShadow: '0 2px 8px 0 rgba(0,0,0,0.03)' }}
+                                        >
+                                          <TabsTrigger value="overview" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Overview</TabsTrigger>
+                                          <TabsTrigger value="attendance" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Attendance</TabsTrigger>
+                                          <TabsTrigger value="excuse-letters" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Excuse Letters</TabsTrigger>
+                                          <TabsTrigger value="schedule" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Schedule</TabsTrigger>
+                                          <TabsTrigger value="behavioral" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Behavioral</TabsTrigger>
+                                          <TabsTrigger value="qr" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">QR Code</TabsTrigger>
+                                        </TabsList>
+
+                                        <TabsContent value="overview" className="space-y-4 mt-4">
+                                          <div className="grid grid-cols-1 gap-3 relative sm:grid-cols-2">
+                                            {(() => {
+                                              const raw = selectedStudent.name.trim();
+                                              let lastName = '';
+                                              let firstMiddle = '';
+                                              if (raw.includes(',')) {
+                                                const parts = raw.split(',');
+                                                lastName = parts[0].trim();
+                                                firstMiddle = (parts[1] || '').trim();
+                                              } else {
+                                                const nameParts = raw.split(' ');
+                                                lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+                                                firstMiddle = nameParts.slice(0, -1).join(' ');
+                                              }
+
+                                              return (
+                                                <>
+                                                  <div className="col-span-2 sm:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                                    <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                      <User className="w-3 h-3" />
+                                                      Name
+                                                    </p>
+                                                    <div className="grid grid-cols-2 gap-2 w-full max-w-md">
+                                                      <Input
+                                                        value={editFirstMiddleName !== null ? editFirstMiddleName : firstMiddle}
+                                                        onChange={e => setEditFirstMiddleName(e.target.value)}
+                                                        className="font-medium w-full text-sm sm:text-base"
+                                                        placeholder="First & Middle Name"
+                                                        disabled={!editingStudentInfo}
+                                                      />
+                                                      <Input
+                                                        value={editLastName !== null ? editLastName : lastName}
+                                                        onChange={e => setEditLastName(e.target.value)}
+                                                        placeholder="Last Name"
+                                                        className="font-medium w-full text-sm sm:text-base"
+                                                        disabled={!editingStudentInfo}
+                                                      />
+                                                    </div>
+                                                  </div>
+                                                  <div className="col-span-2 sm:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex items-start justify-start pl-4">
+                                                    <div className="flex flex-col items-start ml-2 gap-2 w-full max-w-xs">
+                                                      <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Special Education needs</p>
+                                                      <p className="text-xs leading-relaxed text-muted-foreground">Does this learner have educational needs?</p>
+                                                      <div className="flex items-center gap-2">
+                                                        <Switch
+                                                          className="data-[state=unchecked]:bg-slate-300 data-[state=unchecked]:border data-[state=unchecked]:border-slate-500 data-[state=checked]:bg-blue-600"
+                                                          checked={!!selectedStudent.is_special_case}
+                                                          onCheckedChange={(v) => setSelectedStudent({ ...selectedStudent, is_special_case: !!v })}
+                                                          disabled={!editingStudentInfo}
+                                                        />
+                                                        <span className="text-sm text-slate-700 dark:text-slate-300">Yes</span>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                </>
+                                              );
+                                            })()}
+                                            <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                              <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                <Calendar className="w-3 h-3" />
+                                                Birthday
+                                              </p>
+                                              {editingStudentInfo ? (
+                                                <Input
+                                                  type="date"
+                                                  value={selectedStudent.birthday || ''}
+                                                  onChange={(e) => setSelectedStudent({ ...selectedStudent, birthday: e.target.value })}
+                                                  className="font-medium"
+                                                  disabled={!editingStudentInfo}
+                                                />
+                                              ) : (
+                                                <p className="font-medium">{selectedStudent.birthday}</p>
+                                              )}
+                                              {shouldShowAge(selectedStudent.level) && (
+                                                <p className="text-sm text-muted-foreground mt-1">{calculateAgeWithDecimal(selectedStudent.birthday)} years old</p>
+                                              )}
+                                            </div>
+                                            <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                              <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                <User className="w-3 h-3" />
+                                                Gender
+                                              </p>
+                                              {editingStudentInfo ? (
+                                                <Select
+                                                  value={selectedStudent.gender || ''}
+                                                  onValueChange={(value) => setSelectedStudent({ ...selectedStudent, gender: value })}
+                                                  disabled={!editingStudentInfo}
+                                                >
+                                                  <SelectTrigger className="h-10">
+                                                    <SelectValue placeholder="Select Gender" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    <SelectItem value="Male">Male</SelectItem>
+                                                    <SelectItem value="Female">Female</SelectItem>
+                                                  </SelectContent>
+                                                </Select>
+                                              ) : (
+                                                <p className="font-medium">{selectedStudent.gender}</p>
+                                              )}
+                                            </div>
+                                            <div className="col-span-2 md:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
+                                              <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                <MapPin className="w-3 h-3" />
+                                                Address
+                                              </p>
+                                              <Input
+                                                value={selectedStudent.address || ''}
+                                                onChange={e => setSelectedStudent({ ...selectedStudent, address: e.target.value })}
+                                                placeholder="No address provided"
+                                                className="font-medium w-full"
+                                                disabled={!editingStudentInfo}
+                                              />
+                                            </div>
+                                            <div className="col-span-2 md:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
+                                              <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                <QrCode className="w-3 h-3" />
+                                                RFID UID
+                                              </p>
+                                              <div className="w-full space-y-1.5">
+                                                <div className="flex flex-col gap-1.5 sm:flex-row">
+                                                  <Input
+                                                    value={selectedStudent.rfid_uid || ''}
+                                                    onChange={e => setSelectedStudent({ ...selectedStudent, rfid_uid: normalizeRfidUid(e.target.value) })}
+                                                    placeholder="e.g. A1B2C3D4"
+                                                    className="font-medium w-full text-sm sm:text-base"
+                                                    disabled={!editingStudentInfo}
+                                                  />
+                                                  <Button
+                                                    type="button"
+                                                    variant={rfidConnected ? 'outline' : 'default'}
+                                                    onClick={() => {
+                                                      if (rfidConnected) {
+                                                        void disconnectRfidReader();
+                                                      } else {
+                                                        void connectRfidReader();
+                                                      }
+                                                    }}
+                                                    disabled={!editingStudentInfo || connectingRfid || savingStudentInfo}
+                                                    className="w-full sm:w-auto text-xs sm:text-base gap-2"
+                                                  >
+                                                    {rfidConnected ? <Wifi className="w-4 h-4" /> : <CloudUpload className="w-4 h-4" />}
+                                                    {connectingRfid ? 'Connecting...' : rfidConnected ? 'Disconnect' : 'Tap RFID'}
+                                                  </Button>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground leading-snug">
+                                                  {editingStudentInfo
+                                                    ? 'Tap an RFID tag to auto-fill the UID field. Only hex characters are saved.'
+                                                    : 'Click Edit Info first, then connect the RFID reader to auto-fill the UID.'}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground flex items-center gap-1 leading-snug">
+                                                  {rfidConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                                                  {rfidConnected ? 'RFID reader connected' : 'RFID reader not connected'}
+                                                </p>
+                                              </div>
+                                            </div>
+                                            <div className="col-span-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col sm:flex-row justify-between items-start gap-4">
+                                              <div className="space-y-1.5 w-full max-w-md">
+                                                <p className="text-xs text-muted-foreground mb-1">Parent/Guardian 1 Information</p>
+                                                <div className="flex items-center gap-2 w-full">
+                                                  <User className="w-4 h-4 text-muted-foreground" />
+                                                  <Input
+                                                    value={selectedStudent.parentName || ''}
+                                                    onChange={e => setSelectedStudent({ ...selectedStudent, parentName: e.target.value })}
+                                                    placeholder="Parent/Guardian Name"
+                                                    className="text-sm font-medium"
+                                                    disabled={!editingStudentInfo}
+                                                  />
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                  <Phone className="w-4 h-4 text-muted-foreground" />
+                                                  <Input
+                                                    value={selectedStudent.parentContact || ''}
+                                                    onChange={e => setSelectedStudent({ ...selectedStudent, parentContact: e.target.value })}
+                                                    placeholder="Parent Contact"
+                                                    className="text-sm"
+                                                    disabled={!editingStudentInfo}
+                                                  />
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                  <Mail className="w-4 h-4 text-muted-foreground" />
+                                                  <Input
+                                                    value={selectedStudent.parentEmail || ''}
+                                                    onChange={e => setSelectedStudent({ ...selectedStudent, parentEmail: e.target.value })}
+                                                    placeholder="Parent Email"
+                                                    className="text-sm"
+                                                    disabled={!editingStudentInfo}
+                                                  />
+                                                </div>
+                                                <div className="border-t border-gray-200 dark:border-gray-600 mt-3 pt-3">
+                                                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Parent/Guardian 2 Information (optional)</p>
+                                                  <div className="flex items-center gap-2">
+                                                    <User className="w-4 h-4 text-muted-foreground" />
+                                                    <Input
+                                                      value={selectedStudent.parent2Name || ''}
+                                                      onChange={e => setSelectedStudent({ ...selectedStudent, parent2Name: e.target.value })}
+                                                      placeholder="Parent/Guardian 2 Name (optional)"
+                                                      className="text-sm"
+                                                      disabled={!editingStudentInfo}
+                                                    />
+                                                  </div>
+                                                  <div className="flex items-center gap-1.5 mt-2">
+                                                    <Phone className="w-4 h-4 text-muted-foreground" />
+                                                    <Input
+                                                      value={selectedStudent.parent2Contact || ''}
+                                                      onChange={e => setSelectedStudent({ ...selectedStudent, parent2Contact: e.target.value })}
+                                                      placeholder="Parent/Guardian 2 Contact (optional)"
+                                                      className="text-sm"
+                                                      disabled={!editingStudentInfo}
+                                                    />
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              <div className="flex flex-col sm:flex-row gap-2 sm:ml-4 w-full">
+                                                {/* Mobile fallback: ensure Transfer/Drop are visible on small screens */}
+                                                {isMobile && isAdmin && !editingStudentInfo && (
+                                                  <div className="mt-0 flex flex-col gap-2 w-full">
+                                                    <Button size="sm" variant="outline" className="min-w-[120px] border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 w-full" onClick={() => setTransferDialogOpen(true)}>
+                                                      <ArrowRightLeft className="w-4 h-4" />
+                                                      Transfer Student
+                                                    </Button>
+                                                    <Button size="sm" variant="destructive" className="min-w-[120px] w-full" onClick={() => setDropDialogOpen(true)}>
+                                                      Drop Student
+                                                    </Button>
+                                                  </div>
+                                                )}
+                                                {isAdmin && !editingStudentInfo ? (
+                                                  <Button size="sm" variant="outline" className="min-w-[100px] w-full sm:w-auto" onClick={() => {
+                                                    const raw = selectedStudent.name.trim();
+                                                    let bufLast = '';
+                                                    let bufFirstMiddle = '';
+                                                    if (raw.includes(',')) {
+                                                      const parts = raw.split(',');
+                                                      bufLast = parts[0].trim();
+                                                      bufFirstMiddle = (parts[1] || '').trim();
+                                                    } else {
+                                                      const nameParts = raw.split(' ');
+                                                      bufLast = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+                                                      bufFirstMiddle = nameParts.slice(0, -1).join(' ');
+                                                    }
+                                                    setEditFirstMiddleName(bufFirstMiddle);
+                                                    setEditLastName(bufLast);
+                                                    setEditingStudentInfo(true);
+                                                  }}>
+                                                    Edit Info
+                                                  </Button>
+                                                ) : null}
+                                                {isAdmin && editingStudentInfo && (
+                                                  <Button size="sm" variant="default" className="min-w-[100px] gap-2 w-full sm:w-auto" onClick={handleConfirmStudentInfo} disabled={savingStudentInfo}>
+                                                    {savingStudentInfo ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                                    {savingStudentInfo ? 'Saving...' : 'Confirm'}
+                                                  </Button>
+                                                )}
+                                                {/* Inactive flow actions */}
+                                                {isAdmin && (selectedStudent.status || '').toLowerCase() === 'inactive' && !(selectedStudent as any).inactive_confirmed && (
+                                                  <Button size="sm" variant="outline" className="min-w-[140px]" onClick={handleConfirmInactive} disabled={savingStudentInfo}>
+                                                    {savingStudentInfo ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                                    Confirm Inactive
+                                                  </Button>
+                                                )}
+                                                {isAdmin && (selectedStudent.status || '').toLowerCase() === 'inactive' && (selectedStudent as any).inactive_confirmed && (
+                                                  <Button size="sm" variant="default" className="min-w-[120px]" onClick={handleReactivateStudent} disabled={savingStudentInfo}>
+                                                    {savingStudentInfo ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                                    Reactivate
+                                                  </Button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </TabsContent>
+                                          <TabsContent value="schedule" className="space-y-4 mt-4">
+                                            {loadingSchedule ? (
+                                              <div className="flex justify-center py-8">
+                                                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                                              </div>
+                                            ) : (editingSchedule || (studentSchedules[selectedStudent.lrn] || []).length > 0) ? (
+                                              <div className="space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                  <p className="text-sm text-muted-foreground">Manage this student's schedule and notify parents when updated.</p>
+                                                  {!editingSchedule ? (
+                                                    <Button variant="outline" size="sm" onClick={startEditingSchedule}>
+                                                      Edit Schedule
+                                                    </Button>
+                                                  ) : (
+                                                    isMobile ? (
+                                                      <div className="flex flex-col items-end gap-2 w-full">
+                                                        <Button variant="outline" size="sm" onClick={addScheduleDraftRow} className="w-full">
+                                                          Add Row
+                                                        </Button>
+                                                        <Button
+                                                          variant="outline"
+                                                          size="sm"
+                                                          onClick={() => {
+                                                            setEditingSchedule(false);
+                                                            setScheduleDraft((studentSchedules[selectedStudent.lrn] || []).map((row) => ({
+                                                              id: row.id,
+                                                              day_of_week: row.day_of_week,
+                                                              days_of_week: [row.day_of_week],
+                                                              day_number: row.day_number,
+                                                              subject: row.subject,
+                                                              start_time: row.start_time?.slice(0, 5) || '08:00',
+                                                              end_time: row.end_time?.slice(0, 5) || '09:00',
+                                                              room: row.room || '',
+                                                              teacher_name: row.teacher_name || '',
+                                                            })));
+                                                          }}
+                                                          className="w-full"
+                                                        >
+                                                          Cancel
+                                                        </Button>
+                                                        <Button size="sm" onClick={handleSaveScheduleChanges} disabled={savingScheduleChanges} className="w-full">
+                                                          {savingScheduleChanges ? 'Saving...' : 'Save Changes'}
+                                                        </Button>
+                                                      </div>
+                                                    ) : (
+                                                      <div className="flex items-center gap-2">
+                                                        <Button variant="outline" size="sm" onClick={addScheduleDraftRow}>
+                                                          Add Row
+                                                        </Button>
+                                                        <Button
+                                                          variant="outline"
+                                                          size="sm"
+                                                          onClick={() => {
+                                                            setEditingSchedule(false);
+                                                            setScheduleDraft((studentSchedules[selectedStudent.lrn] || []).map((row) => ({
+                                                              id: row.id,
+                                                              day_of_week: row.day_of_week,
+                                                              days_of_week: [row.day_of_week],
+                                                              day_number: row.day_number,
+                                                              subject: row.subject,
+                                                              start_time: row.start_time?.slice(0, 5) || '08:00',
+                                                              end_time: row.end_time?.slice(0, 5) || '09:00',
+                                                              room: row.room || '',
+                                                              teacher_name: row.teacher_name || '',
+                                                            })));
+                                                          }}
+                                                        >
+                                                          Cancel
+                                                        </Button>
+                                                        <Button size="sm" onClick={handleSaveScheduleChanges} disabled={savingScheduleChanges}>
+                                                          {savingScheduleChanges ? 'Saving...' : 'Save Changes'}
+                                                        </Button>
+                                                      </div>
+                                                    )
+                                                  )}
+                                                </div>
+
+                                                <div className="space-y-3 rounded-xl border p-3 md:p-4">
+                                                  {(editingSchedule ? scheduleDraft : (studentSchedules[selectedStudent.lrn] || [])).map((schedule) => (
+                                                    <div
+                                                      key={schedule.id}
+                                                      className="py-3 first:pt-0 last:pb-0"
+                                                    >
+                                                      {editingSchedule ? (
+                                                        <div className="space-y-3">
+                                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[220px_minmax(0,0.75fr)_minmax(0,1.25fr)]">
+                                                            <div className="space-y-1.5">
+                                                              <label className="text-xs font-medium text-muted-foreground">Days</label>
+                                                              <div className="flex flex-wrap gap-1.5 rounded-xl border p-1.5">
+                                                                {WEEKDAY_OPTIONS.map((day) => {
+                                                                  const editableSchedule = schedule as EditableScheduleRow;
+                                                                  const selected = getNormalizedDraftDays(editableSchedule).includes(day.label);
+                                                                  return (
+                                                                    <Button
+                                                                      key={day.label}
+                                                                      type="button"
+                                                                      variant={selected ? 'default' : 'outline'}
+                                                                      size="sm"
+                                                                      className="h-8 rounded-lg px-2.5"
+                                                                      onClick={() => toggleScheduleDraftDay(schedule.id, day.label)}
+                                                                    >
+                                                                      {day.label.slice(0, 3)}
+                                                                    </Button>
+                                                                  );
+                                                                })}
+                                                              </div>
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                              <label className="text-xs font-medium text-muted-foreground">Subject</label>
+                                                              <Input
+                                                                value={schedule.subject}
+                                                                onChange={(e) => updateScheduleDraftRow(schedule.id, 'subject', e.target.value)}
+                                                                className="h-11 rounded-xl max-w-md"
+                                                              />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                              <label className="text-xs font-medium text-muted-foreground">Time</label>
+                                                              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                                                                <TimePickerInput
+                                                                  value={schedule.start_time?.slice(0, 5)}
+                                                                  onChange={(value) => updateScheduleDraftRow(schedule.id, 'start_time', value)}
+                                                                  className="h-11 rounded-xl"
+                                                                />
+                                                                <span className="text-sm text-muted-foreground">-</span>
+                                                                <TimePickerInput
+                                                                  value={schedule.end_time?.slice(0, 5)}
+                                                                  onChange={(value) => updateScheduleDraftRow(schedule.id, 'end_time', value)}
+                                                                  className="h-11 rounded-xl"
+                                                                />
+                                                              </div>
+                                                            </div>
+                                                          </div>
+                                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                                                            <div className="space-y-1.5">
+                                                              <label className="text-xs font-medium text-muted-foreground">Room</label>
+                                                              <Input
+                                                                value={schedule.room || ''}
+                                                                onChange={(e) => updateScheduleDraftRow(schedule.id, 'room', e.target.value)}
+                                                                className="h-11 rounded-xl"
+                                                                placeholder="Room"
+                                                              />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                              <label className="text-xs font-medium text-muted-foreground">Teacher</label>
+                                                              <Input
+                                                                value={schedule.teacher_name || ''}
+                                                                onChange={(e) => updateScheduleDraftRow(schedule.id, 'teacher_name', e.target.value)}
+                                                                className="h-11 rounded-xl"
+                                                                placeholder="Teacher"
+                                                              />
+                                                            </div>
+                                                            <div className="flex items-end">
+                                                              <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => removeScheduleDraftRow(schedule.id)}
+                                                                disabled={scheduleDraft.length <= 1}
+                                                                className="h-11 rounded-xl px-4"
+                                                              >
+                                                                Remove
+                                                              </Button>
+                                                            </div>
+                                                          </div>
+                                                        </div>
+                                                      ) : (
+                                                        isMobile ? (
+                                                          <div className="space-y-2">
+                                                            <div className="grid grid-cols-3 gap-3">
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Day</p>
+                                                                <p className="mt-1 text-sm">{schedule.day_of_week}</p>
+                                                              </div>
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Subject</p>
+                                                                <p className="mt-1 text-sm truncate">{schedule.subject}</p>
+                                                              </div>
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Time</p>
+                                                                <p className="mt-1 text-sm">{`${formatTime12h(schedule.start_time)} - ${formatTime12h(schedule.end_time)}`}</p>
+                                                              </div>
+                                                            </div>
+                                                            <div className="grid grid-cols-3 gap-3">
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Room</p>
+                                                                <p className="mt-1 text-sm">{schedule.room || '—'}</p>
+                                                              </div>
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Teacher</p>
+                                                                <p className="mt-1 text-sm">{schedule.teacher_name || '—'}</p>
+                                                              </div>
+                                                              <div />
+                                                            </div>
+                                                          </div>
+                                                        ) : (
+                                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Day</p>
+                                                              <p className="mt-1 font-medium">{schedule.day_of_week}</p>
+                                                            </div>
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Subject</p>
+                                                              <p className="mt-1 font-medium">{schedule.subject}</p>
+                                                            </div>
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Time</p>
+                                                              <p className="mt-1 font-medium">{`${formatTime12h(schedule.start_time)} - ${formatTime12h(schedule.end_time)}`}</p>
+                                                            </div>
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Room</p>
+                                                              <p className="mt-1 font-medium">{schedule.room || '—'}</p>
+                                                            </div>
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Teacher</p>
+                                                              <p className="mt-1 font-medium">{schedule.teacher_name || '—'}</p>
+                                                            </div>
+                                                          </div>
+                                                        )
+                                                      )}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <div className="space-y-3 text-center py-8 text-muted-foreground">
+                                                <CalendarDays className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                                <p>No schedule available for this student</p>
+                                                <div>
+                                                  <Button variant="outline" size="sm" onClick={startEditingSchedule}>
+                                                    Add Schedule
+                                                  </Button>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </TabsContent>
+
+                                          <TabsContent value="attendance" className="space-y-4 mt-4">
+                                            {behavioralData && Array.isArray(behavioralData.attendance) && behavioralData.attendance.length > 0 ? (
+                                              <div className="rounded-lg border border-slate-200/60 dark:border-slate-800/50 p-4 bg-white/60 dark:bg-slate-900/30">
+                                                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                                                  <Clock className="w-5 h-5 text-blue-600" />
+                                                  Attendance History
+                                                </h3>
+                                                {(() => {
+                                                  const sorted = behavioralData.attendance.slice().sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                                                  const total = sorted.length;
+                                                  const attendanceTotalPages = Math.max(1, Math.ceil(total / ATTENDANCE_PAGE_SIZE));
+                                                  const attendanceShowingFrom = total === 0 ? 0 : (attendancePage - 1) * ATTENDANCE_PAGE_SIZE + 1;
+                                                  const attendanceShowingTo = Math.min(attendancePage * ATTENDANCE_PAGE_SIZE, total);
+                                                  const paginated = sorted.slice((attendancePage - 1) * ATTENDANCE_PAGE_SIZE, attendancePage * ATTENDANCE_PAGE_SIZE);
+
+                                                  return (
+                                                    <>
+                                                      <div className="overflow-x-auto">
+                                                        <table className="w-full text-sm">
+                                                          <thead>
+                                                            <tr className="text-left text-xs text-muted-foreground">
+                                                              <th className="px-3 py-2">Date</th>
+                                                              <th className="px-3 py-2">Status</th>
+                                                              <th className="px-3 py-2">Check In</th>
+                                                              <th className="px-3 py-2">Check Out</th>
+                                                            </tr>
+                                                          </thead>
+                                                          <tbody>
+                                                            {paginated.map((entry: any) => {
+                                                              const rawStatus = (entry.attendance_status || '').toLowerCase();
+                                                              const statusLabel = rawStatus
+                                                                ? (rawStatus === 'present' ? 'Present' : rawStatus === 'absent' ? 'Absent' : rawStatus === 'holiday' ? 'Holiday' : rawStatus === 'cancelled_class' ? 'Cancelled' : rawStatus === 'late' ? 'Late' : rawStatus)
+                                                                : (entry.is_present ? 'Present' : 'Absent');
+                                                              const noClass = isNoClassStatus(entry.attendance_status || entry.attendanceStatus);
+                                                              const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
+                                                              let isLate = false;
+                                                              if (!noClass && entry.check_in_time && entry.is_present !== false) {
+                                                                const entryTimeFromSchedule = behavioralData?.entryTime;
+                                                                if (entryTimeFromSchedule) {
+                                                                  isLate = isLateCheckIn(entry.check_in_time, entryTimeFromSchedule);
+                                                                } else {
+                                                                  const lateThreshold = getLateThreshold(selectedStudent?.level);
+                                                                  isLate = isLateCheckIn(entry.check_in_time, lateThreshold);
+                                                                }
+                                                              }
+
+                                                              return (
+                                                                <tr key={`${entry.date}-${entry.student_lrn}`} className="border-t border-slate-100 dark:border-slate-800">
+                                                                  <td className="px-3 py-2">{new Date(entry.date).toLocaleDateString()}</td>
+                                                                  <td className="px-3 py-2">
+                                                                    <div className="flex flex-col gap-1">
+                                                                      <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
+                                                                      {isLate && rawStatus !== 'late' && (
+                                                                        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0 py-1 px-2 text-xs w-fit">Late</Badge>
+                                                                      )}
+                                                                    </div>
+                                                                  </td>
+                                                                  <td className="px-3 py-2">{noClass ? '--' : (entry.check_in_time ? formatTime12h(entry.check_in_time) : '--')}</td>
+                                                                  <td className="px-3 py-2">{noClass ? '--' : (entry.check_out_time ? formatTime12h(entry.check_out_time) : '--')}</td>
+                                                                </tr>
+                                                              );
+                                                            })}
+                                                          </tbody>
+                                                        </table>
+                                                      </div>
+
+                                                      <div className="flex items-center justify-between gap-2 px-2 py-3">
+                                                        <p className="text-xs sm:text-sm truncate">Showing {attendanceShowingFrom} - {attendanceShowingTo} of {total}</p>
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                          <Button size="sm" variant="outline" onClick={() => setAttendancePage((p) => Math.max(1, p - 1))} disabled={attendancePage === 1}><ChevronLeft className="w-4 h-4"/></Button>
+                                                          <span className="text-xs sm:text-sm whitespace-nowrap">Page {attendancePage} / {attendanceTotalPages}</span>
+                                                          <Button size="sm" variant="outline" onClick={() => setAttendancePage((p) => Math.min(attendanceTotalPages, p + 1))} disabled={attendancePage === attendanceTotalPages}><ChevronRight className="w-4 h-4"/></Button>
+                                                        </div>
+                                                      </div>
+                                                    </>
+                                                  );
+                                                })()}
+                                              </div>
+                                            ) : (
+                                              <div className="text-center py-8 text-muted-foreground">
+                                                <Clock className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                                <p>No attendance records available</p>
+                                              </div>
+                                            )}
+                                          </TabsContent>
+
+                                          <TabsContent value="excuse-letters" className="space-y-4 mt-4">
+                                            {loadingExcuseLetters ? (
+                                              <div className="flex justify-center py-8">
+                                                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                                              </div>
+                                            ) : (excuseLettersByLrn[selectedStudent.lrn] || []).length > 0 ? (
+                                              <div className="space-y-3">
+                                                {(excuseLettersByLrn[selectedStudent.lrn] || []).map((letter) => {
+                                                  const meta = letter.meta || {};
+                                                  const excuseType = String(meta.excuse_status || '').toLowerCase();
+                                                  const excuseDate = String(meta.excuse_date || '').slice(0, 10);
+                                                  const parentName = String(meta.parent_name || letter.created_by || 'Parent');
+                                                  const reason = String(meta.excuse_reason || '').trim();
+                                                  const isHighlighted = Boolean(highlightExcuseDate) && excuseDate === highlightExcuseDate.slice(0, 10);
+
+                                                  return (
+                                                    <div
+                                                      key={letter.id}
+                                                      className={`rounded-xl border p-4 space-y-2 ${
+                                                        isHighlighted
+                                                          ? 'border-blue-400 bg-blue-50/80 dark:border-blue-500 dark:bg-blue-950/30'
+                                                          : 'border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40'
+                                                      }`}
+                                                    >
+                                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <div>
+                                                          <p className="font-semibold text-slate-900 dark:text-white">{letter.title || 'Parent Excuse Letter'}</p>
+                                                          <p className="text-xs text-muted-foreground">
+                                                              Submitted by {parentName} on {new Date(letter.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {formatTime12h(new Date(letter.created_at))}
+                                                          </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                          <Badge className={excuseType === 'late' ? 'bg-amber-100 text-amber-700 border-0' : 'bg-red-100 text-red-700 border-0'}>
+                                                            {excuseType === 'late' ? 'Late' : 'Absent'}
+                                                          </Badge>
+                                                          <Badge variant="outline">{excuseDate || 'No date'}</Badge>
+                                                        </div>
+                                                      </div>
+                                                      <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
+                                                        {reason || letter.message || 'No explanation provided.'}
+                                                      </p>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            ) : (
+                                              <div className="text-center py-8 text-muted-foreground">
+                                                <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                                <p>No excuse letters submitted for this student.</p>
+                                              </div>
+                                            )}
+                                          </TabsContent>
+
+                                          <TabsContent value="behavioral" className="space-y-4 mt-4">
+                                            {loadingBehavioral ? (
+                                              <div className="flex justify-center py-8">
+                                                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                                              </div>
+                                            ) : behavioralData ? (
+                                              <>
+                                                {/* Stats Grid */}
+                                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+                                                  {/* Total Events Card */}
+                                                  <div>
+                                                    <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                                                      <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
+                                                      <div className="absolute bottom-0 left-0 w-10 h-10 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
+                                                      <CardContent className="p-2 sm:p-4 flex items-center justify-between relative z-10">
+                                                        <div>
+                                                          <p className="text-[9px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Total Events</p>
+                                                          <div className="text-base sm:text-xl font-bold text-blue-600 dark:text-blue-400">{behavioralData.stats.totalEvents}</div>
+                                                          <p className="text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">all behavioral events</p>
+                                                        </div>
+                                                        <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                                                          <Activity className="w-5 h-5" />
+                                                        </div>
+                                                      </CardContent>
+                                                      <div className="h-1 w-full bg-linear-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
+                                                    </Card>
+                                                  </div>
+                                                  {/* Positive Events Card */}
+                                                  <div>
+                                                    <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                                                      <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
+                                                      <div className="absolute bottom-0 left-0 w-10 h-10 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
+                                                      <CardContent className="p-2 sm:p-4 flex items-center justify-between relative z-10">
+                                                        <div>
+                                                          <p className="text-[9px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Positive Events</p>
+                                                          <div className="text-base sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">{behavioralData.stats.positiveEvents}</div>
+                                                          <p className="text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">reinforcing progress</p>
+                                                        </div>
+                                                        <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                                                          <Heart className="w-5 h-5" />
+                                                        </div>
+                                                      </CardContent>
+                                                      <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
+                                                    </Card>
+                                                  </div>
+                                                  {/* Negative Events Card */}
+                                                  <div>
+                                                    <Card className="border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                                                      <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
+                                                      <div className="absolute bottom-0 left-0 w-10 h-10 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
+                                                      <CardContent className="p-2 sm:p-4 flex items-center justify-between relative z-10">
+                                                        <div>
+                                                          <p className="text-[9px] sm:text-xs text-rose-600 dark:text-rose-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Negative Events</p>
+                                                          <div className="text-base sm:text-xl font-bold text-rose-600 dark:text-rose-400">{behavioralData.stats.negativeEvents}</div>
+                                                          <p className="text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">major/critical incidents</p>
+                                                        </div>
+                                                        <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-lg shadow-rose-500/25 dark:shadow-rose-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                                                          <AlertOctagon className="w-5 h-5" />
+                                                        </div>
+                                                      </CardContent>
+                                                      <div className="h-1 w-full bg-linear-to-r from-rose-400 to-rose-600 dark:from-rose-500 dark:to-rose-700" />
+                                                    </Card>
+                                                  </div>
+                                                  {/* Minor Events Card */}
+                                                  <div>
+                                                    <Card className="border-0 bg-linear-to-br from-yellow-50 to-white dark:from-yellow-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
+                                                      <div className="absolute top-0 right-0 w-16 h-16 bg-yellow-500/10 dark:bg-yellow-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
+                                                      <div className="absolute bottom-0 left-0 w-10 h-10 bg-yellow-500/5 dark:bg-yellow-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
+                                                      <CardContent className="p-3 sm:p-4 flex items-center justify-between relative z-10">
+                                                        <div>
+                                                          <p className="text-[10px] sm:text-xs text-yellow-600 dark:text-yellow-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Minor Events</p>
+                                                          <div className="text-lg sm:text-xl font-bold text-yellow-600 dark:text-yellow-400">{behavioralData.stats.minorEvents}</div>
+                                                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">minor incidents</p>
+                                                        </div>
+                                                        <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-yellow-500 to-yellow-600 text-white items-center justify-center shadow-lg shadow-yellow-500/25 dark:shadow-yellow-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                                                          <Minus className="w-5 h-5" />
+                                                        </div>
+                                                      </CardContent>
+                                                      <div className="h-1 w-full bg-linear-to-r from-yellow-400 to-yellow-600 dark:from-yellow-500 dark:to-yellow-700" />
+                                                    </Card>
+                                                  </div>
+                                                </div>
+
+                                                {/* Recent Events */}
+                                                <div>
+                                                  <h3 className="font-semibold mb-3 flex items-center gap-2 px-1">
+                                                    <Bell className="w-4 h-4" />
+                                                    Recent Events
+                                                  </h3>
+                                                  {behavioralData.events.length === 0 ? (
+                                                    <p className="text-center py-4 text-muted-foreground">No recent events</p>
+                                                  ) : (
+                                                    <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                                                      {behavioralData.events.slice(0, 5).map((event: any) => (
+                                                        <div
+                                                          key={event.id}
+                                                          className={`rounded-xl border px-4 py-3 text-sm shadow-sm ${getBehaviorEventVisuals(event.severity).card}`}
+                                                        >
+                                                          <div className="flex items-center justify-between gap-4">
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${getBehaviorEventVisuals(event.severity).iconWrap}`}>
+                                                                {(() => {
+                                                                  const EventIcon = getBehaviorEventVisuals(event.severity).Icon;
+                                                                  return <EventIcon className="h-3.5 w-3.5" />;
+                                                                })()}
+                                                              </div>
+                                                              <div className="min-w-0">
+                                                                <p className={`font-semibold leading-tight truncate ${getBehaviorEventVisuals(event.severity).title}`}>
+                                                                    {humanizeEventType(event.event_type) || 'Behavior Event'}
+                                                                </p>
+                                                                <p className="text-[11px] text-muted-foreground">
+                                                                  {new Date(event.event_date).toLocaleDateString(undefined, {
+                                                                    weekday: 'short',
+                                                                    month: 'short',
+                                                                    day: 'numeric',
+                                                                    year: 'numeric',
+                                                                  })}
+                                                                  {event.event_time ? ` at ${event.event_time}` : ''}
+                                                                </p>
+                                                              </div>
+                                                            </div>
+                                                            <Badge className={`uppercase tracking-wide text-[9px] px-2 py-0.5 font-semibold border shadow-sm ${getBehaviorEventVisuals(event.severity).badge}`}>
+                                                              {event.severity || 'event'}
+                                                            </Badge>
+                                                          </div>
+
+                                                          <p className="mt-3 text-slate-700 dark:text-slate-200 leading-relaxed text-[13px]">
+                                                            {event.description || 'No description provided.'}
+                                                          </p>
+
+                                                          <div className={`mt-3 flex flex-wrap items-center gap-2 text-[11px] ${getBehaviorEventVisuals(event.severity).meta}`}>
+                                                            <div className="flex items-center gap-1.5 rounded-md border border-current/20 bg-white/50 dark:bg-slate-900/20 px-2 py-1">
+                                                              <Calendar className="h-3 w-3" />
+                                                              <span>{new Date(event.event_date).toLocaleDateString()}</span>
+                                                            </div>
+                                                            {event.event_categories?.name ? (
+                                                              <div className="flex items-center gap-1.5 rounded-md border border-current/20 bg-white/50 dark:bg-slate-900/20 px-2 py-1">
+                                                                <FileText className="h-3 w-3" />
+                                                                <span>Category: {event.event_categories.name}</span>
+                                                              </div>
+                                                            ) : null}
+                                                            {event.location ? (
+                                                              <div className="flex items-center gap-1.5 rounded-md border border-current/20 bg-white/50 dark:bg-slate-900/20 px-2 py-1">
+                                                                <MapPin className="h-3 w-3" />
+                                                                <span>Location: {event.location}</span>
+                                                              </div>
+                                                            ) : null}
+                                                            {event.reported_by ? (
+                                                              <div className="flex items-center gap-1.5 rounded-md border border-current/20 bg-white/50 dark:bg-slate-900/20 px-2 py-1">
+                                                                <User className="h-3 w-3" />
+                                                                <span>Reported by: {event.reported_by}</span>
+                                                              </div>
+                                                            ) : null}
+                                                          </div>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </>
+                                            ) : (
+                                              <div className="text-center py-8 text-muted-foreground">
+                                                <Bell className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                                <p>No behavioral data available</p>
+                                              </div>
+                                            )}
+                                          </TabsContent>
+
+                                          <TabsContent value="qr" className="space-y-4 mt-4">
+                                            <div className="text-center">
+                                              <p className="text-muted-foreground mb-4">Scan this QR code to check-in/check-out</p>
+                                              <div ref={qrRef} className="flex justify-center p-6 bg-white rounded-lg border-2 inline-block mx-auto">
+                                                <QRCodeCanvas
+                                                  value={selectedStudent.lrn && selectedStudent.lrn.trim() !== '' ? selectedStudent.lrn : selectedStudent.name}
+                                                  size={200}
+                                                  level="H"
+                                                  includeMargin={true}
+                                                  bgColor="#ffffff"
+                                                  fgColor="#000000"
+                                                />
+                                              </div>
+                                              <div className="flex gap-3 mt-4 justify-center">
+                                                <Button variant="outline" onClick={handlePrintQR} className="gap-2">
+                                                  <Printer size={16} />
+                                                  Download QR
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          </TabsContent>
+                                      </Tabs>
+                                    </>
+                                  )}
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="flex items-center justify-between gap-2 px-2 py-3">
+                      <p className="text-xs sm:text-sm truncate">Showing {showingFrom} - {showingTo} of {filteredStudents.length}</p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button size="sm" variant="outline" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft className="w-4 h-4"/></Button>
+                        <span className="text-xs sm:text-sm whitespace-nowrap">Page {currentPage} / {totalPages}</span>
+                        <Button size="sm" variant="outline" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight className="w-4 h-4"/></Button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            ) : (
+            /* Students Table */
+            <Card className="mt-8 border-0 shadow-lg overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -4846,6 +6404,12 @@ export default function StudentsPage() {
                                 )}
                               </TableCell>
                               <TableCell className="text-center">
+                                {isAdmin && (student.status || '').toLowerCase() === 'inactive' && (student as any).inactive_confirmed && (
+                                  <Button size="sm" variant="default" className="mr-2" onClick={() => handleReactivateById(student.id)} disabled={savingStudentInfo}>
+                                    {savingStudentInfo ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                    Reactivate
+                                  </Button>
+                                )}
                                 <Dialog
                                   open={selectedStudent?.id === student.id}
                                   onOpenChange={(open) => {
@@ -4875,9 +6439,9 @@ export default function StudentsPage() {
                                     </Button>
                                   </DialogTrigger>
                                   <DialogContent
-                                    className="w-full max-w-5xl lg:max-w-5xl p-0 flex flex-col sm:w-[96vw]"
+                                    className="w-[94vw] sm:w-[92vw] max-w-4xl lg:max-w-5xl p-0 flex flex-col max-h-[86dvh] sm:max-h-[90vh] overflow-hidden"
                                   >
-                                    <div className="relative h-full p-2 sm:p-6 md:p-8 max-h-[90vh] overflow-y-auto">
+                                    <div className="relative p-3 sm:p-6 md:p-8 max-h-[86dvh] sm:max-h-[90vh] overflow-y-auto">
                                     {selectedStudent && (
                                       <>
                                         <DialogHeader>
@@ -4894,8 +6458,9 @@ export default function StudentsPage() {
                                                   <img src="/Helping-Hand.png" alt="Special Case" className="w-5 h-5 inline-block ml-3" />
                                                 )}
                                               </DialogTitle>
-                                              <DialogDescription>
-                                                <span className="flex items-center gap-2">
+                                              <DialogDescription asChild>
+                                                <div className="space-y-2">
+                                                  <div className="flex flex-wrap items-center gap-2">
                                                   <Input
                                                     value={pendingLrn}
                                                     onChange={e => setPendingLrn(e.target.value)}
@@ -4904,18 +6469,48 @@ export default function StudentsPage() {
                                                     disabled={!editingStudentInfo}
                                                   />
                                                   {/* LRN update is now handled via main Confirm button */}
+                                                  <Select
+                                                    value={selectedStudent.level || undefined}
+                                                    onValueChange={(value) => setSelectedStudent({ ...selectedStudent, level: value })}
+                                                    disabled={!isAdmin || !editingStudentInfo}
+                                                  >
+                                                    <SelectTrigger className="w-40">
+                                                      <SelectValue placeholder="Grade level" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      {availableLevelOptions.map((level) => (
+                                                        <SelectItem key={level} value={level}>{level}</SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
+                                                  <Select
+                                                    value={(selectedStudent.status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active'}
+                                                    onValueChange={(value) => setSelectedStudent({ ...selectedStudent, status: value })}
+                                                    disabled={!isAdmin || !editingStudentInfo}
+                                                  >
+                                                    <SelectTrigger className="w-32">
+                                                      <SelectValue placeholder="Status" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      {STUDENT_STATUS_OPTIONS.map((status) => (
+                                                        <SelectItem key={status} value={status}>
+                                                          {status === 'active' ? 'Active' : 'Inactive'}
+                                                        </SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
                                                   {selectedStudent.lrn && selectedStudent.lrn.startsWith('TEMP-') && (
-                                                    <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-2">Temporary LRN</span>
+                                                    <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-1">Temporary LRN</span>
                                                   )}
-                                                </span>
-                                                <span className="ml-2">• {selectedStudent.level}</span>
+                                                </div>
                                                 {summerEnrollments[selectedStudent.lrn] && (
-                                                  <span className="ml-3 inline-block align-middle">
+                                                  <span className="inline-block align-middle">
                                                     <Badge className="bg-orange-100 text-orange-700 border-0 text-sm">
                                                       Summer: {new Date(summerEnrollments[selectedStudent.lrn].start_date).toLocaleDateString()} — {new Date(summerEnrollments[selectedStudent.lrn].end_date).toLocaleDateString()}
                                                     </Badge>
                                                   </span>
                                                 )}
+                                                </div>
                                               </DialogDescription>
                                                   {/* Confirmation Dialog for LRN update */}
                                                   <Dialog open={confirmLrnOpen} onOpenChange={setConfirmLrnOpen}>
@@ -4939,21 +6534,15 @@ export default function StudentsPage() {
 
                                         <Tabs defaultValue="overview" className="mt-6 space-y-4">
                                           <TabsList
-                                            className="
-                                              grid grid-cols-2 grid-rows-3 gap-1 w-full p-1
-                                              sm:flex sm:flex-row sm:overflow-x-auto sm:whitespace-nowrap sm:text-base
-                                              text-xs
-                                              relative z-10 bg-white/90 dark:bg-slate-900/80
-                                              mb-3 sm:mb-4
-                                            "
+                                            className="grid h-auto w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 p-1.5 text-xs sm:text-sm md:text-base relative z-10 bg-white/90 dark:bg-slate-900/80 mb-3 sm:mb-4"
                                             style={{ boxShadow: '0 2px 8px 0 rgba(0,0,0,0.03)' }}
                                           >
-                                            <TabsTrigger value="overview" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Overview</TabsTrigger>
-                                            <TabsTrigger value="attendance" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Attendance</TabsTrigger>
-                                            <TabsTrigger value="excuse-letters" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Excuse Letters</TabsTrigger>
-                                            <TabsTrigger value="schedule" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Schedule</TabsTrigger>
-                                            <TabsTrigger value="behavioral" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Behavioral</TabsTrigger>
-                                            <TabsTrigger value="qr" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">QR Code</TabsTrigger>
+                                            <TabsTrigger value="overview" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Overview</TabsTrigger>
+                                            <TabsTrigger value="attendance" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Attendance</TabsTrigger>
+                                            <TabsTrigger value="excuse-letters" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Excuse Letters</TabsTrigger>
+                                            <TabsTrigger value="schedule" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Schedule</TabsTrigger>
+                                            <TabsTrigger value="behavioral" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Behavioral</TabsTrigger>
+                                            <TabsTrigger value="qr" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">QR Code</TabsTrigger>
                                           </TabsList>
 
                                           {savingStudentInfo && (
@@ -5110,7 +6699,6 @@ export default function StudentsPage() {
                                                     />
                                                     <Button
                                                       type="button"
-                                                      className="w-full sm:w-auto text-xs sm:text-base"
                                                       variant={rfidConnected ? 'outline' : 'default'}
                                                       onClick={() => {
                                                         if (rfidConnected) {
@@ -5120,7 +6708,7 @@ export default function StudentsPage() {
                                                         }
                                                       }}
                                                       disabled={!editingStudentInfo || connectingRfid || savingStudentInfo}
-                                                      className="sm:w-auto gap-2"
+                                                      className="w-full sm:w-auto text-xs sm:text-base gap-2"
                                                     >
                                                       {rfidConnected ? <Wifi className="w-4 h-4" /> : <CloudUpload className="w-4 h-4" />}
                                                       {connectingRfid ? 'Connecting...' : rfidConnected ? 'Disconnect' : 'Tap RFID'}
@@ -5139,7 +6727,7 @@ export default function StudentsPage() {
                                               </div>
                                               <div className="col-span-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col sm:flex-row justify-between items-start gap-4">
                                                 <div className="space-y-1.5 w-full max-w-md">
-                                                  <p className="text-xs text-muted-foreground mb-1">Parent/Guardian Information</p>
+                                                  <p className="text-xs text-muted-foreground mb-1">Parent/Guardian 1 Information</p>
                                                   <div className="flex items-center gap-2 w-full">
                                                     <User className="w-4 h-4 text-muted-foreground" />
                                                     <Input
@@ -5150,34 +6738,34 @@ export default function StudentsPage() {
                                                       disabled={!editingStudentInfo}
                                                     />
                                                   </div>
-                                                  <div className="flex items-center gap-1.5">
-                                                    <Phone className="w-4 h-4 text-muted-foreground" />
-                                                    <Input
-                                                      value={selectedStudent.parentContact || ''}
-                                                      onChange={e => setSelectedStudent({ ...selectedStudent, parentContact: e.target.value })}
-                                                      placeholder="Parent Contact"
-                                                      className="text-sm"
-                                                      disabled={!editingStudentInfo}
-                                                    />
-                                                  </div>
-                                                  <div className="flex items-center gap-1.5">
-                                                    <Mail className="w-4 h-4 text-muted-foreground" />
-                                                    <Input
-                                                      value={selectedStudent.parentEmail || ''}
-                                                      onChange={e => setSelectedStudent({ ...selectedStudent, parentEmail: e.target.value })}
-                                                      placeholder="Parent Email"
-                                                      className="text-sm"
-                                                      disabled={!editingStudentInfo}
-                                                    />
-                                                  </div>
+                                                    <div className="flex items-center gap-1.5 mt-2">
+                                                      <Phone className="w-4 h-4 text-muted-foreground" />
+                                                      <Input
+                                                        value={selectedStudent.parent2Contact || ''}
+                                                        onChange={e => setSelectedStudent({ ...selectedStudent, parent2Contact: e.target.value })}
+                                                        placeholder="Parent/Guardian 2 Contact (optional)"
+                                                        className="text-sm"
+                                                        disabled={!editingStudentInfo}
+                                                      />
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                      <Mail className="w-4 h-4 text-muted-foreground" />
+                                                      <Input
+                                                        value={selectedStudent.parent2Email || ''}
+                                                        onChange={e => setSelectedStudent({ ...selectedStudent, parent2Email: e.target.value })}
+                                                        placeholder="Parent/Guardian 2 Email (optional)"
+                                                        className="text-sm"
+                                                        disabled={!editingStudentInfo}
+                                                      />
+                                                    </div>
                                                   <div className="border-t border-gray-200 dark:border-gray-600 mt-3 pt-3">
-                                                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Additional Parent/Guardian (optional)</p>
+                                                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Parent/Guardian 2 Information (optional)</p>
                                                     <div className="flex items-center gap-2">
                                                       <User className="w-4 h-4 text-muted-foreground" />
                                                       <Input
                                                         value={selectedStudent.parent2Name || ''}
                                                         onChange={e => setSelectedStudent({ ...selectedStudent, parent2Name: e.target.value })}
-                                                        placeholder="Additional Parent/Guardian Name"
+                                                        placeholder="Parent/Guardian 2 Name (optional)"
                                                         className="text-sm"
                                                         disabled={!editingStudentInfo}
                                                       />
@@ -5187,7 +6775,7 @@ export default function StudentsPage() {
                                                       <Input
                                                         value={selectedStudent.parent2Contact || ''}
                                                         onChange={e => setSelectedStudent({ ...selectedStudent, parent2Contact: e.target.value })}
-                                                        placeholder="Additional Parent Contact"
+                                                        placeholder="Parent/Guardian 2 Contact (optional)"
                                                         className="text-sm"
                                                         disabled={!editingStudentInfo}
                                                       />
@@ -5196,7 +6784,7 @@ export default function StudentsPage() {
                                                 </div>
 
                                                 {/* Edit/Confirm Button */}
-                                              <div className="flex flex-wrap gap-2 sm:ml-4 shrink-0">
+                                              <div className="flex flex-col sm:flex-row gap-2 sm:ml-4 w-full">
                                                 {isAdmin && (
                                                   <>
                                                     <Button size="sm" variant="outline" className="min-w-[120px] border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 w-full sm:w-auto" onClick={() => setTransferDialogOpen(true)}>
@@ -5356,6 +6944,19 @@ export default function StudentsPage() {
                                                   </Button>
                                                 )}
                                               </div>
+
+                                              {/* Mobile fallback: ensure Transfer/Drop are visible on small screens */}
+                                              {isMobile && isAdmin && !editingStudentInfo && (
+                                                <div className="mt-3 flex flex-col gap-2">
+                                                  <Button size="sm" variant="outline" className="min-w-[120px] border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 w-full" onClick={() => setTransferDialogOpen(true)}>
+                                                    <ArrowRightLeft className="w-4 h-4" />
+                                                    Transfer Student
+                                                  </Button>
+                                                  <Button size="sm" variant="destructive" className="min-w-[120px] w-full" onClick={() => setDropDialogOpen(true)}>
+                                                    Drop Student
+                                                  </Button>
+                                                </div>
+                                              )}
                                             </div>                                           
                                           </div>
                                           </TabsContent>
@@ -5374,34 +6975,66 @@ export default function StudentsPage() {
                                                       Edit Schedule
                                                     </Button>
                                                   ) : (
-                                                    <div className="flex items-center gap-2">
-                                                      <Button variant="outline" size="sm" onClick={addScheduleDraftRow}>
-                                                        Add Row
-                                                      </Button>
-                                                      <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => {
-                                                          setEditingSchedule(false);
-                                                          setScheduleDraft((studentSchedules[selectedStudent.lrn] || []).map((row) => ({
-                                                            id: row.id,
-                                                            day_of_week: row.day_of_week,
-                                                            days_of_week: [row.day_of_week],
-                                                            day_number: row.day_number,
-                                                            subject: row.subject,
-                                                            start_time: row.start_time?.slice(0, 5) || '08:00',
-                                                            end_time: row.end_time?.slice(0, 5) || '09:00',
-                                                            room: row.room || '',
-                                                            teacher_name: row.teacher_name || '',
-                                                          })));
-                                                        }}
-                                                      >
-                                                        Cancel
-                                                      </Button>
-                                                      <Button size="sm" onClick={handleSaveScheduleChanges} disabled={savingScheduleChanges}>
-                                                        {savingScheduleChanges ? 'Saving...' : 'Save Changes'}
-                                                      </Button>
-                                                    </div>
+                                                    isMobile ? (
+                                                      <div className="flex flex-col items-end gap-2 w-full">
+                                                        <Button variant="outline" size="sm" onClick={addScheduleDraftRow} className="w-full">
+                                                          Add Row
+                                                        </Button>
+                                                        <Button
+                                                          variant="outline"
+                                                          size="sm"
+                                                          onClick={() => {
+                                                            setEditingSchedule(false);
+                                                            setScheduleDraft((studentSchedules[selectedStudent.lrn] || []).map((row) => ({
+                                                              id: row.id,
+                                                              day_of_week: row.day_of_week,
+                                                              days_of_week: [row.day_of_week],
+                                                              day_number: row.day_number,
+                                                              subject: row.subject,
+                                                              start_time: row.start_time?.slice(0, 5) || '08:00',
+                                                              end_time: row.end_time?.slice(0, 5) || '09:00',
+                                                              room: row.room || '',
+                                                              teacher_name: row.teacher_name || '',
+                                                            })));
+                                                          }}
+                                                          className="w-full"
+                                                        >
+                                                          Cancel
+                                                        </Button>
+                                                        <Button size="sm" onClick={handleSaveScheduleChanges} disabled={savingScheduleChanges} className="w-full">
+                                                          {savingScheduleChanges ? 'Saving...' : 'Save Changes'}
+                                                        </Button>
+                                                      </div>
+                                                    ) : (
+                                                      <div className="flex items-center gap-2">
+                                                        <Button variant="outline" size="sm" onClick={addScheduleDraftRow}>
+                                                          Add Row
+                                                        </Button>
+                                                        <Button
+                                                          variant="outline"
+                                                          size="sm"
+                                                          onClick={() => {
+                                                            setEditingSchedule(false);
+                                                            setScheduleDraft((studentSchedules[selectedStudent.lrn] || []).map((row) => ({
+                                                              id: row.id,
+                                                              day_of_week: row.day_of_week,
+                                                              days_of_week: [row.day_of_week],
+                                                              day_number: row.day_number,
+                                                              subject: row.subject,
+                                                              start_time: row.start_time?.slice(0, 5) || '08:00',
+                                                              end_time: row.end_time?.slice(0, 5) || '09:00',
+                                                              room: row.room || '',
+                                                              teacher_name: row.teacher_name || '',
+                                                            })));
+                                                          }}
+                                                        >
+                                                          Cancel
+                                                        </Button>
+                                                        <Button size="sm" onClick={handleSaveScheduleChanges} disabled={savingScheduleChanges}>
+                                                          {savingScheduleChanges ? 'Saving...' : 'Save Changes'}
+                                                        </Button>
+                                                      </div>
+                                                    )
                                                   )}
                                                 </div>
 
@@ -5493,28 +7126,58 @@ export default function StudentsPage() {
                                                           </div>
                                                         </div>
                                                       ) : (
-                                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-                                                          <div>
-                                                            <p className="text-xs font-medium text-muted-foreground">Day</p>
-                                                            <p className="mt-1 font-medium">{schedule.day_of_week}</p>
+                                                        isMobile ? (
+                                                          <div className="space-y-2">
+                                                            <div className="grid grid-cols-3 gap-3">
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Day</p>
+                                                                <p className="mt-1 text-sm">{schedule.day_of_week}</p>
+                                                              </div>
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Subject</p>
+                                                                <p className="mt-1 text-sm truncate">{schedule.subject}</p>
+                                                              </div>
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Time</p>
+                                                                <p className="mt-1 text-sm">{`${formatTime12h(schedule.start_time)} - ${formatTime12h(schedule.end_time)}`}</p>
+                                                              </div>
+                                                            </div>
+                                                            <div className="grid grid-cols-3 gap-3">
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Room</p>
+                                                                <p className="mt-1 text-sm">{schedule.room || '—'}</p>
+                                                              </div>
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Teacher</p>
+                                                                <p className="mt-1 text-sm">{schedule.teacher_name || '—'}</p>
+                                                              </div>
+                                                              <div />
+                                                            </div>
                                                           </div>
-                                                          <div>
-                                                            <p className="text-xs font-medium text-muted-foreground">Subject</p>
-                                                            <p className="mt-1 font-medium">{schedule.subject}</p>
+                                                        ) : (
+                                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Day</p>
+                                                              <p className="mt-1 font-medium">{schedule.day_of_week}</p>
+                                                            </div>
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Subject</p>
+                                                              <p className="mt-1 font-medium">{schedule.subject}</p>
+                                                            </div>
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Time</p>
+                                                              <p className="mt-1 font-medium">{`${formatTime12h(schedule.start_time)} - ${formatTime12h(schedule.end_time)}`}</p>
+                                                            </div>
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Room</p>
+                                                              <p className="mt-1 font-medium">{schedule.room || '—'}</p>
+                                                            </div>
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Teacher</p>
+                                                              <p className="mt-1 font-medium">{schedule.teacher_name || '—'}</p>
+                                                            </div>
                                                           </div>
-                                                          <div>
-                                                            <p className="text-xs font-medium text-muted-foreground">Time</p>
-                                                            <p className="mt-1 font-medium">{`${formatTime12h(schedule.start_time)} - ${formatTime12h(schedule.end_time)}`}</p>
-                                                          </div>
-                                                          <div>
-                                                            <p className="text-xs font-medium text-muted-foreground">Room</p>
-                                                            <p className="mt-1 font-medium">{schedule.room || '—'}</p>
-                                                          </div>
-                                                          <div>
-                                                            <p className="text-xs font-medium text-muted-foreground">Teacher</p>
-                                                            <p className="mt-1 font-medium">{schedule.teacher_name || '—'}</p>
-                                                          </div>
-                                                        </div>
+                                                        )
                                                       )}
                                                     </div>
                                                   ))}
@@ -5540,60 +7203,76 @@ export default function StudentsPage() {
                                                   <Clock className="w-5 h-5 text-blue-600" />
                                                   Attendance History
                                                 </h3>
-                                                <div className="overflow-x-auto">
-                                                  <table className="w-full text-sm">
-                                                    <thead>
-                                                      <tr className="text-left text-xs text-muted-foreground">
-                                                        <th className="px-3 py-2">Date</th>
-                                                        <th className="px-3 py-2">Status</th>
-                                                        <th className="px-3 py-2">Check In</th>
-                                                        <th className="px-3 py-2">Check Out</th>
-                                                      </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                      {behavioralData.attendance
-                                                        .slice()
-                                                        .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                                                        .map((entry: any) => {
-                                                          const rawStatus = (entry.attendance_status || '').toLowerCase();
-                                                          const statusLabel = rawStatus
-                                                            ? (rawStatus === 'present' ? 'Present' : rawStatus === 'absent' ? 'Absent' : rawStatus === 'holiday' ? 'Holiday' : rawStatus === 'cancelled_class' ? 'Cancelled' : rawStatus === 'late' ? 'Late' : rawStatus)
-                                                            : (entry.is_present ? 'Present' : 'Absent');
-                                                          const noClass = isNoClassStatus(entry.attendance_status || entry.attendanceStatus);
-                                                          const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
-                                                                                                                    // Determine late status using schedule entry time or level-based threshold
-                                                          let isLate = false;
-                                                          if (!noClass && entry.check_in_time && entry.is_present !== false) {
-                                                            const entryTimeFromSchedule = behavioralData?.entryTime;
-                                                            if (entryTimeFromSchedule) {
-                                                              isLate = isLateCheckIn(entry.check_in_time, entryTimeFromSchedule);
-                                                            } else {
-                                                              // Fallback to level-based threshold if schedule entry time not available
-                                                              const lateThreshold = getLateThreshold(selectedStudent?.level);
-                                                              isLate = isLateCheckIn(entry.check_in_time, lateThreshold);
-                                                            }
-                                                          }
-                                                          return (
-                                                            <tr key={`${entry.date}-${entry.student_lrn}`} className="border-t border-slate-100 dark:border-slate-800">
-                                                              <td className="px-3 py-2">{new Date(entry.date).toLocaleDateString()}</td>
-                                                              <td className="px-3 py-2">
-                                                                <div className="flex flex-col gap-1">
-                                                                  <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
-                                                                  {isLate && rawStatus !== 'late' && (
-                                                                    <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0 py-1 px-2 text-xs w-fit">
-                                                                      Late
-                                                                    </Badge>
-                                                                  )}
-                                                                </div>
-                                                              </td>
-                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_in_time ? formatTime12h(entry.check_in_time) : '--')}</td>
-                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_out_time ? formatTime12h(entry.check_out_time) : '--')}</td>
+                                                {(() => {
+                                                  const sorted = behavioralData.attendance.slice().sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                                                  const total = sorted.length;
+                                                  const attendanceTotalPages = Math.max(1, Math.ceil(total / ATTENDANCE_PAGE_SIZE));
+                                                  const attendanceShowingFrom = total === 0 ? 0 : (attendancePage - 1) * ATTENDANCE_PAGE_SIZE + 1;
+                                                  const attendanceShowingTo = Math.min(attendancePage * ATTENDANCE_PAGE_SIZE, total);
+                                                  const paginated = sorted.slice((attendancePage - 1) * ATTENDANCE_PAGE_SIZE, attendancePage * ATTENDANCE_PAGE_SIZE);
+
+                                                  return (
+                                                    <>
+                                                      <div className="overflow-x-auto">
+                                                        <table className="w-full text-sm">
+                                                          <thead>
+                                                            <tr className="text-left text-xs text-muted-foreground">
+                                                              <th className="px-3 py-2">Date</th>
+                                                              <th className="px-3 py-2">Status</th>
+                                                              <th className="px-3 py-2">Check In</th>
+                                                              <th className="px-3 py-2">Check Out</th>
                                                             </tr>
-                                                          );
-                                                        })}
-                                                    </tbody>
-                                                  </table>
-                                                </div>
+                                                          </thead>
+                                                          <tbody>
+                                                            {paginated.map((entry: any) => {
+                                                              const rawStatus = (entry.attendance_status || '').toLowerCase();
+                                                              const statusLabel = rawStatus
+                                                                ? (rawStatus === 'present' ? 'Present' : rawStatus === 'absent' ? 'Absent' : rawStatus === 'holiday' ? 'Holiday' : rawStatus === 'cancelled_class' ? 'Cancelled' : rawStatus === 'late' ? 'Late' : rawStatus)
+                                                                : (entry.is_present ? 'Present' : 'Absent');
+                                                              const noClass = isNoClassStatus(entry.attendance_status || entry.attendanceStatus);
+                                                              const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
+                                                              let isLate = false;
+                                                              if (!noClass && entry.check_in_time && entry.is_present !== false) {
+                                                                const entryTimeFromSchedule = behavioralData?.entryTime;
+                                                                if (entryTimeFromSchedule) {
+                                                                  isLate = isLateCheckIn(entry.check_in_time, entryTimeFromSchedule);
+                                                                } else {
+                                                                  const lateThreshold = getLateThreshold(selectedStudent?.level);
+                                                                  isLate = isLateCheckIn(entry.check_in_time, lateThreshold);
+                                                                }
+                                                              }
+
+                                                              return (
+                                                                <tr key={`${entry.date}-${entry.student_lrn}`} className="border-t border-slate-100 dark:border-slate-800">
+                                                                  <td className="px-3 py-2">{new Date(entry.date).toLocaleDateString()}</td>
+                                                                  <td className="px-3 py-2">
+                                                                    <div className="flex flex-col gap-1">
+                                                                      <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
+                                                                      {isLate && rawStatus !== 'late' && (
+                                                                        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0 py-1 px-2 text-xs w-fit">Late</Badge>
+                                                                      )}
+                                                                    </div>
+                                                                  </td>
+                                                                  <td className="px-3 py-2">{noClass ? '--' : (entry.check_in_time ? formatTime12h(entry.check_in_time) : '--')}</td>
+                                                                  <td className="px-3 py-2">{noClass ? '--' : (entry.check_out_time ? formatTime12h(entry.check_out_time) : '--')}</td>
+                                                                </tr>
+                                                              );
+                                                            })}
+                                                          </tbody>
+                                                        </table>
+                                                      </div>
+
+                                                      <div className="flex items-center justify-between gap-2 px-2 py-3">
+                                                        <p className="text-xs sm:text-sm truncate">Showing {attendanceShowingFrom} - {attendanceShowingTo} of {total}</p>
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                          <Button size="sm" variant="outline" onClick={() => setAttendancePage((p) => Math.max(1, p - 1))} disabled={attendancePage === 1}><ChevronLeft className="w-4 h-4"/></Button>
+                                                          <span className="text-xs sm:text-sm whitespace-nowrap">Page {attendancePage} / {attendanceTotalPages}</span>
+                                                          <Button size="sm" variant="outline" onClick={() => setAttendancePage((p) => Math.min(attendanceTotalPages, p + 1))} disabled={attendancePage === attendanceTotalPages}><ChevronRight className="w-4 h-4"/></Button>
+                                                        </div>
+                                                      </div>
+                                                    </>
+                                                  );
+                                                })()}
                                               </div>
                                             ) : (
                                               <div className="text-center py-8 text-muted-foreground">
@@ -5664,17 +7343,17 @@ export default function StudentsPage() {
                                             ) : behavioralData ? (
                                               <>
                                                 {/* Stats Grid */}
-                                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+                                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
                                                   {/* Total Events Card */}
                                                   <div>
                                                     <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
                                                       <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
                                                       <div className="absolute bottom-0 left-0 w-10 h-10 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
-                                                      <CardContent className="p-3 sm:p-4 flex items-center justify-between relative z-10">
+                                                      <CardContent className="p-2 sm:p-4 flex items-center justify-between relative z-10">
                                                         <div>
-                                                          <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Total Events</p>
-                                                          <div className="text-lg sm:text-xl font-bold text-blue-600 dark:text-blue-400">{behavioralData.stats.totalEvents}</div>
-                                                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">all behavioral events</p>
+                                                          <p className="text-[9px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Total Events</p>
+                                                          <div className="text-base sm:text-xl font-bold text-blue-600 dark:text-blue-400">{behavioralData.stats.totalEvents}</div>
+                                                          <p className="text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">all behavioral events</p>
                                                         </div>
                                                         <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                                                           <Activity className="w-5 h-5" />
@@ -5688,11 +7367,11 @@ export default function StudentsPage() {
                                                     <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
                                                       <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
                                                       <div className="absolute bottom-0 left-0 w-10 h-10 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
-                                                      <CardContent className="p-3 sm:p-4 flex items-center justify-between relative z-10">
+                                                      <CardContent className="p-2 sm:p-4 flex items-center justify-between relative z-10">
                                                         <div>
-                                                          <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Positive Events</p>
-                                                          <div className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">{behavioralData.stats.positiveEvents}</div>
-                                                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">reinforcing progress</p>
+                                                          <p className="text-[9px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Positive Events</p>
+                                                          <div className="text-base sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">{behavioralData.stats.positiveEvents}</div>
+                                                          <p className="text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">reinforcing progress</p>
                                                         </div>
                                                         <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                                                           <Heart className="w-5 h-5" />
@@ -5706,11 +7385,11 @@ export default function StudentsPage() {
                                                     <Card className="border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
                                                       <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
                                                       <div className="absolute bottom-0 left-0 w-10 h-10 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
-                                                      <CardContent className="p-3 sm:p-4 flex items-center justify-between relative z-10">
+                                                      <CardContent className="p-2 sm:p-4 flex items-center justify-between relative z-10">
                                                         <div>
-                                                          <p className="text-[10px] sm:text-xs text-rose-600 dark:text-rose-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Negative Events</p>
-                                                          <div className="text-lg sm:text-xl font-bold text-rose-600 dark:text-rose-400">{behavioralData.stats.negativeEvents}</div>
-                                                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">major/critical incidents</p>
+                                                          <p className="text-[9px] sm:text-xs text-rose-600 dark:text-rose-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Negative Events</p>
+                                                          <div className="text-base sm:text-xl font-bold text-rose-600 dark:text-rose-400">{behavioralData.stats.negativeEvents}</div>
+                                                          <p className="text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">major/critical incidents</p>
                                                         </div>
                                                         <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-lg shadow-rose-500/25 dark:shadow-rose-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                                                           <AlertOctagon className="w-5 h-5" />
@@ -5886,10 +7565,17 @@ export default function StudentsPage() {
                   </div>
                 </div>
               </CardContent>
-            </Card>
+              </Card>
+            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-4">
+            <AnimatePresence mode="wait">
+              {activeTab === 'analytics' && (
+                <motion.div key="tab-analytics" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}>
             {/* Analytics Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Level Distribution */}
@@ -6001,12 +7687,249 @@ export default function StudentsPage() {
                 </div>
               </CardContent>
             </Card>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </TabsContent>
 
           <TabsContent value="summer" className="space-y-4">
+            <AnimatePresence mode="wait">
+              {activeTab === 'summer' && (
+                <motion.div key="tab-summer" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.25 }}>
+            <AnimatePresence>
+              {!showFilters && (
+                <motion.div
+                  key="summer-filters-summary"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="mb-3"
+                >
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/60 bg-slate-50 px-4 py-2 dark:border-slate-700/40 dark:bg-slate-900/50">
+                    <div className="min-w-0 text-sm truncate">
+                      <strong className="mr-2">Filters</strong>
+                      <span className="text-muted-foreground">
+                        {search.trim() ? `Search: ${search.trim()}` : 'No search'} • {filterGrade === 'all' ? 'All Levels' : filterGrade} • {filterGender === 'all' ? 'All Genders' : filterGender} • {filterRisk === 'all' ? 'All Risk Levels' : filterRisk}
+                      </span>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => setShowFilters(true)} className="gap-2">
+                      Show
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+              {showFilters && (
+                <motion.div
+                  key="summer-filters-expanded"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <Card className="border-0 shadow-lg mb-3">
+                    <CardHeader>
+                      <div className="flex w-full items-start justify-between gap-3">
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Filter className="w-5 h-5 text-blue-500" />
+                          Search & Filter Students
+                        </CardTitle>
+                        <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="gap-2">
+                          Hide
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+                        <div className="relative lg:col-span-5">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search by LRN, name, or parent..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="pl-9 h-10 w-full"
+                          />
+                        </div>
+                        <Select value={filterGrade} onValueChange={setFilterGrade}>
+                          <SelectTrigger className="h-10 lg:col-span-2 w-full">
+                            <SelectValue placeholder="Filter By Level" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Levels</SelectItem>
+                            {Object.keys(LEVEL_COLORS).map(level => (
+                              <SelectItem key={level} value={level}>{level.replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select value={filterGender} onValueChange={setFilterGender}>
+                          <SelectTrigger className="h-10 lg:col-span-2 w-full">
+                            <SelectValue placeholder="Filter By Gender" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Genders</SelectItem>
+                            <SelectItem value="Male">Male</SelectItem>
+                            <SelectItem value="Female">Female</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select value={filterRisk} onValueChange={setFilterRisk}>
+                          <SelectTrigger className="h-10 lg:col-span-3 w-full">
+                            <SelectValue placeholder="Filter By Risk" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Risk Levels</SelectItem>
+                            <SelectItem value="low">Low Risk</SelectItem>
+                            <SelectItem value="medium">Medium Risk</SelectItem>
+                            <SelectItem value="high">High Risk</SelectItem>
+                            <SelectItem value="critical">Critical Risk</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                        <p>
+                          Showing <span className="font-bold text-foreground">{filteredSummerStudents.length}</span> of{' '}
+                          <span className="font-bold text-foreground">{summerStudents.length}</span> summer students
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Summer Students Table */}
-            <Card className="border-0 shadow-lg overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-100/50 dark:from-orange-950/40 dark:to-orange-900/30 border-b border-orange-200/60 dark:border-orange-700/40">
+            {isMobile && (
+              <div className="space-y-3 px-2">
+                <div className="px-1 pb-1">
+                  <div className="flex items-start gap-3">
+                    <Users className="mt-0.5 h-5 w-5 text-orange-500" />
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-semibold leading-tight">Summer Class Students</h3>
+                      <p className="text-sm text-muted-foreground">Students enrolled in summer class ({summerStudents.length} students)</p>
+                    </div>
+                  </div>
+                </div>
+
+                {Object.keys(summerEnrollments).length === 0 ? (
+                  <div className="p-8 text-center">
+                    <div className="text-muted-foreground">
+                      <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                      <p className="font-medium mb-1">No Summer Class Students</p>
+                      <p className="text-sm">Students enrolled in summer class will appear here.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-3">
+                      {paginatedSummerStudents.map(({ student, enrollment }) => {
+                        const isCompleted = isCompletedSummerStudent(enrollment);
+                        return (
+                          <div key={student.id} className="bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{student.name}</p>
+                                <p className="text-xs text-muted-foreground truncate">{student.lrn} • {student.level}</p>
+                                <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  {enrollment.start_date} → {enrollment.end_date}
+                                </p>
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <div className="mb-2 flex justify-end">
+                                  {isCompleted ? (
+                                    <Badge className="bg-yellow-100 text-yellow-800 border-0 gap-1 flex w-fit">
+                                      <Award className="w-3 h-3" />
+                                      Completed
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="bg-orange-100 text-orange-800 border-0 gap-1 flex w-fit">
+                                      <Clock className="w-3 h-3" />
+                                      Active
+                                    </Badge>
+                                  )}
+                                </div>
+                                <Dialog
+                                  open={selectedStudent?.id === student.id && detailsOpen}
+                                  onOpenChange={(open) => {
+                                    if (!open) {
+                                      setSelectedStudent(null);
+                                      setDetailsOpen(false);
+                                      setEditingSchedule(false);
+                                      setScheduleDraft([]);
+                                      setDetailsTab('overview');
+                                      setHighlightExcuseDate('');
+                                      setPendingLrn('');
+                                      setEditingStudentInfo(false);
+                                    }
+                                  }}
+                                >
+                                  <DialogTrigger asChild>
+                                    <Button variant="ghost" size="sm" onClick={() => openStudentDetails(student, { tab: 'overview' })} className="gap-1.5 hover:bg-primary/10 hover:text-primary whitespace-nowrap">
+                                      <Eye size={14} />
+                                      View
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="w-[95vw] max-w-sm sm:max-w-md max-h-[85vh] sm:max-h-[92vh] overflow-y-auto p-3 sm:p-6">
+                                    <div className="flex flex-col gap-3">
+                                      <div className="flex items-center gap-3">
+                                        <Avatar className="h-12 w-12">
+                                          <AvatarFallback className="bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 text-lg">
+                                            {student.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                          <h3 className="text-lg font-semibold">{student.name}</h3>
+                                          <p className="text-xs text-muted-foreground">{student.lrn} • {student.level}</p>
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 gap-2">
+                                        <div>
+                                          <p className="text-[11px] text-muted-foreground">Summer Period</p>
+                                          <p className="font-semibold">{enrollment.start_date} → {enrollment.end_date}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-[11px] text-muted-foreground">Status</p>
+                                          <p className="font-semibold">{isCompleted ? 'Completed' : 'Active'}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-[11px] text-muted-foreground">Birthday</p>
+                                          <p className="font-semibold">{student.birthday || '—'}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-[11px] text-muted-foreground">Parent/Guardian</p>
+                                          <p className="font-semibold">{student.parentName || '—'}</p>
+                                          {student.parentContact && <p className="text-sm text-muted-foreground">{student.parentContact}</p>}
+                                          {student.parentEmail && <p className="text-sm text-muted-foreground">{student.parentEmail}</p>}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex gap-2 justify-end">
+                                        <Button variant="outline" size="sm" onClick={() => { setSelectedStudent(null); setDetailsOpen(false); }}>Close</Button>
+                                      </div>
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 px-2 py-3">
+                      <p className="text-xs sm:text-sm truncate">Showing {summerShowingFrom} - {summerShowingTo} of {summerStudents.length}</p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button size="sm" variant="outline" onClick={() => setSummerCurrentPage((p) => Math.max(1, p - 1))} disabled={summerCurrentPage === 1}><ChevronLeft className="w-4 h-4" /></Button>
+                        <span className="text-xs sm:text-sm whitespace-nowrap">Page {summerCurrentPage} / {totalSummerPages}</span>
+                        <Button size="sm" variant="outline" onClick={() => setSummerCurrentPage((p) => Math.min(totalSummerPages, p + 1))} disabled={summerCurrentPage === totalSummerPages}><ChevronRight className="w-4 h-4" /></Button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            <Card className="hidden md:block border-0 shadow-lg overflow-hidden">
+              <CardHeader className={isMobile ? 'hidden' : 'bg-gradient-to-r from-orange-50 to-orange-100/50 dark:from-orange-950/40 dark:to-orange-900/30 border-b border-orange-200/60 dark:border-orange-700/40'}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2 text-lg">
@@ -6026,6 +7949,117 @@ export default function StudentsPage() {
                       <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
                       <p className="font-medium mb-1">No Summer Class Students</p>
                       <p className="text-sm">Students enrolled in summer class will appear here.</p>
+                    </div>
+                  </div>
+                ) : isMobile ? (
+                  <div className="space-y-3 px-2 sm:px-4">
+                    {paginatedSummerStudents.map(({ student, enrollment }) => {
+                      const isCompleted = isCompletedSummerStudent(enrollment);
+                      return (
+                        <div key={student.id} className="bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{student.name}</p>
+                              <p className="text-xs text-muted-foreground truncate">{student.lrn} • {student.level}</p>
+                              <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {enrollment.start_date} → {enrollment.end_date}
+                              </p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <div className="mb-2 flex justify-end">
+                                {isCompleted ? (
+                                  <Badge className="bg-yellow-100 text-yellow-800 border-0 gap-1 flex w-fit">
+                                    <Award className="w-3 h-3" />
+                                    Completed
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-orange-100 text-orange-800 border-0 gap-1 flex w-fit">
+                                    <Clock className="w-3 h-3" />
+                                    Active
+                                  </Badge>
+                                )}
+                              </div>
+                              <Dialog
+                                open={selectedStudent?.id === student.id && detailsOpen}
+                                onOpenChange={(open) => {
+                                  if (!open) {
+                                    setSelectedStudent(null);
+                                    setDetailsOpen(false);
+                                    setEditingSchedule(false);
+                                    setScheduleDraft([]);
+                                    setDetailsTab('overview');
+                                    setHighlightExcuseDate('');
+                                    setPendingLrn('');
+                                    setEditingStudentInfo(false);
+                                  }
+                                }}
+                              >
+                                <DialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openStudentDetails(student, { tab: 'overview' })}
+                                    className="gap-1.5 hover:bg-primary/10 hover:text-primary whitespace-nowrap"
+                                  >
+                                    <Eye size={14} />
+                                    View
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="w-[95vw] max-w-sm sm:max-w-md max-h-[85vh] sm:max-h-[92vh] overflow-y-auto p-3 sm:p-6">
+                                  <div className="flex flex-col gap-3">
+                                    <div className="flex items-center gap-3">
+                                      <Avatar className="h-12 w-12">
+                                        <AvatarFallback className="bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 text-lg">
+                                          {student.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <div>
+                                        <h3 className="text-lg font-semibold">{student.name}</h3>
+                                        <p className="text-xs text-muted-foreground">{student.lrn} • {student.level}</p>
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-2">
+                                      <div>
+                                        <p className="text-[11px] text-muted-foreground">Summer Period</p>
+                                        <p className="font-semibold">{enrollment.start_date} → {enrollment.end_date}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-[11px] text-muted-foreground">Status</p>
+                                        <p className="font-semibold">{isCompleted ? 'Completed' : 'Active'}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-[11px] text-muted-foreground">Birthday</p>
+                                        <p className="font-semibold">{student.birthday || '—'}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-[11px] text-muted-foreground">Parent/Guardian</p>
+                                        <p className="font-semibold">{student.parentName || '—'}</p>
+                                        {student.parentContact && <p className="text-sm text-muted-foreground">{student.parentContact}</p>}
+                                        {student.parentEmail && <p className="text-sm text-muted-foreground">{student.parentEmail}</p>}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex gap-2 justify-end">
+                                      <Button variant="outline" size="sm" onClick={() => { setSelectedStudent(null); setDetailsOpen(false); }}>Close</Button>
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    <div className="flex items-center justify-between gap-2 px-2 py-3">
+                      <p className="text-xs sm:text-sm truncate">Showing {summerShowingFrom} - {summerShowingTo} of {summerStudents.length}</p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button size="sm" variant="outline" onClick={() => setSummerCurrentPage((p) => Math.max(1, p - 1))} disabled={summerCurrentPage === 1}><ChevronLeft className="w-4 h-4" /></Button>
+                        <span className="text-xs sm:text-sm whitespace-nowrap">Page {summerCurrentPage} / {totalSummerPages}</span>
+                        <Button size="sm" variant="outline" onClick={() => setSummerCurrentPage((p) => Math.min(totalSummerPages, p + 1))} disabled={summerCurrentPage === totalSummerPages}><ChevronRight className="w-4 h-4" /></Button>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -6129,9 +8163,9 @@ export default function StudentsPage() {
                                     </Button>
                                   </DialogTrigger>
                                   <DialogContent
-                                    className="w-full max-w-5xl lg:max-w-5xl p-0 flex flex-col sm:w-[96vw]"
+                                    className="w-[94vw] sm:w-[92vw] max-w-4xl lg:max-w-5xl p-0 flex flex-col max-h-[86dvh] sm:max-h-[90vh] overflow-hidden"
                                   >
-                                    <div className="relative h-full p-2 sm:p-6 md:p-8 max-h-[90vh] overflow-y-auto">
+                                    <div className="relative p-3 sm:p-6 md:p-8 max-h-[86dvh] sm:max-h-[90vh] overflow-y-auto">
                                     {selectedStudent && (
                                       <>
                                         <DialogHeader>
@@ -6148,8 +8182,9 @@ export default function StudentsPage() {
                                                   <img src="/Helping-Hand.png" alt="Special Case" className="w-5 h-5 inline-block ml-3" />
                                                 )}
                                               </DialogTitle>
-                                              <DialogDescription>
-                                                <span className="flex items-center gap-2">
+                                              <DialogDescription asChild>
+                                                <div className="space-y-2">
+                                                  <div className="flex flex-wrap items-center gap-2">
                                                   <Input
                                                     value={pendingLrn}
                                                     onChange={e => setPendingLrn(e.target.value)}
@@ -6157,33 +8192,57 @@ export default function StudentsPage() {
                                                     className="capitalize w-48"
                                                     disabled={!editingStudentInfo}
                                                   />
+                                                  <Select
+                                                    value={selectedStudent.level || undefined}
+                                                    onValueChange={(value) => setSelectedStudent({ ...selectedStudent, level: value })}
+                                                    disabled={!isAdmin || !editingStudentInfo}
+                                                  >
+                                                    <SelectTrigger className="w-40">
+                                                      <SelectValue placeholder="Grade level" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      {availableLevelOptions.map((level) => (
+                                                        <SelectItem key={level} value={level}>{level}</SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
+                                                  <Select
+                                                    value={(selectedStudent.status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active'}
+                                                    onValueChange={(value) => setSelectedStudent({ ...selectedStudent, status: value })}
+                                                    disabled={!isAdmin || !editingStudentInfo}
+                                                  >
+                                                    <SelectTrigger className="w-32">
+                                                      <SelectValue placeholder="Status" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      {STUDENT_STATUS_OPTIONS.map((status) => (
+                                                        <SelectItem key={status} value={status}>
+                                                          {status === 'active' ? 'Active' : 'Inactive'}
+                                                        </SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
                                                   {selectedStudent.lrn && selectedStudent.lrn.startsWith('TEMP-') && (
-                                                    <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-2">Temporary LRN</span>
+                                                    <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-1">Temporary LRN</span>
                                                   )}
-                                                </span>
-                                                <span className="ml-2">• {selectedStudent.level}</span>
-                                              </DialogDescription>
+                                                </div>
+                                                  </div>
+                                                </DialogDescription>
                                             </div>
                                           </div>
                                         </DialogHeader>
 
                                         <Tabs defaultValue="overview" className="mt-6 space-y-4">
                                           <TabsList
-                                            className="
-                                              grid grid-cols-2 grid-rows-3 gap-1 w-full p-1
-                                              sm:flex sm:flex-row sm:overflow-x-auto sm:whitespace-nowrap sm:text-base
-                                              text-xs
-                                              relative z-10 bg-white/90 dark:bg-slate-900/80
-                                              mb-3 sm:mb-4
-                                            "
+                                            className="grid h-auto w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 p-1.5 text-xs sm:text-sm md:text-base relative z-10 bg-white/90 dark:bg-slate-900/80 mb-3 sm:mb-4"
                                             style={{ boxShadow: '0 2px 8px 0 rgba(0,0,0,0.03)' }}
                                           >
-                                            <TabsTrigger value="overview" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Overview</TabsTrigger>
-                                            <TabsTrigger value="attendance" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Attendance</TabsTrigger>
-                                            <TabsTrigger value="excuse-letters" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Excuse Letters</TabsTrigger>
-                                            <TabsTrigger value="schedule" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Schedule</TabsTrigger>
-                                            <TabsTrigger value="behavioral" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">Behavioral</TabsTrigger>
-                                            <TabsTrigger value="qr" className="px-2 py-1 sm:px-4 sm:py-2 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all text-xs sm:text-base min-w-[90px]">QR Code</TabsTrigger>
+                                            <TabsTrigger value="overview" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Overview</TabsTrigger>
+                                            <TabsTrigger value="attendance" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Attendance</TabsTrigger>
+                                            <TabsTrigger value="excuse-letters" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Excuse Letters</TabsTrigger>
+                                            <TabsTrigger value="schedule" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Schedule</TabsTrigger>
+                                            <TabsTrigger value="behavioral" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">Behavioral</TabsTrigger>
+                                            <TabsTrigger value="qr" className="h-auto min-h-10 px-3 py-2 rounded-lg leading-tight whitespace-normal text-center focus-visible:ring-2 focus-visible:ring-blue-400 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-200 transition-all">QR Code</TabsTrigger>
                                           </TabsList>
 
                                           {savingStudentInfo && (
@@ -6340,7 +8399,6 @@ export default function StudentsPage() {
                                                     />
                                                     <Button
                                                       type="button"
-                                                      className="w-full sm:w-auto text-xs sm:text-base"
                                                       variant={rfidConnected ? 'outline' : 'default'}
                                                       onClick={() => {
                                                         if (rfidConnected) {
@@ -6350,7 +8408,7 @@ export default function StudentsPage() {
                                                         }
                                                       }}
                                                       disabled={!editingStudentInfo || connectingRfid || savingStudentInfo}
-                                                      className="sm:w-auto gap-2"
+                                                      className="w-full sm:w-auto text-xs sm:text-base gap-2"
                                                     >
                                                       {rfidConnected ? <Wifi className="w-4 h-4" /> : <CloudUpload className="w-4 h-4" />}
                                                       {connectingRfid ? 'Connecting...' : rfidConnected ? 'Disconnect' : 'Tap RFID'}
@@ -6369,7 +8427,7 @@ export default function StudentsPage() {
                                               </div>
                                               <div className="col-span-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col sm:flex-row justify-between items-start gap-4">
                                                 <div className="space-y-1.5 w-full max-w-md">
-                                                  <p className="text-xs text-muted-foreground mb-1">Parent/Guardian Information</p>
+                                                  <p className="text-xs text-muted-foreground mb-1">Parent/Guardian 1 Information</p>
                                                   <div className="flex items-center gap-2 w-full">
                                                     <User className="w-4 h-4 text-muted-foreground" />
                                                     <Input
@@ -6401,13 +8459,13 @@ export default function StudentsPage() {
                                                     />
                                                   </div>
                                                   <div className="border-t border-gray-200 dark:border-gray-600 mt-3 pt-3">
-                                                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Additional Parent/Guardian (optional)</p>
+                                                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Parent/Guardian 2 Information (optional)</p>
                                                     <div className="flex items-center gap-2">
                                                       <User className="w-4 h-4 text-muted-foreground" />
                                                       <Input
                                                         value={selectedStudent.parent2Name || ''}
                                                         onChange={e => setSelectedStudent({ ...selectedStudent, parent2Name: e.target.value })}
-                                                        placeholder="Additional Parent/Guardian Name"
+                                                        placeholder="Parent/Guardian 2 Name (optional)"
                                                         className="text-sm"
                                                         disabled={!editingStudentInfo}
                                                       />
@@ -6417,7 +8475,7 @@ export default function StudentsPage() {
                                                       <Input
                                                         value={selectedStudent.parent2Contact || ''}
                                                         onChange={e => setSelectedStudent({ ...selectedStudent, parent2Contact: e.target.value })}
-                                                        placeholder="Additional Parent Contact"
+                                                        placeholder="Parent/Guardian 2 Contact (optional)"
                                                         className="text-sm"
                                                         disabled={!editingStudentInfo}
                                                       />
@@ -6426,7 +8484,7 @@ export default function StudentsPage() {
                                                 </div>
 
                                                 {/* Edit/Confirm Button */}
-                                              <div className="flex flex-wrap gap-2 sm:ml-4 shrink-0">
+                                              <div className="flex flex-col sm:flex-row gap-2 sm:ml-4 w-full">
                                                 {isAdmin && (
                                                   <>
                                                     <Button size="sm" variant="outline" className="min-w-[120px] border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 w-full sm:w-auto" onClick={() => setTransferDialogOpen(true)}>
@@ -6604,34 +8662,66 @@ export default function StudentsPage() {
                                                       Edit Schedule
                                                     </Button>
                                                   ) : (
-                                                    <div className="flex items-center gap-2">
-                                                      <Button variant="outline" size="sm" onClick={addScheduleDraftRow}>
-                                                        Add Row
-                                                      </Button>
-                                                      <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => {
-                                                          setEditingSchedule(false);
-                                                          setScheduleDraft((studentSchedules[selectedStudent.lrn] || []).map((row) => ({
-                                                            id: row.id,
-                                                            day_of_week: row.day_of_week,
-                                                            days_of_week: [row.day_of_week],
-                                                            day_number: row.day_number,
-                                                            subject: row.subject,
-                                                            start_time: row.start_time?.slice(0, 5) || '08:00',
-                                                            end_time: row.end_time?.slice(0, 5) || '09:00',
-                                                            room: row.room || '',
-                                                            teacher_name: row.teacher_name || '',
-                                                          })));
-                                                        }}
-                                                      >
-                                                        Cancel
-                                                      </Button>
-                                                      <Button size="sm" onClick={handleSaveScheduleChanges} disabled={savingScheduleChanges}>
-                                                        {savingScheduleChanges ? 'Saving...' : 'Save Changes'}
-                                                      </Button>
-                                                    </div>
+                                                    isMobile ? (
+                                                      <div className="flex flex-col items-end gap-2 w-full">
+                                                        <Button variant="outline" size="sm" onClick={addScheduleDraftRow} className="w-full">
+                                                          Add Row
+                                                        </Button>
+                                                        <Button
+                                                          variant="outline"
+                                                          size="sm"
+                                                          onClick={() => {
+                                                            setEditingSchedule(false);
+                                                            setScheduleDraft((studentSchedules[selectedStudent.lrn] || []).map((row) => ({
+                                                              id: row.id,
+                                                              day_of_week: row.day_of_week,
+                                                              days_of_week: [row.day_of_week],
+                                                              day_number: row.day_number,
+                                                              subject: row.subject,
+                                                              start_time: row.start_time?.slice(0, 5) || '08:00',
+                                                              end_time: row.end_time?.slice(0, 5) || '09:00',
+                                                              room: row.room || '',
+                                                              teacher_name: row.teacher_name || '',
+                                                            })));
+                                                          }}
+                                                          className="w-full"
+                                                        >
+                                                          Cancel
+                                                        </Button>
+                                                        <Button size="sm" onClick={handleSaveScheduleChanges} disabled={savingScheduleChanges} className="w-full">
+                                                          {savingScheduleChanges ? 'Saving...' : 'Save Changes'}
+                                                        </Button>
+                                                      </div>
+                                                    ) : (
+                                                      <div className="flex items-center gap-2">
+                                                        <Button variant="outline" size="sm" onClick={addScheduleDraftRow}>
+                                                          Add Row
+                                                        </Button>
+                                                        <Button
+                                                          variant="outline"
+                                                          size="sm"
+                                                          onClick={() => {
+                                                            setEditingSchedule(false);
+                                                            setScheduleDraft((studentSchedules[selectedStudent.lrn] || []).map((row) => ({
+                                                              id: row.id,
+                                                              day_of_week: row.day_of_week,
+                                                              days_of_week: [row.day_of_week],
+                                                              day_number: row.day_number,
+                                                              subject: row.subject,
+                                                              start_time: row.start_time?.slice(0, 5) || '08:00',
+                                                              end_time: row.end_time?.slice(0, 5) || '09:00',
+                                                              room: row.room || '',
+                                                              teacher_name: row.teacher_name || '',
+                                                            })));
+                                                          }}
+                                                        >
+                                                          Cancel
+                                                        </Button>
+                                                        <Button size="sm" onClick={handleSaveScheduleChanges} disabled={savingScheduleChanges}>
+                                                          {savingScheduleChanges ? 'Saving...' : 'Save Changes'}
+                                                        </Button>
+                                                      </div>
+                                                    )
                                                   )}
                                                 </div>
 
@@ -6723,28 +8813,58 @@ export default function StudentsPage() {
                                                           </div>
                                                         </div>
                                                       ) : (
-                                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-                                                          <div>
-                                                            <p className="text-xs font-medium text-muted-foreground">Day</p>
-                                                            <p className="mt-1 font-medium">{schedule.day_of_week}</p>
+                                                        isMobile ? (
+                                                          <div className="space-y-2">
+                                                            <div className="grid grid-cols-3 gap-3">
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Day</p>
+                                                                <p className="mt-1 text-sm">{schedule.day_of_week}</p>
+                                                              </div>
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Subject</p>
+                                                                <p className="mt-1 text-sm truncate">{schedule.subject}</p>
+                                                              </div>
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Time</p>
+                                                                <p className="mt-1 text-sm">{`${formatTime12h(schedule.start_time)} - ${formatTime12h(schedule.end_time)}`}</p>
+                                                              </div>
+                                                            </div>
+                                                            <div className="grid grid-cols-3 gap-3">
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Room</p>
+                                                                <p className="mt-1 text-sm">{schedule.room || '—'}</p>
+                                                              </div>
+                                                              <div>
+                                                                <p className="text-[11px] font-medium text-muted-foreground">Teacher</p>
+                                                                <p className="mt-1 text-sm">{schedule.teacher_name || '—'}</p>
+                                                              </div>
+                                                              <div />
+                                                            </div>
                                                           </div>
-                                                          <div>
-                                                            <p className="text-xs font-medium text-muted-foreground">Subject</p>
-                                                            <p className="mt-1 font-medium">{schedule.subject}</p>
+                                                        ) : (
+                                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Day</p>
+                                                              <p className="mt-1 font-medium">{schedule.day_of_week}</p>
+                                                            </div>
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Subject</p>
+                                                              <p className="mt-1 font-medium">{schedule.subject}</p>
+                                                            </div>
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Time</p>
+                                                              <p className="mt-1 font-medium">{`${formatTime12h(schedule.start_time)} - ${formatTime12h(schedule.end_time)}`}</p>
+                                                            </div>
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Room</p>
+                                                              <p className="mt-1 font-medium">{schedule.room || '—'}</p>
+                                                            </div>
+                                                            <div>
+                                                              <p className="text-xs font-medium text-muted-foreground">Teacher</p>
+                                                              <p className="mt-1 font-medium">{schedule.teacher_name || '—'}</p>
+                                                            </div>
                                                           </div>
-                                                          <div>
-                                                            <p className="text-xs font-medium text-muted-foreground">Time</p>
-                                                            <p className="mt-1 font-medium">{`${formatTime12h(schedule.start_time)} - ${formatTime12h(schedule.end_time)}`}</p>
-                                                          </div>
-                                                          <div>
-                                                            <p className="text-xs font-medium text-muted-foreground">Room</p>
-                                                            <p className="mt-1 font-medium">{schedule.room || '—'}</p>
-                                                          </div>
-                                                          <div>
-                                                            <p className="text-xs font-medium text-muted-foreground">Teacher</p>
-                                                            <p className="mt-1 font-medium">{schedule.teacher_name || '—'}</p>
-                                                          </div>
-                                                        </div>
+                                                        )
                                                       )}
                                                     </div>
                                                   ))}
@@ -6770,60 +8890,76 @@ export default function StudentsPage() {
                                                   <Clock className="w-5 h-5 text-blue-600" />
                                                   Attendance History
                                                 </h3>
-                                                <div className="overflow-x-auto">
-                                                  <table className="w-full text-sm">
-                                                    <thead>
-                                                      <tr className="text-left text-xs text-muted-foreground">
-                                                        <th className="px-3 py-2">Date</th>
-                                                        <th className="px-3 py-2">Status</th>
-                                                        <th className="px-3 py-2">Check In</th>
-                                                        <th className="px-3 py-2">Check Out</th>
-                                                      </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                      {behavioralData.attendance
-                                                        .slice()
-                                                        .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                                                        .map((entry: any) => {
-                                                          const rawStatus = (entry.attendance_status || '').toLowerCase();
-                                                          const statusLabel = rawStatus
-                                                            ? (rawStatus === 'present' ? 'Present' : rawStatus === 'absent' ? 'Absent' : rawStatus === 'holiday' ? 'Holiday' : rawStatus === 'cancelled_class' ? 'Cancelled' : rawStatus === 'late' ? 'Late' : rawStatus)
-                                                            : (entry.is_present ? 'Present' : 'Absent');
-                                                          const noClass = isNoClassStatus(entry.attendance_status || entry.attendanceStatus);
-                                                          const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
-                                                                                                                    // Determine late status using schedule entry time or level-based threshold
-                                                          let isLate = false;
-                                                          if (!noClass && entry.check_in_time && entry.is_present !== false) {
-                                                            const entryTimeFromSchedule = behavioralData?.entryTime;
-                                                            if (entryTimeFromSchedule) {
-                                                              isLate = isLateCheckIn(entry.check_in_time, entryTimeFromSchedule);
-                                                            } else {
-                                                              // Fallback to level-based threshold if schedule entry time not available
-                                                              const lateThreshold = getLateThreshold(selectedStudent?.level);
-                                                              isLate = isLateCheckIn(entry.check_in_time, lateThreshold);
-                                                            }
-                                                          }
-                                                          return (
-                                                            <tr key={`${entry.date}-${entry.student_lrn}`} className="border-t border-slate-100 dark:border-slate-800">
-                                                              <td className="px-3 py-2">{new Date(entry.date).toLocaleDateString()}</td>
-                                                              <td className="px-3 py-2">
-                                                                <div className="flex flex-col gap-1">
-                                                                  <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
-                                                                  {isLate && rawStatus !== 'late' && (
-                                                                    <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0 py-1 px-2 text-xs w-fit">
-                                                                      Late
-                                                                    </Badge>
-                                                                  )}
-                                                                </div>
-                                                              </td>
-                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_in_time ? formatTime12h(entry.check_in_time) : '--')}</td>
-                                                              <td className="px-3 py-2">{noClass ? '--' : (entry.check_out_time ? formatTime12h(entry.check_out_time) : '--')}</td>
+                                                {(() => {
+                                                  const sorted = behavioralData.attendance.slice().sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                                                  const total = sorted.length;
+                                                  const attendanceTotalPages = Math.max(1, Math.ceil(total / ATTENDANCE_PAGE_SIZE));
+                                                  const attendanceShowingFrom = total === 0 ? 0 : (attendancePage - 1) * ATTENDANCE_PAGE_SIZE + 1;
+                                                  const attendanceShowingTo = Math.min(attendancePage * ATTENDANCE_PAGE_SIZE, total);
+                                                  const paginated = sorted.slice((attendancePage - 1) * ATTENDANCE_PAGE_SIZE, attendancePage * ATTENDANCE_PAGE_SIZE);
+
+                                                  return (
+                                                    <>
+                                                      <div className="overflow-x-auto">
+                                                        <table className="w-full text-sm">
+                                                          <thead>
+                                                            <tr className="text-left text-xs text-muted-foreground">
+                                                              <th className="px-3 py-2">Date</th>
+                                                              <th className="px-3 py-2">Status</th>
+                                                              <th className="px-3 py-2">Check In</th>
+                                                              <th className="px-3 py-2">Check Out</th>
                                                             </tr>
-                                                          );
-                                                        })}
-                                                    </tbody>
-                                                  </table>
-                                                </div>
+                                                          </thead>
+                                                          <tbody>
+                                                            {paginated.map((entry: any) => {
+                                                              const rawStatus = (entry.attendance_status || '').toLowerCase();
+                                                              const statusLabel = rawStatus
+                                                                ? (rawStatus === 'present' ? 'Present' : rawStatus === 'absent' ? 'Absent' : rawStatus === 'holiday' ? 'Holiday' : rawStatus === 'cancelled_class' ? 'Cancelled' : rawStatus === 'late' ? 'Late' : rawStatus)
+                                                                : (entry.is_present ? 'Present' : 'Absent');
+                                                              const noClass = isNoClassStatus(entry.attendance_status || entry.attendanceStatus);
+                                                              const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
+                                                              let isLate = false;
+                                                              if (!noClass && entry.check_in_time && entry.is_present !== false) {
+                                                                const entryTimeFromSchedule = behavioralData?.entryTime;
+                                                                if (entryTimeFromSchedule) {
+                                                                  isLate = isLateCheckIn(entry.check_in_time, entryTimeFromSchedule);
+                                                                } else {
+                                                                  const lateThreshold = getLateThreshold(selectedStudent?.level);
+                                                                  isLate = isLateCheckIn(entry.check_in_time, lateThreshold);
+                                                                }
+                                                              }
+
+                                                              return (
+                                                                <tr key={`${entry.date}-${entry.student_lrn}`} className="border-t border-slate-100 dark:border-slate-800">
+                                                                  <td className="px-3 py-2">{new Date(entry.date).toLocaleDateString()}</td>
+                                                                  <td className="px-3 py-2">
+                                                                    <div className="flex flex-col gap-1">
+                                                                      <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
+                                                                      {isLate && rawStatus !== 'late' && (
+                                                                        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0 py-1 px-2 text-xs w-fit">Late</Badge>
+                                                                      )}
+                                                                    </div>
+                                                                  </td>
+                                                                  <td className="px-3 py-2">{noClass ? '--' : (entry.check_in_time ? formatTime12h(entry.check_in_time) : '--')}</td>
+                                                                  <td className="px-3 py-2">{noClass ? '--' : (entry.check_out_time ? formatTime12h(entry.check_out_time) : '--')}</td>
+                                                                </tr>
+                                                              );
+                                                            })}
+                                                          </tbody>
+                                                        </table>
+                                                      </div>
+
+                                                      <div className="flex items-center justify-between gap-2 px-2 py-3">
+                                                        <p className="text-xs sm:text-sm truncate">Showing {attendanceShowingFrom} - {attendanceShowingTo} of {total}</p>
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                          <Button size="sm" variant="outline" onClick={() => setAttendancePage((p) => Math.max(1, p - 1))} disabled={attendancePage === 1}><ChevronLeft className="w-4 h-4"/></Button>
+                                                          <span className="text-xs sm:text-sm whitespace-nowrap">Page {attendancePage} / {attendanceTotalPages}</span>
+                                                          <Button size="sm" variant="outline" onClick={() => setAttendancePage((p) => Math.min(attendanceTotalPages, p + 1))} disabled={attendancePage === attendanceTotalPages}><ChevronRight className="w-4 h-4"/></Button>
+                                                        </div>
+                                                      </div>
+                                                    </>
+                                                  );
+                                                })()}
                                               </div>
                                             ) : (
                                               <div className="text-center py-8 text-muted-foreground">
@@ -6894,17 +9030,17 @@ export default function StudentsPage() {
                                             ) : behavioralData ? (
                                               <>
                                                 {/* Stats Grid */}
-                                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+                                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
                                                   {/* Total Events Card */}
                                                   <div>
                                                     <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
                                                       <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
                                                       <div className="absolute bottom-0 left-0 w-10 h-10 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
-                                                      <CardContent className="p-3 sm:p-4 flex items-center justify-between relative z-10">
+                                                      <CardContent className="p-2 sm:p-4 flex items-center justify-between relative z-10">
                                                         <div>
-                                                          <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Total Events</p>
-                                                          <div className="text-lg sm:text-xl font-bold text-blue-600 dark:text-blue-400">{behavioralData.stats.totalEvents}</div>
-                                                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">all behavioral events</p>
+                                                          <p className="text-[9px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Total Events</p>
+                                                          <div className="text-base sm:text-xl font-bold text-blue-600 dark:text-blue-400">{behavioralData.stats.totalEvents}</div>
+                                                          <p className="text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">all behavioral events</p>
                                                         </div>
                                                         <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-blue-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                                                           <Activity className="w-5 h-5" />
@@ -6918,11 +9054,11 @@ export default function StudentsPage() {
                                                     <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
                                                       <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
                                                       <div className="absolute bottom-0 left-0 w-10 h-10 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
-                                                      <CardContent className="p-3 sm:p-4 flex items-center justify-between relative z-10">
+                                                      <CardContent className="p-2 sm:p-4 flex items-center justify-between relative z-10">
                                                         <div>
-                                                          <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Positive Events</p>
-                                                          <div className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">{behavioralData.stats.positiveEvents}</div>
-                                                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">reinforcing progress</p>
+                                                          <p className="text-[9px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Positive Events</p>
+                                                          <div className="text-base sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">{behavioralData.stats.positiveEvents}</div>
+                                                          <p className="text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">reinforcing progress</p>
                                                         </div>
                                                         <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                                                           <Heart className="w-5 h-5" />
@@ -6936,11 +9072,11 @@ export default function StudentsPage() {
                                                     <Card className="border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
                                                       <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
                                                       <div className="absolute bottom-0 left-0 w-10 h-10 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
-                                                      <CardContent className="p-3 sm:p-4 flex items-center justify-between relative z-10">
+                                                      <CardContent className="p-2 sm:p-4 flex items-center justify-between relative z-10">
                                                         <div>
-                                                          <p className="text-[10px] sm:text-xs text-rose-600 dark:text-rose-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Negative Events</p>
-                                                          <div className="text-lg sm:text-xl font-bold text-rose-600 dark:text-rose-400">{behavioralData.stats.negativeEvents}</div>
-                                                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">major/critical incidents</p>
+                                                          <p className="text-[9px] sm:text-xs text-rose-600 dark:text-rose-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Negative Events</p>
+                                                          <div className="text-base sm:text-xl font-bold text-rose-600 dark:text-rose-400">{behavioralData.stats.negativeEvents}</div>
+                                                          <p className="text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">major/critical incidents</p>
                                                         </div>
                                                         <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-lg shadow-rose-500/25 dark:shadow-rose-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                                                           <AlertOctagon className="w-5 h-5" />
@@ -6954,11 +9090,11 @@ export default function StudentsPage() {
                                                     <Card className="border-0 bg-linear-to-br from-yellow-50 to-white dark:from-yellow-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden relative group hover:shadow-2xl transition-all duration-300">
                                                       <div className="absolute top-0 right-0 w-16 h-16 bg-yellow-500/10 dark:bg-yellow-400/5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-500" />
                                                       <div className="absolute bottom-0 left-0 w-10 h-10 bg-yellow-500/5 dark:bg-yellow-400/5 rounded-full -ml-4 -mb-4 group-hover:scale-150 transition-transform duration-500" />
-                                                      <CardContent className="p-3 sm:p-4 flex items-center justify-between relative z-10">
+                                                      <CardContent className="p-2 sm:p-4 flex items-center justify-between relative z-10">
                                                         <div>
-                                                          <p className="text-[10px] sm:text-xs text-yellow-600 dark:text-yellow-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Minor Events</p>
-                                                          <div className="text-lg sm:text-xl font-bold text-yellow-600 dark:text-yellow-400">{behavioralData.stats.minorEvents}</div>
-                                                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">minor incidents</p>
+                                                          <p className="text-[9px] sm:text-xs text-yellow-600 dark:text-yellow-400 font-semibold mb-1 uppercase tracking-wider leading-tight">Minor Events</p>
+                                                          <div className="text-base sm:text-xl font-bold text-yellow-600 dark:text-yellow-400">{behavioralData.stats.minorEvents}</div>
+                                                          <p className="text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">minor incidents</p>
                                                         </div>
                                                         <div className="hidden sm:flex w-8 h-8 rounded-xl bg-linear-to-br from-yellow-500 to-yellow-600 text-white items-center justify-center shadow-lg shadow-yellow-500/25 dark:shadow-yellow-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                                                           <Minus className="w-5 h-5" />
@@ -7089,7 +9225,7 @@ export default function StudentsPage() {
                     </Table>
                   </div>
                 )}
-                {summerStudents.length > 0 && (
+                {summerStudents.length > 0 && !isMobile && (
                   <div className="flex items-center justify-between p-3 border-t border-orange-200/60 dark:border-orange-700/30">
                     <div className="text-sm text-muted-foreground">
                       Showing {summerShowingFrom}-{summerShowingTo} of {summerStudents.length}
@@ -7119,6 +9255,9 @@ export default function StudentsPage() {
                 )}
               </CardContent>
             </Card>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </TabsContent>
         </Tabs>
       </motion.div>

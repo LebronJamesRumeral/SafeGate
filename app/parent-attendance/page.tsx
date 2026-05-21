@@ -31,6 +31,13 @@ type StudentScheduleRow = {
   teacher_name: string | null;
 };
 
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function getSchoolDays(start: string, end: string) {
   if (!start || !end) return [] as string[];
   const days: string[] = [];
@@ -40,7 +47,7 @@ function getSchoolDays(start: string, end: string) {
   while (current <= endDate) {
     const day = current.getDay();
     if (day >= 1 && day <= 5) {
-      days.push(current.toISOString().split('T')[0]);
+      days.push(formatLocalDate(current));
     }
     current.setDate(current.getDate() + 1);
   }
@@ -104,12 +111,21 @@ export default function ParentAttendancePage() {
             .eq('student_lrn', child.lrn)
             .order('date', { ascending: false });
 
+          const { data: schoolYearData } = await supabase
+            .from('school_years')
+            .select('end_date')
+            .eq('is_current', true)
+            .maybeSingle();
+
+          const knownSchoolYearEnd = typeof window !== 'undefined' ? localStorage.getItem('schoolYearEndedAt') : null;
+          const schoolYearEnd = knownSchoolYearEnd || schoolYearData?.end_date || null;
+
           // Add synthetic absent rows for school days without a check-in (match admin attendance behavior)
-          const todayDate = new Date().toISOString().slice(0, 10);
+          const todayDate = formatLocalDate(new Date());
           const thirtyDaysAgo = (() => {
             const d = new Date();
             d.setDate(d.getDate() - 30);
-            return d.toISOString().slice(0, 10);
+            return formatLocalDate(d);
           })();
 
           const existingLogs = (attLogs || []).slice();
@@ -127,6 +143,7 @@ export default function ParentAttendancePage() {
           const recentSchoolDays = getSchoolDays(thirtyDaysAgo, todayDate);
           const syntheticAbsents: any[] = [];
           for (const d of recentSchoolDays) {
+            if (schoolYearEnd && d > schoolYearEnd) continue;
             if (!presentDates.has(d)) {
               syntheticAbsents.push({
                 id: `abs-${child.lrn}-${d}`,
@@ -653,7 +670,7 @@ export default function ParentAttendancePage() {
 
         {/* Attendance Summary */}
         <div className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
             <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
               <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/15 dark:bg-emerald-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
               <CardContent className="p-2.5 sm:p-4 flex items-start justify-between gap-4 relative z-10">
@@ -662,8 +679,8 @@ export default function ParentAttendancePage() {
                   <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-300 leading-tight">{attendanceSummary.present}</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Days present</p>
                 </div>
-                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
-                  <CheckCircle2 className="w-6 h-6 sm:w-7 sm:h-7" />
+                <div className="hidden md:flex shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
+                  <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
               </CardContent>
               <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
@@ -677,8 +694,8 @@ export default function ParentAttendancePage() {
                   <div className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-300 leading-tight">{attendanceSummary.late}</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Late arrivals</p>
                 </div>
-                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20 dark:shadow-amber-500/10 group-hover:scale-105 transition-all duration-300">
-                  <Clock3 className="w-6 h-6 sm:w-7 sm:h-7" />
+                <div className="hidden md:flex shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-linear-to-br from-amber-500 to-orange-600 text-white items-center justify-center shadow-md shadow-amber-500/20 dark:shadow-amber-500/10 group-hover:scale-105 transition-all duration-300">
+                  <Clock3 className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
               </CardContent>
               <div className="h-1 w-full bg-linear-to-r from-amber-400 to-orange-600 dark:from-amber-500 dark:to-orange-700" />
@@ -692,8 +709,8 @@ export default function ParentAttendancePage() {
                   <div className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-300 leading-tight">{attendanceSummary.absent}</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Days absent</p>
                 </div>
-                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
-                  <XCircle className="w-6 h-6 sm:w-7 sm:h-7" />
+                <div className="hidden md:flex shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
+                  <XCircle className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
               </CardContent>
               <div className="h-1 w-full bg-linear-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
@@ -776,7 +793,7 @@ export default function ParentAttendancePage() {
                     <CardHeader className="pb-2">
                       <div className="flex justify-between items-center gap-2">
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-xl font-bold font-mono text-slate-900 dark:text-white leading-tight">{child.name}</span>
+                          <span className="text-lg sm:text-xl font-bold font-mono text-slate-900 dark:text-white leading-tight">{child.name}</span>
                           <span className="text-xs font-mono text-slate-500 dark:text-slate-400">{child.lrn}</span>
                         </div>
                         <Badge className="bg-linear-to-r from-blue-600 to-cyan-600 text-white text-xs px-2.5 py-1">
@@ -784,29 +801,29 @@ export default function ParentAttendancePage() {
                         </Badge>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
+                    <CardContent className="space-y-2">
+                      <div className="p-2 sm:p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
                         <p className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Attendance Overview</p>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white mb-1">{attendanceRate}% attendance rate</p>
+                        <p className="text-sm sm:text-sm font-semibold text-slate-900 dark:text-white mb-1">{attendanceRate}% attendance rate</p>
                         <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{totalCount} total logged school day{totalCount !== 1 ? 's' : ''}</p>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2.5">
-                        <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2.5 border border-emerald-100 dark:border-emerald-900/40">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2 border border-emerald-100 dark:border-emerald-900/40">
                           <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold uppercase">Present</p>
-                          <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{presentCount}</p>
+                          <p className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-300">{presentCount}</p>
                         </div>
-                        <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 p-2.5 border border-amber-100 dark:border-amber-900/40">
+                        <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 p-2 border border-amber-100 dark:border-amber-900/40">
                           <p className="text-[10px] text-amber-700 dark:text-amber-300 font-semibold uppercase">Late</p>
-                          <p className="text-lg font-bold text-amber-700 dark:text-amber-300">{lateCount}</p>
+                          <p className="text-base sm:text-lg font-bold text-amber-700 dark:text-amber-300">{lateCount}</p>
                         </div>
-                        <div className="rounded-lg bg-red-50 dark:bg-red-950/30 p-2.5 border border-red-100 dark:border-red-900/40">
+                        <div className="rounded-lg bg-red-50 dark:bg-red-950/30 p-2 border border-red-100 dark:border-red-900/40">
                           <p className="text-[10px] text-red-700 dark:text-red-300 font-semibold uppercase">Absent</p>
-                          <p className="text-lg font-bold text-red-700 dark:text-red-300">{absentCount}</p>
+                          <p className="text-base sm:text-lg font-bold text-red-700 dark:text-red-300">{absentCount}</p>
                         </div>
                       </div>
 
-                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${trendStyle}`}>
+                      <div className={`flex items-center gap-2 px-2 py-1.5 rounded-md ${trendStyle}`}>
                         {trendGood ? <TrendingUp className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
                         <span className="text-xs font-semibold">{trendGood ? 'Consistent Attendance' : 'Needs Attendance Support'}</span>
                       </div>

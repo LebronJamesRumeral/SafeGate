@@ -141,8 +141,8 @@ function getMonthRange(monthValue: string) {
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 0);
   return {
-    start: start.toISOString().split('T')[0],
-    end: end.toISOString().split('T')[0],
+    start: formatLocalDate(start),
+    end: formatLocalDate(end),
   };
 }
 
@@ -155,11 +155,29 @@ function getSchoolDays(start: string, end: string) {
   while (current <= endDate) {
     const day = current.getDay();
     if (day >= 1 && day <= 5) {
-      days.push(current.toISOString().split('T')[0]);
+      days.push(formatLocalDate(current));
     }
     current.setDate(current.getDate() + 1);
   }
   return days;
+}
+
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+async function resolveSchoolYearEndDate() {
+  if (!supabase) return null;
+  const { data } = await supabase
+    .from('school_years')
+    .select('end_date')
+    .order('end_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.end_date || null;
 }
 
 // Enforce consistent layout structure for attendance page
@@ -167,7 +185,7 @@ export default function AttendancePage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isMobile = useIsMobile();
-  const today = new Date().toISOString().split('T')[0];
+  const today = formatLocalDate(new Date());
   const [dateMode, setDateMode] = useState<DateMode>('all');
   const [rangeStart, setRangeStart] = useState(today);
   const [rangeEnd, setRangeEnd] = useState(today);
@@ -181,7 +199,7 @@ export default function AttendancePage() {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [appliedRange, setAppliedRange] = useState<{ start: string; end: string }>({ start: today, end: today });
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
   const [exportLoading, setExportLoading] = useState(false);
   const [parentNotes, setParentNotes] = useState<Record<string, Array<{ studentLrn: string; parentEmail: string; noteText: string; createdAt: string; attendanceDate: string }>>>({});
@@ -225,12 +243,9 @@ export default function AttendancePage() {
     try {
       setLoading(true);
 
-      // Fetch current school year to get end date
-      const { data: schoolYearData } = await supabase
-        .from('school_years')
-        .select('end_date, is_current')
-        .eq('is_current', true)
-        .single();
+      // Resolve school year end date from the table (prefer latest end_date)
+      const resolvedEnd = await resolveSchoolYearEndDate();
+      const schoolYearData = { end_date: resolvedEnd };
 
       let studentsQuery = supabase.from('students').select('lrn, name, level');
       
@@ -286,14 +301,11 @@ export default function AttendancePage() {
         end = normalizedEnd;
       }
 
-      // Constrain end date to school year end date if school year has ended
+      // Constrain end date to school year end date if present
       if (schoolYearData?.end_date) {
-        const schoolYearEnd = new Date(schoolYearData.end_date);
-        schoolYearEnd.setHours(0, 0, 0, 0);
-        const endDateObj = new Date(end);
-        endDateObj.setHours(0, 0, 0, 0);
-        if (endDateObj > schoolYearEnd) {
-          end = schoolYearData.end_date;
+        const schoolYearEndStr = schoolYearData.end_date;
+        if (end > schoolYearEndStr) {
+          end = schoolYearEndStr;
         }
       }
 
@@ -563,6 +575,9 @@ export default function AttendancePage() {
   const summaryShowingFrom = summaryRows.length === 0 ? 0 : (summaryPage - 1) * SUMMARY_PAGE_SIZE + 1;
   const summaryShowingTo = Math.min(summaryPage * SUMMARY_PAGE_SIZE, summaryRows.length);
 
+  // Mobile view tab (summary | logs)
+  const [mobileTab, setMobileTab] = useState<'summary' | 'logs'>('summary');
+
   useEffect(() => {
     setSummaryPage((currentPage) => Math.min(Math.max(currentPage, 1), totalSummaryPages));
   }, [totalSummaryPages]);
@@ -803,15 +818,6 @@ export default function AttendancePage() {
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className="gap-2"
-            >
-              <Filter className="w-4 h-4" />
-              {showFilters ? 'Hide Filters' : 'Show Filters'}
-            </Button>
-            <Button
               size="sm"
               onClick={handleExport}
               disabled={exportLoading}
@@ -836,7 +842,7 @@ export default function AttendancePage() {
                     Cancel Classes
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl overflow-hidden border-orange-200 dark:border-orange-800/60 p-0">
+                <DialogContent className="w-[90%] max-w-sm sm:max-w-md p-4 sm:p-6 overflow-hidden border-orange-200 dark:border-orange-800/60 p-0">
                   <DialogHeader className="border-b border-orange-200/70 dark:border-orange-800/60 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-900/30 px-6 py-5">
                     <DialogTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
                       <Calendar className="h-5 w-5" />
@@ -929,22 +935,56 @@ export default function AttendancePage() {
 
         {/* Filters Card */}
         <AnimatePresence>
-          {showFilters && (
+          {!showFilters ? (
             <motion.div
+              key="filters-summary"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="mb-3"
+            >
+              <div className="flex items-center justify-between gap-3 px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-700/40">
+                <div className="text-sm truncate">
+                  <strong className="mr-2">Filters</strong>
+                  <span className="text-muted-foreground">
+                    {dateMode === 'all' ? 'All dates' : dateMode === 'single' ? (singleDate || 'Single date') : (rangeStart && rangeEnd ? `${rangeStart} — ${rangeEnd}` : 'Date range')}
+                    {' • '}
+                    {selectedLevel === 'all' ? 'All Levels' : selectedLevel}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setShowFilters(true)} className="gap-2">
+                    Show
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="filters-expanded"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.3 }}
             >
               <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-800/50 rounded-2xl p-2 md:p-6">
-                <CardHeader className="pb-1 border-b border-slate-200/40 dark:border-slate-700/30 px-0 md:px-2">
-                  <CardTitle className="flex items-center gap-2 text-lg px-0 md:px-1">
-                    <Filter className="w-5 h-5 text-blue-500" />
-                    Filters
-                  </CardTitle>
-                  <CardDescription className="mt-1">Customize your attendance view</CardDescription>
+                <CardHeader className="pb-1 px-3 md:px-4">
+                  <div className="flex items-start justify-between w-full">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-lg px-0 md:px-1">
+                        <Filter className="w-5 h-5 text-blue-500" />
+                        Filters
+                      </CardTitle>
+                      <CardDescription className="mt-1">Customize your attendance view</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="gap-2">
+                        Hide
+                      </Button>
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-1 pt-2 px-0 md:px-2">
+                <CardContent className="space-y-1 pt-2 px-3 md:px-4">
                   {/* Date Mode Tabs */}
                   <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-slate-100/40 dark:bg-slate-800/50 p-2 md:p-3">
                     {(['all', 'single', 'range', 'month'] as DateMode[]).map((mode) => (
@@ -952,7 +992,7 @@ export default function AttendancePage() {
                         key={mode}
                         type="button"
                         onClick={() => setDateMode(mode)}
-                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${
+                        className={`px-4 py-2 text-sm font-semibold rounded-full h-11 flex items-center justify-center transition-all whitespace-nowrap ${
                           dateMode === mode
                             ? 'bg-blue-600 dark:bg-blue-700 text-white shadow-md'
                             : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/40 dark:hover:bg-slate-700/40'
@@ -976,7 +1016,7 @@ export default function AttendancePage() {
                             type="date" 
                             value={singleDate} 
                             onChange={(e) => setSingleDate(e.target.value)}
-                            className="h-10 dark:bg-slate-800 dark:border-slate-600 dark:text-white border-slate-300 rounded-lg"
+                            className="h-11 dark:bg-slate-800 dark:border-slate-600 dark:text-white border-slate-300 rounded-full"
                           />
                         </div>
                       )}
@@ -990,7 +1030,7 @@ export default function AttendancePage() {
                               type="date" 
                               value={rangeStart} 
                               onChange={(e) => setRangeStart(e.target.value)}
-                              className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200"
+                              className="h-11 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 rounded-full"
                             />
                           </div>
                           <div className="flex flex-col gap-2">
@@ -1001,7 +1041,7 @@ export default function AttendancePage() {
                               type="date" 
                               value={rangeEnd} 
                               onChange={(e) => setRangeEnd(e.target.value)}
-                              className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200"
+                              className="h-11 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 rounded-full"
                             />
                           </div>
                         </>
@@ -1015,7 +1055,7 @@ export default function AttendancePage() {
                             type="month" 
                             value={monthValue} 
                             onChange={(e) => setMonthValue(e.target.value)}
-                            className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200"
+                            className="h-11 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 rounded-full"
                           />
                         </div>
                       )}
@@ -1027,7 +1067,7 @@ export default function AttendancePage() {
                           Student Level
                         </label>
                         <Select value={selectedLevel} onValueChange={setSelectedLevel}>
-                          <SelectTrigger className="h-10 w-full dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <SelectTrigger className="h-11 w-full dark:bg-slate-800 dark:text-slate-200 rounded-full border border-slate-200 dark:border-slate-700">
                             <SelectValue placeholder="All Levels" />
                           </SelectTrigger>
                           <SelectContent className="dark:bg-slate-800 dark:border-border/40">
@@ -1081,7 +1121,7 @@ export default function AttendancePage() {
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Name or LRN"
-                            className="h-10 w-full pl-9 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-slate-700"
+                            className="h-11 w-full pl-9 dark:bg-slate-800 dark:text-slate-200 rounded-full border border-slate-200 dark:border-slate-700"
                           />
                         </div>
                       </div>
@@ -1109,7 +1149,7 @@ export default function AttendancePage() {
                   <div className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400 leading-tight">{totalStudents}</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Registered in system</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 dark:shadow-blue-500/10 group-hover:scale-105 transition-all duration-300">
+                <div className="hidden sm:flex flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-md shadow-blue-500/20 dark:shadow-blue-500/10 group-hover:scale-105 transition-all duration-300">
                   <Users className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>
@@ -1131,7 +1171,7 @@ export default function AttendancePage() {
                   <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{totalCheckIns}</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Attendance events</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
+                <div className="hidden sm:flex flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
                   <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>
@@ -1153,7 +1193,7 @@ export default function AttendancePage() {
                   <div className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">{totalAbsences}</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Missed school days</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
+                <div className="hidden sm:flex flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
                   <AlertCircle className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>
@@ -1175,7 +1215,7 @@ export default function AttendancePage() {
                   <div className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400 leading-tight">{averageAttendance}%</div>
                   <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Attendance rate</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-violet-500 to-violet-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20 dark:shadow-violet-500/10 group-hover:scale-105 transition-all duration-300">
+                <div className="hidden sm:flex flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-violet-500 to-violet-600 text-white items-center justify-center shadow-md shadow-violet-500/20 dark:shadow-violet-500/10 group-hover:scale-105 transition-all duration-300">
                   <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
               </CardContent>
@@ -1183,9 +1223,165 @@ export default function AttendancePage() {
             </Card>
           </motion.div>
         </div>
+        {/* Mobile Tabs: show mobile-optimized structure on small screens */}
+        {isMobile ? (
+          <div className="space-y-3">
+            <div className="flex gap-2 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg border border-slate-200 dark:border-slate-700 max-w-md mx-2">
+              <button
+                onClick={() => setMobileTab('summary')}
+                className={`flex-1 px-3 py-1.5 rounded-md font-medium text-sm transition-all duration-200 ${
+                  mobileTab === 'summary'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300'
+                }`}
+              >
+                Summary
+              </button>
+              <button
+                onClick={() => setMobileTab('logs')}
+                className={`flex-1 px-3 py-1.5 rounded-md font-medium text-sm transition-all duration-200 ${
+                  mobileTab === 'logs'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300'
+                }`}
+              >
+                Logs
+              </button>
+            </div>
 
-        {/* Main Table Card */}
-        <Card className="border-0 shadow-lg overflow-hidden">
+            <AnimatePresence mode="wait" initial={false}>
+              {mobileTab === 'summary' ? (
+                <motion.div
+                  key="mobile-summary"
+                  initial={{ opacity: 0, x: -16, scale: 0.99 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: 16, scale: 0.99 }}
+                  transition={{ duration: 0.22, ease: 'easeOut' }}
+                  className="space-y-3 px-2"
+                >
+                  {paginatedSummaryRows.map((row) => (
+                    <div key={row.lrn} className="bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate" title={row.name}>{row.name}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{row.lrn} • {row.level}</p>
+                            </div>
+                            <div className="text-right">
+                              <div className={`font-semibold ${row.attendanceRate >= 90 ? 'text-emerald-600' : row.attendanceRate >= 75 ? 'text-blue-600' : row.attendanceRate >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>
+                                {row.attendanceRate}%
+                              </div>
+                              <div className="text-xs text-muted-foreground">{row.presentDays} present • {row.absentDays} absent</div>
+                            </div>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
+                            {parentNotes[row.lrn] && parentNotes[row.lrn].length > 0 ? (
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button size="sm" variant="outline">View Notes</Button>
+                                </DialogTrigger>
+                                <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                                  <DialogHeader className="sticky top-0 bg-transparent z-10 pb-4 border-b border-slate-200 dark:border-slate-700">
+                                    <DialogTitle className="text-lg">Parent Feedback Notes</DialogTitle>
+                                    <DialogDescription>
+                                      All parent feedback and notes submitted for {row.name} ({row.lrn})
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <div className="flex-1 overflow-y-auto pr-4 space-y-4">
+                                    {parentNotes[row.lrn].map((note, idx) => (
+                                      <div key={idx} className="rounded-lg border-l-4 border-l-blue-500 border border-slate-200 dark:border-slate-700 bg-blue-50/50 dark:bg-blue-950/20 p-4 hover:shadow-md transition-shadow">
+                                        <div className="space-y-3">
+                                          <div className="flex items-start justify-between gap-3">
+                                            <div className="flex-1">
+                                              <div className="flex items-center gap-2 mb-2">
+                                                <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                                <p className="font-bold text-sm text-blue-600 dark:text-blue-400">{note.parentEmail}</p>
+                                              </div>
+                                              <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1">Attendance Date: {note.attendanceDate}</p>
+                                              <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Submitted: {new Date(note.createdAt).toLocaleDateString()}</p>
+                                            </div>
+                                            <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-semibold text-xs px-2.5 py-1 uppercase tracking-wider border-0">Parent Note</Badge>
+                                          </div>
+                                          <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">{note.noteText}</p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            ) : (
+                              <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border-0 text-xs">No Notes</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="flex items-center justify-between px-2 py-3">
+                    <p className="text-sm">Showing {summaryShowingFrom} - {summaryShowingTo} of {summaryRows.length}</p>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setSummaryPage((p) => Math.max(1, p - 1))} disabled={summaryPage === 1}><ChevronLeft className="w-4 h-4"/></Button>
+                      <span>Page {summaryPage} / {totalSummaryPages}</span>
+                      <Button size="sm" variant="outline" onClick={() => setSummaryPage((p) => Math.min(totalSummaryPages, p + 1))} disabled={summaryPage === totalSummaryPages}><ChevronRight className="w-4 h-4"/></Button>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="mobile-logs"
+                  initial={{ opacity: 0, x: 16, scale: 0.99 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: -16, scale: 0.99 }}
+                  transition={{ duration: 0.22, ease: 'easeOut' }}
+                  className="space-y-3 px-2"
+                >
+                  {paginatedLogs.map((log) => {
+                    const student = studentMap[log.student_lrn];
+                    const normalizedStatus = String(log.attendance_status || '').toLowerCase();
+                    const isHoliday = normalizedStatus === 'holiday';
+                    const isCancelled = normalizedStatus === 'cancelled_class' || isHoliday;
+                    const checkIn = new Date(log.check_in_time);
+                    const checkOut = log.check_out_time ? new Date(log.check_out_time) : null;
+                    const duration = checkOut ? Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60)) : null;
+                    const isLate = !isCancelled && isLateCheckIn(log.check_in_time, studentSchedules[log.student_lrn]);
+
+                    return (
+                      <div key={log.id} className="bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium">{student?.name || log.student_lrn}</p>
+                            <p className="text-xs text-gray-500">{log.date} • {weekdayLabels[new Date(log.date).getDay()]}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm">
+                              {isCancelled ? (isHoliday ? 'Holiday' : 'Cancelled') : (checkOut ? 'Completed' : 'Active')}
+                            </div>
+                            <div className="text-xs text-muted-foreground">{isLate ? 'Late • ' : ''}{formatTime12h(checkIn)}{checkOut ? ` • ${formatTime12h(checkOut)}` : ''}</div>
+                            {duration && <div className="text-xs text-muted-foreground">{duration} min</div>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <div className="flex items-center justify-between px-2 py-3">
+                    <p className="text-sm">Showing {logShowingFrom} - {logShowingTo} of {sortedLogs.length}</p>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setLogPage((p) => Math.max(1, p - 1))} disabled={logPage === 1}><ChevronLeft className="w-4 h-4"/></Button>
+                      <span>Page {logPage} / {totalLogPages}</span>
+                      <Button size="sm" variant="outline" onClick={() => setLogPage((p) => Math.min(totalLogPages, p + 1))} disabled={logPage === totalLogPages}><ChevronRight className="w-4 h-4"/></Button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        ) : (
+          <>
+            {/* Main Table Card */}
+            <Card className="border-0 shadow-lg overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -1435,7 +1631,9 @@ export default function AttendancePage() {
               </div>
             </div>
           </CardContent>
-        </Card>
+            </Card>
+          </>
+        )}
 
         {/* Selected Student Details */}
         {selectedStudentSummary && (
@@ -1501,6 +1699,7 @@ export default function AttendancePage() {
         )}
 
         {/* Attendance Logs Table */}
+        {!isMobile && (
         <Card className="border-0 shadow-lg overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -1663,6 +1862,7 @@ export default function AttendancePage() {
             </div>
           </CardContent>
         </Card>
+        )}
       </motion.div>
     </DashboardLayout>
   );

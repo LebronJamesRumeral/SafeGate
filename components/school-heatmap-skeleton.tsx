@@ -13,7 +13,7 @@ export function SchoolHeatmapSkeleton() {
               <MapPinned className="h-6 w-6 text-orange-500" />
               <div className="h-8 bg-linear-to-r from-orange-200 to-orange-100 dark:from-orange-800 dark:to-orange-700 rounded-lg w-80 sm:w-96 animate-pulse" />
             </div>
-            <div className="h-4 bg-linear-to-r from-orange-100 to-orange-50 dark:from-orange-900 dark:to-orange-800 rounded-lg w-full max-w-2xl animate-pulse" />
+            <div className="h-4 bg-linear-to-r from-orange-100 to-orange-50 dark:from-orange-900 dark:to-orange-800 rounded-lg w-48 sm:w-80 animate-pulse" />
           </div>
         </div>
 
@@ -24,8 +24,14 @@ export function SchoolHeatmapSkeleton() {
         </div>
       </div>
 
+      {/* Mobile Tabs (skeleton) */}
+      <div className="sm:hidden flex items-center gap-2">
+        <Skeleton className="h-8 w-28 rounded-full" />
+        <Skeleton className="h-8 w-28 rounded-full" />
+      </div>
+
       {/* Metric Cards */}
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {/* Behavioral Logs */}
         <div className="shadow-xl border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16" />
@@ -96,7 +102,7 @@ export function SchoolHeatmapSkeleton() {
       </div>
 
       {/* Main Grid - Satellite + Activity */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-12">
         {/* Satellite School View */}
         <div className="xl:col-span-8 border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg">
           <div className="border-b border-orange-200/50 dark:border-orange-700/40 bg-linear-to-r from-orange-50/60 via-orange-50/30 to-transparent dark:from-orange-950/30 dark:via-orange-950/15 dark:to-transparent pb-5 p-5">
@@ -106,13 +112,13 @@ export function SchoolHeatmapSkeleton() {
               </div>
               <div>
                 <Skeleton className="h-6 w-56 mb-1" />
-                <Skeleton className="h-4 w-80 max-w-full" />
+                <Skeleton className="h-4 w-48 sm:w-80" />
               </div>
             </div>
           </div>
-          <div className="p-5">
+          <div className="p-3 sm:p-5">
             <div className="relative rounded-xl border border-orange-200/60 dark:border-orange-700/30 overflow-hidden bg-slate-100 dark:bg-slate-800/50">
-              <Skeleton className="h-80 sm:h-96 lg:h-130 w-full" />
+              <Skeleton className="h-48 sm:h-96 lg:h-[520px] w-full" />
               <div className="absolute inset-0 p-6">
                 {[...Array(6)].map((_, i) => (
                   <div
@@ -144,7 +150,7 @@ export function SchoolHeatmapSkeleton() {
               </div>
             </div>
           </div>
-          <div className="p-5 space-y-4">
+          <div className="p-3 sm:p-5 space-y-4">
             {/* Heat Level Metrics */}
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-slate-200/80 bg-linear-to-br from-slate-50 to-slate-50/50 p-3.5 dark:border-slate-700/60 dark:bg-linear-to-br dark:from-slate-900/40 dark:to-slate-800/20">
@@ -208,7 +214,7 @@ export function SchoolHeatmapSkeleton() {
             </div>
           </div>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="p-3 sm:p-5 space-y-4">
           {/* Add Zone Inputs */}
           <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-4">
             <Skeleton className="h-10 w-full xl:col-span-2 rounded-lg" />
@@ -219,16 +225,36 @@ export function SchoolHeatmapSkeleton() {
           <Skeleton className="h-10 w-48 rounded-lg" />
 
           {/* Zone List */}
-          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 lg:grid-cols-3">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="rounded-lg border border-amber-200/60 dark:border-amber-700/40 bg-white/70 dark:bg-slate-900/40 px-3.5 py-2.5 flex items-center justify-between">
-                <div className="space-y-1 flex-1">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-3 w-24" />
+          <div>
+            {/* Mobile compact list */}
+            <div className="sm:hidden space-y-2">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="rounded-lg border border-amber-200/60 dark:border-amber-700/40 bg-white/70 dark:bg-slate-900/40 px-3.5 py-2.5 flex items-center justify-between">
+                  <div className="space-y-1 flex-1">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                  <Skeleton className="h-8 w-8 rounded-md ml-2" />
                 </div>
-                <Skeleton className="h-8 w-8 rounded-md ml-2" />
+              ))}
+
+              <div className="pt-2">
+                <Skeleton className="h-8 w-24 rounded-lg" />
               </div>
-            ))}
+            </div>
+
+            {/* Desktop/grid list */}
+            <div className="hidden sm:grid grid-cols-1 gap-2.5 md:grid-cols-2 lg:grid-cols-3">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="rounded-lg border border-amber-200/60 dark:border-amber-700/40 bg-white/70 dark:bg-slate-900/40 px-3.5 py-2.5 flex items-center justify-between">
+                  <div className="space-y-1 flex-1">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                  <Skeleton className="h-8 w-8 rounded-md ml-2" />
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Bulk Delete Info */}

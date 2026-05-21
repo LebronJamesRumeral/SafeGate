@@ -329,6 +329,8 @@ function SchoolHeatmapContent() {
   const [newZoneKeywords, setNewZoneKeywords] = useState('');
   const [recentLogsModalOpen, setRecentLogsModalOpen] = useState(false);
   const [zoneDragState, setZoneDragState] = useState<ZoneDragState | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<'activity' | 'mapper'>('activity');
+  const [showAllMapperZonesMobile, setShowAllMapperZonesMobile] = useState(false);
 
   const { zones, loading: zonesLoading, loadZones, addZone, updateZone, deleteZone } = useHeatmapZones();
   // Handle select all toggle
@@ -662,18 +664,17 @@ function SchoolHeatmapContent() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in-up">
+      <div className="space-y-6 animate-fade-in-up overflow-x-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <MapPinned className="h-6 w-6 text-orange-500" />
                 <h1 className="text-2xl sm:text-3xl font-bold bg-linear-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">School Safety Heatmap</h1>
               </div>
               <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Click an area to inspect room-level severity reports. Heat intensity is based on behavioral log severity and ML-linked risk signals.</p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 bg-orange-50/60 border border-orange-200 rounded-full px-2 py-1 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3 min-w-0">
+              <div className="flex max-w-full items-center gap-2 overflow-x-auto scrollbar-hide whitespace-nowrap bg-orange-50/60 border border-orange-200 rounded-full px-2 py-1 shadow-sm">
                 {[
                   { label: 'All', value: 'all' },
                   { label: '7 Days', value: '7' },
@@ -765,7 +766,7 @@ function SchoolHeatmapContent() {
             </Card>
           </div>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 xl:grid-cols-12">
           <Card className="xl:col-span-8 border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300">
             <CardHeader className="border-b border-orange-200/50 dark:border-orange-700/40 bg-linear-to-r from-orange-50/60 via-orange-50/30 to-transparent dark:from-orange-950/30 dark:via-orange-950/15 dark:to-transparent pb-5">
               <div className="flex items-center gap-3.5">
@@ -780,10 +781,10 @@ function SchoolHeatmapContent() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 sm:p-6">
               <div
                 ref={mapContainerRef}
-                className="relative w-full h-80 sm:h-96 lg:h-130 overflow-hidden rounded-xl border border-orange-200/60 dark:border-orange-700/30 shadow-md"
+                className="relative w-full h-64 sm:h-96 lg:h-130 overflow-hidden rounded-xl border border-orange-200/60 dark:border-orange-700/30 shadow-md"
                 onMouseMove={handleMapMouseMove}
                 onMouseLeave={handleMapMouseLeave}
                 onClick={handleMapClick}
@@ -905,8 +906,72 @@ function SchoolHeatmapContent() {
             </CardContent>
           </Card>
 
-          <Card className="xl:col-span-4 border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+          <div className="xl:hidden">
+            <div className="flex items-center gap-1 rounded-2xl border border-slate-200/80 bg-slate-100/85 p-1 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70">
+              <button
+                type="button"
+                onClick={() => setMobilePanel('activity')}
+                className={cn(
+                  'flex h-8 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 text-[11px] font-medium transition-all',
+                  mobilePanel === 'activity'
+                    ? 'bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.18)] dark:bg-slate-800 dark:text-slate-100'
+                    : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100'
+                )}
+              >
+                <Flame className="h-3.5 w-3.5" />
+                <span>Heatzones</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobilePanel('mapper')}
+                className={cn(
+                  'flex h-8 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 text-[11px] font-medium transition-all',
+                  mobilePanel === 'mapper'
+                    ? 'bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.18)] dark:bg-slate-800 dark:text-slate-100'
+                    : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100'
+                )}
+              >
+                <MapPinned className="h-3.5 w-3.5" />
+                <span>Area Mapper</span>
+              </button>
+            </div>
+          </div>
+
+          <Card
+            className={cn(
+              'xl:col-span-4 border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300',
+              mobilePanel === 'activity' ? 'block' : 'hidden'
+            )}
+          >
             <CardHeader className="border-b border-sky-200/50 dark:border-sky-700/40 bg-linear-to-r from-sky-50/60 via-sky-50/30 to-transparent dark:from-sky-950/30 dark:via-sky-950/15 dark:to-transparent pb-5">
+              <div className="hidden xl:flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-100/85 p-1 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setMobilePanel('activity')}
+                  className={cn(
+                    'flex h-8 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-medium transition-all',
+                    mobilePanel === 'activity'
+                      ? 'bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.18)] dark:bg-slate-800 dark:text-slate-100'
+                      : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100'
+                  )}
+                >
+                  <Flame className="h-3.5 w-3.5" />
+                  <span>Heatzones</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobilePanel('mapper')}
+                  className={cn(
+                    'flex h-8 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-medium transition-all',
+                    mobilePanel === 'mapper'
+                      ? 'bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.18)] dark:bg-slate-800 dark:text-slate-100'
+                      : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100'
+                  )}
+                >
+                  <MapPinned className="h-3.5 w-3.5" />
+                  <span>Area Mapper</span>
+                </button>
+              </div>
               <div className="flex items-center gap-3.5">
                 <div className="p-3 rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white shadow-lg shadow-sky-500/30 dark:shadow-sky-500/20 hover:scale-110 transition-transform duration-300">
                   <Flame className="w-5 h-5" />
@@ -919,7 +984,7 @@ function SchoolHeatmapContent() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-5 pt-4">
+            <CardContent className="space-y-3 sm:space-y-5 pt-3 sm:pt-4 p-3 sm:p-6">
               {selectedZone ? (
                 <>
                   <div className="grid grid-cols-2 gap-3">
@@ -954,7 +1019,32 @@ function SchoolHeatmapContent() {
                     </p>
                   </div>
 
-                  <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/30 space-y-2">
+                  <div className="sm:hidden rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/30 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+                      Context Snapshot
+                    </p>
+                    <div className="space-y-1 text-xs text-indigo-900 dark:text-indigo-100">
+                      <p>
+                        Peak window: <span className="font-semibold">{selectedZoneContext.peakTimeBand}</span>
+                      </p>
+                      <p>
+                        Top incident:{' '}
+                        <span className="font-semibold">
+                          {selectedZoneContext.topIncidentTypes[0]?.[0] || 'No incidents'}
+                          {selectedZoneContext.topIncidentTypes[0]?.[1] ? ` (${selectedZoneContext.topIncidentTypes[0][1]})` : ''}
+                        </span>
+                      </p>
+                      <p>
+                        Frequent situation:{' '}
+                        <span className="font-semibold">
+                          {selectedZoneContext.topSituations[0]?.[0] || 'No signal'}
+                          {selectedZoneContext.topSituations[0]?.[1] ? ` (${selectedZoneContext.topSituations[0][1]})` : ''}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="hidden sm:block rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/30 space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
                       Contextual Behavior Analysis
                     </p>
@@ -965,9 +1055,9 @@ function SchoolHeatmapContent() {
                     <div>
                       <p className="text-[11px] font-medium text-indigo-700 dark:text-indigo-300 mb-1">Top Incident Types</p>
                       <div className="flex flex-wrap gap-1.5">
-                        {selectedZoneContext.topIncidentTypes.length > 0 ? selectedZoneContext.topIncidentTypes.map(([type, count]) => (
+                        {selectedZoneContext.topIncidentTypes.length > 0 ? selectedZoneContext.topIncidentTypes.map(([type, count], index) => (
                           <Badge key={type} variant="outline" className="border-indigo-300 text-indigo-700 dark:border-indigo-700 dark:text-indigo-300">
-                            {type} ({count})
+                            <span className={index > 1 ? 'hidden sm:inline' : ''}>{type} ({count})</span>
                           </Badge>
                         )) : (
                           <span className="text-xs text-indigo-800/80 dark:text-indigo-200/80">No incidents in selected range.</span>
@@ -978,9 +1068,9 @@ function SchoolHeatmapContent() {
                     <div>
                       <p className="text-[11px] font-medium text-indigo-700 dark:text-indigo-300 mb-1">Frequent Situations</p>
                       <div className="flex flex-wrap gap-1.5">
-                        {selectedZoneContext.topSituations.length > 0 ? selectedZoneContext.topSituations.map(([situation, count]) => (
+                        {selectedZoneContext.topSituations.length > 0 ? selectedZoneContext.topSituations.map(([situation, count], index) => (
                           <Badge key={situation} variant="outline" className="border-indigo-300 text-indigo-700 dark:border-indigo-700 dark:text-indigo-300">
-                            {situation} ({count})
+                            <span className={index > 1 ? 'hidden sm:inline' : ''}>{situation} ({count})</span>
                           </Badge>
                         )) : (
                           <span className="text-xs text-indigo-800/80 dark:text-indigo-200/80">No contextual signals found.</span>
@@ -995,7 +1085,7 @@ function SchoolHeatmapContent() {
                       Recent Logs
                     </p>
                     <div className="rounded-lg border border-slate-200/80 bg-slate-50/70 p-3 dark:border-slate-700/70 dark:bg-slate-900/40">
-                      <p className="text-xs text-slate-600 dark:text-slate-300 mb-3">
+                      <p className="hidden sm:block text-xs text-slate-600 dark:text-slate-300 mb-3">
                         Logs are hidden by default for privacy. Open the modal to review room activity.
                       </p>
                       <Dialog open={recentLogsModalOpen} onOpenChange={setRecentLogsModalOpen}>
@@ -1051,23 +1141,157 @@ function SchoolHeatmapContent() {
               )}
             </CardContent>
           </Card>
+
+          <Card
+            className={cn(
+              'hidden xl:col-span-4 border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300',
+              mobilePanel === 'mapper' ? 'xl:block' : 'xl:hidden'
+            )}
+          >
+            <CardHeader className="border-b border-amber-200/50 dark:border-amber-700/40 bg-linear-to-r from-amber-50/60 via-amber-50/30 to-transparent dark:from-amber-950/30 dark:via-amber-950/15 dark:to-transparent pb-5">
+              <div className="hidden xl:flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-100/85 p-1 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setMobilePanel('activity')}
+                  className={cn(
+                    'flex h-8 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-medium transition-all',
+                    mobilePanel === 'activity'
+                      ? 'bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.18)] dark:bg-slate-800 dark:text-slate-100'
+                      : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100'
+                  )}
+                >
+                  <Flame className="h-3.5 w-3.5" />
+                  <span>Heatzones</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobilePanel('mapper')}
+                  className={cn(
+                    'flex h-8 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-medium transition-all',
+                    mobilePanel === 'mapper'
+                      ? 'bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.18)] dark:bg-slate-800 dark:text-slate-100'
+                      : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100'
+                  )}
+                >
+                  <MapPinned className="h-3.5 w-3.5" />
+                  <span>Area Mapper</span>
+                </button>
+              </div>
+              <div className="flex items-center gap-3.5">
+                <div className="p-3 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/30 dark:shadow-amber-500/20">
+                  <MapPinned className="w-5 h-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Area / Room Mapper</CardTitle>
+                  <CardDescription className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+                    Add rooms or zones from your satellite map. Use names/keywords that match your behavioral event location logs.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-5 pt-4 p-6 max-h-[72vh] overflow-y-auto">
+              <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-2">
+                <div>
+                  <Label htmlFor="zone-name-desktop" className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Area Name</Label>
+                  <Input id="zone-name-desktop" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} placeholder="e.g., Room A-101" className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500" />
+                </div>
+                <div>
+                  <Label htmlFor="zone-keywords-desktop" className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Location Keywords</Label>
+                  <Input
+                    id="zone-keywords-desktop"
+                    value={newZoneKeywords}
+                    onChange={(e) => setNewZoneKeywords(e.target.value)}
+                    placeholder="room a-101, science lab"
+                    className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              <Button type="button" onClick={handleAddZone} className="w-full bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Area to Heatmap
+              </Button>
+
+              <div className="flex items-center gap-3 mb-2">
+                <Checkbox
+                  checked={selectAll}
+                  onCheckedChange={(checked) => setSelectAll(!!checked)}
+                  id="select-all-zones-desktop"
+                />
+                <Label htmlFor="select-all-zones-desktop" className="text-sm cursor-pointer select-none">Select All</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  disabled={selectedZoneIds.length === 0}
+                  onClick={openDeleteDialog}
+                  className="ml-auto"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" /> Delete Selected
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5">
+                {zones.map((zone) => (
+                  <div
+                    key={`desktop-zone-${zone.id}`}
+                    className="flex items-center justify-between rounded-lg border border-amber-200/60 bg-linear-to-r from-white to-amber-50/30 dark:from-slate-900/50 dark:to-slate-800/30 px-3.5 py-2.5 dark:border-amber-700/40 hover:border-amber-300 dark:hover:border-amber-600/60 hover:shadow-sm transition-all duration-200"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Checkbox
+                        checked={selectedZoneIds.includes(zone.id)}
+                        onCheckedChange={() => handleZoneCheckbox(zone.id)}
+                        id={`zone-checkbox-desktop-panel-${zone.id}`}
+                      />
+                      <div>
+                        <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{zone.name}</p>
+                        <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                          {zone.top}% / {zone.left}% / {zone.width}% / {zone.height}%
+                        </p>
+                      </div>
+                    </div>
+                    <Button type="button" size="icon" variant="ghost" onClick={() => handleDeleteZone(zone.id)}>
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300">
-          <CardHeader className="border-b border-amber-200/50 dark:border-amber-700/40 bg-linear-to-r from-amber-50/60 via-amber-50/30 to-transparent dark:from-amber-950/30 dark:via-amber-950/15 dark:to-transparent pb-5">
-            <div className="flex items-center gap-3.5">
-              <div className="p-3 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/30 dark:shadow-amber-500/20">
-                <MapPinned className="w-5 h-5" />
+        <Card
+          className={cn(
+            'border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300',
+            mobilePanel === 'mapper' ? 'block' : 'hidden',
+            'xl:hidden'
+          )}
+        >
+          <CardHeader className="border-b border-amber-200/50 dark:border-amber-700/40 bg-linear-to-r from-amber-50/60 via-amber-50/30 to-transparent dark:from-amber-950/30 dark:via-amber-950/15 dark:to-transparent pb-3 sm:pb-5">
+            <div className="flex items-center gap-2.5 sm:gap-3.5">
+              <div className="p-2.5 sm:p-3 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/30 dark:shadow-amber-500/20">
+                <MapPinned className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
-                <CardTitle className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Area / Room Mapper</CardTitle>
-                <CardDescription className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+                <CardTitle className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">Area / Room Mapper</CardTitle>
+                <CardDescription className="hidden sm:block text-sm text-slate-600 dark:text-slate-300 leading-snug">
                   Add rooms or zones from your satellite map. Use names/keywords that match your behavioral event location logs.
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-5 pt-4">
+          <CardContent className="space-y-3 sm:space-y-5 pt-3 sm:pt-4 p-3 sm:p-6">
+            <div className="sm:hidden grid grid-cols-2 gap-2">
+              <div className="rounded-lg border border-amber-200/70 bg-amber-50/70 px-3 py-2 dark:border-amber-800/60 dark:bg-amber-950/30">
+                <p className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300">Mapped Areas</p>
+                <p className="text-base font-bold text-amber-900 dark:text-amber-100">{zones.length}</p>
+              </div>
+              <div className="rounded-lg border border-rose-200/70 bg-rose-50/70 px-3 py-2 dark:border-rose-800/60 dark:bg-rose-950/30">
+                <p className="text-[10px] uppercase tracking-wide text-rose-700 dark:text-rose-300">Selected</p>
+                <p className="text-base font-bold text-rose-900 dark:text-rose-100">{selectedZoneIds.length}</p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-4">
               <div className="xl:col-span-2">
                 <Label htmlFor="zone-name" className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Area Name</Label>
@@ -1091,7 +1315,7 @@ function SchoolHeatmapContent() {
             </Button>
 
 
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
               <Checkbox
                 checked={selectAll}
                 onCheckedChange={(checked) => setSelectAll(!!checked)}
@@ -1104,13 +1328,14 @@ function SchoolHeatmapContent() {
                 variant="destructive"
                 disabled={selectedZoneIds.length === 0}
                 onClick={openDeleteDialog}
+                className="ml-auto"
               >
                 <Trash2 className="h-4 w-4 mr-1" /> Delete Selected
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 lg:grid-cols-3">
-              {zones.map((zone) => (
+            <div className="sm:hidden grid grid-cols-1 gap-2.5">
+              {(showAllMapperZonesMobile ? zones : zones.slice(0, 4)).map((zone) => (
                 <div
                   key={zone.id}
                   className="flex items-center justify-between rounded-lg border border-amber-200/60 bg-linear-to-r from-white to-amber-50/30 dark:from-slate-900/50 dark:to-slate-800/30 px-3.5 py-2.5 dark:border-amber-700/40 hover:border-amber-300 dark:hover:border-amber-600/60 hover:shadow-sm transition-all duration-200"
@@ -1120,6 +1345,44 @@ function SchoolHeatmapContent() {
                       checked={selectedZoneIds.includes(zone.id)}
                       onCheckedChange={() => handleZoneCheckbox(zone.id)}
                       id={`zone-checkbox-${zone.id}`}
+                    />
+                    <div>
+                      <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{zone.name}</p>
+                      <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                        {zone.top}% / {zone.left}% / {zone.width}% / {zone.height}%
+                      </p>
+                    </div>
+                  </div>
+                  <Button type="button" size="icon" variant="ghost" onClick={() => handleDeleteZone(zone.id)}>
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            {zones.length > 4 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="sm:hidden w-full"
+                onClick={() => setShowAllMapperZonesMobile((prev) => !prev)}
+              >
+                {showAllMapperZonesMobile ? 'Show fewer areas' : `Show all areas (${zones.length})`}
+              </Button>
+            )}
+
+            <div className="hidden sm:grid grid-cols-1 gap-2.5 md:grid-cols-2 lg:grid-cols-3">
+              {zones.map((zone) => (
+                <div
+                  key={zone.id}
+                  className="flex items-center justify-between rounded-lg border border-amber-200/60 bg-linear-to-r from-white to-amber-50/30 dark:from-slate-900/50 dark:to-slate-800/30 px-3.5 py-2.5 dark:border-amber-700/40 hover:border-amber-300 dark:hover:border-amber-600/60 hover:shadow-sm transition-all duration-200"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Checkbox
+                      checked={selectedZoneIds.includes(zone.id)}
+                      onCheckedChange={() => handleZoneCheckbox(zone.id)}
+                      id={`zone-checkbox-desktop-${zone.id}`}
                     />
                     <div>
                       <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{zone.name}</p>
@@ -1156,7 +1419,7 @@ function SchoolHeatmapContent() {
               </DialogContent>
             </Dialog>
 
-            <div className="rounded-lg border border-dashed border-orange-300/80 bg-orange-50/60 p-3 text-sm text-orange-900 dark:border-orange-900/60 dark:bg-orange-950/25 dark:text-orange-100">
+            <div className="hidden sm:block rounded-lg border border-dashed border-orange-300/80 bg-orange-50/60 p-3 text-sm text-orange-900 dark:border-orange-900/60 dark:bg-orange-950/25 dark:text-orange-100">
               New areas are added with a default size/position. Drag the box on the map to move it, and drag the bottom-right handle to resize. Use consistent location names (for example, "Room A-101") and matching keywords for accurate heatmap scoring.
             </div>
           </CardContent>

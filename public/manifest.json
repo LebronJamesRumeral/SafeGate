@@ -2,27 +2,29 @@
   "name": "SGCDC SafeGate - IoT-Enabled Behavioral Event Tracking and Intervention PWA",
   "short_name": "SGCDC SafeGate",
   "description": "SafeGate IoT-enabled smart infrastructure PWA using ESP32 and RFID for behavioral event tracking, intervention workflows, and attendance support at Subic Gateway Child Development Center, Inc.",
+  "id": "/",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["standalone", "fullscreen"],
   "orientation": "portrait-primary",
   "scope": "/",
-  "theme_color": "#6B21A8",
-  "background_color": "#ffffff",
+  "theme_color": "#1E3A8A",
+  "background_color": "#0F172A",
   "icons": [
     {
-      "src": "/SGCDC.png",
+      "src": "/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/SGCDC.png",
+      "src": "/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/SGCDC.png",
+      "src": "/icon-192x192.png",
       "sizes": "96x96",
       "type": "image/png",
       "purpose": "any maskable"

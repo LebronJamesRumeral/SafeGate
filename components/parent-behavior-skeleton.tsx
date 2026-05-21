@@ -4,13 +4,18 @@ export default function ParentBehaviorSkeleton() {
   return (
     <div className="space-y-6 animate-fade-in-up px-2 sm:px-0">
       {/* Page Header Skeleton */}
-      <div>
-        <div className="h-8 sm:h-10 bg-linear-to-r from-slate-300 to-slate-200 dark:from-slate-600 dark:to-slate-700 rounded-lg w-80 max-w-full animate-pulse mb-2" />
-        <div className="h-4 sm:h-5 bg-linear-to-r from-slate-200 to-slate-100 dark:from-slate-700 dark:to-slate-800 rounded-lg w-full max-w-md animate-pulse" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+        <div className="flex-1 min-w-0 space-y-1.5 sm:space-y-2">
+          <div className="h-8 sm:h-10 bg-linear-to-r from-slate-300 to-slate-200 dark:from-slate-600 dark:to-slate-700 rounded-lg w-60 sm:w-80 max-w-full animate-pulse mb-1" />
+          <div className="h-4 sm:h-5 bg-linear-to-r from-slate-200 to-slate-100 dark:from-slate-700 dark:to-slate-800 rounded-lg w-full max-w-md animate-pulse" />
+        </div>
+        <div className="hidden sm:flex items-center gap-3">
+          <div className="h-8 w-20 rounded-lg bg-slate-200 animate-pulse" />
+        </div>
       </div>
 
       {/* Summary Cards with exact live styling */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         {/* Total Events */}
         <div className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group rounded-lg">
           <div className="absolute top-0 right-0 w-20 h-20 bg-sky-500/15 dark:bg-sky-400/10 rounded-full -mr-8 -mt-8" />

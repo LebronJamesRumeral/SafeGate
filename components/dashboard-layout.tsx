@@ -4,6 +4,7 @@ import type React from "react"
 import { Sidebar, SidebarContext } from "@/components/sidebar"
 import { Header } from "@/components/header"
 import { MobileBottomNavbar } from "@/components/mobile-bottom-navbar"
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt"
 import { useContext, useState, useEffect } from "react"
 import { useIsMobile } from "@/hooks/use-mobile"
 
@@ -34,7 +35,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <div className="w-16 sm:w-64 bg-slate-100 dark:bg-slate-900/80 border-r border-slate-200 dark:border-slate-800 animate-pulse" />
         <div className="flex-1 flex flex-col">
           <div className="h-16 bg-white/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 animate-pulse" />
-          <main className="flex-1 p-4 sm:p-8 bg-gradient-to-br from-slate-50 via-white to-orange-50 dark:from-slate-950 dark:via-slate-900 dark:to-orange-950/30">
+          <main className="flex-1 p-4 sm:p-8 bg-linear-to-br from-slate-50 via-white to-orange-50 dark:from-slate-950 dark:via-slate-900 dark:to-orange-950/30">
             {/* Children will be skeletons or loading UI */}
             {children}
           </main>
@@ -77,7 +78,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div 
-      className="relative flex-1 transition-all duration-300 overflow-hidden bg-gradient-to-br from-white via-blue-50/30 to-orange-50/20 dark:from-slate-950 dark:via-slate-900/80 dark:to-slate-950"
+      className="relative flex-1 transition-all duration-300 overflow-hidden bg-linear-to-br from-white via-blue-50/30 to-orange-50/20 dark:from-slate-950 dark:via-slate-900/80 dark:to-slate-950"
       style={{
         marginLeft: isMobile ? '0px' : collapsed ? '80px' : '256px'
       }}>
@@ -85,7 +86,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       
       {/* Background gradient layers for visual depth */}
       <div 
-        className="fixed inset-0 -z-10 h-full w-full pointer-events-none bg-gradient-to-br from-blue-100/10 via-orange-50/5 to-blue-50/10 dark:from-blue-950/30 dark:via-orange-950/10 dark:to-blue-950/20" 
+        className="fixed inset-0 -z-10 h-full w-full pointer-events-none bg-linear-to-br from-blue-100/10 via-orange-50/5 to-blue-50/10 dark:from-blue-950/30 dark:via-orange-950/10 dark:to-blue-950/20" 
         aria-hidden="true"
       />
       
@@ -106,6 +107,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+
+      <PwaInstallPrompt />
 
       {/* Mobile Bottom Navigation - only visible on mobile (md:hidden) */}
       <MobileBottomNavbar />

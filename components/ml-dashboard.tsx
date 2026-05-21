@@ -1308,42 +1308,42 @@ export function StudentRiskCard({ studentLrn, name, lrn }: { studentLrn: string,
           <div className="absolute inset-0 bg-white/30 animate-shimmer" />
         </div>
         
-        <CardHeader className="pb-2">
-          <div className="flex justify-between items-center gap-2">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-xl font-bold font-mono text-slate-900 dark:text-white leading-tight">{name || summary?.name || 'Student Name'}</span>
-              <span className="text-xs font-mono text-slate-500 dark:text-slate-400">{lrn || studentLrn}</span>
+        <CardHeader className="pb-2 sm:pb-2">
+          <div className="flex justify-between items-start gap-2">
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <span className="text-lg sm:text-xl font-bold font-mono text-slate-900 dark:text-white leading-tight truncate">{name || summary?.name || 'Student Name'}</span>
+              <span className="text-[10px] sm:text-xs font-mono text-slate-500 dark:text-slate-400 truncate">{lrn || studentLrn}</span>
             </div>
-            <Badge className={`${colors.badge} text-xs`}>
+            <Badge className={`${colors.badge} text-[10px] sm:text-xs shrink-0`}>
               <Sparkles className="w-3 h-3 mr-0.5" />
               {summary.riskLevel.toUpperCase()}
             </Badge>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2.5 sm:space-y-3">
           {/* Combined Risk Summary */}
-          <div className="p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
-            <p className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+          <div className="p-2.5 sm:p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
+            <p className="text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
               Key Issues
             </p>
-            <p className="text-sm font-semibold text-slate-900 dark:text-white mb-1">
+            <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white mb-1 line-clamp-2">
               {formatKeyIssues(summary.patternType)}
             </p>
-            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            <p className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-2">
               {summary.attendanceSignal}
             </p>
           </div>
 
           {/* Behavior Trend and Behavior Status - Compact */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="rounded-lg bg-red-50 dark:bg-red-950/30 p-2.5 border border-red-100 dark:border-red-900/40">
-              <p className="text-[10px] text-red-700 dark:text-red-300 font-semibold uppercase">Concerning</p>
-              <p className="text-lg font-bold text-red-700 dark:text-red-300">{summary.concerningEvents}</p>
+          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
+            <div className="rounded-lg bg-red-50 dark:bg-red-950/30 p-2 sm:p-2.5 border border-red-100 dark:border-red-900/40">
+              <p className="text-[9px] sm:text-[10px] text-red-700 dark:text-red-300 font-semibold uppercase">Concerning</p>
+              <p className="text-base sm:text-lg font-bold text-red-700 dark:text-red-300">{summary.concerningEvents}</p>
             </div>
-            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2.5 border border-emerald-100 dark:border-emerald-900/40">
-              <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold uppercase">Positive</p>
-              <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{summary.positiveEvents}</p>
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2 sm:p-2.5 border border-emerald-100 dark:border-emerald-900/40">
+              <p className="text-[9px] sm:text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold uppercase">Positive</p>
+              <p className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-300">{summary.positiveEvents}</p>
             </div>
           </div>
 
@@ -1355,7 +1355,7 @@ export function StudentRiskCard({ studentLrn, name, lrn }: { studentLrn: string,
 
           {/* Prediction Info - Compact */}
           {summary.nextLikelyAbsentDate && (
-            <div className="p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
+            <div className="hidden sm:block p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Calendar className="w-3.5 h-3.5 text-blue-900 dark:text-blue-300" />
                 <p className="text-[10px] font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wider">
@@ -1383,7 +1383,7 @@ export function StudentRiskCard({ studentLrn, name, lrn }: { studentLrn: string,
 
           {/* Concerning Pattern Alert - Only if needed */}
           {summary.concerningEvents > 0 && (
-            <div className="p-3 rounded-lg bg-linear-to-r from-amber-50 to-yellow-50 dark:from-amber-950/50 dark:to-yellow-950/40 border border-amber-300 dark:border-amber-600/50">
+            <div className="hidden sm:block p-3 rounded-lg bg-linear-to-r from-amber-50 to-yellow-50 dark:from-amber-950/50 dark:to-yellow-950/40 border border-amber-300 dark:border-amber-600/50">
               <div className="flex items-start gap-2">
                 <div className="p-1 rounded-lg bg-amber-100 dark:bg-amber-800/50 shrink-0">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />

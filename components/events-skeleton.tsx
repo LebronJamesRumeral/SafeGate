@@ -17,8 +17,8 @@ export default function EventsSkeleton() {
         <Skeleton className="h-9 w-28 rounded-md bg-blue-200/70 dark:bg-blue-900/50" />
       </div>
 
-      {/* Metric Cards (4) */}
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Metric Cards (4) - show as 2 columns on mobile to match live layout */}
+      <div className="grid grid-cols-2 gap-4 sm:gap-5 xl:grid-cols-4">
         {/* Total Events - Blue */}
         <div className="shadow-xl border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16" />

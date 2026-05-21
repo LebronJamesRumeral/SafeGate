@@ -4,7 +4,7 @@ import { CalendarDays, Megaphone } from 'lucide-react';
 export default function ParentAnnouncementSkeleton() {
   return (
     <div className="space-y-6 animate-fade-in-up px-2 sm:px-0">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-start gap-4">
           <div className="p-3 rounded-2xl bg-linear-to-br from-sky-500 to-sky-600 animate-pulse w-14 h-14" />
           <div className="space-y-2">

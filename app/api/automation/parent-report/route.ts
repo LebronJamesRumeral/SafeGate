@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { createMailTransporter } from '@/lib/email-service';
 import { formatTime12h } from '@/lib/time-format';
 
@@ -121,10 +123,25 @@ function formatDisplayTime(raw: string | null | undefined): string {
   return raw ? formatTime12h(raw, 'N/A') : 'N/A';
 }
 
+function getSchoolLogoAttachment() {
+  const logoPath = join(process.cwd(), 'public', 'SGCDC.png');
+  if (!existsSync(logoPath)) {
+    return null;
+  }
+
+  return {
+    filename: 'SGCDC.png',
+    path: logoPath,
+    cid: 'sgcdc-logo',
+  };
+}
+
 function buildParentEmailContent(reportPayload: any) {
   const schoolName = process.env.SCHOOL_NAME || 'SafeGate';
+  const logoAttachment = getSchoolLogoAttachment();
   const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL || '').replace(/\/$/, '');
-  const schoolLogoUrl = process.env.SCHOOL_LOGO_URL || (appBaseUrl ? `${appBaseUrl}/logo.png` : '');
+  const schoolLogoUrl = process.env.SCHOOL_LOGO_URL || (appBaseUrl ? `${appBaseUrl}/SGCDC.png` : '');
+  const schoolLogoSrc = logoAttachment ? `cid:${logoAttachment.cid}` : schoolLogoUrl;
   const studentName = reportPayload.student?.name || reportPayload.student?.lrn || 'Student';
   const parentName = reportPayload.parent?.name || 'Parent/Guardian';
   const eventType = reportPayload.event?.type || 'Behavioral Event';
@@ -225,9 +242,9 @@ function buildParentEmailContent(reportPayload: any) {
                     <table cellpadding="0" cellspacing="0">
                       <tr>
                         ${
-                          schoolLogoUrl
+                          schoolLogoSrc
                             ? `<td style="padding-right:12px;vertical-align:top;">
-                                <img src="${schoolLogoUrl}" alt="SGCDC Logo" width="48" height="48" style="display:block;border-radius:10px;background:#ffffff;padding:5px;object-fit:contain;" />
+                                <img src="${schoolLogoSrc}" alt="SGCDC Logo" width="48" height="48" style="display:block;border-radius:10px;background:#ffffff;padding:5px;object-fit:contain;" />
                                </td>`
                             : ''
                         }
@@ -239,7 +256,7 @@ function buildParentEmailContent(reportPayload: any) {
                     </table>
                   </td>
                   <td align="right" valign="top">
-                    <span style="display:inline-block;background:${severityInfo.color};color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:0.5px;text-transform:uppercase;">${severityInfo.label} Severity</span>
+                    <span style="display:inline-block;background:${severityInfo.color};color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:0.5px;text-transform:uppercase;">${severityInfo.label}</span>
                   </td>
                 </tr>
               </table>
@@ -370,7 +387,7 @@ function buildParentEmailContent(reportPayload: any) {
 </body>
 </html>`;
 
-  return { subject, text, html };
+  return { subject, text, html, attachments: logoAttachment ? [logoAttachment] : undefined };
 }
 
 export async function POST(request: Request) {
@@ -637,6 +654,7 @@ export async function POST(request: Request) {
       subject: emailContent.subject,
       text: emailContent.text,
       html: emailContent.html,
+      attachments: emailContent.attachments,
     });
 
     return Response.json({

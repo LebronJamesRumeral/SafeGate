@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Clock, AlertTriangle, CheckCircle, TrendingUp, XCircle, BarChart3, Activity, Calendar, Filter, Cloud, Sun, Moon } from 'lucide-react';
+import { Users, Clock, AlertTriangle, CheckCircle, TrendingUp, XCircle, BarChart3, Activity, Calendar, Filter, Cloud, Sun, Moon, ChevronDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
@@ -13,8 +13,9 @@ import { calculateStudentRiskScore, calculateBatchRiskScores } from '@/lib/ml-ri
 import { MLDashboard } from '@/components/ml-dashboard';
 import { DashboardSkeleton } from '@/components/dashboard-skeleton';
 import { DateLevelFilter } from '@/components/date-level-filter';
-import { motion } from 'framer-motion';
-import { useTheme } from 'next-themes';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { useTheme } from '@/components/theme-provider';
 
 type DateMode = 'all' | 'single' | 'range';
 
@@ -22,6 +23,7 @@ type DateMode = 'all' | 'single' | 'range';
 export default function Dashboard() {
   const router = useRouter();
   const { theme } = useTheme();
+  const isMobile = useIsMobile();
   const [authLoading, setAuthLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [dateMode, setDateMode] = useState<DateMode>('all');
@@ -29,8 +31,10 @@ export default function Dashboard() {
   const [rangeStart, setRangeStart] = useState(new Date().toISOString().split('T')[0]);
   const [rangeEnd, setRangeEnd] = useState(new Date().toISOString().split('T')[0]);
   const [selectedLevel, setSelectedLevel] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [activeTableTab, setActiveTableTab] = useState<'students' | 'categories'>('students');
   const [stats, setStats] = useState({
     totalPresent: 0,
     totalStudents: 0,
@@ -308,47 +312,112 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="space-y-6 max-w-7xl mx-auto"
+        className="space-y-4 sm:space-y-6 max-w-7xl mx-auto"
       >
-        {/* Page Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-bold bg-linear-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
-              {userRole === 'teacher' ? 'Teacher Dashboard' : userRole === 'guidance' ? 'Guidance Dashboard' : 'Admin Dashboard'}
-            </h1>
-            <p className="text-base text-slate-600 dark:text-slate-400 mt-2">
-              Track behavioral events and intervention risk first, with attendance and QR data as supporting context.
-            </p>
-          </div>
-          
-          {/* Weather Widget */}
-          <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-slate-200 dark:border-slate-700 shadow-sm">
-            <div className="p-2 rounded-lg bg-sky-100 dark:bg-sky-900/40">
-              <weather.icon className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+        {/* Page Header - Mobile Optimized */}
+        <div className="flex flex-col gap-3 sm:gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-linear-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent truncate">
+                {userRole === 'teacher' ? 'Teacher' : userRole === 'guidance' ? 'Guidance' : 'Admin'} Dashboard
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
+                Track behavioral events and intervention risk first.
+              </p>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900 dark:text-white">{weather.temp}°C</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{weather.condition}</p>
+            
+            {/* Weather Widget - Compact on Mobile */}
+            <div className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-sky-100 dark:bg-sky-900/40">
+                <Cloud className="w-4 h-4 sm:w-5 sm:h-5 text-sky-600 dark:text-sky-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">{weather.temp}°C</p>
+                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">{weather.condition}</p>
+              </div>
             </div>
           </div>
+
+          {/* Date and Level Filter - Mobile Optimized (collapsible). On desktop show full filter without hide/show. */}
+          {isMobile ? (
+            <AnimatePresence>
+              {!showFilters ? (
+                <motion.div
+                  key="dashboard-filters-summary"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="mb-2"
+                >
+                  <div className="flex items-center justify-between gap-3 px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-700/40">
+                    <div className="text-sm truncate">
+                      <strong className="mr-2">Filters</strong>
+                      <span className="text-muted-foreground">{getDateRangeText()} • {selectedLevel === 'all' ? 'All Levels' : selectedLevel}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setShowFilters(true)} className="gap-2">
+                        Show
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="dashboard-filters-expanded"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.28 }}
+                >
+                  <div className="mb-2">
+                    <Card className="overflow-hidden rounded-xl border-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm p-0 shadow-lg">
+                      <CardHeader className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200/60 dark:border-slate-700/40">
+                        <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Filter Dates</CardTitle>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)}>Hide</Button>
+                        </div>
+                      </CardHeader>
+                      <div className="p-4">
+                        <DateLevelFilter
+                          dateMode={dateMode}
+                          setDateMode={setDateMode}
+                          singleDate={singleDate}
+                          setSingleDate={setSingleDate}
+                          rangeStart={rangeStart}
+                          setRangeStart={setRangeStart}
+                          rangeEnd={rangeEnd}
+                          setRangeEnd={setRangeEnd}
+                          selectedLevel={selectedLevel}
+                          setSelectedLevel={setSelectedLevel}
+                          forceExpanded={true}
+                          noWrapper={true}
+                        />
+                      </div>
+                    </Card>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          ) : (
+            <div className="mb-2">
+              <DateLevelFilter
+                dateMode={dateMode}
+                setDateMode={setDateMode}
+                singleDate={singleDate}
+                setSingleDate={setSingleDate}
+                rangeStart={rangeStart}
+                setRangeStart={setRangeStart}
+                rangeEnd={rangeEnd}
+                setRangeEnd={setRangeEnd}
+                selectedLevel={selectedLevel}
+                setSelectedLevel={setSelectedLevel}
+              />
+            </div>
+          )}
         </div>
 
-        {/* Date and Level Filter */}
-        <DateLevelFilter
-          dateMode={dateMode}
-          setDateMode={setDateMode}
-          singleDate={singleDate}
-          setSingleDate={setSingleDate}
-          rangeStart={rangeStart}
-          setRangeStart={setRangeStart}
-          rangeEnd={rangeEnd}
-          setRangeEnd={setRangeEnd}
-          selectedLevel={selectedLevel}
-          setSelectedLevel={setSelectedLevel}
-        />
-
-        {/* Metric Cards */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-5">
+        {/* Metric Cards - Mobile Optimized */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-5">
           {/* Positive Behavior Events Card */}
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
@@ -356,18 +425,18 @@ export default function Dashboard() {
             transition={{ delay: 0.1 }}
           >
             <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/15 dark:bg-emerald-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
-              <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+              <div className="absolute top-0 right-0 w-16 h-16 sm:w-20 sm:h-20 bg-emerald-500/15 dark:bg-emerald-400/10 rounded-full -mr-6 sm:-mr-8 -mt-6 sm:-mt-8 group-hover:scale-125 transition-transform duration-500" />
+              <CardContent className="p-2 sm:p-3 md:p-4 flex items-start justify-between relative z-10 gap-1.5 sm:gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[9px] sm:text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Positive Behavior Events</p>
-                  <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{behavioralStats.positiveEvents}</div>
-                  <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Reinforcing Student Progress</p>
+                  <p className="text-[8px] sm:text-[9px] md:text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Positive</p>
+                  <div className="text-base sm:text-lg md:text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{behavioralStats.positiveEvents}</div>
+                  <p className="text-[7px] sm:text-[8px] md:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Events</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
-                  <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7" />
+                <div className="hidden md:flex shrink-0 w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-lg sm:rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
+                  <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
                 </div>
               </CardContent>
-              <div className="h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
+              <div className="h-0.5 sm:h-1 w-full bg-linear-to-r from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700" />
             </Card>
           </motion.div>
 
@@ -378,18 +447,18 @@ export default function Dashboard() {
             transition={{ delay: 0.2 }}
           >
             <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/15 dark:bg-red-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
-              <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+              <div className="absolute top-0 right-0 w-16 h-16 sm:w-20 sm:h-20 bg-red-500/15 dark:bg-red-400/10 rounded-full -mr-6 sm:-mr-8 -mt-6 sm:-mt-8 group-hover:scale-125 transition-transform duration-500" />
+              <CardContent className="p-2 sm:p-3 md:p-4 flex items-start justify-between relative z-10 gap-1.5 sm:gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[9px] sm:text-[10px] text-red-600 dark:text-red-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Students At Risk</p>
-                  <div className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400 leading-tight">{behavioralStats.studentsAtRisk}</div>
-                  <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">High + critical risk level</p>
+                  <p className="text-[8px] sm:text-[9px] md:text-[10px] text-red-600 dark:text-red-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">At Risk</p>
+                  <div className="text-base sm:text-lg md:text-2xl font-bold text-red-600 dark:text-red-400 leading-tight">{behavioralStats.studentsAtRisk}</div>
+                  <p className="text-[7px] sm:text-[8px] md:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Students</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
-                  <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
+                <div className="hidden md:flex shrink-0 w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-lg sm:rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
+                  <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
                 </div>
               </CardContent>
-              <div className="h-1 w-full bg-linear-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
+              <div className="h-0.5 sm:h-1 w-full bg-linear-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
             </Card>
           </motion.div>
 
@@ -400,157 +469,331 @@ export default function Dashboard() {
             transition={{ delay: 0.3 }}
           >
             <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
-              <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+              <div className="absolute top-0 right-0 w-16 h-16 sm:w-20 sm:h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-6 sm:-mr-8 -mt-6 sm:-mt-8 group-hover:scale-125 transition-transform duration-500" />
+              <CardContent className="p-2 sm:p-3 md:p-4 flex items-start justify-between relative z-10 gap-1.5 sm:gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[9px] sm:text-[10px] text-orange-600 dark:text-orange-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Major / Critical Incidents</p>
-                  <div className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">{behavioralStats.negativeEvents}</div>
-                  <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Major And Critical Incidents</p>
+                  <p className="text-[8px] sm:text-[9px] md:text-[10px] text-orange-600 dark:text-orange-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Critical</p>
+                  <div className="text-base sm:text-lg md:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">{behavioralStats.negativeEvents}</div>
+                  <p className="text-[7px] sm:text-[8px] md:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Incidents</p>
                 </div>
-                <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
-                  <XCircle className="w-6 h-6 sm:w-7 sm:h-7" />
+                <div className="hidden md:flex shrink-0 w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-lg sm:rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
+                  <XCircle className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
                 </div>
               </CardContent>
-              <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
+              <div className="h-0.5 sm:h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
             </Card>
           </motion.div>
         </div>
 
-        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-           Attendance And QR Scanning Remain Available As Secondary Operational Features.
+        <p className="text-[10px] sm:text-xs md:text-sm text-slate-500 dark:text-slate-400 leading-tight">
+          Attendance And QR Scanning Remain Available As Secondary Operational Features.
         </p>
 
-        {/* Tables Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Attendance Snapshot: Top Students by Check-In Events */}
+        {/* Tables Section - Mobile Optimized with Tabs */}
+        {isMobile ? (
+          // Mobile: Tabbed Layout
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
+            className="space-y-3"
           >
-            <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden">
-              <CardHeader className="border-b border-orange-200/40 dark:border-orange-700/30 bg-linear-to-r from-orange-50/50 to-transparent dark:from-orange-950/20 dark:to-transparent pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20">
-                    <TrendingUp className="w-5 h-5" />
-                  </div>
-                  <div>
-                        <CardTitle className="text-xl text-slate-900 dark:text-white">Top Students</CardTitle>
-                        <CardDescription className="text-slate-600 dark:text-slate-400">Attendance Snapshot By Check-In Events</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-orange-100/50 dark:bg-orange-900/20">
-                        <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">#</th>
-                        <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">Student</th>
-                        <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">Grade</th>
-                        <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">Count</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {topStudents.length > 0 ? (
-                        topStudents.map((student: any, idx: number) => (
-                          <tr 
-                            key={student.lrn} 
-                            className="border-b border-orange-100/30 dark:border-orange-800/20 last:border-0 hover:bg-orange-50/50 dark:hover:bg-orange-900/10 transition-colors"
-                          >
-                            <td className="px-6 py-4">
-                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 font-semibold text-xs">
-                                {idx + 1}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{student.name}</td>
-                            <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{student.level}</td>
-                            <td className="px-6 py-4">
-                              <span className="font-bold text-orange-600 dark:text-orange-400 bg-orange-100/50 dark:bg-orange-900/30 px-3 py-1 rounded-full">
-                                {student.count}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={4} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
-                            No attendance data available
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+            {/* Tab Buttons */}
+            <div className="flex gap-2 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
+              <button
+                onClick={() => setActiveTableTab('students')}
+                className={`flex-1 px-3 py-1.5 rounded-md font-medium text-xs transition-all duration-200 ${
+                  activeTableTab === 'students'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300'
+                }`}
+              >
+                Top Students
+              </button>
+              <button
+                onClick={() => setActiveTableTab('categories')}
+                className={`flex-1 px-3 py-1.5 rounded-md font-medium text-xs transition-all duration-200 ${
+                  activeTableTab === 'categories'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300'
+                }`}
+              >
+                Behavior Types
+              </button>
+            </div>
 
-          {/* Top Behavioral Event Categories */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            <Card className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden">
-              <CardHeader className="border-b border-sky-200/40 dark:border-sky-700/30 bg-linear-to-r from-sky-50/50 to-transparent dark:from-sky-950/20 dark:to-transparent pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white shadow-lg shadow-sky-500/25 dark:shadow-sky-500/20">
-                    <Activity className="w-5 h-5" />
+            {/* Animated Tab Content */}
+            <AnimatePresence mode="wait">
+
+            {/* Top Students Table */}
+            {activeTableTab === 'students' && (
+              <motion.div
+                key="students-table"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                transition={{ duration: 0.3 }}
+              >
+              <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden">
+                <CardHeader className="border-b border-orange-200/40 dark:border-orange-700/30 bg-linear-to-r from-orange-50/50 to-transparent dark:from-orange-950/20 dark:to-transparent pb-3 sm:pb-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20">
+                      <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <CardTitle className="text-lg sm:text-xl text-slate-900 dark:text-white truncate">Top Students</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 truncate">Attendance by Check-In</CardDescription>
+                    </div>
                   </div>
-                  <div>
-                        <CardTitle className="text-xl text-slate-900 dark:text-white">Top Behavior Categories</CardTitle>
-                        <CardDescription className="text-slate-600 dark:text-slate-400">Most Frequent Event Types</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-sky-100/50 dark:bg-sky-900/20">
-                        <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">#</th>
-                        <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">Category</th>
-                        <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">Count</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {behavioralStats.categoryDistribution && behavioralStats.categoryDistribution.length > 0 ? (
-                        behavioralStats.categoryDistribution
-                          .sort((a: any, b: any) => b.value - a.value)
-                          .slice(0, 4)
-                          .map((cat: any, idx: number) => (
-                            <tr
-                              key={cat.name}
-                              className="border-b border-sky-100/30 dark:border-sky-800/20 last:border-0 hover:bg-sky-50/50 dark:hover:bg-sky-900/10 transition-colors"
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs sm:text-sm">
+                      <thead>
+                        <tr className="bg-orange-100/50 dark:bg-orange-900/20">
+                          <th className="text-left px-3 sm:px-4 py-2 sm:py-3 font-semibold text-slate-700 dark:text-slate-300">#</th>
+                          <th className="text-left px-3 sm:px-4 py-2 sm:py-3 font-semibold text-slate-700 dark:text-slate-300">Name</th>
+                          <th className="text-right px-3 sm:px-4 py-2 sm:py-3 font-semibold text-slate-700 dark:text-slate-300">Count</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {topStudents.length > 0 ? (
+                          topStudents.map((student: any, idx: number) => (
+                            <tr 
+                              key={student.lrn} 
+                              className="border-b border-orange-100/30 dark:border-orange-800/20 last:border-0 hover:bg-orange-50/50 dark:hover:bg-orange-900/10 transition-colors"
                             >
-                              <td className="px-6 py-4">
-                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400 font-semibold text-xs">
+                              <td className="px-3 sm:px-4 py-2 sm:py-3">
+                                <span className="inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 font-semibold text-[10px] sm:text-xs">
                                   {idx + 1}
                                 </span>
                               </td>
-                              <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{cat.name}</td>
-                              <td className="px-6 py-4">
-                                <span className="font-bold text-sky-600 dark:text-sky-400 bg-sky-100/50 dark:bg-sky-900/30 px-3 py-1 rounded-full">
-                                  {cat.value}
+                              <td className="px-3 sm:px-4 py-2 sm:py-3 font-medium text-slate-900 dark:text-white truncate">{student.name}</td>
+                              <td className="px-3 sm:px-4 py-2 sm:py-3 text-right">
+                                <span className="font-bold text-orange-600 dark:text-orange-400 bg-orange-100/50 dark:bg-orange-900/30 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs whitespace-nowrap">
+                                  {student.count}
                                 </span>
                               </td>
                             </tr>
                           ))
-                      ) : (
-                        <tr>
-                          <td colSpan={3} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
-                            No behavioral event data available
-                          </td>
+                        ) : (
+                          <tr>
+                            <td colSpan={3} className="px-3 sm:px-4 py-6 sm:py-8 text-center text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                              No attendance data available
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+              </motion.div>
+            )}
+
+            {/* Behavior Categories Table */}
+            {activeTableTab === 'categories' && (
+              <motion.div
+                key="categories-table"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.3 }}
+              >
+              <Card className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden">
+                <CardHeader className="border-b border-sky-200/40 dark:border-sky-700/30 bg-linear-to-r from-sky-50/50 to-transparent dark:from-sky-950/20 dark:to-transparent pb-3 sm:pb-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white shadow-lg shadow-sky-500/25 dark:shadow-sky-500/20">
+                      <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <CardTitle className="text-lg sm:text-xl text-slate-900 dark:text-white truncate">Behavior Types</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 truncate">Most Frequent Events</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs sm:text-sm">
+                      <thead>
+                        <tr className="bg-sky-100/50 dark:bg-sky-900/20">
+                          <th className="text-left px-3 sm:px-4 py-2 sm:py-3 font-semibold text-slate-700 dark:text-slate-300">#</th>
+                          <th className="text-left px-3 sm:px-4 py-2 sm:py-3 font-semibold text-slate-700 dark:text-slate-300">Category</th>
+                          <th className="text-right px-3 sm:px-4 py-2 sm:py-3 font-semibold text-slate-700 dark:text-slate-300">Count</th>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+                      </thead>
+                      <tbody>
+                        {behavioralStats.categoryDistribution && behavioralStats.categoryDistribution.length > 0 ? (
+                          behavioralStats.categoryDistribution
+                            .sort((a: any, b: any) => b.value - a.value)
+                            .slice(0, 5)
+                            .map((cat: any, idx: number) => (
+                              <tr
+                                key={cat.name}
+                                className="border-b border-sky-100/30 dark:border-sky-800/20 last:border-0 hover:bg-sky-50/50 dark:hover:bg-sky-900/10 transition-colors"
+                              >
+                                <td className="px-3 sm:px-4 py-2 sm:py-3">
+                                  <span className="inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400 font-semibold text-[10px] sm:text-xs">
+                                    {idx + 1}
+                                  </span>
+                                </td>
+                                <td className="px-3 sm:px-4 py-2 sm:py-3 font-medium text-slate-900 dark:text-white truncate">{cat.name}</td>
+                                <td className="px-3 sm:px-4 py-2 sm:py-3 text-right">
+                                  <span className="font-bold text-sky-600 dark:text-sky-400 bg-sky-100/50 dark:bg-sky-900/30 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs whitespace-nowrap">
+                                    {cat.value}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                        ) : (
+                          <tr>
+                            <td colSpan={3} className="px-3 sm:px-4 py-6 sm:py-8 text-center text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                              No behavioral data available
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+              </motion.div>
+            )}
+            </AnimatePresence>
           </motion.div>
-        </div>
+        ) : (
+          // Desktop: Side-by-Side Layout
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Attendance Snapshot: Top Students by Check-In Events */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden">
+                <CardHeader className="border-b border-orange-200/40 dark:border-orange-700/30 bg-linear-to-r from-orange-50/50 to-transparent dark:from-orange-950/20 dark:to-transparent pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25 dark:shadow-orange-500/20">
+                      <TrendingUp className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl text-slate-900 dark:text-white">Top Students</CardTitle>
+                      <CardDescription className="text-slate-600 dark:text-slate-400">Attendance Snapshot By Check-In Events</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-orange-100/50 dark:bg-orange-900/20">
+                          <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">#</th>
+                          <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">Student</th>
+                          <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">Grade</th>
+                          <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">Count</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {topStudents.length > 0 ? (
+                          topStudents.map((student: any, idx: number) => (
+                            <tr 
+                              key={student.lrn} 
+                              className="border-b border-orange-100/30 dark:border-orange-800/20 last:border-0 hover:bg-orange-50/50 dark:hover:bg-orange-900/10 transition-colors"
+                            >
+                              <td className="px-6 py-4">
+                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 font-semibold text-xs">
+                                  {idx + 1}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{student.name}</td>
+                              <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{student.level}</td>
+                              <td className="px-6 py-4">
+                                <span className="font-bold text-orange-600 dark:text-orange-400 bg-orange-100/50 dark:bg-orange-900/30 px-3 py-1 rounded-full">
+                                  {student.count}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={4} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                              No attendance data available
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Top Behavioral Event Categories */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.5 }}
+            >
+              <Card className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden">
+                <CardHeader className="border-b border-sky-200/40 dark:border-sky-700/30 bg-linear-to-r from-sky-50/50 to-transparent dark:from-sky-950/20 dark:to-transparent pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white shadow-lg shadow-sky-500/25 dark:shadow-sky-500/20">
+                      <Activity className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl text-slate-900 dark:text-white">Top Behavior Categories</CardTitle>
+                      <CardDescription className="text-slate-600 dark:text-slate-400">Most Frequent Event Types</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-sky-100/50 dark:bg-sky-900/20">
+                          <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">#</th>
+                          <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">Category</th>
+                          <th className="text-left px-6 py-3 font-semibold text-slate-700 dark:text-slate-300">Count</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {behavioralStats.categoryDistribution && behavioralStats.categoryDistribution.length > 0 ? (
+                          behavioralStats.categoryDistribution
+                            .sort((a: any, b: any) => b.value - a.value)
+                            .slice(0, 4)
+                            .map((cat: any, idx: number) => (
+                              <tr
+                                key={cat.name}
+                                className="border-b border-sky-100/30 dark:border-sky-800/20 last:border-0 hover:bg-sky-50/50 dark:hover:bg-sky-900/10 transition-colors"
+                              >
+                                <td className="px-6 py-4">
+                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400 font-semibold text-xs">
+                                    {idx + 1}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{cat.name}</td>
+                                <td className="px-6 py-4">
+                                  <span className="font-bold text-sky-600 dark:text-sky-400 bg-sky-100/50 dark:bg-sky-900/30 px-3 py-1 rounded-full">
+                                    {cat.value}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                        ) : (
+                          <tr>
+                            <td colSpan={3} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                              No behavioral event data available
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        )}
 
         {/* ML Risk Dashboard */}
         <motion.div

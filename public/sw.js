@@ -1,10 +1,14 @@
-const CACHE_NAME = 'safegate-v1';
+const CACHE_NAME = 'safegate-v2';
+const APP_SHELL_FALLBACK = '/';
 const urlsToCache = [
   '/',
   '/scan',
   '/students',
   '/analytics',
   '/manifest.json',
+  '/icon-192x192.png',
+  '/icon-512x512.png',
+  '/apple-icon.png',
   '/logo.png',
 ];
 
@@ -39,6 +43,17 @@ self.addEventListener('activate', (event) => {
 // Fetch event - Network first, then cache
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') {
+    return;
+  }
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() =>
+        caches.match(event.request).then((cachedResponse) => {
+          return cachedResponse || caches.match(APP_SHELL_FALLBACK);
+        })
+      )
+    );
     return;
   }
 

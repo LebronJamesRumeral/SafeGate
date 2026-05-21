@@ -159,6 +159,21 @@ CREATE TABLE IF NOT EXISTS summer_enrollments (
   CONSTRAINT summer_dates_valid CHECK (start_date <= end_date)
 );
 
+-- Table to persist undo payloads for school year advancement (7-day undo window)
+CREATE TABLE IF NOT EXISTS school_year_undos (
+  id BIGSERIAL PRIMARY KEY,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  previous_school_year JSONB,
+  previous_students JSONB,
+  new_school_year_id BIGINT,
+  new_school_year_label TEXT,
+  is_active BOOLEAN DEFAULT true
+);
+
+CREATE INDEX IF NOT EXISTS idx_school_year_undos_expires_at ON school_year_undos (expires_at);
+CREATE INDEX IF NOT EXISTS idx_school_year_undos_is_active ON school_year_undos (is_active);
+
 -- Student attendance schedules (entry/exit times and school days by year level)
 CREATE TABLE IF NOT EXISTS student_attendance_schedules (
   id BIGSERIAL PRIMARY KEY,

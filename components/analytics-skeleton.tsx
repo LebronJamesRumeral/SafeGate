@@ -28,8 +28,37 @@ export function AnalyticsPageSkeleton() {
         <Skeleton className="h-9 w-28 rounded-lg bg-blue-200/70 dark:bg-blue-900/55" />
       </div>
 
-      {/* Summary cards with new pattern */}
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Mobile summary (stacked/compact) */}
+      <div className="block sm:hidden space-y-4">
+        <div className="px-2">
+          <div className="flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800/60 p-1 shadow-sm overflow-x-auto no-scrollbar">
+            <Skeleton className="h-9 w-28 rounded-lg bg-blue-200/70" />
+            <Skeleton className="h-9 w-28 rounded-lg bg-blue-200/70" />
+            <Skeleton className="h-9 w-28 rounded-lg bg-blue-200/70" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 px-2">
+          {[0,1,2,3].map(i => (
+            <div key={i} className="rounded-xl overflow-hidden p-4 bg-white/70 dark:bg-slate-900/40 shadow-md">
+              <Skeleton className="h-3 w-24 mb-2" />
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-2 w-28 mt-2" />
+            </div>
+          ))}
+        </div>
+
+        <div className="px-2">
+          <div className="rounded-2xl border border-blue-200/60 dark:border-blue-800/40 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 p-4 shadow-md mt-2">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-2 w-full mt-3 rounded-lg" />
+            <Skeleton className="h-36 w-full mt-3 rounded-xl" />
+          </div>
+        </div>
+      </div>
+
+      {/* Summary cards with new pattern (desktop) */}
+      <div className="hidden sm:grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {/* Analyzed Data Points */}
         <div className="shadow-xl border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
           <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 dark:bg-sky-400/5 rounded-full -mr-16 -mt-16" />
@@ -99,8 +128,48 @@ export function AnalyticsPageSkeleton() {
         </div>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Mobile overview switcher (skeleton) */}
+      <div className="sm:hidden">
+        <div className="flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800/60 p-1 shadow-sm overflow-x-auto no-scrollbar mt-4">
+          <Skeleton className="h-9 w-28 rounded-lg bg-blue-200/70" />
+          <Skeleton className="h-9 w-28 rounded-lg bg-blue-200/70" />
+          <Skeleton className="h-9 w-28 rounded-lg bg-blue-200/70" />
+        </div>
+
+        <div className="space-y-3 mt-3">
+          <div className="rounded-2xl border border-blue-200/60 dark:border-blue-800/40 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 p-4 shadow-md">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-2 w-full mt-3 rounded-lg" />
+            <Skeleton className="h-36 w-full mt-3 rounded-xl" />
+          </div>
+          <div className="rounded-2xl border border-orange-200/60 dark:border-orange-800/40 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 p-4 shadow-md">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-2 w-full mt-3 rounded-lg" />
+            <Skeleton className="h-36 w-full mt-3 rounded-xl" />
+          </div>
+        </div>
+      </div>
+
+      {/* Charts - mobile stacked then desktop grid */}
+      <div className="block sm:hidden px-2 space-y-3">
+        <div className="rounded-2xl border border-blue-200/60 dark:border-blue-800/40 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 p-4 shadow-md">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-2 w-full mt-3 rounded-lg" />
+          <Skeleton className="h-36 w-full mt-3 rounded-xl" />
+        </div>
+        <div className="rounded-2xl border border-orange-200/60 dark:border-orange-800/40 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 p-4 shadow-md">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-2 w-full mt-3 rounded-lg" />
+          <Skeleton className="h-36 w-full mt-3 rounded-xl" />
+        </div>
+        <div className="rounded-2xl border border-violet-200/60 dark:border-violet-800/40 bg-linear-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-slate-800/80 p-4 shadow-md">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-2 w-full mt-3 rounded-lg" />
+          <Skeleton className="h-36 w-full mt-3 rounded-xl" />
+        </div>
+      </div>
+
+      <div className="hidden sm:grid grid-cols-1 lg:grid-cols-2 gap-6">
         {[
           {
             shell: 'rounded-2xl border border-blue-200/60 dark:border-blue-800/40 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 p-5 shadow-md space-y-4',

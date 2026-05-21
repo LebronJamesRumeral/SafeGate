@@ -21,22 +21,22 @@ export function GuidanceReviewPageSkeleton() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {[
             { shell: 'from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80', dotTop: 'bg-blue-500/10 dark:bg-blue-400/5', dotBottom: 'bg-blue-500/5 dark:bg-blue-400/5', bar: 'bg-blue-300/50 dark:bg-blue-700/50' },
             { shell: 'from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80', dotTop: 'bg-amber-500/10 dark:bg-amber-400/5', dotBottom: 'bg-amber-500/5 dark:bg-amber-400/5', bar: 'bg-amber-300/50 dark:bg-amber-700/50' },
             { shell: 'from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80', dotTop: 'bg-emerald-500/10 dark:bg-emerald-400/5', dotBottom: 'bg-emerald-500/5 dark:bg-emerald-400/5', bar: 'bg-emerald-300/50 dark:bg-emerald-700/50' },
           ].map((variant, i) => (
             <div key={i} className={`shadow-xl border-0 bg-linear-to-br ${variant.shell} overflow-hidden relative rounded-lg`}>
-              <div className={`absolute top-0 right-0 w-32 h-32 ${variant.dotTop} rounded-full -mr-16 -mt-16`} />
-              <div className={`absolute bottom-0 left-0 w-24 h-24 ${variant.dotBottom} rounded-full -ml-12 -mb-12`} />
-              <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-                <div className="space-y-2">
+              <div className={`absolute top-0 right-0 w-28 h-28 ${variant.dotTop} rounded-full -mr-12 -mt-12`} />
+              <div className={`absolute bottom-0 left-0 w-20 h-20 ${variant.dotBottom} rounded-full -ml-10 -mb-10`} />
+              <div className="p-3 sm:p-5 flex items-center justify-between relative z-10">
+                <div className="space-y-1">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-8 w-16" />
                   <Skeleton className="h-3 w-28" />
-                  <Skeleton className="h-10 w-20" />
-                  <Skeleton className="h-3 w-36" />
                 </div>
-                <Skeleton className="hidden sm:block h-16 w-16 rounded-2xl" />
+                <Skeleton className="hidden sm:block h-12 w-12 rounded-2xl" />
               </div>
               <div className={`h-1.5 w-full ${variant.bar}`} />
             </div>
@@ -83,16 +83,19 @@ export function GuidanceReviewPageSkeleton() {
           </div>
           <div className="p-5 space-y-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="rounded-lg border border-amber-200/50 dark:border-amber-700/40 bg-amber-50 dark:bg-amber-900/20 p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Skeleton className="h-5 w-36" />
-                  <Skeleton className="h-5 w-16" />
-                </div>
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-4 w-full" />
-                <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-amber-200/30">
-                  <Skeleton className="h-3 w-28" />
-                  <Skeleton className="h-8 w-20" />
+              <div key={i} className="rounded-lg border border-amber-200/50 dark:border-amber-700/40 bg-amber-50 dark:bg-amber-900/20 p-2.5">
+                {/* Compact horizontal skeleton: title left, chips right */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="min-w-0 flex-1">
+                    <Skeleton className="h-4 w-40 sm:w-56" />
+                    <Skeleton className="hidden sm:block h-3 w-full mt-1" />
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
+                    <Skeleton className="h-7 w-20 rounded-full" />
+                    <Skeleton className="h-6 w-12 rounded-full" />
+                    <Skeleton className="h-6 w-16 rounded-full" />
+                    <Skeleton className="hidden lg:block h-4 w-20" />
+                  </div>
                 </div>
               </div>
             ))}

@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from '@/components/ui/textarea';
 import { GuidanceReviewPageSkeleton } from '@/components/guidance-review-skeleton';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Activity, AlertTriangle, CalendarDays, CheckCircle, Clock, Eye, Loader2, UserCircle2, Users, XCircle, ChevronDownIcon, Minus, Info, Printer, ClipboardCheck } from 'lucide-react';
+import { Activity, AlertTriangle, CalendarDays, CheckCircle, Clock, Eye, Loader2, UserCircle2, Users, XCircle, ChevronDownIcon, ChevronLeft, ChevronRight, Minus, Info, Printer, ClipboardCheck, Filter, Search } from 'lucide-react';
 import {
   Select,
   SelectTrigger,
@@ -34,7 +34,7 @@ import { formatTime12h } from '@/lib/time-format';
 import { toast } from '@/hooks/use-toast';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { buildEarlyPreventionNote } from '@/lib/prevention-notes';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 type GuidanceStatus = 'pending_guidance' | 'approved_for_ml' | 'denied_by_guidance';
 
@@ -265,6 +265,7 @@ export default function GuidanceReviewPage() {
   }, [events, severityFilter]);
 
   const [pendingQueue, setPendingQueue] = useState<BehavioralEventRecord[]>([]);
+  const [pendingPage, setPendingPage] = useState(1);
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLogRecord[]>([]);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reviewEvent, setReviewEvent] = useState<BehavioralEventRecord | null>(null);
@@ -280,6 +281,16 @@ export default function GuidanceReviewPage() {
   const [approvedStudentPickerOpen, setApprovedStudentPickerOpen] = useState(false);
   const [approvedStudentQuery, setApprovedStudentQuery] = useState('');
   const [approvedStudentSelection, setApprovedStudentSelection] = useState<string[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+
+  const PENDING_PAGE_SIZE = 5;
+  const pendingTotalPages = Math.max(1, Math.ceil(pendingQueue.length / PENDING_PAGE_SIZE));
+  const visiblePending = useMemo(() => {
+    const start = (pendingPage - 1) * PENDING_PAGE_SIZE;
+    return pendingQueue.slice(start, start + PENDING_PAGE_SIZE);
+  }, [pendingQueue, pendingPage]);
+  const pendingStartRecord = pendingQueue.length === 0 ? 0 : (pendingPage - 1) * PENDING_PAGE_SIZE + 1;
+  const pendingEndRecord = Math.min(pendingQueue.length, pendingPage * PENDING_PAGE_SIZE);
 
   const filteredApprovedStudentOptions = useMemo(() => {
     const query = approvedStudentQuery.trim().toLowerCase();
@@ -305,6 +316,10 @@ export default function GuidanceReviewPage() {
   useEffect(() => {
     setIsClientMounted(true);
   }, []);
+
+  useEffect(() => {
+    setPendingPage((prev) => Math.min(prev, pendingTotalPages));
+  }, [pendingTotalPages]);
 
   useEffect(() => {
     const rawUser = localStorage.getItem('safegate_user');
@@ -573,40 +588,30 @@ export default function GuidanceReviewPage() {
       })
       .join('');
 
-    const schoolLogoUrl = '/logo.png';
+    const schoolLogoUrl = `${window.location.origin}/SGCDC.png?t=${Date.now()}`;
     printWindow.document.write(`
       <html>
         <head>
           <title>Approved Logs Report</title>
           <style>
-            @page { margin: 14mm; }
+            @page { margin: 20mm; }
             * { box-sizing: border-box; }
             html, body {
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
               color-adjust: exact !important;
             }
-            body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin: 0; color: #0f172a; background: #f8fafc; }
-            .sheet { background: #ffffff; border: 1px solid #dbe3ee; border-radius: 14px; overflow: hidden; }
-            .brand-header {
-              background-color: #1e3a5f !important;
-              background-image: linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 100%) !important;
-              border-bottom: 1px solid #1d4ed8;
-              padding: 18px 20px;
-            }
-            .brand-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-            .brand-left { display:flex; align-items:center; gap:12px; min-width:0; }
-            .brand-logo { width:46px; height:46px; border-radius:10px; background:#fff; object-fit:contain; padding:5px; }
-            .brand-kicker { margin: 0; color: #93c5fd; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
-            .brand-title { margin: 6px 0 0; color: #ffffff; font-size: 20px; font-weight: 700; }
-            .content { padding: 16px 20px 18px; }
-            .topline { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; margin-bottom: 10px; }
-            h1 { margin: 0; font-size: 24px; line-height: 1.15; }
-            .subtitle { margin: 5px 0 0; color: #475569; font-size: 13px; }
-            .meta { margin-top: 12px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-            .meta-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; font-size: 12px; }
-            .meta-item span { display: block; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; }
-            .summary { margin: 12px 0 14px; border: 1px solid #dbe3ee; border-radius: 10px; padding: 9px 11px; font-weight: 700; font-size: 13px; background: #f8fafc; }
+            body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin: 0; color: #0f172a; }
+            
+            .org-header { display: flex; align-items: center; justify-content: center; gap: 20px; border-bottom: 2px solid #333; padding-bottom: 16px; margin-bottom: 20px; text-align: center; }
+            .org-logo { flex-shrink: 0; }
+            .org-logo img { width: 100px; height: auto; }
+            .org-info h1 { margin: 0; font-size: 18px; font-weight: 700; color: #000; letter-spacing: 0.05em; }
+            .org-info p { margin: 4px 0; font-size: 12px; color: #333; }
+            .org-info a { color: #0066cc; text-decoration: none; }
+            
+            .report-title { text-align: center; font-size: 20px; font-weight: 700; margin: 20px 0; color: #000; }
+            
             .logs { display: grid; gap: 10px; }
             .log-card { border: 1px solid #e2e8f0; border-left-width: 4px; border-radius: 10px; padding: 10px 12px; background: #ffffff; page-break-inside: avoid; }
             .log-card.critical { border-left-color: #dc2626; background: #fef2f2; }
@@ -629,46 +634,50 @@ export default function GuidanceReviewPage() {
           </style>
         </head>
         <body>
-          <div class="sheet">
-            <div class="brand-header" style="background:#1e3a5f;background-image:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 100%);">
-              <div class="brand-row">
-                <div class="brand-left">
-                  <img src="${schoolLogoUrl}" alt="SGCDC Logo" class="brand-logo" />
-                  <div>
-                    <p class="brand-kicker">SGCDC • SafeGate Student Monitoring System</p>
-                    <p class="brand-title">Approved Logs Report</p>
-                  </div>
-                </div>
-              </div>
+          <div class="org-header">
+            <div class="org-logo">
+              <img src="${schoolLogoUrl}" alt="SGCDC Logo" />
             </div>
-            <div class="content">
-              <div class="topline">
-                  <span>${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${formatTime12h(new Date())}</span>
-                <span>Guidance Review</span>
-              </div>
-              <h1>Guidance Approved Logs Report</h1>
-              <p class="subtitle">Complete approved guidance incident logs for selected filters.</p>
-
-            <div class="meta">
-                <div class="meta-item"><span>Date Generated</span>${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${formatTime12h(new Date())}</div>
-              <div class="meta-item"><span>Date Range</span>${approvedDateFrom ? formatDateOnly(approvedDateFrom) : 'Any'} - ${approvedDateTo ? formatDateOnly(approvedDateTo) : 'Any'}</div>
-              <div class="meta-item"><span>Students</span>${selectedStudentNames || 'All Students'}</div>
-            </div>
-
-            <div class="summary">Total Approved Logs: ${approvedLogs.length}</div>
-
-              <section class="logs">
-                ${cards}
-              </section>
+            <div class="org-info">
+              <h1>SUBIC GATEWAY CHILD DEVELOPMENT CENTER, INC.</h1>
+              <p>Building 5144 & 5145, Argonaut Highway, West Kalayaan,</p>
+              <p>Subic Bay Freeport Zone, 2222</p>
+              <p>Tel. No.: (047)639-4690</p>
+              <p><a href="mailto:subicgatewayedc@gmail.com">subicgatewayedc@gmail.com</a></p>
             </div>
           </div>
+          
+          <div class="report-title">Approved Logs Report</div>
+          
+          <section class="logs">
+            ${cards}
+          </section>
+          <script>
+            (function(){
+              function tryPrint(){
+                var imgs = Array.from(document.images || []);
+                if(imgs.length === 0){ window.focus(); window.print(); return; }
+                var loaded = 0;
+                imgs.forEach(function(img){
+                  if(img.complete){ loaded++; }
+                  else{
+                    img.addEventListener('load', function(){ loaded++; if(loaded===imgs.length){ window.focus(); window.print(); } }, { once: true });
+                    img.addEventListener('error', function(){ loaded++; if(loaded===imgs.length){ window.focus(); window.print(); } }, { once: true });
+                  }
+                });
+                if(loaded===imgs.length){ window.focus(); window.print(); }
+                // fallback
+                setTimeout(function(){ window.focus(); window.print(); }, 2000);
+              }
+              if(document.readyState === 'complete') tryPrint(); else window.addEventListener('load', tryPrint);
+            })();
+          </script>
         </body>
       </html>
     `);
 
     printWindow.document.close();
     printWindow.focus();
-    printWindow.print();
   };
 
   const triggerParentAutomation = async (params: {
@@ -1092,7 +1101,7 @@ export default function GuidanceReviewPage() {
       )
       .join('');
 
-    const schoolLogoUrl = '/logo.png';
+    const schoolLogoUrl = `${window.location.origin}/SGCDC.png?t=${Date.now()}`;
     printWindow.document.write(`
       <html>
         <head>
@@ -1184,13 +1193,31 @@ export default function GuidanceReviewPage() {
               </section>
             </div>
           </div>
+          <script>
+            (function(){
+              function tryPrint(){
+                var imgs = Array.from(document.images || []);
+                if(imgs.length === 0){ window.focus(); window.print(); return; }
+                var loaded = 0;
+                imgs.forEach(function(img){
+                  if(img.complete){ loaded++; }
+                  else{
+                    img.addEventListener('load', function(){ loaded++; if(loaded===imgs.length){ window.focus(); window.print(); } }, { once: true });
+                    img.addEventListener('error', function(){ loaded++; if(loaded===imgs.length){ window.focus(); window.print(); } }, { once: true });
+                  }
+                });
+                if(loaded===imgs.length){ window.focus(); window.print(); }
+                setTimeout(function(){ window.focus(); window.print(); }, 2000);
+              }
+              if(document.readyState === 'complete') tryPrint(); else window.addEventListener('load', tryPrint);
+            })();
+          </script>
         </body>
       </html>
     `);
 
     printWindow.document.close();
     printWindow.focus();
-    printWindow.print();
   };
 
   const isTopSummaryLoading = loadingStudents || loadingPending;
@@ -1212,7 +1239,7 @@ export default function GuidanceReviewPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="space-y-5 max-w-7xl mx-auto"
+        className="space-y-3 sm:space-y-5 max-w-7xl mx-auto"
       >
         <div className="space-y-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1231,60 +1258,54 @@ export default function GuidanceReviewPage() {
             </div>
           </div>
 
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2">
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1 }}>
-              <Card className="shadow-xl border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 dark:bg-amber-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                <div className="absolute bottom-0 left-0 w-24 h-24 bg-amber-500/5 dark:bg-amber-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-                  <div className="flex-1">
-                    <p className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Pending Queue</p>
-                    <div className="text-xl sm:text-4xl font-bold text-amber-700 dark:text-amber-300"> 
-                      {isTopSummaryLoading ? <Skeleton className="h-8 w-12" /> : queueSummary.totalPending}
-                    </div>
-                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Awaiting review</p>
+              <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/10 dark:bg-amber-400/5 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                <CardContent className="p-2 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[9px] sm:text-[10px] text-amber-600 dark:text-amber-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Pending Queue</p>
+                    <div className="text-lg sm:text-2xl font-bold text-amber-700 dark:text-amber-300 leading-tight">{isTopSummaryLoading ? <Skeleton className="h-6 w-10" /> : queueSummary.totalPending}</div>
+                    <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Awaiting review</p>
                   </div>
-                  <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-amber-500 to-amber-600 text-white items-center justify-center shadow-lg shadow-amber-500/30 dark:shadow-amber-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
-                    <AlertTriangle className="w-8 h-8" />
+                  <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white items-center justify-center shadow-md shadow-amber-500/20 group-hover:scale-105 transition-all duration-300">
+                    <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
                   </div>
                 </CardContent>
-                <div className="h-1.5 w-full bg-linear-to-r from-amber-400 via-amber-500 to-amber-600 dark:from-amber-500 dark:via-amber-600 dark:to-amber-700" />
+                <div className="h-0.5 sm:h-1 w-full bg-linear-to-r from-amber-400 via-amber-500 to-amber-600 dark:from-amber-500 dark:via-amber-600 dark:to-amber-700" />
+              </Card>
+            </motion.div>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1 }}>
+              <Card className="border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                <CardContent className="p-2 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[9px] sm:text-[10px] text-rose-600 dark:text-rose-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">High Severity</p>
+                    <div className="text-lg sm:text-2xl font-bold text-rose-700 dark:text-rose-300 leading-tight">{isTopSummaryLoading ? <Skeleton className="h-6 w-10" /> : queueSummary.highSeverityCount}</div>
+                    <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Major / critical logs</p>
+                  </div>
+                  <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-md shadow-rose-500/20 group-hover:scale-105 transition-all duration-300">
+                    <XCircle className="w-6 h-6 sm:w-7 sm:h-7" />
+                  </div>
+                </CardContent>
+                <div className="h-0.5 sm:h-1 w-full bg-linear-to-r from-rose-400 via-rose-500 to-rose-600 dark:from-rose-500 dark:via-rose-600 dark:to-rose-700" />
               </Card>
             </motion.div>
 
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.2 }}>
-              <Card className="shadow-xl border-0 bg-linear-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 dark:bg-rose-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                <div className="absolute bottom-0 left-0 w-24 h-24 bg-rose-500/5 dark:bg-rose-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-                  <div className="flex-1">
-                    <p className="text-[10px] sm:text-xs text-rose-600 dark:text-rose-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">High Severity</p>
-                    <div className="text-xl sm:text-4xl font-bold text-rose-700 dark:text-rose-300">{isTopSummaryLoading ? <Skeleton className="h-8 w-12" /> : queueSummary.highSeverityCount}</div>
-                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Major / critical logs</p>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.15 }}>
+              <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
+                <CardContent className="p-2 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[9px] sm:text-[10px] text-blue-600 dark:text-blue-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Students Loaded</p>
+                    <div className="text-lg sm:text-2xl font-bold text-blue-700 dark:text-blue-300 leading-tight">{isTopSummaryLoading ? <Skeleton className="h-6 w-10" /> : queueSummary.studentCount}</div>
+                    <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Active in system</p>
                   </div>
-                  <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-lg shadow-rose-500/30 dark:shadow-rose-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
-                    <XCircle className="w-8 h-8" />
-                  </div>
-                </CardContent>
-                <div className="h-1.5 w-full bg-linear-to-r from-rose-400 via-rose-500 to-rose-600 dark:from-rose-500 dark:via-rose-600 dark:to-rose-700" />
-              </Card>
-            </motion.div>
-
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.3 }}>
-              <Card className="shadow-xl border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden relative group hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-                <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-12 -mb-12 group-hover:scale-150 transition-transform duration-500" />
-                <CardContent className="p-5 sm:p-6 flex items-center justify-between relative z-10">
-                  <div className="flex-1">
-                    <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 sm:mb-2 uppercase tracking-wider leading-tight">Students Loaded</p>
-                    <div className="text-xl sm:text-4xl font-bold text-blue-700 dark:text-blue-300">{isTopSummaryLoading ? <Skeleton className="h-8 w-12" /> : queueSummary.studentCount}</div>
-                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 leading-tight">Active in system</p>
-                  </div>
-                  <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-lg shadow-blue-500/30 dark:shadow-blue-500/20 group-hover:scale-125 group-hover:rotate-6 transition-all duration-300 shrink-0">
-                    <Users className="w-8 h-8" />
+                  <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-md shadow-blue-500/20 group-hover:scale-105 transition-all duration-300">
+                    <Users className="w-6 h-6 sm:w-7 sm:h-7" />
                   </div>
                 </CardContent>
-                <div className="h-1.5 w-full bg-linear-to-r from-blue-400 via-blue-500 to-blue-600 dark:from-blue-500 dark:via-blue-600 dark:to-blue-700" />
+                <div className="h-0.5 sm:h-1 w-full bg-linear-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700" />
               </Card>
             </motion.div>
 
@@ -1294,122 +1315,491 @@ export default function GuidanceReviewPage() {
           </div>
         </div>
 
-        <section className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
-          <div className="border-b border-slate-200/50 dark:border-slate-700/40 bg-linear-to-r from-slate-50/60 via-slate-50/30 to-transparent dark:from-slate-950/30 dark:via-slate-950/15 dark:to-transparent pb-5 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-blue-500/30">
-                  <Users className="w-5 h-5 text-blue-500/60" />
+        <AnimatePresence>
+          {!showFilters ? (
+            <motion.div
+              key="filters-summary"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="mb-3"
+            >
+              <div className="flex items-center justify-between gap-3 px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-700/40">
+                <div className="text-sm truncate">
+                  <strong className="mr-2">Filters</strong>
+                  <span className="text-muted-foreground">All dates {' • '} {studentLevelFilter || 'All Levels'}</span>
                 </div>
-                <div>
-                  <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">Students</h2>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">Select a student to open records. You can type in the dropdown to jump to a name or filter by level.</p>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setShowFilters(true)} className="gap-2">
+                    Show
+                  </Button>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() => setApprovedReportsOpen(true)}
-              >
-                <ClipboardCheck className="w-4 h-4" />
-                Report
-              </Button>
-            </div>
-          </div>
-          <div className="p-5">
-            <div className="max-w-4xl space-y-4">
-              {isClientMounted ? (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
-                      Student Level
-                    </label>
-                    <Select value={studentLevelFilter || "all"} onValueChange={val => setStudentLevelFilter(val === "all" ? "" : val)}>
-                      <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
-                        <SelectValue placeholder="All Levels" />
-                      </SelectTrigger>
-                      <SelectContent className="dark:bg-slate-800 dark:border-border/40">
-                        <SelectItem value="all">All Levels</SelectItem>
-                        {Array.from(new Set(students.map(s => s.level))).sort().map((level) => (
-                          <SelectItem key={level} value={level}>{level}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="filters-expanded"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.28 }}
+            >
+              <Card className="overflow-hidden rounded-[28px] border-0 bg-white shadow-[0_24px_70px_-30px_rgba(15,23,42,0.28)] dark:bg-slate-950/70 dark:shadow-[0_24px_70px_-30px_rgba(15,23,42,0.58)]">
+                <CardHeader className="border-b border-slate-200/50 bg-linear-to-r from-slate-50/60 via-slate-50/30 to-transparent py-3 dark:border-slate-700/40 dark:from-slate-950/30 dark:via-slate-950/15 dark:to-slate-950/80">
+                  <div className="flex items-start justify-between w-full">
+                    {/* Hide button moved into Students header (beside Report) */}
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
-                      Severity
-                    </label>
-                    <Select value={severityFilter || "all"} onValueChange={val => setSeverityFilter(val === "all" ? "" : val)}>
-                      <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
-                        <SelectValue placeholder="All Severities" />
-                      </SelectTrigger>
-                      <SelectContent className="dark:bg-slate-800 dark:border-border/40 min-w-55">
-                        <SelectItem value="all"><span className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-slate-400" />All Severities</span></SelectItem>
-                        <SelectItem value="positive"><span className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-emerald-600" />Positive</span></SelectItem>
-                        <SelectItem value="neutral"><span className="flex items-center gap-2"><Minus className="w-4 h-4 text-gray-500" />Neutral</span></SelectItem>
-                        <SelectItem value="minor"><span className="flex items-center gap-2"><Info className="w-4 h-4 text-yellow-500" />Minor</span></SelectItem>
-                        <SelectItem value="major"><span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-orange-500" />Major</span></SelectItem>
-                        <SelectItem value="critical"><span className="flex items-center gap-2"><XCircle className="w-4 h-4 text-red-600" />Critical</span></SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="mt-4 w-full">
+                    <div className="border-b border-slate-200/50 pb-4 mb-4">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 rounded-xl bg-blue-500/30">
+                            <Users className="w-5 h-5 text-blue-500/60" />
+                          </div>
+                          <div>
+                            <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">Students</h2>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">Select a student to open records. You can type in the dropdown to jump to a name or filter by level.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-3 sm:mt-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => setApprovedReportsOpen(true)}
+                          >
+                            <ClipboardCheck className="w-4 h-4" />
+                            Report
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="gap-2">
+                            Hide
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Input id="search-guidance" placeholder="Search students or logs..." value={studentSearchQuery} onChange={(e) => setStudentSearchQuery(e.target.value)} className="pl-10 w-full" />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
-                      Search Student
-                    </label>
-                    <Popover open={studentPickerOpen} onOpenChange={setStudentPickerOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" role="combobox" aria-expanded={studentPickerOpen} className="w-full justify-between h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200">
-                          {selectedStudentLrn ? students.find((s) => s.lrn === selectedStudentLrn)?.name || 'Select student' : 'Select student'}
-                          <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-87.5 p-0 dark:bg-slate-800 dark:border-border/40">
-                        <Command>
-                          <CommandInput placeholder="Search by name or LRN..." value={studentSearchQuery} onValueChange={setStudentSearchQuery} className="h-9" autoFocus />
-                          <CommandList>
-                            <CommandEmpty>No students found.</CommandEmpty>
-                            <CommandGroup>
-                              {filteredStudentOptions.map((student) => (
-                                <CommandItem key={student.lrn} value={student.name} onSelect={() => { handleStudentSelect(student.lrn); setStudentPickerOpen(false); }} className={student.lrn === selectedStudentLrn ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200' : ''}>
-                                  <div className="flex flex-col">
-                                    <span className="font-medium">{student.name}</span>
-                                    <span className="text-xs text-slate-500">{student.lrn} • {student.level}</span>
-                                  </div>
-                                </CommandItem>
+                </CardHeader>
+                <div className="p-3 sm:p-5">
+                  <div className="w-full space-y-4">
+                    {isClientMounted ? (
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
+                            Student Level
+                          </label>
+                          <Select value={studentLevelFilter || "all"} onValueChange={val => setStudentLevelFilter(val === "all" ? "" : val)}>
+                            <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
+                              <SelectValue placeholder="All Levels" />
+                            </SelectTrigger>
+                            <SelectContent className="dark:bg-slate-800 dark:border-border/40">
+                              <SelectItem value="all">All Levels</SelectItem>
+                              {Array.from(new Set(students.map(s => s.level))).sort().map((level) => (
+                                <SelectItem key={level} value={level}>{level}</SelectItem>
                               ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
+                            Severity
+                          </label>
+                          <Select value={severityFilter || "all"} onValueChange={val => setSeverityFilter(val === "all" ? "" : val)}>
+                            <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
+                              <SelectValue placeholder="All Severities" />
+                            </SelectTrigger>
+                            <SelectContent className="dark:bg-slate-800 dark:border-border/40 min-w-55">
+                              <SelectItem value="all"><span className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-slate-400" />All Severities</span></SelectItem>
+                              <SelectItem value="positive"><span className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-emerald-600" />Positive</span></SelectItem>
+                              <SelectItem value="neutral"><span className="flex items-center gap-2"><Minus className="w-4 h-4 text-gray-500" />Neutral</span></SelectItem>
+                              <SelectItem value="minor"><span className="flex items-center gap-2"><Info className="w-4 h-4 text-yellow-500" />Minor</span></SelectItem>
+                              <SelectItem value="major"><span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-orange-500" />Major</span></SelectItem>
+                              <SelectItem value="critical"><span className="flex items-center gap-2"><XCircle className="w-4 h-4 text-red-600" />Critical</span></SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">
+                            Search Student
+                          </label>
+                          <Popover open={studentPickerOpen} onOpenChange={setStudentPickerOpen}>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" role="combobox" aria-expanded={studentPickerOpen} className="w-full justify-between h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200">
+                                {selectedStudentLrn ? students.find((s) => s.lrn === selectedStudentLrn)?.name || 'Select student' : 'Select student'}
+                                <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-87.5 p-0 dark:bg-slate-800 dark:border-border/40">
+                              <Command>
+                                <CommandInput placeholder="Search by name or LRN..." value={studentSearchQuery} onValueChange={setStudentSearchQuery} className="h-9" autoFocus />
+                                <CommandList>
+                                  <CommandEmpty>No students found.</CommandEmpty>
+                                  <CommandGroup>
+                                    {filteredStudentOptions.map((student) => (
+                                      <CommandItem key={student.lrn} value={student.name} onSelect={() => { handleStudentSelect(student.lrn); setStudentPickerOpen(false); }} className={student.lrn === selectedStudentLrn ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200' : ''}>
+                                        <div className="flex flex-col">
+                                          <span className="font-medium">{student.name}</span>
+                                          <span className="text-xs text-slate-500">{student.lrn} • {student.level}</span>
+                                        </div>
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div className="space-y-2"><Skeleton className="h-3 w-24" /><Skeleton className="h-10 w-full" /></div>
+                        <div className="space-y-2"><Skeleton className="h-3 w-20" /><Skeleton className="h-10 w-full" /></div>
+                        <div className="space-y-2"><Skeleton className="h-3 w-28" /><Skeleton className="h-10 w-full" /></div>
+                      </div>
+                    )}
+
+                    {loadingStudents && (
+                      <div className="space-y-3 py-2">
+                        <Skeleton className="h-10 w-full max-w-xl" />
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2 bg-white/70 dark:bg-slate-900/30">
+                          <Skeleton className="h-5 w-64" />
+                          <Skeleton className="h-4 w-40" />
+                          <Skeleton className="h-4 w-48" />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  <div className="space-y-2"><Skeleton className="h-3 w-24" /><Skeleton className="h-10 w-full" /></div>
-                  <div className="space-y-2"><Skeleton className="h-3 w-20" /><Skeleton className="h-10 w-full" /></div>
-                  <div className="space-y-2"><Skeleton className="h-3 w-28" /><Skeleton className="h-10 w-full" /></div>
-                </div>
-              )}
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-              {loadingStudents && (
-                <div className="space-y-3 py-2">
-                  <Skeleton className="h-10 w-full max-w-xl" />
-                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2 bg-white/70 dark:bg-slate-900/30">
-                    <Skeleton className="h-5 w-64" />
-                    <Skeleton className="h-4 w-40" />
-                    <Skeleton className="h-4 w-48" />
+        {/* Mobile: tabs to toggle Work Queue / Student Record */}
+        <div className="sm:hidden">
+          <Tabs defaultValue="work">
+            <TabsList className="inline-flex items-center gap-2 p-1 bg-slate-100 rounded-full dark:bg-slate-900/40">
+              <TabsTrigger value="work" className="px-3 py-1 rounded-full flex items-center gap-2 text-sm data-[state=active]:bg-white/90 data-[state=active]:shadow-md">
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                <span>Work Queue</span>
+              </TabsTrigger>
+              <TabsTrigger value="student" className="px-3 py-1 rounded-full flex items-center gap-2 text-sm data-[state=active]:bg-white/90 data-[state=active]:shadow-md">
+                <Users className="w-4 h-4 text-slate-600" />
+                <span>Student Record</span>
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="work">
+              <div className="space-y-4">
+                <section className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
+                  <div className="border-b border-amber-200/50 dark:border-amber-700/40 bg-linear-to-r from-amber-50/60 via-amber-50/30 to-transparent dark:from-amber-950/30 dark:via-amber-950/15 dark:to-transparent pb-5 p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 rounded-xl bg-amber-500/30">
+                        <AlertTriangle className="w-5 h-5 text-amber-500/60" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          Work Queue <Badge variant="outline">{pendingQueue.length}</Badge>
+                        </h2>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">Open a log to review and finalize a guidance decision.</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
+                  <div className="p-3 sm:p-5">
+                    {loadingPending ? (
+                      <div className="space-y-2 max-h-112 overflow-auto pr-1">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <div key={i} className="rounded-xl border border-border/70 p-3 bg-white/80 dark:bg-slate-900/40 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <Skeleton className="h-5 w-36" />
+                              <Skeleton className="h-5 w-16" />
+                            </div>
+                            <Skeleton className="h-4 w-28" />
+                            <Skeleton className="h-4 w-full" />
+                            <div className="flex items-center justify-between gap-2 mt-3">
+                              <Skeleton className="h-3 w-28" />
+                              <Skeleton className="h-8 w-20" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : pendingQueue.length === 0 ? (
+                      <div className="py-8 text-center text-slate-500">No pending logs right now.</div>
+                    ) : (
+                      <>
+                        <div className="space-y-2 max-h-112 overflow-auto pr-1">
+                          {visiblePending.map(event => {
+                          const studentInfo = Array.isArray(event.students) ? event.students[0] : event.students;
+                          return (
+                            <div
+                              key={`pending-${event.id}`}
+                              className="rounded-xl border border-border/70 p-3 bg-white/80 dark:bg-slate-900/40 hover:border-blue-300 transition-colors"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-slate-900 dark:text-white truncate">{studentInfo?.name || event.student_lrn}</p>
+                                  <p className="text-xs text-slate-500">{event.student_lrn}</p>
+                                </div>
+                                <Badge variant="outline" className={`capitalize ${getSeverityBadgeClass(event.severity)}`}>
+                                  {event.severity}
+                                </Badge>
+                              </div>
+                              <p className="text-sm font-medium mt-2">{humanizeEventType(event.event_type)}</p>
+                              <p className="text-xs text-slate-500 line-clamp-2 mt-1">{event.description}</p>
+                              {event.proof_image_url && (
+                                <div className="mt-2 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                  <img src={event.proof_image_url} alt="Behavior proof" className="h-20 w-full object-cover" />
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between mt-3 gap-2">
+                                <p className="text-xs text-slate-500 truncate">{formatDate(event.created_at)}</p>
+                                <Button size="sm" variant="outline" className="gap-2 shrink-0" onClick={() => void openReviewDialog(event)}>
+                                  <Eye className="w-4 h-4" />
+                                  Review
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                          })}
+                        </div>
+                        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-sm text-slate-600 dark:text-slate-400">
+                            Showing <span className="font-semibold text-slate-900 dark:text-white">{pendingStartRecord}</span> - <span className="font-semibold text-slate-900 dark:text-white">{pendingEndRecord}</span> of <span className="font-semibold text-slate-900 dark:text-white">{pendingQueue.length}</span> records
+                          </p>
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-9 w-9 rounded-full"
+                              onClick={() => setPendingPage((p) => Math.max(1, p - 1))}
+                              disabled={pendingPage === 1}
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">Page {pendingPage} / {pendingTotalPages}</p>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-9 w-9 rounded-full"
+                              onClick={() => setPendingPage((p) => Math.min(pendingTotalPages, p + 1))}
+                              disabled={pendingPage === pendingTotalPages}
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </section>
+              </div>
+            </TabsContent>
+            <TabsContent value="student">
+              <div className="space-y-4">
+                {!selectedStudentLrn ? (
+                  <section className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
+                    <div className="p-12 text-center">
+                      <UserCircle2 className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+                      <p className="text-base font-semibold text-slate-800 dark:text-slate-200">No student selected yet</p>
+                      <p className="text-sm text-slate-500 mt-1">Select a student above to view records.</p>
+                    </div>
+                  </section>
+                ) : (
+                  <>
+                    <section className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
+                      <div className="border-b border-slate-200/50 dark:border-slate-700/40 bg-linear-to-r from-slate-50/60 via-slate-50/30 to-transparent dark:from-slate-950/30 dark:via-slate-950/15 dark:to-transparent p-5">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 rounded-xl bg-blue-500/30">
+                            <UserCircle2 className="w-5 h-5 text-blue-500/60" />
+                          </div>
+                          <div>
+                            <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                              {displayStudent ? `${displayStudent.name} (${displayStudent.level})` : 'Select a student'}
+                            </h2>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">{displayStudent?.lrn || 'Choose a student from the list to begin review.'}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-3 sm:p-5">
+                        {isStudentCardsLoading ? (
+                          <div className="grid grid-cols-2 gap-3">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <div key={`selected-summary-skeleton-mobile-${i}`} className="rounded-xl border border-border/70 bg-white/70 dark:bg-slate-900/30 p-3 space-y-2">
+                                <Skeleton className="h-3 w-20" />
+                                <Skeleton className="h-7 w-12" />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-xl border border-blue-200/70 bg-blue-50/70 dark:bg-blue-900/20 p-3">
+                              <p className="text-xs text-blue-700 dark:text-blue-300">Attendance Logs</p>
+                              <p className="text-xl font-bold text-blue-700 dark:text-blue-300">{summary.attendanceCount}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 dark:bg-slate-900/30 p-3">
+                              <p className="text-xs text-slate-500">Total Events</p>
+                              <p className="text-xl font-bold text-slate-900 dark:text-white">{summary.totalEvents}</p>
+                            </div>
+                            <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 dark:bg-amber-900/20 p-3">
+                              <p className="text-xs text-amber-700 dark:text-amber-300">Pending</p>
+                              <p className="text-xl font-bold text-amber-700 dark:text-amber-300">{summary.pending}</p>
+                            </div>
+                            <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 dark:bg-emerald-900/20 p-3">
+                              <p className="text-xs text-emerald-700 dark:text-emerald-300">Approved</p>
+                              <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{summary.approved}</p>
+                            </div>
+                            <div className="rounded-xl border border-rose-200/70 bg-rose-50/70 dark:bg-rose-900/20 p-3 col-span-2">
+                              <p className="text-xs text-rose-700 dark:text-rose-300">Denied</p>
+                              <p className="text-xl font-bold text-rose-700 dark:text-rose-300">{summary.denied}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </section>
 
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+                    <section className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
+                      <div className="p-3 sm:p-5">
+                        <Tabs defaultValue="events" className="space-y-4">
+                          <TabsList className="grid grid-cols-4 w-full">
+                            <TabsTrigger value="events" className="gap-1 text-xs sm:text-sm">
+                              <AlertTriangle className="w-4 h-4" />
+                              Events
+                            </TabsTrigger>
+                            <TabsTrigger value="attendance" className="gap-1 text-xs sm:text-sm">
+                              <CalendarDays className="w-4 h-4" />
+                              Attendance
+                            </TabsTrigger>
+                            <TabsTrigger value="timeline" className="gap-1 text-xs sm:text-sm">
+                              <Activity className="w-4 h-4" />
+                              Timeline
+                            </TabsTrigger>
+                            <TabsTrigger value="report" className="gap-1 text-xs sm:text-sm">
+                              <ClipboardCheck className="w-4 h-4" />
+                              Report
+                            </TabsTrigger>
+                          </TabsList>
+
+                          <TabsContent value="events">
+                            {loadingDetails ? (
+                              <div className="space-y-3">
+                                {Array.from({ length: 2 }).map((_, i) => (
+                                  <div key={i} className="rounded-xl border border-border/70 bg-white/80 dark:bg-slate-900/30 p-4 space-y-3">
+                                    <Skeleton className="h-5 w-40" />
+                                    <Skeleton className="h-4 w-full" />
+                                    <Skeleton className="h-12 w-full" />
+                                  </div>
+                                ))}
+                              </div>
+                            ) : filteredEvents.length === 0 ? (
+                              <div className="py-8 text-center text-slate-500">No behavioral events found for this student.</div>
+                            ) : (
+                              <div className="space-y-2 max-h-112 overflow-auto pr-1">
+                                {filteredEvents.map(event => (
+                                  <div
+                                    key={event.id}
+                                    className="rounded-lg border border-border/70 bg-white/80 dark:bg-slate-900/30 px-2.5 py-2 sm:px-3 hover:shadow-md transition-shadow cursor-pointer"
+                                    onClick={() => void openReviewDialog(event)}
+                                  >
+                                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 min-w-0">
+                                      <div className="min-w-0">
+                                        <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white truncate">{humanizeEventType(event.event_type)}</p>
+                                        <p className="hidden sm:block text-xs text-slate-600 dark:text-slate-300 truncate">{event.description}</p>
+                                      </div>
+
+                                      <div className="flex items-center gap-1 sm:gap-2 shrink-0 whitespace-nowrap overflow-hidden max-w-[60vw] sm:max-w-none">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="gap-1 h-7 text-[11px] px-2 shrink-0"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            void openReviewDialog(event);
+                                          }}
+                                        >
+                                          <Eye className="w-3 h-3" />
+                                          View
+                                        </Button>
+                                        <Badge variant="outline" className={`capitalize text-[11px] py-0.5 px-2 shrink-0 ${getSeverityBadgeClass(event.severity)}`}>
+                                          {event.severity}
+                                        </Badge>
+                                        <div className="shrink-0 text-[11px]">{getGuidanceBadge(event.guidance_status)}</div>
+                                        <p className="hidden lg:block text-xs text-slate-500 dark:text-slate-400 shrink-0">By: {event.guidance_reviewed_by || 'Pending'}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </TabsContent>
+
+                          <TabsContent value="attendance">
+                            {loadingDetails ? (
+                              <div className="space-y-2">
+                                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                              </div>
+                            ) : attendanceLogs.length === 0 ? (
+                              <div className="py-8 text-center text-slate-500">No attendance logs found for this student.</div>
+                            ) : (
+                              <div className="space-y-2 max-h-112 overflow-auto pr-1">
+                                {attendanceLogs.map(log => (
+                                  <div key={log.id} className="rounded-lg border border-border/60 p-2.5 bg-slate-50/60 dark:bg-slate-800/30 text-sm">
+                                    <p>{formatDateOnly(log.date)}</p>
+                                    <p className="text-xs text-slate-500">In: {formatDate(log.check_in_time)} | Out: {log.check_out_time ? formatDate(log.check_out_time) : 'Not checked out'}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </TabsContent>
+
+                          <TabsContent value="timeline">
+                            {loadingDetails ? (
+                              <div className="space-y-2">
+                                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                              </div>
+                            ) : timeline.length === 0 ? (
+                              <div className="py-8 text-center text-slate-500">No timeline entries available for this student.</div>
+                            ) : (
+                              <div className="space-y-2 max-h-112 overflow-auto pr-1">
+                                {timeline.map(item => (
+                                  <div key={item.id} className="rounded-xl border border-border/70 p-3 bg-white/75 dark:bg-slate-900/30">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <p className="font-medium text-slate-900 dark:text-white">{item.title}</p>
+                                      <Badge variant="outline" className="capitalize">{item.badge.replaceAll('_', ' ')}</Badge>
+                                    </div>
+                                    <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">{item.subtitle}</p>
+                                    <p className="text-xs text-slate-500 mt-2">{formatDate(item.when)}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </TabsContent>
+
+                          <TabsContent value="report">
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <DatePickerInput value={reportDate} onChange={(v) => setReportDate(v)} className="h-9 w-44" />
+                                <Button size="sm" className="gap-2" onClick={printCompactDailyReport} disabled={!reportDate}>
+                                  <Printer className="w-4 h-4" />
+                                  Print
+                                </Button>
+                              </div>
+                              {!reportDate && <p className="text-sm text-slate-500">Select a report date to view compact records.</p>}
+                            </div>
+                          </TabsContent>
+                        </Tabs>
+                      </div>
+                    </section>
+                  </>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        {/* Desktop: show both columns side-by-side */}
+        <div className="hidden sm:grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
           <div className="xl:col-span-5 space-y-4">
             <section className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
               <div className="border-b border-amber-200/50 dark:border-amber-700/40 bg-linear-to-r from-amber-50/60 via-amber-50/30 to-transparent dark:from-amber-950/30 dark:via-amber-950/15 dark:to-transparent pb-5 p-5">
@@ -1425,7 +1815,7 @@ export default function GuidanceReviewPage() {
                   </div>
                 </div>
               </div>
-              <div className="p-5">
+              <div className="p-3 sm:p-5">
                 {loadingPending ? (
                   <div className="space-y-2 max-h-112 overflow-auto pr-1">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -1446,8 +1836,9 @@ export default function GuidanceReviewPage() {
                 ) : pendingQueue.length === 0 ? (
                   <div className="py-8 text-center text-slate-500">No pending logs right now.</div>
                 ) : (
-                  <div className="space-y-2 max-h-112 overflow-auto pr-1">
-                    {pendingQueue.map(event => {
+                  <>
+                    <div className="space-y-2 max-h-112 overflow-auto pr-1">
+                      {visiblePending.map(event => {
                       const studentInfo = Array.isArray(event.students) ? event.students[0] : event.students;
                       return (
                         <div
@@ -1480,8 +1871,35 @@ export default function GuidanceReviewPage() {
                           </div>
                         </div>
                       );
-                    })}
-                  </div>
+                      })}
+                    </div>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        Showing <span className="font-semibold text-slate-900 dark:text-white">{pendingStartRecord}</span> - <span className="font-semibold text-slate-900 dark:text-white">{pendingEndRecord}</span> of <span className="font-semibold text-slate-900 dark:text-white">{pendingQueue.length}</span> records
+                      </p>
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-9 w-9 rounded-full"
+                          onClick={() => setPendingPage((p) => Math.max(1, p - 1))}
+                          disabled={pendingPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">Page {pendingPage} / {pendingTotalPages}</p>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-9 w-9 rounded-full"
+                          onClick={() => setPendingPage((p) => Math.min(pendingTotalPages, p + 1))}
+                          disabled={pendingPage === pendingTotalPages}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             </section>
@@ -1513,7 +1931,7 @@ export default function GuidanceReviewPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="p-5">
+                  <div className="p-3 sm:p-5">
                     {isStudentCardsLoading ? (
                       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                         {Array.from({ length: 5 }).map((_, i) => (
@@ -1551,7 +1969,7 @@ export default function GuidanceReviewPage() {
                 </section>
 
                 <section className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-xl rounded-lg overflow-hidden">
-                  <div className="p-5">
+                  <div className="p-3 sm:p-5">
                     <Tabs defaultValue="events" className="space-y-4">
                       <TabsList className="grid grid-cols-4 w-full max-w-3xl">
                         <TabsTrigger value="events" className="gap-2">
@@ -1579,74 +1997,49 @@ export default function GuidanceReviewPage() {
                               Loading events for {displayStudent?.name || 'selected student'}...
                             </div>
                             {Array.from({ length: 3 }).map((_, i) => (
-                              <div key={i} className="rounded-xl border border-border/70 bg-white/80 dark:bg-slate-900/30 p-4 space-y-3">
-                                <Skeleton className="h-6 w-44" />
-                                <div className="flex items-center justify-between gap-3">
-                                  <Skeleton className="h-5 w-56" />
-                                  <Skeleton className="h-8 w-16" />
+                              <div key={i} className="rounded-lg border border-border/70 bg-white/80 dark:bg-slate-900/30 px-3 py-2 flex items-center justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <Skeleton className="h-4 w-40" />
+                                  <Skeleton className="h-3 w-32 mt-1" />
                                 </div>
-                                <Skeleton className="h-4 w-full" />
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                  <Skeleton className="h-14 w-full" />
-                                  <Skeleton className="h-14 w-full" />
-                                  <Skeleton className="h-14 w-full" />
-                                </div>
+                                <Skeleton className="h-8 w-16 shrink-0" />
                               </div>
                             ))}
                           </div>
                         ) : filteredEvents.length === 0 ? (
                           <div className="py-8 text-center text-slate-500">No behavioral events found for this student.</div>
                         ) : (
-                          <div className="space-y-3 max-h-112 overflow-auto pr-1">
+                          <div className="space-y-2 max-h-112 overflow-auto pr-1">
                             {filteredEvents.map(event => (
                               <div
                                 key={event.id}
-                                className="rounded-xl border border-border/70 bg-white/80 dark:bg-slate-900/30 p-4"
+                                className="rounded-lg border border-border/70 bg-white/80 dark:bg-slate-900/30 px-3 py-2 hover:shadow-md transition-shadow cursor-pointer"
+                                onClick={() => void openReviewDialog(event)}
                               >
-                                {(() => {
-                                  const savedScore = parseBehavioralScoreFromNotes(event.guidance_intervention_notes);
-                                  const displayScore = savedScore?.value ?? computeSuggestedBehaviorScore(event);
-                                  const label = savedScore ? `Guidance ${savedScore.mode}` : 'AI suggested';
-
-                                  return (
-                                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs text-blue-700">
-                                      <span className="font-semibold">Behavior Score:</span>
-                                      <span>{displayScore}/100</span>
-                                      <span className="text-blue-600/80">({label})</span>
-                                    </div>
-                                  );
-                                })()}
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                  <div className="min-w-0">
-                                    <p className="font-semibold text-slate-900 dark:text-white">{humanizeEventType(event.event_type)}</p>
-                                    <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 wrap-break-word">{event.description}</p>
-                                    {event.proof_image_url && (
-                                      <div className="mt-2 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden max-w-sm">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img src={event.proof_image_url} alt="Behavior proof" className="max-h-44 w-full object-contain bg-slate-50 dark:bg-slate-900/40" />
-                                      </div>
-                                    )}
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{humanizeEventType(event.event_type)}</p>
+                                    <p className="text-xs text-slate-600 dark:text-slate-300 truncate">{event.description}</p>
                                   </div>
-                                  <Button size="sm" variant="outline" className="gap-2 self-start" onClick={() => void openReviewDialog(event)}>
-                                    <Eye className="w-4 h-4" />
-                                    View
-                                  </Button>
-                                </div>
 
-                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-                                  <div className="rounded-lg border border-border/60 p-2.5 bg-slate-50/70 dark:bg-slate-800/40">
-                                    <p className="text-xs text-slate-500 mb-1">Severity</p>
-                                    <Badge variant="outline" className={`capitalize ${getSeverityBadgeClass(event.severity)}`}>
+                                  <div className="flex items-center gap-2 shrink-0 whitespace-nowrap overflow-x-auto">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="gap-1 h-7 text-xs px-2 shrink-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        void openReviewDialog(event);
+                                      }}
+                                    >
+                                      <Eye className="w-3 h-3" />
+                                      View
+                                    </Button>
+                                    <Badge variant="outline" className={`capitalize text-xs py-0.5 shrink-0 ${getSeverityBadgeClass(event.severity)}`}>
                                       {event.severity}
                                     </Badge>
-                                  </div>
-                                  <div className="rounded-lg border border-border/60 p-2.5 bg-slate-50/70 dark:bg-slate-800/40">
-                                    <p className="text-xs text-slate-500 mb-1">Guidance Status</p>
-                                    {getGuidanceBadge(event.guidance_status)}
-                                  </div>
-                                  <div className="rounded-lg border border-border/60 p-2.5 bg-slate-50/70 dark:bg-slate-800/40">
-                                    <p className="text-xs text-slate-500 mb-1">Reviewer</p>
-                                    <p className="font-medium text-slate-800 dark:text-slate-200">{event.guidance_reviewed_by || 'Pending'}</p>
+                                    <div className="shrink-0">{getGuidanceBadge(event.guidance_status)}</div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 shrink-0">By: {event.guidance_reviewed_by || 'Pending'}</p>
                                   </div>
                                 </div>
                               </div>
@@ -1730,13 +2123,12 @@ export default function GuidanceReviewPage() {
                         ) : (
                           <div className="space-y-2 max-h-112 overflow-auto pr-1">
                             {timeline.map(item => (
-                              <div key={item.id} className="rounded-xl border border-border/70 p-3 bg-white/75 dark:bg-slate-900/30">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <p className="font-medium text-slate-900 dark:text-white">{item.title}</p>
-                                  <Badge variant="outline" className="capitalize">{item.badge.replaceAll('_', ' ')}</Badge>
+                              <div key={item.id} className="rounded-lg border border-border/70 px-3 py-2 bg-white/75 dark:bg-slate-900/30 flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white truncate">{item.title}</p>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">{item.subtitle}</p>
                                 </div>
-                                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">{item.subtitle}</p>
-                                <p className="text-xs text-slate-500 mt-2">{formatDate(item.when)}</p>
+                                <Badge variant="outline" className="capitalize shrink-0 text-xs py-0.5">{item.badge.replaceAll('_', ' ')}</Badge>
                               </div>
                             ))}
                           </div>
@@ -2047,35 +2439,35 @@ export default function GuidanceReviewPage() {
         <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
           <DialogContent className="w-[96vw] sm:w-[92vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto border border-border/70 bg-white/95 dark:bg-slate-900/95 p-4 sm:p-6">
             <DialogHeader className="pr-8">
-              <DialogTitle>Review Pending Log</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-xl sm:text-2xl">Review Pending Log</DialogTitle>
+              <DialogDescription className="text-sm sm:text-base">
                 Read the event details and current attendance context, then approve or deny this log.
               </DialogDescription>
             </DialogHeader>
 
             {reviewEvent ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              <div className="space-y-3 sm:space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs sm:text-sm">
                   <div className="rounded-lg border p-3 bg-slate-50 dark:bg-slate-900/30">
                     <p className="text-xs text-slate-500">Student</p>
-                    <p className="font-semibold text-slate-900 dark:text-white">{reviewStudentIdentity?.name || reviewEvent.student_lrn}</p>
+                    <p className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">{reviewStudentIdentity?.name || reviewEvent.student_lrn}</p>
                     <p className="text-xs text-slate-500">{reviewStudentIdentity?.lrn || reviewEvent.student_lrn}</p>
                     {reviewStudentIdentity?.level && <p className="text-xs text-slate-500">{reviewStudentIdentity.level}</p>}
                   </div>
                   <div className="rounded-lg border p-3 bg-slate-50 dark:bg-slate-900/30">
                     <p className="text-xs text-slate-500">Logged At</p>
-                    <p className="font-semibold text-slate-900 dark:text-white">{formatDate(reviewEvent.created_at)}</p>
+                    <p className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">{formatDate(reviewEvent.created_at)}</p>
                     <p className="text-xs text-slate-500">{formatDateOnly(reviewEvent.event_date)} {reviewEvent.event_time}</p>
                   </div>
                 </div>
 
                 <div className="rounded-lg border p-4 bg-white dark:bg-slate-900/30">
                   <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <p className="font-semibold text-slate-900 dark:text-white">{humanizeEventType(reviewEvent.event_type)}</p>
+                    <p className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">{humanizeEventType(reviewEvent.event_type)}</p>
                     <Badge variant="outline" className="capitalize">{reviewEvent.severity}</Badge>
                     {getGuidanceBadge(reviewEvent.guidance_status)}
                   </div>
-                  <p className="text-sm text-slate-700 dark:text-slate-300">{reviewEvent.description}</p>
+                  <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300">{reviewEvent.description}</p>
                   {reviewEvent.proof_image_url && (
                     <div className="mt-3 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -2089,9 +2481,9 @@ export default function GuidanceReviewPage() {
                 </div>
 
                 <div className="rounded-lg border p-4 bg-white dark:bg-slate-900/30">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Recent Attendance Context</p>
+                  <p className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white mb-2">Recent Attendance Context</p>
                   {attendanceLogs.length === 0 ? (
-                    <p className="text-sm text-slate-500">No attendance records found for this student.</p>
+                    <p className="text-xs sm:text-sm text-slate-500">No attendance records found for this student.</p>
                   ) : (
                     <div className="space-y-2 max-h-36 overflow-auto pr-1">
                       {attendanceLogs.slice(0, 8).map(log => (
@@ -2106,7 +2498,7 @@ export default function GuidanceReviewPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Behavioral Score Review</p>
+                  <p className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white">Behavioral Score Review</p>
                   <div className="rounded-lg border p-3 bg-slate-50 dark:bg-slate-900/30 space-y-3">
                     <div className="space-y-1">
                       <p className="text-xs text-slate-600 dark:text-slate-300">Suggested score</p>
@@ -2115,7 +2507,7 @@ export default function GuidanceReviewPage() {
                         value={suggestedBehaviorScore ?? ''}
                         readOnly
                         disabled
-                        className="sm:max-w-45 bg-slate-100/80 text-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
+                        className="sm:max-w-45 bg-slate-100/80 text-sm text-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
                       />
                     </div>
                     <div className="space-y-1">
@@ -2127,7 +2519,9 @@ export default function GuidanceReviewPage() {
                         value={guidanceScoreInput}
                         onChange={(e) => setGuidanceScoreInput(e.target.value)}
                         placeholder="Enter guidance score"
-                        className="sm:max-w-45"
+                        readOnly={reviewEvent.guidance_status !== 'pending_guidance'}
+                        disabled={reviewEvent.guidance_status !== 'pending_guidance'}
+                        className="sm:max-w-45 text-sm"
                       />
                     </div>
                     <p className="text-xs text-slate-500">
@@ -2138,40 +2532,46 @@ export default function GuidanceReviewPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Guidance Intervention Notes</p>
+                  <p className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white">Guidance Intervention Notes</p>
                   <Textarea
                     value={reviewNote}
                     onChange={(e) => setReviewNote(e.target.value)}
                     placeholder="Write intervention details, counseling actions, and recommendation."
                     rows={4}
-                    className="resize-none"
+                    readOnly={reviewEvent.guidance_status !== 'pending_guidance'}
+                    disabled={reviewEvent.guidance_status !== 'pending_guidance'}
+                    className="resize-none text-sm"
                   />
                 </div>
 
                 <div className="flex flex-wrap justify-end gap-2 pt-1">
-                  <Button variant="outline" onClick={() => setReviewDialogOpen(false)} disabled={guidanceSubmitting}>
+                  <Button size="sm" variant="outline" onClick={() => setReviewDialogOpen(false)} disabled={guidanceSubmitting}>
                     Close
                   </Button>
-                  {reviewEvent.guidance_status !== 'denied_by_guidance' && (
-                    <Button
-                      variant="outline"
-                      className="gap-2 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
-                      onClick={() => void handleGuidanceDecision('denied_by_guidance')}
-                      disabled={guidanceSubmitting}
-                    >
-                      {guidanceSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
-                      Deny Log
-                    </Button>
-                  )}
-                  {reviewEvent.guidance_status !== 'approved_for_ml' && (
-                    <Button
-                      className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-                      onClick={() => void handleGuidanceDecision('approved_for_ml')}
-                      disabled={guidanceSubmitting}
-                    >
-                      {guidanceSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                      Approve Log
-                    </Button>
+
+                  {reviewEvent.guidance_status === 'pending_guidance' && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                        onClick={() => void handleGuidanceDecision('denied_by_guidance')}
+                        disabled={guidanceSubmitting}
+                      >
+                        {guidanceSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                        Deny Log
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                        onClick={() => void handleGuidanceDecision('approved_for_ml')}
+                        disabled={guidanceSubmitting}
+                      >
+                        {guidanceSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                        Approve Log
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>

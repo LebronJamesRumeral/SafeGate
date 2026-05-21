@@ -15,11 +15,11 @@ import { TimePickerInput } from '@/components/time-picker-input';
 import { DatePickerInput } from '@/components/date-picker-input';
 import { Skeleton } from '@/components/ui/skeleton';
 import EventsSkeleton from '@/components/events-skeleton';
-import { CalendarDays, MapPin, Clock, Pencil, Trash2, ImagePlus, Megaphone, Info } from 'lucide-react';
+import { CalendarDays, MapPin, Clock, Pencil, Trash2, ImagePlus, Megaphone, Info, ChevronLeft, ChevronRight } from 'lucide-react';
 import { fetchActiveSchoolEvents, createSchoolEvent, ensureUpcomingSchoolEventReminders, type SchoolEvent } from '@/lib/school-events';
 import { supabase } from '@/lib/supabase';
 import { formatTime12h } from '@/lib/time-format';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/hooks/use-toast';
 
 type EventJoinIntent = {
@@ -59,8 +59,11 @@ export default function EventsPage() {
   const [saving, setSaving] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<SchoolEvent | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState<SchoolEvent | null>(null);
   const [joinIntents, setJoinIntents] = useState<EventJoinIntent[]>([]);
   const [loadingJoinIntents, setLoadingJoinIntents] = useState(false);
+  const [responsesPage, setResponsesPage] = useState(0);
   const [notificationDeepLinkHandled, setNotificationDeepLinkHandled] = useState(false);
   const [formErrors, setFormErrors] = useState<{
     title?: string;
@@ -132,6 +135,10 @@ export default function EventsPage() {
       }
     }
   };
+
+  useEffect(() => {
+    setResponsesPage(0);
+  }, [joinIntents, selectedEvent]);
 
   useEffect(() => {
     void loadEvents({ withMinimumDelay: true });
@@ -440,8 +447,8 @@ export default function EventsPage() {
 
       await loadEvents();
       toast({
-        title: 'Event removed',
-        description: 'The event was archived successfully.',
+        title: 'Event deleted',
+        description: 'The event was deleted successfully.',
       });
     } catch (error) {
       toast({
@@ -451,6 +458,22 @@ export default function EventsPage() {
       });
     }
   };
+
+  const openDeleteConfirm = (event: SchoolEvent) => {
+    setEventToDelete(event);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteEvent = async () => {
+    if (!eventToDelete) return;
+    await handleDelete(eventToDelete.id);
+    setDeleteConfirmOpen(false);
+    setEventToDelete(null);
+  };
+
+  const responsesPageSize = 5;
+  const responsesTotalPages = Math.ceil(joinIntents.length / responsesPageSize) || 1;
+  const paginatedJoinIntents = joinIntents.slice(responsesPage * responsesPageSize, (responsesPage + 1) * responsesPageSize);
 
   return (
     <DashboardLayout>
@@ -472,7 +495,7 @@ export default function EventsPage() {
         )}
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-5xl lg:max-w-4xl h-auto sm:h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
+          <DialogContent className="w-[90vw] sm:w-[88vw] max-w-4xl lg:max-w-3xl h-auto sm:h-[82vh] max-h-[88vh] overflow-hidden p-0 flex flex-col rounded-xl">
             <div className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40">
             <DialogHeader>
               <DialogTitle>{editingEvent ? 'Edit Event' : 'Create Event'}</DialogTitle>
@@ -637,41 +660,52 @@ export default function EventsPage() {
         </Dialog>
 
         <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl h-auto sm:max-h-[90vh] overflow-hidden flex flex-col border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-            <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
+          <DialogContent className="w-[94vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl p-0 flex flex-col max-h-[86dvh] sm:max-h-[90vh] overflow-hidden border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+            <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 px-4 sm:px-6 pt-4 sm:pt-6">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <Info className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                    <DialogTitle className="text-xl font-bold">Event Details</DialogTitle>
+                    <DialogTitle className="text-lg sm:text-xl font-bold">Event Details</DialogTitle>
                   </div>
-                  <DialogDescription className="mt-2 text-[22px]">
+                  <DialogDescription className="mt-2 text-sm sm:text-base leading-relaxed">
                     Full school event announcement for <span className="font-semibold text-slate-900 dark:text-white">{selectedEvent?.title || 'selected event'}</span>
                   </DialogDescription>
                 </div>
               </div>
             </DialogHeader>
             {selectedEvent && (
-              <div className="flex-1 overflow-y-auto pr-4 space-y-4">
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 space-y-4">
                 {selectedEvent.image_url ? (
                   <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={selectedEvent.image_url} alt={selectedEvent.title} className="w-full h-64 object-cover" />
+                    <img src={selectedEvent.image_url} alt={selectedEvent.title} className="w-full h-40 sm:h-64 object-cover" />
                   </div>
                 ) : null}
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/40 p-3">
-                  <div className="space-y-1 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
-                    <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
-                    <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><CalendarDays className="w-4 h-4 text-slate-500 dark:text-slate-400" /> {formatEventDateRange(selectedEvent)}</p>
-                  </div>
-                  <div className="space-y-1 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
-                    <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Time</label>
-                    <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><Clock className="w-4 h-4 text-slate-500 dark:text-slate-400" /> {formatTime12h(selectedEvent.start_time)} - {formatTime12h(selectedEvent.end_time)}</p>
-                  </div>
-                  <div className="space-y-1 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
-                    <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Location</label>
-                    <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><MapPin className="w-4 h-4 text-slate-500 dark:text-slate-400" /> {selectedEvent.location || 'School campus'}</p>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/40 p-3">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <div className="min-w-0 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                      <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
+                      <p className="mt-1 text-[12px] sm:text-sm leading-tight flex items-start gap-1.5 text-slate-800 dark:text-slate-100 min-w-0">
+                        <CalendarDays className="mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 shrink-0" />
+                        <span className="wrap-break-word">{formatEventDateRange(selectedEvent)}</span>
+                      </p>
+                    </div>
+                    <div className="min-w-0 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                      <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Time</label>
+                      <p className="mt-1 text-[12px] sm:text-sm leading-tight flex items-start gap-1.5 text-slate-800 dark:text-slate-100 min-w-0">
+                        <Clock className="mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 shrink-0" />
+                        <span className="wrap-break-word">{formatTime12h(selectedEvent.start_time)} - {formatTime12h(selectedEvent.end_time)}</span>
+                      </p>
+                    </div>
+                    <div className="min-w-0 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                      <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Location</label>
+                      <p className="mt-1 text-[12px] sm:text-sm leading-tight flex items-start gap-1.5 text-slate-800 dark:text-slate-100 min-w-0">
+                        <MapPin className="mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 shrink-0" />
+                        <span className="wrap-break-word">{selectedEvent.location || 'School campus'}</span>
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -689,36 +723,104 @@ export default function EventsPage() {
                     <p className="text-sm text-slate-500 dark:text-slate-400">No responses yet.</p>
                   ) : (
                     <div className="space-y-2">
-                      {joinIntents.map((intent) => (
-                        <div
-                          key={intent.id}
-                          className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 px-3 py-2 flex items-start justify-between gap-2"
+                      <AnimatePresence initial={false} mode="wait">
+                        <motion.div
+                          key={responsesPage}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          transition={{ duration: 0.22 }}
+                          className="space-y-2"
                         >
-                          <div>
-                            <p className="text-sm font-medium text-slate-900 dark:text-white">{intent.parent_name}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">{intent.parent_email}</p>
-                            {intent.child_names.length > 0 && (
-                              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                                Children: {intent.child_names.join(', ')}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${intent.status === 'join' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300'}`}>
-                              {intent.status === 'join' ? 'Will join' : 'Will not join'}
-                            </span>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                              {new Date(intent.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            </p>
+                          {paginatedJoinIntents.map((intent) => (
+                            <div
+                              key={intent.id}
+                              className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 px-3 py-2 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2"
+                            >
+                              <div>
+                                <p className="text-sm font-medium text-slate-900 dark:text-white">{intent.parent_name}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">{intent.parent_email}</p>
+                                {intent.child_names.length > 0 && (
+                                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                                    Children: {intent.child_names.join(', ')}
+                                  </p>
+                                )}
+                              </div>
+                                <div className="flex items-center gap-3 self-start sm:self-auto">
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${intent.status === 'join' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300'}`}>
+                                  {intent.status === 'join' ? 'Will join' : 'Will not join'}
+                                </span>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                  {new Date(intent.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </motion.div>
+                      </AnimatePresence>
+
+                      {joinIntents.length > responsesPageSize && (
+                        <div className="flex items-center justify-between mt-2">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Showing {responsesPage * responsesPageSize + 1}-{Math.min(joinIntents.length, (responsesPage + 1) * responsesPageSize)} of {joinIntents.length}</p>
+                          <div className="flex items-center gap-4">
+                            <button
+                              type="button"
+                              aria-label="Previous page"
+                              className={`h-8 w-8 rounded-full border border-orange-200 dark:border-orange-800/50 bg-white dark:bg-slate-900 flex items-center justify-center ${responsesPage === 0 ? 'opacity-40 pointer-events-none' : 'hover:shadow'}`}
+                              onClick={() => setResponsesPage((p) => Math.max(0, p - 1))}
+                              disabled={responsesPage === 0}
+                            >
+                              <ChevronLeft className="w-4 h-4 text-orange-600" />
+                            </button>
+
+                            <div className="text-sm text-slate-700 dark:text-slate-200">Page {responsesPage + 1} / {responsesTotalPages}</div>
+
+                            <button
+                              type="button"
+                              aria-label="Next page"
+                              className={`h-8 w-8 rounded-full border border-orange-200 dark:border-orange-800/50 bg-white dark:bg-slate-900 flex items-center justify-center ${responsesPage >= responsesTotalPages - 1 ? 'opacity-40 pointer-events-none' : 'hover:shadow'}`}
+                              onClick={() => setResponsesPage((p) => Math.min(responsesTotalPages - 1, p + 1))}
+                              disabled={responsesPage >= responsesTotalPages - 1}
+                            >
+                              <ChevronRight className="w-4 h-4 text-orange-600" />
+                            </button>
                           </div>
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                   <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Parents who did not respond are treated as <span className="font-semibold">Will not join</span> by default.</p>
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={deleteConfirmOpen}
+          onOpenChange={(open) => {
+            setDeleteConfirmOpen(open);
+            if (!open) setEventToDelete(null);
+          }}
+        >
+          <DialogContent className="w-[92vw] sm:w-md max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold">Are you sure?</DialogTitle>
+              <DialogDescription>
+                This will delete the event and remove it from the active list.
+                {eventToDelete?.title ? (
+                  <span className="mt-2 block font-semibold text-slate-900 dark:text-white">{eventToDelete.title}</span>
+                ) : null}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col sm:flex-row gap-3 justify-end mt-4">
+              <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={() => void confirmDeleteEvent()}>
+                Delete Event
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
 
@@ -753,7 +855,7 @@ export default function EventsPage() {
                           <div className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400 leading-tight">{events.length}</div>
                           <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">All posted school events</p>
                         </div>
-                        <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 dark:shadow-blue-500/10 group-hover:scale-105 transition-all duration-300">
+                        <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-md shadow-blue-500/20 dark:shadow-blue-500/10 group-hover:scale-105 transition-all duration-300">
                           <Megaphone className="w-6 h-6 sm:w-7 sm:h-7" />
                         </div>
                       </CardContent>
@@ -775,7 +877,7 @@ export default function EventsPage() {
                           <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{upcomingCount}</div>
                           <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Events from today onward</p>
                         </div>
-                        <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
+                        <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
                           <CalendarDays className="w-6 h-6 sm:w-7 sm:h-7" />
                         </div>
                       </CardContent>
@@ -797,7 +899,7 @@ export default function EventsPage() {
                           <div className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400 leading-tight">{eventsWithImagesCount}</div>
                           <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Cards with visual posters</p>
                         </div>
-                        <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-violet-500 to-violet-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20 dark:shadow-violet-500/10 group-hover:scale-105 transition-all duration-300">
+                        <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-violet-500 to-violet-600 text-white items-center justify-center shadow-md shadow-violet-500/20 dark:shadow-violet-500/10 group-hover:scale-105 transition-all duration-300">
                           <ImagePlus className="w-6 h-6 sm:w-7 sm:h-7" />
                         </div>
                       </CardContent>
@@ -819,7 +921,7 @@ export default function EventsPage() {
                           <div className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400 leading-tight">{events.length - eventsWithImagesCount}</div>
                           <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Text-only event cards</p>
                         </div>
-                        <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20 dark:shadow-amber-500/10 group-hover:scale-105 transition-all duration-300">
+                        <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white items-center justify-center shadow-md shadow-amber-500/20 dark:shadow-amber-500/10 group-hover:scale-105 transition-all duration-300">
                           <Info className="w-6 h-6 sm:w-7 sm:h-7" />
                         </div>
                       </CardContent>
@@ -827,7 +929,7 @@ export default function EventsPage() {
                     </Card>
                   </motion.div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-5">
               {events.sort((a, b) => {
                 const aDate = new Date(b.created_at || b.updated_at || '').getTime();
                 const bDate = new Date(a.created_at || a.updated_at || '').getTime();
@@ -839,63 +941,63 @@ export default function EventsPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05, duration: 0.3 }}
                 >
-                  <Card className="overflow-hidden border-0 bg-linear-to-br from-white to-blue-50 dark:from-slate-900/70 dark:to-blue-950/20 shadow-lg hover:shadow-2xl transition-all duration-300 group hover:scale-105 h-full">
+                  <Card className="overflow-hidden border-0 bg-linear-to-br from-white to-blue-50 dark:from-slate-900/70 dark:to-blue-950/20 shadow-lg hover:shadow-2xl transition-all duration-300 group sm:hover:scale-105 h-full">
                     <div className="h-1.5 w-full bg-linear-to-r from-blue-500 to-cyan-500" />
                     {event.image_url ? (
-                      <div className="h-44 w-full bg-slate-100 dark:bg-slate-900 overflow-hidden">
+                      <div className="h-28 sm:h-44 w-full bg-slate-100 dark:bg-slate-900 overflow-hidden">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={event.image_url} alt={event.title} className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500" />
                       </div>
                     ) : (
-                      <div className="h-44 w-full flex items-center justify-center bg-linear-to-br from-blue-100 to-cyan-100 dark:from-blue-950/40 dark:to-cyan-950/40 text-blue-700 dark:text-blue-300">
-                        <Megaphone className="w-10 h-10 opacity-70 group-hover:scale-125 transition-transform duration-300" />
+                      <div className="h-28 sm:h-44 w-full flex items-center justify-center bg-linear-to-br from-blue-100 to-cyan-100 dark:from-blue-950/40 dark:to-cyan-950/40 text-blue-700 dark:text-blue-300">
+                        <Megaphone className="w-8 h-8 sm:w-10 sm:h-10 opacity-70 group-hover:scale-125 transition-transform duration-300" />
                       </div>
                     )}
-                    <CardHeader className="pb-2 pt-4">
+                    <CardHeader className="pb-1 sm:pb-2 pt-3 sm:pt-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
-                          <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">{event.title}</CardTitle>
-                          <CardDescription className="mt-1 line-clamp-2 text-slate-600 dark:text-slate-400">{event.description || 'No description.'}</CardDescription>
+                          <CardTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">{event.title}</CardTitle>
+                          <CardDescription className="mt-1 line-clamp-1 sm:line-clamp-2 text-slate-600 dark:text-slate-400">{event.description || 'No description.'}</CardDescription>
                         </div>
-                        <div className="w-8 h-8 rounded-lg bg-blue-100/80 dark:bg-blue-900/40 flex items-center justify-center shrink-0 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/60 transition-colors">
+                        <div className="hidden sm:flex w-8 h-8 rounded-lg bg-blue-100/80 dark:bg-blue-900/40 items-center justify-center shrink-0 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/60 transition-colors">
                           <Megaphone className="w-4 h-4 text-blue-600 dark:text-blue-300" />
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-2.5 pb-4">
-                      <div className="space-y-1.5">
-                        <p className="text-sm flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                          <CalendarDays className="w-4 h-4 text-blue-500" /> 
+                    <CardContent className="space-y-2 pb-3 sm:pb-4">
+                      <div className="space-y-1">
+                        <p className="text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 text-slate-700 dark:text-slate-300">
+                          <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" /> 
                           <span className="font-medium">{formatEventDateRange(event)}</span>
                         </p>
-                        <p className="text-sm flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                          <Clock className="w-4 h-4 text-blue-500" /> 
+                        <p className="text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 text-slate-700 dark:text-slate-300">
+                          <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" /> 
                           <span className="font-medium">{formatTime12h(event.start_time)} - {formatTime12h(event.end_time)}</span>
                         </p>
-                        <p className="text-sm flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                          <MapPin className="w-4 h-4 text-blue-500" /> 
+                        <p className="text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 text-slate-700 dark:text-slate-300">
+                          <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" /> 
                           <span className="font-medium">{event.location || 'School campus'}</span>
                         </p>
                       </div>
-                      <div className="mt-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                        <Button size="sm" className="w-full md:flex-1 bg-blue-500 hover:bg-blue-600 text-white transition-all duration-200" onClick={() => { setSelectedEvent(event); setDetailsOpen(true); }}>
+                      <div className="mt-2 sm:mt-3 flex items-center justify-between gap-2">
+                        <Button size="sm" className="flex-1 bg-blue-500 hover:bg-blue-600 text-white transition-all duration-200" onClick={() => { setSelectedEvent(event); setDetailsOpen(true); }}>
                           View Details
                         </Button>
 
                         {isAdmin && (
-                          <div className="flex items-center gap-2 md:ml-3">
+                          <div className="flex items-center gap-1.5 sm:gap-2">
                             <div title={isEventDatePassed(event) ? 'Cannot edit past events' : 'Edit event'}>
                               <Button 
                                 size="sm" 
                                 variant="outline" 
-                                className="h-9 w-9 p-0 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="h-8 w-8 sm:h-9 sm:w-9 p-0 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 onClick={() => openEditDialog(event)}
                                 disabled={isEventDatePassed(event)}
                               >
                                 <Pencil className="w-4 h-4" />
                               </Button>
                             </div>
-                            <Button size="sm" className="h-9 w-9 p-0 flex items-center justify-center rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors" onClick={() => void handleDelete(event.id)}>
+                            <Button size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 flex items-center justify-center rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors" onClick={() => openDeleteConfirm(event)}>
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>

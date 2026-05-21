@@ -1621,3 +1621,27 @@ ON CONFLICT (student_lrn, event_date, event_time, event_type) DO NOTHING;
 
 -- Update student summaries
 SELECT update_student_summary(lrn) FROM students;
+
+-- ============================================================================
+-- Server-side undo table for school year advancement
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS school_year_undos (
+  id BIGSERIAL PRIMARY KEY,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  previous_school_year JSONB,
+  previous_students JSONB,
+  new_school_year_id BIGINT,
+  new_school_year_label TEXT,
+  is_active BOOLEAN DEFAULT true
+);
+
+CREATE INDEX IF NOT EXISTS idx_school_year_undos_expires_at ON school_year_undos (expires_at);
+CREATE INDEX IF NOT EXISTS idx_school_year_undos_is_active ON school_year_undos (is_active);
+
+-- Enable RLS for undo table and allow basic CRUD from server/client
+ALTER TABLE school_year_undos ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable read for all on school_year_undos" ON school_year_undos FOR SELECT USING (true);
+CREATE POLICY "Enable insert for all on school_year_undos" ON school_year_undos FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for all on school_year_undos" ON school_year_undos FOR UPDATE USING (true);
+CREATE POLICY "Enable delete for all on school_year_undos" ON school_year_undos FOR DELETE USING (true);

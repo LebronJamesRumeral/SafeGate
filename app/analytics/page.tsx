@@ -36,6 +36,7 @@ import { MLDashboard } from '@/components/ml-dashboard';
 import { AnalyticsPageSkeleton } from '@/components/analytics-skeleton';
 import { DateLevelFilter } from '@/components/date-level-filter';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { calculateStudentRiskScore, detectAbsencePatterns, getAttendanceMetrics } from '@/lib/ml-risk-calculator';
 import type { Cell as ExcelCell } from 'exceljs';
 import { 
@@ -75,6 +76,9 @@ const COLORS = {
   }
 };
 
+const TYPE_CHART_LIMIT = 6;
+const TYPE_COLORS = [COLORS.emerald[0], COLORS.amber[0], COLORS.rose[0], COLORS.blue[0], COLORS.violet[0], '#14b8a6'];
+
 function normalizeText(value: string | null | undefined) {
   return (value || '').toLowerCase().trim();
 }
@@ -91,6 +95,40 @@ function resolveBehaviorSeverity(event: any) {
     return resolved;
   }
   return 'other';
+}
+
+function formatEventTypeLabel(value: string) {
+  if (value === 'parent_report') return 'Parent report';
+  if (value === 'Other') return 'Other';
+
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function buildTypeBreakdown(items: { type: string; count: number }[]) {
+  const sorted = [...items].sort((left, right) => right.count - left.count);
+  const top = sorted.slice(0, TYPE_CHART_LIMIT).map((item, index) => ({
+    ...item,
+    color: TYPE_COLORS[index % TYPE_COLORS.length],
+    isOther: false,
+  }));
+  const otherCount = sorted.slice(TYPE_CHART_LIMIT).reduce((total, item) => total + item.count, 0);
+
+  const chartData = otherCount > 0
+    ? [...top, { type: 'Other', count: otherCount, color: '#94a3b8', isOther: true }]
+    : top;
+
+  const total = sorted.reduce((sum, item) => sum + item.count, 0);
+
+  return {
+    sorted,
+    chartData,
+    total,
+    hasOverflow: sorted.length > TYPE_CHART_LIMIT,
+  };
 }
 
 // Enforce consistent layout structure for analytics
@@ -133,11 +171,24 @@ export default function AnalyticsPage() {
     averageRiskScore: 0,
     loadingMl: false
   });
+  const isMobile = useIsMobile();
+  const [showFilters, setShowFilters] = useState(false);
+  const [mobileOverviewPanel, setMobileOverviewPanel] = useState<'weekly' | 'behavioral' | 'grade'>('weekly');
+  const [mobileBehavioralPanel, setMobileBehavioralPanel] = useState<'weekly' | 'type' | 'risk'>('weekly');
+  const [showAllEventTypes, setShowAllEventTypes] = useState(false);
+  const [atRiskStudents, setAtRiskStudents] = useState<any[]>([]);
+  const [mobileMlPanel, setMobileMlPanel] = useState<'evidence' | 'drivers'>('evidence');
 
 
   useEffect(() => {
     fetchAnalyticsData();
   }, [dateMode, rangeStart, rangeEnd, singleDate, selectedLevel]);
+
+  const getDateRangeText = () => {
+    if (dateMode === 'all') return 'All dates';
+    if (dateMode === 'single') return new Date(singleDate).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+    return `${new Date(rangeStart).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })} - ${new Date(rangeEnd).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}`;
+  };
 
 
 
@@ -560,19 +611,22 @@ export default function AnalyticsPage() {
             }
           }
 
-          if (riskLevel !== 'low') {
-            atRiskStudentsList.push({
-              name: student.full_name || student.lrn,
-              lrn: student.lrn,
-              riskLevel,
-              attendanceRate,
-              negativeEvents: studentStats.negative,
-              positiveEvents: studentStats.positive
-            });
-          }
+            if (riskLevel !== 'low') {
+              atRiskStudentsList.push({
+                name: student.full_name || student.lrn,
+                lrn: student.lrn,
+                riskLevel,
+                attendanceRate,
+                negativeEvents: studentStats.negative,
+                positiveEvents: studentStats.positive
+              });
+            }
         }
 
-        setBehavioralStats({
+          // expose at-risk students separately so we can render a quick list
+          setAtRiskStudents(atRiskStudentsList);
+
+          setBehavioralStats({
           totalEvents: behavioralEvents.length,
           positiveEvents,
           negativeEvents,
@@ -900,6 +954,16 @@ export default function AnalyticsPage() {
             { width: 14 },
           ];
 
+          const colNumberToName = (n: number) => {
+            let s = '';
+            while (n > 0) {
+              const m = (n - 1) % 26;
+              s = String.fromCharCode(65 + m) + s;
+              n = Math.floor((n - 1) / 26);
+            }
+            return s;
+          };
+
           try {
             // Use SGCDC.png explicitly and preserve image aspect ratio so it does not stretch
             const logoResponse = await fetch('/SGCDC.png');
@@ -918,48 +982,61 @@ export default function AnalyticsPage() {
               const height = Math.min(maxHeight, img.naturalHeight || maxHeight);
               const width = Math.round(height * ratio);
               const logoId = wb.addImage({ base64: logoBase64, extension: 'png' });
-              // place image to the left side of the title area (approx column A/B), preserve aspect ratio
-              sheet.addImage(logoId, {
-                tl: { col: 0.25, row: 0.08 },
-                ext: { width, height },
-                editAs: 'oneCell',
-              });
+              // center the logo across header width
+              const lastCol = Math.max(1, (sheet.columns && sheet.columns.length) || 1);
+              const centerCol = lastCol / 2;
+              const approxColsForImage = Math.max(1, Math.round(width / 40));
+              const tlCol = Math.max(0.25, centerCol - approxColsForImage / 2);
+              sheet.addImage(logoId, { tl: { col: tlCol, row: 0.08 }, ext: { width, height }, editAs: 'oneCell' });
             }
           } catch (logoError) {
             console.warn('SGCDC logo could not be embedded in Excel export:', logoError);
           }
 
-          sheet.getRow(1).height = 30;
-          sheet.getRow(2).height = 40;
+          sheet.getRow(1).height = 80;
+          sheet.getRow(2).height = 44;
           sheet.getRow(3).height = 22;
           sheet.getRow(4).height = 22;
 
-          sheet.mergeCells(options.kickerRange);
-          const kickerCell = sheet.getCell(options.kickerRange.split(':')[0]);
-          kickerCell.value = `  ${options.kickerText}`;
-          kickerCell.font = { name: 'Calibri', size: 9, bold: true, color: { argb: theme.gold } };
-          kickerCell.fill = solidFill(theme.navy);
-          kickerCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-          kickerCell.border = borderAll(theme.navy);
+          const lastColLetter = colNumberToName(Math.max(1, sheet.columns.length || 1));
+          sheet.mergeCells(`A1:${lastColLetter}1`);
+          const kickerCell = sheet.getCell('A1');
+          // Use richText to style the organization name larger, with address below and blue email
+          kickerCell.value = {
+            richText: [
+              { text: 'SUBIC GATEWAY CHILD DEVELOPMENT CENTER, INC.\n', font: { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF000000' } } },
+              { text: 'Building 5144 & 5145, Argonaut Highway, West Kalayaan,\nSubic Bay Freeport Zone, 2222\nTel. No.: (047)639-4690\n', font: { name: 'Calibri', size: 11, color: { argb: 'FF000000' } } },
+              { text: 'subicgatewayedc@gmail.com', font: { name: 'Calibri', size: 11, color: { argb: 'FF0563C1' } } },
+            ],
+          } as any;
+          kickerCell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF000000' } };
+          kickerCell.fill = undefined as any;
+          kickerCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          kickerCell.border = borderAll(theme.slate200);
 
-          sheet.mergeCells(options.titleRange);
-          const titleCell = sheet.getCell(options.titleRange.split(':')[0]);
+          sheet.mergeCells(`A2:${lastColLetter}2`);
+          const titleCell = sheet.getCell('A2');
           titleCell.value = options.titleText;
-          titleCell.font = { name: 'Calibri', size: 24, bold: true, color: { argb: theme.white } };
-          titleCell.fill = solidFill(theme.indigo);
-          titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
-          titleCell.border = borderAll(theme.indigo);
+          titleCell.font = { name: 'Calibri', size: 20, bold: true, color: { argb: 'FF000000' } };
+          // Remove colored fill to match guidance print (plain white background)
+          titleCell.fill = undefined as any;
+          titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+          titleCell.border = borderAll(theme.slate200);
 
-          sheet.mergeCells(options.badgeRange);
-          const badgeCell = sheet.getCell(options.badgeRange.split(':')[0]);
+          // badge: place on far right of header area
+          const badgeStart = Math.max(1, sheet.columns.length - 1);
+          const badgeStartLetter = colNumberToName(badgeStart);
+          sheet.mergeCells(`${badgeStartLetter}1:${lastColLetter}1`);
+          const badgeCell = sheet.getCell(`${badgeStartLetter}1`);
           badgeCell.value = options.badgeText;
-          badgeCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: theme.white } };
-          badgeCell.fill = solidFill(options.badgeFill);
+          // Make badge subdued / border-only to match plain print header
+          badgeCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
+          badgeCell.fill = undefined as any;
           badgeCell.alignment = { vertical: 'middle', horizontal: 'center' };
-          badgeCell.border = borderAll(options.badgeBorder);
+          badgeCell.border = borderAll(theme.slate200);
 
-          sheet.getRow(1).height = 30;
-          sheet.getRow(2).height = 40;
+          sheet.getRow(1).height = 80;
+          sheet.getRow(2).height = 44;
           sheet.getRow(3).height = 22;
           sheet.getRow(4).height = 22;
         };
@@ -1268,6 +1345,40 @@ export default function AnalyticsPage() {
   };
 
   const maxPresent = Math.max(...(stats.weeklyData.length ? stats.weeklyData.map(s => s.present) : [1]));
+  const typeBreakdown = buildTypeBreakdown(behavioralStats.categoryBreakdown);
+  const eventTypeLegendData = showAllEventTypes ? typeBreakdown.sorted : typeBreakdown.chartData;
+  const eventTypeSubtitle = typeBreakdown.hasOverflow
+    ? `Showing top ${TYPE_CHART_LIMIT} + Other`
+    : `${typeBreakdown.sorted.length} categories`;
+
+  const renderEventTypeItem = (entry: { type: string; count: number; color?: string; isOther?: boolean }, index: number) => {
+    const percentage = typeBreakdown.total > 0 ? (entry.count / typeBreakdown.total) * 100 : 0;
+
+    return (
+      <div
+        key={`${entry.type}-${index}`}
+        className={`space-y-2 rounded-xl border p-3 ${entry.isOther ? 'border-slate-300/80 bg-slate-100/80 dark:border-slate-700/60 dark:bg-slate-900/50' : 'border-slate-200/70 bg-white/80 dark:border-slate-700/40 dark:bg-slate-950/20'}`}
+      >
+        <div className="flex items-center justify-between gap-3 text-xs sm:text-sm">
+          <span className="min-w-0 truncate font-medium text-slate-700 dark:text-slate-200">
+            {formatEventTypeLabel(entry.type)}
+          </span>
+          <span className="shrink-0 font-semibold text-slate-900 dark:text-white">
+            {entry.count}
+            <span className="ml-1 font-normal text-slate-500 dark:text-slate-400">
+              ({percentage.toFixed(1)}%)
+            </span>
+          </span>
+        </div>
+        <div className="h-1.5 rounded-full bg-slate-200/80 dark:bg-slate-700/70 overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${Math.max(percentage, 4)}%`, backgroundColor: entry.color || TYPE_COLORS[index % TYPE_COLORS.length] }}
+          />
+        </div>
+      </div>
+    );
+  };
 
   if (loading && isInitialLoad) {
     return (
@@ -1340,19 +1451,80 @@ export default function AnalyticsPage() {
           ))}
         </div>
 
-        {/* Date and Level Filter */}
-        <DateLevelFilter
-          dateMode={dateMode}
-          setDateMode={setDateMode}
-          singleDate={singleDate}
-          setSingleDate={setSingleDate}
-          rangeStart={rangeStart}
-          setRangeStart={setRangeStart}
-          rangeEnd={rangeEnd}
-          setRangeEnd={setRangeEnd}
-          selectedLevel={selectedLevel}
-          setSelectedLevel={setSelectedLevel}
-        />
+        {/* Date and Level Filter - Mobile Optimized (collapsible). On desktop show full filter without hide/show. */}
+        {isMobile ? (
+          <AnimatePresence>
+            {!showFilters ? (
+              <motion.div
+                key="analytics-filters-summary"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                className="mb-2"
+              >
+                <div className="flex items-center justify-between gap-3 px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-700/40">
+                  <div className="text-sm truncate">
+                    <strong className="mr-2">Filters</strong>
+                    <span className="text-muted-foreground">{getDateRangeText()} • {selectedLevel === 'all' ? 'All Levels' : selectedLevel}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => setShowFilters(true)} className="gap-2">
+                      Show
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="analytics-filters-expanded"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.28 }}
+              >
+                <div className="mb-2">
+                  <Card className="overflow-hidden rounded-xl border-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm p-0 shadow-lg">
+                    <CardHeader className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200/60 dark:border-slate-700/40">
+                      <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Filter Dates</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)}>Hide</Button>
+                      </div>
+                    </CardHeader>
+                    <div className="p-4">
+                      <DateLevelFilter
+                        dateMode={dateMode}
+                        setDateMode={setDateMode}
+                        singleDate={singleDate}
+                        setSingleDate={setSingleDate}
+                        rangeStart={rangeStart}
+                        setRangeStart={setRangeStart}
+                        rangeEnd={rangeEnd}
+                        setRangeEnd={setRangeEnd}
+                        selectedLevel={selectedLevel}
+                        setSelectedLevel={setSelectedLevel}
+                        forceExpanded={true}
+                        noWrapper={true}
+                      />
+                    </div>
+                  </Card>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        ) : (
+          <DateLevelFilter
+            dateMode={dateMode}
+            setDateMode={setDateMode}
+            singleDate={singleDate}
+            setSingleDate={setSingleDate}
+            rangeStart={rangeStart}
+            setRangeStart={setRangeStart}
+            rangeEnd={rangeEnd}
+            setRangeEnd={setRangeEnd}
+            selectedLevel={selectedLevel}
+            setSelectedLevel={setSelectedLevel}
+          />
+        )}
 
         <AnimatePresence mode="wait">
           {activeTab === 'overview' && (
@@ -1376,7 +1548,7 @@ export default function AnalyticsPage() {
                         <div className="text-lg sm:text-2xl font-bold text-sky-600 dark:text-sky-400 leading-tight">{behavioralStats.totalEvents}</div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">all behavioral events</p>
                       </div>
-                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white flex items-center justify-center shadow-md shadow-sky-500/20 dark:shadow-sky-500/10 group-hover:scale-105 transition-all duration-300">
+                      <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white items-center justify-center shadow-md shadow-sky-500/20 dark:shadow-sky-500/10 group-hover:scale-105 transition-all duration-300">
                         <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
@@ -1394,7 +1566,7 @@ export default function AnalyticsPage() {
                         <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{behavioralStats.positiveEvents}</div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">reinforcing student progress</p>
                       </div>
-                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
+                      <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
                         <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
@@ -1412,7 +1584,7 @@ export default function AnalyticsPage() {
                         <div className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">{behavioralStats.negativeEvents}</div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">major and critical incidents</p>
                       </div>
-                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
+                      <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
                         <XCircle className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
@@ -1430,7 +1602,7 @@ export default function AnalyticsPage() {
                         <div className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400 leading-tight">{behavioralStats.studentsAtRisk}</div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">high or critical risk level</p>
                       </div>
-                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
+                      <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
                         <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
@@ -1439,142 +1611,296 @@ export default function AnalyticsPage() {
                 </motion.div>
               </div>
 
+              {/* Mobile overview switcher */}
+              {isMobile && (
+                <div className="flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800/60 p-1 shadow-sm overflow-x-auto no-scrollbar">
+                  {[
+                    { id: 'weekly', label: 'Weekly', icon: BarChart3 },
+                    { id: 'behavioral', label: 'Behavior', icon: Activity },
+                    { id: 'grade', label: 'Grade', icon: PieChart },
+                  ].map((panel) => (
+                    <button
+                      key={panel.id}
+                      onClick={() => setMobileOverviewPanel(panel.id as typeof mobileOverviewPanel)}
+                      className={`flex min-w-24 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-all ${
+                        mobileOverviewPanel === panel.id
+                          ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <panel.icon className="h-4 w-4" />
+                      {panel.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Charts Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Weekly Attendance Chart */}
-                <Card className="overflow-hidden border-0 shadow-xl">
-                  <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <BarChart3 className="w-5 h-5 text-emerald-500" />
-                      Weekly Attendance Trend
-                    </CardTitle>
-                    <CardDescription>Daily attendance breakdown for the last 7 days</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="h-60 sm:h-75 lg:h-96">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={stats.weeklyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
-                          <XAxis dataKey="day" stroke="#6B7280" />
-                          <YAxis stroke="#6B7280" />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                              borderRadius: '8px',
-                              border: 'none',
-                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                            }}
-                          />
-                          <Legend />
-                          <Bar dataKey="present" fill="#10b981" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="late" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="absent" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="cancelled" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="holiday" fill="#60a5fa" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Behavioral Event Trend (replaces Attendance Trend) */}
-                <Card className="overflow-hidden border-0 shadow-xl">
-                  <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <AreaChart className="w-5 h-5 text-blue-500" />
-                      Behavioral Event Trend
-                    </CardTitle>
-                    <CardDescription>Monthly behavioral event pattern</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="h-60 sm:h-75 lg:h-96">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={behavioralStats.weeklyTrend} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
-                          <XAxis dataKey="date" stroke="#6B7280" />
-                          <YAxis stroke="#6B7280" />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                              borderRadius: '8px',
-                              border: 'none',
-                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                            }}
-                          />
-                          <Legend />
-                          <Area type="monotone" dataKey="positive" stackId="a" stroke="#10b981" fill="#a7f3d0" />
-                          <Area type="monotone" dataKey="minor" stackId="a" stroke="#f59e0b" fill="#fde68a" />
-                          <Area type="monotone" dataKey="major" stackId="a" stroke="#fb923c" fill="#ffedd5" />
-                          <Area type="monotone" dataKey="critical" stackId="a" stroke="#ef4444" fill="#fecaca" />
-                          <Area type="monotone" dataKey="other" stackId="a" stroke="#6B7280" fill="#e6e7ea" />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Grade-wise Attendance */}
-              <Card className="overflow-hidden border-0 shadow-xl">
-                <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <PieChart className="w-5 h-5 text-violet-500" />
-                    Attendance by Grade Level
-                  </CardTitle>
-                  <CardDescription>Performance comparison across different grades</CardDescription>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {stats.levelStats.map((grade, index) => (
-                      <motion.div
-                        key={grade.grade}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        className="p-4 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-linear-to-br from-white to-slate-50 dark:from-slate-800/50 dark:to-slate-900/50"
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="font-semibold text-slate-900 dark:text-white">{grade.grade}</span>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              grade.trend === 'up' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                              grade.trend === 'down' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
-                              'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                            }`}>
-                              {grade.trend === 'up' ? '↑' : grade.trend === 'down' ? '↓' : '→'} {grade.attendance}%
-                            </span>
-
-                            {grade.holidayDays > 0 && (
-                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-sky-100 text-sky-700 border-0">Holiday {grade.holidayDays}</span>
-                            )}
-                            {grade.cancelledDays > 0 && (
-                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border-0">Cancelled {grade.cancelledDays}</span>
-                            )}
+              {isMobile ? (
+                <AnimatePresence mode="wait">
+                  {mobileOverviewPanel === 'weekly' && (
+                    <motion.div
+                      key="mobile-weekly"
+                      initial={{ opacity: 0, x: 16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -16 }}
+                      transition={{ duration: 0.24 }}
+                    >
+                      <Card className="overflow-hidden border-0 shadow-xl">
+                        <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                          <CardTitle className="flex items-center gap-2 text-lg">
+                            <BarChart3 className="w-5 h-5 text-emerald-500" />
+                            Weekly Attendance Trend
+                          </CardTitle>
+                          <CardDescription>Daily attendance breakdown for the last 7 days</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                          <div className="h-60">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={stats.weeklyData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
+                                <XAxis dataKey="day" stroke="#6B7280" />
+                                <YAxis stroke="#6B7280" />
+                                <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
+                                <Legend />
+                                <Bar dataKey="present" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="late" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="absent" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="cancelled" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="holiday" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
                           </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  )}
+
+                  {mobileOverviewPanel === 'behavioral' && (
+                    <motion.div
+                      key="mobile-behavioral"
+                      initial={{ opacity: 0, x: 16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -16 }}
+                      transition={{ duration: 0.24 }}
+                    >
+                      <Card className="overflow-hidden border-0 shadow-xl">
+                        <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                          <CardTitle className="flex items-center gap-2 text-lg">
+                            <AreaChart className="w-5 h-5 text-blue-500" />
+                            Behavioral Event Trend
+                          </CardTitle>
+                          <CardDescription>Monthly behavioral event pattern</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                          <div className="h-60">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={behavioralStats.weeklyTrend} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
+                                <XAxis dataKey="date" stroke="#6B7280" />
+                                <YAxis stroke="#6B7280" />
+                                <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
+                                <Legend />
+                                <Area type="monotone" dataKey="positive" stackId="a" stroke="#10b981" fill="#a7f3d0" />
+                                <Area type="monotone" dataKey="minor" stackId="a" stroke="#f59e0b" fill="#fde68a" />
+                                <Area type="monotone" dataKey="major" stackId="a" stroke="#fb923c" fill="#ffedd5" />
+                                <Area type="monotone" dataKey="critical" stackId="a" stroke="#ef4444" fill="#fecaca" />
+                                <Area type="monotone" dataKey="other" stackId="a" stroke="#6B7280" fill="#e6e7ea" />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  )}
+
+                  {mobileOverviewPanel === 'grade' && (
+                    <motion.div
+                      key="mobile-grade"
+                      initial={{ opacity: 0, x: 16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -16 }}
+                      transition={{ duration: 0.24 }}
+                    >
+                      <Card className="overflow-hidden border-0 shadow-xl">
+                        <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                            <PieChart className="w-4 h-4 sm:w-5 sm:h-5 text-violet-500" />
+                            Attendance by Grade Level
+                          </CardTitle>
+                          <CardDescription className="text-sm sm:text-base">Performance comparison across different grades</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-1 sm:gap-3">
+                            {stats.levelStats.map((grade, index) => (
+                              <motion.div
+                                key={grade.grade}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: index * 0.08 }}
+                                className="min-w-0 p-2.5 sm:p-4 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-linear-to-br from-white to-slate-50 dark:from-slate-800/50 dark:to-slate-900/50"
+                              >
+                                <div className="flex items-start justify-between gap-1.5 mb-2">
+                                  <span className="min-w-0 truncate text-sm sm:text-base font-semibold text-slate-900 dark:text-white">{grade.grade}</span>
+                                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
+                                    grade.trend === 'up' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                    grade.trend === 'down' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
+                                    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                  }`}>
+                                    {grade.trend === 'up' ? '↑' : grade.trend === 'down' ? '↓' : '→'} {grade.attendance}%
+                                  </span>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <div className="flex justify-between gap-2 text-[11px] sm:text-sm">
+                                    <span className="text-slate-600 dark:text-slate-400">Present</span>
+                                    <span className="font-medium text-slate-900 dark:text-white">{grade.present}/{grade.total}</span>
+                                  </div>
+                                  <div className="h-1.5 sm:h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                    <motion.div
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${grade.attendance}%` }}
+                                      transition={{ duration: 1, delay: index * 0.08 }}
+                                      className={`h-full rounded-full ${
+                                        grade.attendance >= 75 ? 'bg-linear-to-r from-emerald-500 to-emerald-400' :
+                                        grade.attendance >= 50 ? 'bg-linear-to-r from-amber-500 to-amber-400' :
+                                        'bg-linear-to-r from-rose-500 to-rose-400'
+                                      }`}
+                                    />
+                                  </div>
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Weekly Attendance Chart */}
+                    <Card className="overflow-hidden border-0 shadow-xl">
+                      <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <BarChart3 className="w-5 h-5 text-emerald-500" />
+                          Weekly Attendance Trend
+                        </CardTitle>
+                        <CardDescription>Daily attendance breakdown for the last 7 days</CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-6">
+                        <div className="h-60 sm:h-75 lg:h-96">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={stats.weeklyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
+                              <XAxis dataKey="day" stroke="#6B7280" />
+                              <YAxis stroke="#6B7280" />
+                              <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
+                              <Legend />
+                              <Bar dataKey="present" fill="#10b981" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="late" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="absent" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="cancelled" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="holiday" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
                         </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-slate-600 dark:text-slate-400">Present</span>
-                            <span className="font-medium text-slate-900 dark:text-white">{grade.present}/{grade.total}</span>
-                          </div>
-                          <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${grade.attendance}%` }}
-                              transition={{ duration: 1, delay: index * 0.1 }}
-                              className={`h-full rounded-full ${
-                                grade.attendance >= 75 ? 'bg-linear-to-r from-emerald-500 to-emerald-400' :
-                                grade.attendance >= 50 ? 'bg-linear-to-r from-amber-500 to-amber-400' :
-                                'bg-linear-to-r from-rose-500 to-rose-400'
-                              }`}
-                            />
-                          </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Behavioral Event Trend (replaces Attendance Trend) */}
+                    <Card className="overflow-hidden border-0 shadow-xl">
+                      <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <AreaChart className="w-5 h-5 text-blue-500" />
+                          Behavioral Event Trend
+                        </CardTitle>
+                        <CardDescription>Monthly behavioral event pattern</CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-6">
+                        <div className="h-60 sm:h-75 lg:h-96">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={behavioralStats.weeklyTrend} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
+                              <XAxis dataKey="date" stroke="#6B7280" />
+                              <YAxis stroke="#6B7280" />
+                              <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
+                              <Legend />
+                              <Area type="monotone" dataKey="positive" stackId="a" stroke="#10b981" fill="#a7f3d0" />
+                              <Area type="monotone" dataKey="minor" stackId="a" stroke="#f59e0b" fill="#fde68a" />
+                              <Area type="monotone" dataKey="major" stackId="a" stroke="#fb923c" fill="#ffedd5" />
+                              <Area type="monotone" dataKey="critical" stackId="a" stroke="#ef4444" fill="#fecaca" />
+                              <Area type="monotone" dataKey="other" stackId="a" stroke="#6B7280" fill="#e6e7ea" />
+                            </AreaChart>
+                          </ResponsiveContainer>
                         </div>
-                      </motion.div>
-                    ))}
+                      </CardContent>
+                    </Card>
                   </div>
-                </CardContent>
-              </Card>
+
+                  {/* Grade-wise Attendance */}
+                  <Card className="overflow-hidden border-0 shadow-xl">
+                    <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <PieChart className="w-5 h-5 text-violet-500" />
+                        Attendance by Grade Level
+                      </CardTitle>
+                      <CardDescription>Performance comparison across different grades</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {stats.levelStats.map((grade, index) => (
+                          <motion.div
+                            key={grade.grade}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.1 }}
+                            className="p-4 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-linear-to-br from-white to-slate-50 dark:from-slate-800/50 dark:to-slate-900/50"
+                          >
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="font-semibold text-slate-900 dark:text-white">{grade.grade}</span>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  grade.trend === 'up' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                  grade.trend === 'down' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
+                                  'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                }`}>
+                                  {grade.trend === 'up' ? '↑' : grade.trend === 'down' ? '↓' : '→'} {grade.attendance}%
+                                </span>
+
+                                {grade.holidayDays > 0 && (
+                                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-sky-100 text-sky-700 border-0">Holiday {grade.holidayDays}</span>
+                                )}
+                                {grade.cancelledDays > 0 && (
+                                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border-0">Cancelled {grade.cancelledDays}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-sm">
+                                <span className="text-slate-600 dark:text-slate-400">Present</span>
+                                <span className="font-medium text-slate-900 dark:text-white">{grade.present}/{grade.total}</span>
+                              </div>
+                              <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${grade.attendance}%` }}
+                                  transition={{ duration: 1, delay: index * 0.1 }}
+                                  className={`h-full rounded-full ${
+                                    grade.attendance >= 75 ? 'bg-linear-to-r from-emerald-500 to-emerald-400' :
+                                    grade.attendance >= 50 ? 'bg-linear-to-r from-amber-500 to-amber-400' :
+                                    'bg-linear-to-r from-rose-500 to-rose-400'
+                                  }`}
+                                />
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
             </motion.div>
           )}
 
@@ -1612,7 +1938,7 @@ export default function AnalyticsPage() {
                         <div className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400 leading-tight">{mlInsights.totalStudentsAnalyzed}</div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">ML analysis complete</p>
                       </div>
-                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-violet-500 to-violet-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20 dark:shadow-violet-500/10 group-hover:scale-105 transition-all duration-300">
+                      <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-violet-500 to-violet-600 text-white items-center justify-center shadow-md shadow-violet-500/20 dark:shadow-violet-500/10 group-hover:scale-105 transition-all duration-300">
                         <Brain className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
@@ -1629,7 +1955,7 @@ export default function AnalyticsPage() {
                         <div className="text-lg sm:text-2xl font-bold text-rose-600 dark:text-rose-400 leading-tight">{mlInsights.criticalRiskStudents}</div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">immediate attention needed</p>
                       </div>
-                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-rose-500 to-rose-600 text-white flex items-center justify-center shadow-md shadow-rose-500/20 dark:shadow-rose-500/10 group-hover:scale-105 transition-all duration-300">
+                      <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-rose-500 to-rose-600 text-white items-center justify-center shadow-md shadow-rose-500/20 dark:shadow-rose-500/10 group-hover:scale-105 transition-all duration-300">
                         <Shield className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
@@ -1646,7 +1972,7 @@ export default function AnalyticsPage() {
                         <div className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400 leading-tight">{mlInsights.highRiskStudents}</div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">requiring monitoring</p>
                       </div>
-                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20 dark:shadow-amber-500/10 group-hover:scale-105 transition-all duration-300">
+                      <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white items-center justify-center shadow-md shadow-amber-500/20 dark:shadow-amber-500/10 group-hover:scale-105 transition-all duration-300">
                         <Eye className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
@@ -1663,7 +1989,7 @@ export default function AnalyticsPage() {
                         <div className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400 leading-tight">{mlInsights.atRiskStudents}</div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">high + critical risk level</p>
                       </div>
-                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-cyan-500 to-cyan-600 text-white flex items-center justify-center shadow-md shadow-cyan-500/20 dark:shadow-cyan-500/10 group-hover:scale-105 transition-all duration-300">
+                      <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-cyan-500 to-cyan-600 text-white items-center justify-center shadow-md shadow-cyan-500/20 dark:shadow-cyan-500/10 group-hover:scale-105 transition-all duration-300">
                         <Zap className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
@@ -1672,87 +1998,213 @@ export default function AnalyticsPage() {
                 </motion.div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="overflow-hidden border-0 shadow-xl">
-                  <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Brain className="w-5 h-5 text-violet-500" />
-                      ML Evidence Breakdown
-                    </CardTitle>
-                    <CardDescription>Key signals the model used to produce the insights</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="h-64 sm:h-80 lg:h-96">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart
-                          data={[
-                            { metric: 'Attendance', value: stats.averageAttendance, fullMark: 100 },
-                            { metric: 'Late Arrivals', value: Math.min((stats.lateArrivals / Math.max(stats.totalStudents, 1)) * 10, 100), fullMark: 100 },
-                            { metric: 'Behavior Issues', value: Math.min((behavioralStats.negativeEvents / Math.max(behavioralStats.totalEvents, 1)) * 100, 100), fullMark: 100 },
-                            { metric: 'Positive Signals', value: Math.min((behavioralStats.positiveEvents / Math.max(behavioralStats.totalEvents, 1)) * 100, 100), fullMark: 100 },
-                            { metric: 'Risk Score', value: mlInsights.averageRiskScore, fullMark: 100 }
-                          ]}
-                          margin={{ top: 24, right: 48, bottom: 24, left: 48 }}
-                          cx="50%"
-                          cy="52%"
-                        >
-                          <PolarGrid />
-                          <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: '#64748b' }} />
-                          <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10, fill: '#64748b' }} />
-                          <Radar dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.25} />
-                        </RadarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
+              {isMobile ? (
+                <div>
+                  <div className="flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800/60 p-1 shadow-sm overflow-x-auto no-scrollbar">
+                    {[
+                      { id: 'evidence', label: 'Evidence', icon: Brain },
+                      { id: 'drivers', label: 'Drivers', icon: Zap }
+                    ].map((panel) => (
+                      <button
+                        key={panel.id}
+                        onClick={() => setMobileMlPanel(panel.id as typeof mobileMlPanel)}
+                        className={`flex min-w-24 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-all ${
+                          mobileMlPanel === panel.id
+                            ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        <panel.icon className="h-4 w-4" />
+                        {panel.label}
+                      </button>
+                    ))}
+                  </div>
 
-                <Card className="overflow-hidden border-0 shadow-xl">
-                  <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Zap className="w-5 h-5 text-cyan-500" />
-                      Risk Driver Signals
-                    </CardTitle>
-                    <CardDescription>Aggregated signals that push students into higher risk categories</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="h-60 sm:h-75 lg:h-96">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={[
-                            { name: 'Critical', count: mlInsights.criticalRiskStudents, color: '#f43f5e' },
-                            { name: 'High', count: mlInsights.highRiskStudents, color: '#f59e0b' },
-                            { name: 'Patterns', count: mlInsights.patternsDetected, color: '#8b5cf6' },
-                            { name: 'Late Avg', count: Math.round(stats.lateArrivals / Math.max(stats.weeklyData.length, 1)), color: '#06b6d4' }
-                          ]}
-                          margin={{ top: 20, right: 20, left: 0, bottom: 5 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
-                          <XAxis dataKey="name" stroke="#6B7280" />
-                          <YAxis stroke="#6B7280" />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                              borderRadius: '8px',
-                              border: 'none',
-                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                            }}
-                          />
-                          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                            {[
+                  <AnimatePresence>
+                    {mobileMlPanel === 'evidence' && (
+                      <motion.div
+                        key="mobile-ml-evidence"
+                        initial={{ opacity: 0, x: 12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -12 }}
+                        transition={{ duration: 0.24 }}
+                        className="mt-3"
+                      >
+                        <Card className="overflow-hidden border-0 shadow-xl">
+                          <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                              <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-violet-500" />
+                              ML Evidence Breakdown
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-3 sm:p-6">
+                            <div className="h-48 sm:h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <RadarChart
+                                  data={[
+                                    { metric: 'Attendance', value: stats.averageAttendance, fullMark: 100 },
+                                    { metric: 'Late Arrivals', value: Math.min((stats.lateArrivals / Math.max(stats.totalStudents, 1)) * 10, 100), fullMark: 100 },
+                                    { metric: 'Behavior Issues', value: Math.min((behavioralStats.negativeEvents / Math.max(behavioralStats.totalEvents, 1)) * 100, 100), fullMark: 100 },
+                                    { metric: 'Positive Signals', value: Math.min((behavioralStats.positiveEvents / Math.max(behavioralStats.totalEvents, 1)) * 100, 100), fullMark: 100 },
+                                    { metric: 'Risk Score', value: mlInsights.averageRiskScore, fullMark: 100 }
+                                  ]}
+                                  margin={{ top: 12, right: 24, bottom: 12, left: 24 }}
+                                  cx="50%"
+                                  cy="52%"
+                                >
+                                  <PolarGrid />
+                                  <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: '#64748b' }} />
+                                  <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9, fill: '#64748b' }} />
+                                  <Radar dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.25} />
+                                </RadarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    )}
+
+                    {mobileMlPanel === 'drivers' && (
+                      <motion.div
+                        key="mobile-ml-drivers"
+                        initial={{ opacity: 0, x: 12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -12 }}
+                        transition={{ duration: 0.24 }}
+                        className="mt-3"
+                      >
+                        <Card className="overflow-hidden border-0 shadow-xl">
+                          <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                              <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-500" />
+                              Risk Driver Signals
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-3 sm:p-6">
+                            <div className="h-44 sm:h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                  data={[
+                                    { name: 'Critical', count: mlInsights.criticalRiskStudents, color: '#f43f5e' },
+                                    { name: 'High', count: mlInsights.highRiskStudents, color: '#f59e0b' },
+                                    { name: 'Patterns', count: mlInsights.patternsDetected, color: '#8b5cf6' },
+                                    { name: 'Late Avg', count: Math.round(stats.lateArrivals / Math.max(stats.weeklyData.length, 1)), color: '#06b6d4' }
+                                  ]}
+                                  margin={{ top: 8, right: 8, left: 0, bottom: 28 }}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.06} />
+                                  <XAxis dataKey="name" stroke="#6B7280" />
+                                  <YAxis stroke="#6B7280" />
+                                  <Tooltip
+                                    contentStyle={{
+                                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                      borderRadius: '8px',
+                                      border: 'none',
+                                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                                    }}
+                                  />
+                                  <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={18}>
+                                    {[
+                                      { name: 'Critical', count: mlInsights.criticalRiskStudents, color: '#f43f5e' },
+                                      { name: 'High', count: mlInsights.highRiskStudents, color: '#f59e0b' },
+                                      { name: 'Patterns', count: mlInsights.patternsDetected, color: '#8b5cf6' },
+                                      { name: 'Late Avg', count: Math.round(stats.lateArrivals / Math.max(stats.weeklyData.length, 1)), color: '#06b6d4' }
+                                    ].map((entry) => (
+                                      <Cell key={entry.name} fill={entry.color} />
+                                    ))}
+                                  </Bar>
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card className="overflow-hidden border-0 shadow-xl">
+                    <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Brain className="w-5 h-5 text-violet-500" />
+                        ML Evidence Breakdown
+                      </CardTitle>
+                      <CardDescription>Key signals the model used to produce the insights</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="h-64 sm:h-80 lg:h-96">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RadarChart
+                            data={[
+                              { metric: 'Attendance', value: stats.averageAttendance, fullMark: 100 },
+                              { metric: 'Late Arrivals', value: Math.min((stats.lateArrivals / Math.max(stats.totalStudents, 1)) * 10, 100), fullMark: 100 },
+                              { metric: 'Behavior Issues', value: Math.min((behavioralStats.negativeEvents / Math.max(behavioralStats.totalEvents, 1)) * 100, 100), fullMark: 100 },
+                              { metric: 'Positive Signals', value: Math.min((behavioralStats.positiveEvents / Math.max(behavioralStats.totalEvents, 1)) * 100, 100), fullMark: 100 },
+                              { metric: 'Risk Score', value: mlInsights.averageRiskScore, fullMark: 100 }
+                            ]}
+                            margin={{ top: 24, right: 48, bottom: 24, left: 48 }}
+                            cx="50%"
+                            cy="52%"
+                          >
+                            <PolarGrid />
+                            <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: '#64748b' }} />
+                            <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10, fill: '#64748b' }} />
+                            <Radar dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.25} />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="overflow-hidden border-0 shadow-xl">
+                    <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Zap className="w-5 h-5 text-cyan-500" />
+                        Risk Driver Signals
+                      </CardTitle>
+                      <CardDescription>Aggregated signals that push students into higher risk categories</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="h-60 sm:h-75 lg:h-96">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={[
                               { name: 'Critical', count: mlInsights.criticalRiskStudents, color: '#f43f5e' },
                               { name: 'High', count: mlInsights.highRiskStudents, color: '#f59e0b' },
                               { name: 'Patterns', count: mlInsights.patternsDetected, color: '#8b5cf6' },
                               { name: 'Late Avg', count: Math.round(stats.lateArrivals / Math.max(stats.weeklyData.length, 1)), color: '#06b6d4' }
-                            ].map((entry) => (
-                              <Cell key={entry.name} fill={entry.color} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                            ]}
+                            margin={{ top: 20, right: 20, left: 0, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
+                            <XAxis dataKey="name" stroke="#6B7280" />
+                            <YAxis stroke="#6B7280" />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                borderRadius: '8px',
+                                border: 'none',
+                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                              }}
+                            />
+                            <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                              {[
+                                { name: 'Critical', count: mlInsights.criticalRiskStudents, color: '#f43f5e' },
+                                { name: 'High', count: mlInsights.highRiskStudents, color: '#f59e0b' },
+                                { name: 'Patterns', count: mlInsights.patternsDetected, color: '#8b5cf6' },
+                                { name: 'Late Avg', count: Math.round(stats.lateArrivals / Math.max(stats.weeklyData.length, 1)), color: '#06b6d4' }
+                              ].map((entry) => (
+                                <Cell key={entry.name} fill={entry.color} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -1766,7 +2218,7 @@ export default function AnalyticsPage() {
               className="space-y-6"
             >
               {/* Behavioral Summary */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-4 sm:gap-6">
                 {/* Total Events Card */}
                 <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.05 }}>
                   <Card className="border-0 bg-linear-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
@@ -1777,7 +2229,7 @@ export default function AnalyticsPage() {
                         <div className="text-lg sm:text-2xl font-bold text-sky-600 dark:text-sky-400 leading-tight">{behavioralStats.totalEvents}</div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">all behavioral events</p>
                       </div>
-                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white flex items-center justify-center shadow-md shadow-sky-500/20 dark:shadow-sky-500/10 group-hover:scale-105 transition-all duration-300">
+                      <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white items-center justify-center shadow-md shadow-sky-500/20 dark:shadow-sky-500/10 group-hover:scale-105 transition-all duration-300">
                         <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
@@ -1795,7 +2247,7 @@ export default function AnalyticsPage() {
                         <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{behavioralStats.positiveEvents}</div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">reinforcing student progress</p>
                       </div>
-                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
+                      <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
                         <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
@@ -1813,7 +2265,7 @@ export default function AnalyticsPage() {
                         <div className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">{behavioralStats.negativeEvents}</div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">major and critical incidents</p>
                       </div>
-                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
+                      <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
                         <XCircle className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
@@ -1831,7 +2283,7 @@ export default function AnalyticsPage() {
                         <div className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400 leading-tight">{behavioralStats.studentsAtRisk}</div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">high + critical risk level</p>
                       </div>
-                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
+                      <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
                         <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </CardContent>
@@ -1840,116 +2292,400 @@ export default function AnalyticsPage() {
                 </motion.div>
               </div>
 
+              {/* Mobile behavioral switcher */}
+              {isMobile && (
+                <div className="flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800/60 p-1 shadow-sm overflow-x-auto no-scrollbar">
+                  {[
+                    { id: 'weekly', label: 'Weekly', icon: BarChart3 },
+                    { id: 'type', label: 'Types', icon: PieChart },
+                    { id: 'risk', label: 'Risk', icon: Shield },
+                  ].map((panel) => (
+                    <button
+                      key={panel.id}
+                      onClick={() => setMobileBehavioralPanel(panel.id as typeof mobileBehavioralPanel)}
+                      className={`flex min-w-24 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-all ${
+                        mobileBehavioralPanel === panel.id
+                          ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <panel.icon className="h-4 w-4" />
+                      {panel.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Behavioral Charts */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Category Breakdown */}
+              {isMobile ? (
+                <AnimatePresence mode="wait">
+                  {mobileBehavioralPanel === 'weekly' && (
+                    <motion.div
+                      key="mobile-behavioral-weekly"
+                      initial={{ opacity: 0, x: 16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -16 }}
+                      transition={{ duration: 0.24 }}
+                    >
+                      <Card className="overflow-hidden border-0 shadow-xl">
+                        <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                            <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-sky-500" />
+                            Weekly Behavioral Trend
+                          </CardTitle>
+                          <CardDescription className="text-sm sm:text-base">Daily severity breakdown for the last 7 days</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-3 sm:p-6">
+                          <div className="h-56 sm:h-75 lg:h-96">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={behavioralStats.weeklyTrend} margin={{ top: 20, right: 16, left: 0, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
+                                <XAxis dataKey="date" stroke="#6B7280" />
+                                <YAxis stroke="#6B7280" />
+                                <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
+                                <Legend />
+                                <Area type="monotone" dataKey="positive" stackId="a" stroke="#10b981" fill="#a7f3d0" />
+                                <Area type="monotone" dataKey="minor" stackId="a" stroke="#f59e0b" fill="#fde68a" />
+                                <Area type="monotone" dataKey="major" stackId="a" stroke="#fb923c" fill="#ffedd5" />
+                                <Area type="monotone" dataKey="critical" stackId="a" stroke="#ef4444" fill="#fecaca" />
+                                <Area type="monotone" dataKey="other" stackId="a" stroke="#6B7280" fill="#e6e7ea" />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  )}
+
+                  {mobileBehavioralPanel === 'type' && (
+                    <motion.div
+                      key="mobile-behavioral-type"
+                      initial={{ opacity: 0, x: 16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -16 }}
+                      transition={{ duration: 0.24 }}
+                    >
+                      <Card className="overflow-hidden border-0 shadow-xl">
+                        <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                            <PieChart className="w-4 h-4 sm:w-5 sm:h-5 text-violet-500" />
+                            Events by Type
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 sm:p-6">
+                          <div className="h-48 sm:h-68 lg:h-88">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <RePieChart>
+                                <Pie
+                                  data={typeBreakdown.chartData}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={34}
+                                  outerRadius={56}
+                                  paddingAngle={4}
+                                  dataKey="count"
+                                  nameKey="type"
+                                >
+                                  {typeBreakdown.chartData.map((entry, index) => (
+                                    <Cell
+                                      key={`cell-${index}`}
+                                      fill={entry.color || TYPE_COLORS[index % TYPE_COLORS.length]}
+                                    />
+                                  ))}
+                                </Pie>
+                                <Tooltip />
+                              </RePieChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div className="mt-4 space-y-3 rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 dark:border-slate-700/50 dark:bg-slate-900/40">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900 dark:text-white">{eventTypeSubtitle}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  {typeBreakdown.hasOverflow ? 'Long tails are grouped into Other.' : 'All event types fit in the chart.'}
+                                </p>
+                              </div>
+                              {typeBreakdown.hasOverflow && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setShowAllEventTypes((value) => !value)}
+                                  className="h-8 px-3 text-xs"
+                                >
+                                  {showAllEventTypes ? 'Show less' : `Show all (${typeBreakdown.sorted.length})`}
+                                </Button>
+                              )}
+                            </div>
+                            <div className={showAllEventTypes ? 'max-h-52 space-y-2 overflow-y-auto pr-1 scrollbar-thin' : 'grid gap-2 sm:grid-cols-2'}>
+                              {eventTypeLegendData.map((entry, index) => renderEventTypeItem(entry, index))}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  )}
+
+                  {mobileBehavioralPanel === 'risk' && (
+                    <motion.div
+                      key="mobile-behavioral-risk"
+                      initial={{ opacity: 0, x: 16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -16 }}
+                      transition={{ duration: 0.24 }}
+                    >
+                      <Card className="overflow-hidden border-0 shadow-xl">
+                        <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
+                          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                            <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
+                            Risk Level Distribution
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 sm:p-6">
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-1 sm:gap-4">
+                            {behavioralStats.riskDistribution.map((item, index) => (
+                              <div key={item.level} className="space-y-2 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-white/70 dark:bg-slate-900/40 p-3 sm:p-0 sm:border-0 sm:bg-transparent">
+                                <div className="flex items-center justify-between gap-2 text-[11px] sm:text-sm">
+                                  <span className="min-w-0 truncate text-slate-600 dark:text-slate-400">{item.level}</span>
+                                  <span className="shrink-0 font-medium text-slate-900 dark:text-white">
+                                    {item.count}
+                                  </span>
+                                </div>
+                                <div className="h-1.5 sm:h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${item.percentage}%` }}
+                                    transition={{ duration: 1, delay: index * 0.08 }}
+                                    className={`h-full rounded-full bg-linear-to-r ${
+                                      item.color === 'emerald' ? 'from-emerald-500 to-emerald-400' :
+                                      item.color === 'amber' ? 'from-amber-500 to-amber-400' :
+                                      'from-rose-500 to-rose-400'
+                                    }`}
+                                  />
+                                </div>
+                                <div className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
+                                  {item.percentage?.toFixed(1)}%
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <div className="mt-3">
+                        <Card className="overflow-hidden border-0 shadow-sm">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-sm">
+                              <Users className="w-4 h-4 text-sky-500" />
+                              Top At-Risk Students
+                            </CardTitle>
+                            <CardDescription className="text-xs">Quick list (top 3)</CardDescription>
+                          </CardHeader>
+                          <CardContent className="p-3">
+                            {atRiskStudents && atRiskStudents.length > 0 ? (
+                              <ul className="space-y-2">
+                                {atRiskStudents.slice(0, 3).map((s: any, i: number) => (
+                                  <li key={s.lrn || i} className="flex items-center justify-between">
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-medium text-slate-800 dark:text-white truncate">{s.name}</div>
+                                      <div className="text-xs text-slate-500 dark:text-slate-400">LRN: {s.lrn}</div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-sm font-semibold">{s.negativeEvents} events</div>
+                                      <div className="text-xs text-slate-500">{s.riskLevel}</div>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <div className="text-sm text-slate-500">No at-risk students in range.</div>
+                            )}
+                            <div className="mt-3 text-right">
+                              <Button size="sm" variant="ghost" asChild>
+                                <a href="/students">View all students</a>
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Category Breakdown */}
+                  <Card className="overflow-hidden border-0 shadow-xl">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <PieChart className="w-5 h-5 text-violet-500" />
+                        Events by Type
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-60 sm:h-72 lg:h-88">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RePieChart>
+                            <Pie
+                              data={typeBreakdown.chartData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={54}
+                              outerRadius={76}
+                              paddingAngle={4}
+                              dataKey="count"
+                              nameKey="type"
+                            >
+                              {typeBreakdown.chartData.map((entry, index) => (
+                                <Cell
+                                  key={`cell-${index}`}
+                                  fill={entry.color || TYPE_COLORS[index % TYPE_COLORS.length]}
+                                />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                          </RePieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="mt-4 space-y-3 rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 dark:border-slate-700/50 dark:bg-slate-900/40">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{eventTypeSubtitle}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              {typeBreakdown.hasOverflow ? 'Showing the most common types first.' : 'All event types are visible here.'}
+                            </p>
+                          </div>
+                          {typeBreakdown.hasOverflow && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setShowAllEventTypes((value) => !value)}
+                              className="h-8 px-3 text-xs"
+                            >
+                              {showAllEventTypes ? 'Show less' : `Show all (${typeBreakdown.sorted.length})`}
+                            </Button>
+                          )}
+                        </div>
+                        <div className={showAllEventTypes ? 'max-h-56 space-y-2 overflow-y-auto pr-1 scrollbar-thin' : 'grid gap-2 sm:grid-cols-2'}>
+                          {eventTypeLegendData.map((entry, index) => renderEventTypeItem(entry, index))}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Right column: stack Risk Distribution + At-risk list */}
+                  <div className="flex flex-col gap-6">
+                    <Card className="overflow-hidden border-0 shadow-xl">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Shield className="w-5 h-5 text-amber-500" />
+                          Risk Level Distribution
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-3 sm:p-6 flex flex-col h-full">
+                        <div className="flex flex-col justify-center gap-4 h-44 sm:h-56">
+                          {behavioralStats.riskDistribution.map((item, index) => (
+                            <div key={item.level} className="space-y-2">
+                              <div className="flex justify-between text-sm">
+                                <span className="text-slate-600 dark:text-slate-400">{item.level}</span>
+                                <span className="font-medium text-slate-900 dark:text-white">
+                                  {item.count} students ({item.percentage?.toFixed(1)}%)
+                                </span>
+                              </div>
+                              <div className="h-3 sm:h-4 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${item.percentage}%` }}
+                                  transition={{ duration: 1, delay: index * 0.08 }}
+                                  className={`h-full rounded-full bg-linear-to-r ${
+                                    item.color === 'emerald' ? 'from-emerald-500 to-emerald-400' :
+                                    item.color === 'amber' ? 'from-amber-500 to-amber-400' :
+                                    'from-rose-500 to-rose-400'
+                                  }`}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="overflow-hidden border-0 shadow-xl">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Users className="w-5 h-5 text-sky-500" />
+                          Top At-Risk Students
+                        </CardTitle>
+                        <CardDescription>
+                          Quick list of students with non-low risk (top 5)
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-3 sm:p-4">
+                        {atRiskStudents && atRiskStudents.length > 0 ? (
+                          <ul className="space-y-2">
+                            {atRiskStudents.slice(0, 5).map((s, i) => (
+                              <li key={s.lrn || i} className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-medium text-slate-800 dark:text-white truncate">{s.name}</div>
+                                  <div className="text-xs text-slate-500 dark:text-slate-400">LRN: {s.lrn}</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-semibold">{s.negativeEvents} events</div>
+                                  <div className="text-xs text-slate-500">{s.riskLevel}</div>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="text-sm text-slate-500">No at-risk students in the selected range.</div>
+                        )}
+                        <div className="mt-4 text-right">
+                          <Button size="sm" variant="outline" asChild>
+                            <a href="/students">View all students</a>
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              )}
+
+              {/* Weekly Behavioral Trend */}
+              {!isMobile && (
                 <Card className="overflow-hidden border-0 shadow-xl">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <PieChart className="w-5 h-5 text-violet-500" />
-                      Events by Type
+                      <TrendingUp className="w-5 h-5 text-blue-500" />
+                      Weekly Behavioral Trend
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="h-60 sm:h-75 lg:h-96">
                       <ResponsiveContainer width="100%" height="100%">
-                        <RePieChart>
-                          <Pie
-                            data={behavioralStats.categoryBreakdown}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={80}
-                            paddingAngle={5}
-                            dataKey="count"
-                            nameKey="type"
-                          >
-                            {behavioralStats.categoryBreakdown.map((entry, index) => (
-                              <Cell 
-                                key={`cell-${index}`} 
-                                fill={[COLORS.emerald[0], COLORS.amber[0], COLORS.rose[0], COLORS.blue[0], COLORS.violet[0]][index % 5]} 
-                              />
-                            ))}
-                          </Pie>
-                          <Tooltip />
+                        <AreaChart data={behavioralStats.weeklyTrend} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
+                          <XAxis dataKey="date" stroke="#6B7280" />
+                          <YAxis stroke="#6B7280" />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                              borderRadius: '8px',
+                              border: 'none',
+                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                            }}
+                          />
                           <Legend />
-                        </RePieChart>
+                          <Area type="monotone" dataKey="positive" stackId="a" stroke="#10b981" fill="#a7f3d0" />
+                          <Area type="monotone" dataKey="minor" stackId="a" stroke="#f59e0b" fill="#fde68a" />
+                          <Area type="monotone" dataKey="major" stackId="a" stroke="#fb923c" fill="#ffedd5" />
+                          <Area type="monotone" dataKey="critical" stackId="a" stroke="#ef4444" fill="#fecaca" />
+                          <Area type="monotone" dataKey="other" stackId="a" stroke="#6B7280" fill="#e6e7ea" />
+                        </AreaChart>
                       </ResponsiveContainer>
                     </div>
                   </CardContent>
                 </Card>
-
-                {/* Risk Distribution */}
-                <Card className="overflow-hidden border-0 shadow-xl">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Shield className="w-5 h-5 text-amber-500" />
-                      Risk Level Distribution
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {behavioralStats.riskDistribution.map((item, index) => (
-                        <div key={item.level} className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-slate-600 dark:text-slate-400">{item.level}</span>
-                            <span className="font-medium text-slate-900 dark:text-white">
-                              {item.count} students ({item.percentage?.toFixed(1)}%)
-                            </span>
-                          </div>
-                          <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${item.percentage}%` }}
-                              transition={{ duration: 1, delay: index * 0.1 }}
-                              className={`h-full rounded-full bg-linear-to-r ${
-                                item.color === 'emerald' ? 'from-emerald-500 to-emerald-400' :
-                                item.color === 'amber' ? 'from-amber-500 to-amber-400' :
-                                'from-rose-500 to-rose-400'
-                              }`}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Weekly Behavioral Trend */}
-              <Card className="overflow-hidden border-0 shadow-xl">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-blue-500" />
-                    Weekly Behavioral Trend
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-60 sm:h-75 lg:h-96">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={behavioralStats.weeklyTrend} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
-                        <XAxis dataKey="date" stroke="#6B7280" />
-                        <YAxis stroke="#6B7280" />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                            borderRadius: '8px',
-                            border: 'none',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                          }}
-                        />
-                        <Legend />
-                        <Area type="monotone" dataKey="positive" stackId="a" stroke="#10b981" fill="#a7f3d0" />
-                        <Area type="monotone" dataKey="minor" stackId="a" stroke="#f59e0b" fill="#fde68a" />
-                        <Area type="monotone" dataKey="major" stackId="a" stroke="#fb923c" fill="#ffedd5" />
-                        <Area type="monotone" dataKey="critical" stackId="a" stroke="#ef4444" fill="#fecaca" />
-                        <Area type="monotone" dataKey="other" stackId="a" stroke="#6B7280" fill="#e6e7ea" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
+              )}
             </motion.div>
           )}
 

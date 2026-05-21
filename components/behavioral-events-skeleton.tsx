@@ -1,7 +1,76 @@
+"use client";
+
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, CheckCircle, XCircle, Activity, Archive } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function BehavioralEventsSkeleton() {
+  const hookIsMobile = useIsMobile();
+  const clientIsMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+  const isMobile = hookIsMobile || clientIsMobile;
+
+  if (isMobile) {
+    return (
+      <div className="space-y-5 animate-fade-in-up px-4">
+        {/* Mobile Header */}
+        <div className="pt-3 pb-2">
+          <Skeleton className="h-9 w-56 mb-2" />
+          <Skeleton className="h-4 w-72 mb-3" />
+
+          <div className="flex items-center gap-2 mb-3">
+            <Skeleton className="h-6 w-16 rounded-full" />
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <Skeleton className="h-9 w-20 rounded-lg ml-auto" />
+          </div>
+          <Skeleton className="h-8 w-32 rounded-full mb-1" />
+        </div>
+
+        {/* Metric Cards - mobile: two columns */}
+        <div className="grid grid-cols-2 gap-3">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="p-3 rounded-xl shadow-md bg-white/60 dark:bg-slate-800/60">
+              <Skeleton className="h-3 w-20 mb-2" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-2 w-24 mt-2" />
+            </div>
+          ))}
+        </div>
+
+        {/* Filters summary */}
+        <div className="mt-2">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-28 rounded-full" />
+            <Skeleton className="h-10 w-40 rounded-full" />
+            <div className="ml-auto"><Skeleton className="h-9 w-20 rounded-lg" /></div>
+          </div>
+        </div>
+
+        {/* Tabs (Events List / Analytics) */}
+        <div className="mt-2 flex gap-3">
+          <Skeleton className="flex-1 h-9 rounded-md" />
+          <Skeleton className="flex-1 h-9 rounded-md" />
+        </div>
+
+        {/* Events list - card style */}
+        <div className="space-y-3 pb-40">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="bg-white/60 dark:bg-slate-800/60 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-12 w-12 rounded-full" />
+                <div className="flex-1">
+                  <Skeleton className="h-4 w-3/5 mb-2" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+                <Skeleton className="h-8 w-20 rounded-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop / larger screens: existing skeleton layout
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* Header */}

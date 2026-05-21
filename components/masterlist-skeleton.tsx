@@ -33,56 +33,53 @@ export function MasterlistPageSkeleton() {
       </div>
 
       {/* Metric Cards */}
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         {/* Total Students */}
         <div className="shadow-xl border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/5 dark:bg-blue-400/5 rounded-full -ml-12 -mb-12" />
-          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+          <div className="absolute top-0 right-0 w-16 h-16 sm:w-20 sm:h-20 bg-blue-500/15 dark:bg-blue-400/10 rounded-full -mr-6 sm:-mr-8 -mt-6 sm:-mt-8" />
+          <div className="p-2 sm:p-3 md:p-4 flex items-start justify-between relative z-10 gap-1.5 sm:gap-2">
             <div className="flex-1">
-              <Skeleton className="h-3 w-24 mb-2" />
-              <Skeleton className="h-10 w-16" />
-              <Skeleton className="h-3 w-28 mt-2" />
+              <Skeleton className="h-2 sm:h-2.5 w-12 sm:w-16 mb-1" />
+              <Skeleton className="h-6 sm:h-8 w-10 sm:w-12" />
+              <Skeleton className="h-2 sm:h-2.5 w-14 sm:w-20 mt-1" />
             </div>
-            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-blue-500/30 dark:bg-blue-900/50 items-center justify-center">
-              <Users className="w-8 h-8 text-blue-500/60" />
+            <div className="hidden md:flex w-14 h-14 rounded-xl bg-blue-500/30 dark:bg-blue-900/50 items-center justify-center">
+              <Users className="w-7 h-7 text-blue-500/60" />
             </div>
           </div>
-          <div className="h-1.5 w-full bg-blue-500/40" />
+          <div className="h-0.5 sm:h-1 w-full bg-blue-500/40" />
         </div>
 
         {/* Enrolled */}
         <div className="shadow-xl border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 dark:bg-emerald-400/5 rounded-full -mr-16 -mt-16" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full -ml-12 -mb-12" />
-          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+          <div className="absolute top-0 right-0 w-16 h-16 sm:w-20 sm:h-20 bg-emerald-500/15 dark:bg-emerald-400/10 rounded-full -mr-6 sm:-mr-8 -mt-6 sm:-mt-8" />
+          <div className="p-2 sm:p-3 md:p-4 flex items-start justify-between relative z-10 gap-1.5 sm:gap-2">
             <div className="flex-1">
-              <Skeleton className="h-3 w-24 mb-2" />
-              <Skeleton className="h-10 w-16" />
-              <Skeleton className="h-3 w-28 mt-2" />
+              <Skeleton className="h-2 sm:h-2.5 w-12 sm:w-16 mb-1" />
+              <Skeleton className="h-6 sm:h-8 w-10 sm:w-12" />
+              <Skeleton className="h-2 sm:h-2.5 w-14 sm:w-20 mt-1" />
             </div>
-            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-emerald-500/30 dark:bg-emerald-900/50 items-center justify-center">
-              <UserCheck className="w-8 h-8 text-emerald-500/60" />
+            <div className="hidden md:flex w-14 h-14 rounded-xl bg-emerald-500/30 dark:bg-emerald-900/50 items-center justify-center">
+              <UserCheck className="w-7 h-7 text-emerald-500/60" />
             </div>
           </div>
-          <div className="h-1.5 w-full bg-emerald-500/40" />
+          <div className="h-0.5 sm:h-1 w-full bg-emerald-500/40" />
         </div>
 
         {/* Grade Levels */}
-        <div className="shadow-xl border-0 bg-linear-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 dark:bg-violet-400/5 rounded-full -mr-16 -mt-16" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-violet-500/5 dark:bg-violet-400/5 rounded-full -ml-12 -mb-12" />
-          <div className="p-5 sm:p-6 flex items-center justify-between relative z-10">
+        <div className="shadow-xl border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
+          <div className="absolute top-0 right-0 w-16 h-16 sm:w-20 sm:h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-6 sm:-mr-8 -mt-6 sm:-mt-8" />
+          <div className="p-2 sm:p-3 md:p-4 flex items-start justify-between relative z-10 gap-1.5 sm:gap-2">
             <div className="flex-1">
-              <Skeleton className="h-3 w-24 mb-2" />
-              <Skeleton className="h-10 w-16" />
-              <Skeleton className="h-3 w-28 mt-2" />
+              <Skeleton className="h-2 sm:h-2.5 w-12 sm:w-16 mb-1" />
+              <Skeleton className="h-6 sm:h-8 w-10 sm:w-12" />
+              <Skeleton className="h-2 sm:h-2.5 w-14 sm:w-20 mt-1" />
             </div>
-            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-violet-500/30 dark:bg-violet-900/50 items-center justify-center">
-              <GraduationCap className="w-8 h-8 text-violet-500/60" />
+            <div className="hidden md:flex w-14 h-14 rounded-xl bg-orange-500/30 dark:bg-orange-900/50 items-center justify-center">
+              <GraduationCap className="w-7 h-7 text-orange-500/60" />
             </div>
           </div>
-          <div className="h-1.5 w-full bg-violet-500/40" />
+          <div className="h-0.5 sm:h-1 w-full bg-orange-500/40" />
         </div>
       </div>
 
@@ -97,8 +94,38 @@ export function MasterlistPageSkeleton() {
         </div>
       </div>
 
+      {/* Mobile Students Cards */}
+      <div className="md:hidden space-y-3 px-2">
+        {[...Array(4)].map((_, i) => (
+          <div
+            key={`mobile-student-skeleton-${i}`}
+            className="bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 rounded-xl p-3 shadow-sm"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-34" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+              <div className="text-right space-y-2">
+                <Skeleton className="h-5 w-16 rounded-full" />
+                <Skeleton className="h-8 w-14 rounded-md" />
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <div className="flex items-center justify-between px-2 py-3">
+          <Skeleton className="h-4 w-36" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-8 rounded-md" />
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-8 w-8 rounded-md" />
+          </div>
+        </div>
+      </div>
+
       {/* Masterlist Table */}
-      <div className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg">
+      <div className="hidden md:block border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg">
         <div className="border-b border-blue-200/50 dark:border-blue-700/40 bg-linear-to-r from-blue-50/60 via-blue-50/30 to-transparent dark:from-blue-950/30 dark:via-blue-950/15 dark:to-transparent pb-5 p-5">
           <div className="flex items-center gap-3.5">
             <div className="p-3 rounded-xl bg-blue-500/30">

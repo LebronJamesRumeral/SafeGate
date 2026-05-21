@@ -23,7 +23,7 @@ export default function StudentsSkeleton() {
       </div>
 
       {/* Metric Cards */}
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {/* Total Students */}
         <div className="shadow-xl border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 overflow-hidden relative rounded-lg">
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-400/5 rounded-full -mr-16 -mt-16" />
@@ -93,8 +93,65 @@ export default function StudentsSkeleton() {
         </div>
       </div>
 
-      {/* Students Table */}
-      <div className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg">
+      {/* Mobile Students Cards */}
+      <div className="md:hidden space-y-3 px-2">
+        {/* Tabs pills */}
+        <div className="flex gap-2 mb-2">
+          <div className="rounded-full bg-slate-200/40 dark:bg-slate-800/40 px-3 py-2 animate-pulse">
+            <Skeleton className="h-4 w-20" />
+          </div>
+          <div className="rounded-full bg-slate-200/30 dark:bg-slate-800/30 px-3 py-2 opacity-80">
+            <Skeleton className="h-4 w-20" />
+          </div>
+          <div className="rounded-full bg-slate-200/30 dark:bg-slate-800/30 px-3 py-2 opacity-80">
+            <Skeleton className="h-4 w-24" />
+          </div>
+        </div>
+
+        {/* Filter summary */}
+        <div className="rounded-xl border border-slate-200/60 bg-slate-50 px-3 py-2 dark:border-slate-700/40 dark:bg-slate-900/50">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <Skeleton className="h-4 w-28 mb-2" />
+              <Skeleton className="h-3 w-40" />
+            </div>
+            <Skeleton className="h-8 w-16 rounded-md" />
+          </div>
+        </div>
+
+        {/* Card list */}
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-44" />
+                    <Skeleton className="h-3 w-28" />
+                  </div>
+                </div>
+                <div className="text-right">
+                  <Skeleton className="h-6 w-20" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Pagination */}
+        <div className="flex items-center justify-between mt-2 px-2">
+          <Skeleton className="h-4 w-24" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-8 rounded-md" />
+            <Skeleton className="h-8 w-28 rounded-md" />
+            <Skeleton className="h-8 w-8 rounded-md" />
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Students Table */}
+      <div className="hidden md:block border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-xl overflow-hidden rounded-lg">
         <div className="border-b border-blue-200/50 dark:border-blue-700/40 bg-linear-to-r from-blue-50/60 via-blue-50/30 to-transparent dark:from-blue-950/30 dark:via-blue-950/15 dark:to-transparent pb-5 p-5">
           <div className="flex items-center gap-3.5">
             <div className="p-3 rounded-xl bg-blue-500/30">
@@ -110,7 +167,7 @@ export default function StudentsSkeleton() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-blue-100/50 dark:bg-blue-900/20">
-                {[...Array(6)].map((_, i) => (
+                {[...Array(7)].map((_, i) => (
                   <th key={i} className="px-6 py-3"><Skeleton className="h-4 w-16" /></th>
                 ))}
               </tr>
@@ -118,7 +175,7 @@ export default function StudentsSkeleton() {
             <tbody>
               {[...Array(8)].map((_, i) => (
                 <tr key={i} className="border-b border-blue-100/30 dark:border-blue-800/20 last:border-0">
-                  {[...Array(6)].map((_, j) => (
+                  {[...Array(7)].map((_, j) => (
                     <td key={j} className="px-6 py-4"><Skeleton className="h-4 w-full" /></td>
                   ))}
                 </tr>

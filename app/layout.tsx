@@ -13,29 +13,29 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "SGCDC SafeGate",
+    statusBarStyle: 'black-translucent',
+    title: 'SGCDC SafeGate',
   },
-  applicationName: "SGCDC SafeGate",
+  applicationName: 'SGCDC SafeGate',
   icons: {
     icon: [
       {
-        url: '/logo.png',
+        url: '/icon-512x512.png',
         sizes: '512x512',
         type: 'image/png',
       },
       {
-        url: '/logo.png',
+        url: '/icon-192x192.png',
         sizes: '192x192',
         type: 'image/png',
       },
       {
-        url: '/logo.png',
+        url: '/icon-192x192.png',
         sizes: '96x96',
         type: 'image/png',
       },
     ],
-    apple: '/logo.png',
+    apple: '/apple-icon.png',
   },
 }
 
@@ -43,6 +43,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   themeColor: '#1E3A8A',
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({
@@ -57,8 +58,9 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="SGCDC SafeGate" />
+        <meta name="format-detection" content="telephone=no, date=no, email=no, address=no" />
         <link rel="icon" href="/SGCDC.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/SGCDC.png" sizes="180x180" />
+        <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180" />
         <style>{`
           * {
             font-family: 'Century Gothic', 'Trebuchet MS', system-ui, -apple-system, sans-serif !important;

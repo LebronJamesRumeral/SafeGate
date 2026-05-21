@@ -212,7 +212,7 @@ export default function ParentAnnouncementPage() {
     }
 
     const style = getAnnouncementStyle(item.kind);
-    if (size === 'hero') {
+      if (size === 'hero') {
       const HeroIcon = style.heroIcon;
       return (
         <div className={`h-52 w-full lg:h-56 bg-linear-to-br ${style.bannerClass} flex items-center justify-center px-6`}>
@@ -222,7 +222,7 @@ export default function ParentAnnouncementPage() {
                 <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{style.accent}</p>
                 <h3 className="mt-1 text-2xl font-bold text-slate-900 leading-tight">{style.title}</h3>
               </div>
-              <HeroIcon className={`h-14 w-14 ${style.iconClass}`} />
+              <HeroIcon className={`hidden sm:block h-14 w-14 ${style.iconClass}`} />
             </div>
             <p className="mt-3 text-sm text-slate-600 line-clamp-2">
               {item.kind === 'holiday'
@@ -555,7 +555,7 @@ export default function ParentAnnouncementPage() {
           {/* Main / Latest column */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap gap-2 pr-4">
                 <Button variant={filter === 'all' ? 'default' : 'ghost'} size="sm" onClick={() => setFilter('all')}>All</Button>
                 <Button variant={filter === 'announcement' ? 'default' : 'ghost'} size="sm" onClick={() => setFilter('announcement')}>Announcements</Button>
                 <Button variant={filter === 'holiday' ? 'default' : 'ghost'} size="sm" onClick={() => setFilter('holiday')}>Holidays</Button>
@@ -669,19 +669,29 @@ export default function ParentAnnouncementPage() {
                 <Card key={item.id} className="overflow-hidden border border-slate-200/80 bg-white shadow-sm">
                   <div className="p-3">
                     <div className="flex items-start gap-3">
-                      <div className="w-16 h-12 overflow-hidden rounded-md">{renderAnnouncementVisual(item, 'thumb')}</div>
-                      <div className="flex-1">
-                        <h5 className="text-sm font-medium line-clamp-2 leading-snug">{item.title}</h5>
-                        <p className="text-xs text-slate-500">{formatEventDate(item.event_date, item.end_date)}</p>
-                      </div>
-                    </div>
+                              <div className="hidden sm:block w-16 h-12 overflow-hidden rounded-md">{renderAnnouncementVisual(item, 'thumb')}</div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  {/* small inline icon on mobile */}
+                                  <div className="sm:hidden w-6 h-6 flex items-center justify-center rounded-md bg-slate-100">
+                                    {(() => {
+                                      const style = getAnnouncementStyle(item.kind);
+                                      const Icon = style.thumbIcon;
+                                      return <Icon className={`${style.iconClass} w-4 h-4`} />;
+                                    })()}
+                                  </div>
+                                  <h5 className="text-sm font-medium line-clamp-2 leading-snug">{item.title}</h5>
+                                </div>
+                                <p className="text-xs text-slate-500">{formatEventDate(item.event_date, item.end_date)}</p>
+                              </div>
+                            </div>
                     <div className="mt-3 pt-3 border-t border-slate-200/50 space-y-2">
                       <Button size="sm" variant="ghost" onClick={() => { setSelectedAnnouncement(item); setDetailsOpen(true); }} className="w-full">Read</Button>
                       {item.source === 'event' ? (
-                        <div className="flex gap-1.5">
+                        <div className="flex flex-col sm:flex-row gap-1.5">
                           <Button
                             size="sm"
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                            className="w-full sm:flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs"
                             onClick={() => void handleNotifyJoin({
                               id: item.event_id || 0,
                               title: item.title,
@@ -707,7 +717,7 @@ export default function ParentAnnouncementPage() {
                           </Button>
                           <Button
                             size="sm"
-                            className="flex-1 bg-orange-600 hover:bg-orange-700 text-white text-xs"
+                            className="w-full sm:flex-1 bg-orange-600 hover:bg-orange-700 text-white text-xs"
                             onClick={() => void handleNotifyWillNotJoin({
                               id: item.event_id || 0,
                               title: item.title,

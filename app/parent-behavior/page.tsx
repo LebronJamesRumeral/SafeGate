@@ -509,7 +509,7 @@ export default function ParentBehaviorPage() {
                   <span className="text-lg">+</span> Log Weekly Check-In
                 </Button>
               </DialogTrigger>
-                <DialogContent className="w-[96vw] sm:w-[92vw] max-w-5xl lg:max-w-4xl h-auto sm:h-[86vh] max-h-[92vh] overflow-hidden p-0 flex flex-col">
+                <DialogContent className="w-[96vw] sm:w-[92vw] max-w-5xl lg:max-w-4xl h-auto max-h-[92vh] overflow-y-auto p-0 flex flex-col">
                 <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40">
                   <DialogTitle className="text-2xl sm:text-3xl leading-tight">Log Weekly Check-In</DialogTitle>
                   <DialogDescription>
@@ -713,7 +713,7 @@ export default function ParentBehaviorPage() {
         </div>
 
         {/* Summary Cards Row - Updated Design */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-6">
           {/* Total Events */}
           <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
             <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/15 dark:bg-blue-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
@@ -723,7 +723,7 @@ export default function ParentBehaviorPage() {
                 <div className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400 leading-tight">{children.reduce((acc, child) => acc + (behavioralEvents[child.lrn]?.length || 0), 0)}</div>
                 <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">All behavioral events</p>
               </div>
-              <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 dark:shadow-blue-500/10 group-hover:scale-105 transition-all duration-300">
+              <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-md shadow-blue-500/20 dark:shadow-blue-500/10 group-hover:scale-105 transition-all duration-300">
                 <Activity className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
@@ -738,7 +738,7 @@ export default function ParentBehaviorPage() {
                 <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{children.reduce((acc, child) => acc + (behavioralEvents[child.lrn]?.filter((e: any) => e.event_type !== 'parent_report' && e.severity === 'positive').length || 0), 0)}</div>
                 <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Positive actions by teachers</p>
               </div>
-              <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
+              <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white items-center justify-center shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10 group-hover:scale-105 transition-all duration-300">
                 <Heart className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
@@ -753,7 +753,7 @@ export default function ParentBehaviorPage() {
                 <div className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400 leading-tight">{children.reduce((acc, child) => acc + (behavioralEvents[child.lrn]?.filter((e: any) => e.event_type !== 'parent_report' && e.severity !== 'positive').length || 0), 0)}</div>
                 <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Behaviors needing guidance support</p>
               </div>
-              <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
+              <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
                 <Frown className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
@@ -770,7 +770,7 @@ export default function ParentBehaviorPage() {
                 </div>
                 <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">All linked students combined</p>
               </div>
-              <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
+              <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
                 <Award className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
@@ -778,8 +778,8 @@ export default function ParentBehaviorPage() {
           </Card>
         </div>
         <div className="mt-8">
-          <div className="flex flex-col sm:flex-row items-start gap-2 sm:gap-4 mb-6">
-            <div className="p-2 sm:p-3 rounded-2xl bg-linear-to-br from-orange-600 to-orange-500 shadow-lg shadow-orange-600/25 mb-2 sm:mb-0">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 sm:p-3 rounded-2xl bg-linear-to-br from-orange-600 to-orange-500 shadow-lg shadow-orange-600/25 flex items-center justify-center">
               <GraduationCap className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
             </div>
             <div className="flex-1">
@@ -924,7 +924,7 @@ export default function ParentBehaviorPage() {
                               View behavior and achievements
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl h-auto sm:max-h-[90vh] overflow-hidden flex flex-col">
+                          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl h-auto max-h-[92vh] overflow-y-auto flex flex-col">
                             <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                                 <div className="flex-1">
@@ -945,7 +945,7 @@ export default function ParentBehaviorPage() {
                             </DialogHeader>
 
                             <div className="flex-1 overflow-y-auto pr-4 space-y-3">
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3">
+                              <div className="space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3">
                                 <div className="space-y-1">
                                   <Label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</Label>
                                   <DatePickerInput
@@ -954,48 +954,50 @@ export default function ParentBehaviorPage() {
                                     className="w-full h-9 px-2.5 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
                                   />
                                 </div>
-                                <div className="space-y-1">
-                                  <Label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Type</Label>
-                                  <Select
-                                    value={historyTypeFilter}
-                                    onValueChange={(value) => setHistoryTypeFilters((prev) => ({ ...prev, [child.lrn]: value }))}
-                                  >
-                                    <SelectTrigger className="h-9 text-xs">
-                                      <SelectValue placeholder="All types" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="all">All Types</SelectItem>
-                                      <SelectItem value="behavior">Behavior Events</SelectItem>
-                                      <SelectItem value="achievement">Achievements</SelectItem>
-                                      {combinedTypeOptions.map((option) => {
-                                        const [group, label] = option.split('::');
-                                        return (
-                                          <SelectItem key={option} value={option}>
-                                            {group === 'behavior' ? `Behavior: ${label}` : `Achievement: ${label}`}
-                                          </SelectItem>
-                                        );
-                                      })}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Severity</Label>
-                                  <Select
-                                    value={historySeverityFilter}
-                                    onValueChange={(value) => setHistorySeverityFilters((prev) => ({ ...prev, [child.lrn]: value }))}
-                                  >
-                                    <SelectTrigger className="h-9 text-xs">
-                                      <SelectValue placeholder="All severity" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="all">All Severity</SelectItem>
-                                      <SelectItem value="critical">Critical</SelectItem>
-                                      <SelectItem value="major">Major</SelectItem>
-                                      <SelectItem value="moderate">Moderate</SelectItem>
-                                      <SelectItem value="minor">Minor</SelectItem>
-                                      <SelectItem value="positive">Positive</SelectItem>
-                                    </SelectContent>
-                                  </Select>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Type</Label>
+                                    <Select
+                                      value={historyTypeFilter}
+                                      onValueChange={(value) => setHistoryTypeFilters((prev) => ({ ...prev, [child.lrn]: value }))}
+                                    >
+                                      <SelectTrigger className="h-9 text-xs">
+                                        <SelectValue placeholder="All types" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="all">All Types</SelectItem>
+                                        <SelectItem value="behavior">Behavior Events</SelectItem>
+                                        <SelectItem value="achievement">Achievements</SelectItem>
+                                        {combinedTypeOptions.map((option) => {
+                                          const [group, label] = option.split('::');
+                                          return (
+                                            <SelectItem key={option} value={option}>
+                                              {group === 'behavior' ? `Behavior: ${label}` : `Achievement: ${label}`}
+                                            </SelectItem>
+                                          );
+                                        })}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Severity</Label>
+                                    <Select
+                                      value={historySeverityFilter}
+                                      onValueChange={(value) => setHistorySeverityFilters((prev) => ({ ...prev, [child.lrn]: value }))}
+                                    >
+                                      <SelectTrigger className="h-9 text-xs">
+                                        <SelectValue placeholder="All severity" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="all">All Severity</SelectItem>
+                                        <SelectItem value="critical">Critical</SelectItem>
+                                        <SelectItem value="major">Major</SelectItem>
+                                        <SelectItem value="moderate">Moderate</SelectItem>
+                                        <SelectItem value="minor">Minor</SelectItem>
+                                        <SelectItem value="positive">Positive</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
                                 </div>
                               </div>
 
