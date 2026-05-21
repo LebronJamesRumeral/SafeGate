@@ -77,15 +77,23 @@ export function PwaInstallPrompt() {
   }
 
   useEffect(() => {
+    const iosDevice = isIosDevice()
+
     setMounted(true)
-    setIsIos(isIosDevice())
+    setIsIos(iosDevice)
     setIsStandalone(isStandaloneMode())
 
-    const deviceDismissed = readStorageFlag(DEVICE_DISMISS_KEY)
-    const userDismissed = readStorageFlag(userInstallKey)
-    const deviceInstalled = readStorageFlag(DEVICE_INSTALLED_KEY)
-    const userInstalled = readStorageFlag(userInstalledKey)
-    setIsDismissed(deviceDismissed || userDismissed || deviceInstalled || userInstalled)
+    if (iosDevice) {
+      // iOS has no browser install prompt event. Do not persist a permanent dismissal,
+      // so users can see the card again on refresh and reopen the install guide.
+      setIsDismissed(false)
+    } else {
+      const deviceDismissed = readStorageFlag(DEVICE_DISMISS_KEY)
+      const userDismissed = readStorageFlag(userInstallKey)
+      const deviceInstalled = readStorageFlag(DEVICE_INSTALLED_KEY)
+      const userInstalled = readStorageFlag(userInstalledKey)
+      setIsDismissed(deviceDismissed || userDismissed || deviceInstalled || userInstalled)
+    }
 
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault()
@@ -124,6 +132,11 @@ export function PwaInstallPrompt() {
 
   const handleDismiss = () => {
     setIsDismissed(true)
+
+    if (isIos) {
+      return
+    }
+
     writeStorageFlag(DEVICE_DISMISS_KEY, true)
     writeStorageFlag(userInstallKey, true)
   }
