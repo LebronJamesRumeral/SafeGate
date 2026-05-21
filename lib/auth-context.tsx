@@ -3,8 +3,8 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
 import Cookies from 'js-cookie';
+import { supabase } from '@/lib/supabase';
 
 interface User {
   id: string;
@@ -45,13 +45,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, [pathname, router]);
 
-  // Supabase client setup
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
+      if (!supabase) {
+        console.error('Supabase client is not configured');
+        return false;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,

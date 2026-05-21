@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Users, UserCheck, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 
 const fadeInOut = `
   @keyframes fadeInSlide {
@@ -62,11 +62,6 @@ export default function LoginPage() {
     }
   }, []);
 
-  // Setup Supabase client for direct user fetch after login
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
   // When checkbox is clicked, show modal instead of toggling
   const handlePolicyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!policyEverAccepted) {
@@ -111,6 +106,17 @@ export default function LoginPage() {
     }
 
     // Fetch the latest user from Supabase after login
+    if (!supabase) {
+      setError('Supabase client is not configured');
+      toast({
+        title: 'Login Failed',
+        description: 'Supabase client is not configured',
+        variant: 'destructive',
+      });
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase.auth.getUser();
     const role = (data?.user?.user_metadata?.role || '').toLowerCase();
     const allowedRoles = ['teacher', 'admin', 'guidance', 'parent'];

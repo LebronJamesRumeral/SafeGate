@@ -4,14 +4,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertTriangle, TrendingDown, TrendingUp, AlertCircle, Target, AlertOctagon, Phone, Calendar, Activity, Brain, Shield, Clock, Zap, Sparkles, BarChart3, Users, ChevronRight, Info } from 'lucide-react';
+import { AlertTriangle, TrendingDown, TrendingUp, AlertCircle, Target, AlertOctagon, Phone, Calendar, Activity, Brain, Shield, Clock, Zap, Sparkles, BarChart3, Users, ChevronLeft, ChevronRight, Info, Filter } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { createClient } from '@supabase/supabase-js';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { useIsMobile } from '@/hooks/use-mobile';
 import DatePickerInput from '@/components/date-picker-input';
 import { humanizeEventType } from '@/lib/event-types';
+import { supabase as sharedSupabase } from '@/lib/supabase';
 
 interface StudentRisk {
   lrn: string;
@@ -195,7 +196,7 @@ function formatIncidentNotes(notes?: string | null) {
     .trim();
 }
 
-function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: string; studentName: string }) {
+function StudentIncidentsDialog({ studentLrn, studentName, compact = false }: { studentLrn: string; studentName: string; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -203,12 +204,7 @@ function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: strin
   const [dateFilter, setDateFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
-  const [supabase] = useState(() => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) return null;
-    return createClient(url, key);
-  });
+  const supabase = sharedSupabase;
 
   useEffect(() => {
     const loadIncidents = async () => {
@@ -276,8 +272,8 @@ function StudentIncidentsDialog({ studentLrn, studentName }: { studentLrn: strin
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="w-full border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-          View All Incidents
+        <Button size="sm" variant="outline" className={`w-full border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50 ${compact ? 'h-8 text-xs' : ''}`}>
+          {compact ? 'Incidents' : 'View All Incidents'}
         </Button>
       </DialogTrigger>
       <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl h-auto sm:max-h-[90vh] overflow-hidden flex flex-col">
@@ -582,17 +578,17 @@ export function MLDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [supabase] = useState(() => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) return null;
-    return createClient(url, key);
-  });
+  const isMobile = useIsMobile();
+  const supabase = sharedSupabase;
 
   // Filtering state
   const [gradeFilter, setGradeFilter] = useState<string>('all');
   const [riskFilter, setRiskFilter] = useState<string>('all');
   const [search, setSearch] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const studentsPerPage = 6;
 
   // Use fixed student level options to match guidance review page
   const gradeOptions = [
@@ -646,6 +642,29 @@ export function MLDashboard() {
     }
     return matches;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / studentsPerPage));
+  const currentPageSafe = Math.min(currentPage, totalPages);
+  const paginatedStudents = filteredStudents.slice(
+    (currentPageSafe - 1) * studentsPerPage,
+    currentPageSafe * studentsPerPage,
+  );
+  const showingFrom = filteredStudents.length === 0 ? 0 : (currentPageSafe - 1) * studentsPerPage + 1;
+  const showingTo = Math.min(currentPageSafe * studentsPerPage, filteredStudents.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [gradeFilter, riskFilter, search]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
+
+  const filterSummary = [
+    gradeFilter === 'all' ? 'All Levels' : gradeFilter,
+    riskFilter === 'all' ? 'All Risks' : riskFilter.charAt(0).toUpperCase() + riskFilter.slice(1),
+    search.trim() ? `Search: ${search.trim()}` : 'No search',
+  ].join(' • ');
 
   useEffect(() => {
     void fetchHighRiskStudents(false);
@@ -767,44 +786,44 @@ export function MLDashboard() {
         </div>
 
         {/* Stats Summary Skeleton */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
           {/* Critical Risk Skeleton */}
           <div className="bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 rounded-lg animate-pulse border border-red-200 dark:border-red-900/30 shadow-lg overflow-hidden relative">
             <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/15 dark:bg-red-400/10 rounded-full -mr-8 -mt-8" />
             <div className="h-1 bg-red-300 dark:bg-red-600" />
-            <div className="p-2.5 sm:p-4 flex items-start justify-between gap-2 relative z-10">
+            <div className="p-2 sm:p-4 flex items-start justify-between gap-2 relative z-10">
               <div className="flex-1 space-y-2">
-                <div className="h-3 bg-red-300 dark:bg-red-600 rounded w-1/2" />
-                <div className="h-6 bg-red-300 dark:bg-red-600 rounded w-2/3" />
-                <div className="h-2.5 bg-red-300 dark:bg-red-600 rounded w-3/4" />
+                <div className="h-3 bg-red-300 dark:bg-red-600 rounded w-10/12" />
+                <div className="h-5 sm:h-6 bg-red-300 dark:bg-red-600 rounded w-2/3" />
+                <div className="h-2.5 bg-red-300 dark:bg-red-600 rounded w-11/12" />
               </div>
-              <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 bg-red-400/40 dark:bg-red-700/40 rounded-xl" />
+              <div className="shrink-0 w-10 h-10 sm:w-14 sm:h-14 bg-red-400/40 dark:bg-red-700/40 rounded-xl" />
             </div>
           </div>
           {/* High Risk Skeleton */}
           <div className="bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 rounded-lg animate-pulse border border-orange-200 dark:border-orange-900/30 shadow-lg overflow-hidden relative">
             <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-8 -mt-8" />
             <div className="h-1 bg-orange-300 dark:bg-orange-600" />
-            <div className="p-2.5 sm:p-4 flex items-start justify-between gap-2 relative z-10">
+            <div className="p-2 sm:p-4 flex items-start justify-between gap-2 relative z-10">
               <div className="flex-1 space-y-2">
-                <div className="h-3 bg-orange-300 dark:bg-orange-600 rounded w-1/2" />
-                <div className="h-6 bg-orange-300 dark:bg-orange-600 rounded w-2/3" />
-                <div className="h-2.5 bg-orange-300 dark:bg-orange-600 rounded w-3/4" />
+                <div className="h-3 bg-orange-300 dark:bg-orange-600 rounded w-10/12" />
+                <div className="h-5 sm:h-6 bg-orange-300 dark:bg-orange-600 rounded w-2/3" />
+                <div className="h-2.5 bg-orange-300 dark:bg-orange-600 rounded w-11/12" />
               </div>
-              <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 bg-orange-400/40 dark:bg-orange-700/40 rounded-xl" />
+              <div className="shrink-0 w-10 h-10 sm:w-14 sm:h-14 bg-orange-400/40 dark:bg-orange-700/40 rounded-xl" />
             </div>
           </div>
           {/* Medium Risk Skeleton */}
           <div className="bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 rounded-lg animate-pulse border border-amber-200 dark:border-amber-900/30 shadow-lg overflow-hidden relative">
             <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/15 dark:bg-amber-400/10 rounded-full -mr-8 -mt-8" />
             <div className="h-1 bg-amber-300 dark:bg-amber-600" />
-            <div className="p-2.5 sm:p-4 flex items-start justify-between gap-2 relative z-10">
+            <div className="p-2 sm:p-4 flex items-start justify-between gap-2 relative z-10">
               <div className="flex-1 space-y-2">
-                <div className="h-3 bg-amber-300 dark:bg-amber-600 rounded w-1/2" />
-                <div className="h-6 bg-amber-300 dark:bg-amber-600 rounded w-2/3" />
-                <div className="h-2.5 bg-amber-300 dark:bg-amber-600 rounded w-3/4" />
+                <div className="h-3 bg-amber-300 dark:bg-amber-600 rounded w-10/12" />
+                <div className="h-5 sm:h-6 bg-amber-300 dark:bg-amber-600 rounded w-2/3" />
+                <div className="h-2.5 bg-amber-300 dark:bg-amber-600 rounded w-11/12" />
               </div>
-              <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 bg-amber-400/40 dark:bg-amber-700/40 rounded-xl" />
+              <div className="shrink-0 w-10 h-10 sm:w-14 sm:h-14 bg-amber-400/40 dark:bg-amber-700/40 rounded-xl" />
             </div>
           </div>
         </div>
@@ -859,102 +878,141 @@ export function MLDashboard() {
         </div>
       </div>
 
-      {/* Guidance Review-style Filter Bar */}
+      {/* Filter controls */}
       <div className="mb-4">
-        <div className="w-full bg-white/80 dark:bg-slate-900/55 backdrop-blur rounded-xl border border-border/70 shadow-sm p-4 sm:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
-            {/* Student Level Filter */}
-            <div className="flex flex-col gap-2 w-full max-w-xs">
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">Student Level</label>
-              <Select value={gradeFilter} onValueChange={(val: string) => setGradeFilter(val)}>
-                <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
-                  <SelectValue placeholder="All Levels" />
-                </SelectTrigger>
-                <SelectContent className="dark:bg-slate-800 dark:border-border/40">
-                  <SelectItem value="all">All Levels</SelectItem>
-                  {gradeOptions.map(g => (
-                    <SelectItem key={g} value={g}>{g}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {/* Risk Filter */}
-            <div className="flex flex-col gap-2 w-full max-w-xs">
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">Risk Level</label>
-              <Select value={riskFilter} onValueChange={(val: string) => setRiskFilter(val)}>
-                <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
-                  <SelectValue placeholder="All Risks" />
-                </SelectTrigger>
-                <SelectContent className="dark:bg-slate-800 dark:border-border/40 min-w-55">
-                  <SelectItem value="all">All Risks</SelectItem>
-                  {riskOptions.map(r => (
-                    <SelectItem key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {/* Search */}
-            <div className="flex flex-col gap-2 w-full">
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">Search</label>
-              <Input
-                type="text"
-                className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full"
-                placeholder="Search by name or LRN..."
-                value={search}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
+        <AnimatePresence mode="wait">
+          {!showFilters ? (
+            <motion.div
+              key="ml-filters-summary"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+            >
+              <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-slate-50/90 dark:bg-slate-900/55 border border-slate-200/70 dark:border-slate-700/40 shadow-sm">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Filters</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-200 truncate">{filterSummary}</p>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => setShowFilters(true)} className="shrink-0 gap-2">
+                  <Filter className="w-4 h-4" />
+                  Show
+                </Button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="ml-filters-expanded"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.28 }}
+            >
+              <div className="w-full bg-white/80 dark:bg-slate-900/55 backdrop-blur rounded-xl border border-border/70 shadow-sm p-4 sm:p-6">
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Search & Filter Students</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Narrow the prediction list by level, risk, or name.</p>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="shrink-0 gap-2">
+                    Hide
+                  </Button>
+                </div>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
+                  {/* Student Level Filter */}
+                  <div className="flex flex-col gap-2 w-full max-w-xs">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">Student Level</label>
+                    <Select value={gradeFilter} onValueChange={(val: string) => setGradeFilter(val)}>
+                      <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
+                        <SelectValue placeholder="All Levels" />
+                      </SelectTrigger>
+                      <SelectContent className="dark:bg-slate-800 dark:border-border/40">
+                        <SelectItem value="all">All Levels</SelectItem>
+                        {gradeOptions.map(g => (
+                          <SelectItem key={g} value={g}>{g}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* Risk Filter */}
+                  <div className="flex flex-col gap-2 w-full max-w-xs">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">Risk Level</label>
+                    <Select value={riskFilter} onValueChange={(val: string) => setRiskFilter(val)}>
+                      <SelectTrigger className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full">
+                        <SelectValue placeholder="All Risks" />
+                      </SelectTrigger>
+                      <SelectContent className="dark:bg-slate-800 dark:border-border/40 min-w-55">
+                        <SelectItem value="all">All Risks</SelectItem>
+                        {riskOptions.map(r => (
+                          <SelectItem key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* Search */}
+                  <div className="flex flex-col gap-2 w-full">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-1">Search</label>
+                    <Input
+                      type="text"
+                      className="h-10 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 w-full"
+                      placeholder="Search by name or LRN..."
+                      value={search}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Stats Summary (filtered) */}
       {!error && filteredStudents.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
             <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/15 dark:bg-red-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
-            <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+            <CardContent className="p-2 sm:p-4 flex items-start justify-between relative z-10 gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] sm:text-[10px] text-red-600 dark:text-red-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Critical Risk</p>
-                <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400 leading-tight">
+                <p className="text-[8px] sm:text-[10px] text-red-600 dark:text-red-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Critical Risk</p>
+                <p className="text-base sm:text-2xl font-bold text-red-600 dark:text-red-400 leading-tight">
                   {filteredStudents.filter(s => s.riskLevel === 'critical').length}
                 </p>
-                <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Immediate Attention Required</p>
+                <p className="text-[7px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Immediate Attention Required</p>
               </div>
-              <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
-                <AlertOctagon className="w-6 h-6 sm:w-7 sm:h-7" />
+              <div className="hidden sm:flex shrink-0 w-10 h-10 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-red-500 to-red-600 text-white items-center justify-center shadow-md shadow-red-500/20 dark:shadow-red-500/10 group-hover:scale-105 transition-all duration-300">
+                <AlertOctagon className="w-5 h-5 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
             <div className="h-1 w-full bg-linear-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
           </Card>
           <Card className="border-0 bg-linear-to-br from-orange-50 to-white dark:from-orange-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
             <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/15 dark:bg-orange-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
-            <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+            <CardContent className="p-2 sm:p-4 flex items-start justify-between relative z-10 gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] sm:text-[10px] text-orange-600 dark:text-orange-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">High Risk</p>
-                <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">
+                <p className="text-[8px] sm:text-[10px] text-orange-600 dark:text-orange-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">High Risk</p>
+                <p className="text-base sm:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">
                   {filteredStudents.filter(s => s.riskLevel === 'high').length}
                 </p>
-                <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Close Monitoring Needed</p>
+                <p className="text-[7px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Close Monitoring Needed</p>
               </div>
-              <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
-                <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
+              <div className="hidden sm:flex shrink-0 w-10 h-10 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
+                <AlertTriangle className="w-5 h-5 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
             <div className="h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
           </Card>
           <Card className="border-0 bg-linear-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
             <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/15 dark:bg-amber-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
-            <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
+            <CardContent className="p-2 sm:p-4 flex items-start justify-between relative z-10 gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] sm:text-[10px] text-amber-600 dark:text-amber-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Medium Risk</p>
-                <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400 leading-tight">
+                <p className="text-[8px] sm:text-[10px] text-amber-600 dark:text-amber-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Medium Risk</p>
+                <p className="text-base sm:text-2xl font-bold text-amber-600 dark:text-amber-400 leading-tight">
                   {filteredStudents.filter(s => s.riskLevel === 'medium').length}
                 </p>
-                <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Preventive Measures Recommended</p>
+                <p className="text-[7px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Preventive Measures Recommended</p>
               </div>
-              <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20 dark:shadow-amber-500/10 group-hover:scale-105 transition-all duration-300">
-                <Clock className="w-6 h-6 sm:w-7 sm:h-7" />
+              <div className="hidden sm:flex shrink-0 w-10 h-10 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white items-center justify-center shadow-md shadow-amber-500/20 dark:shadow-amber-500/10 group-hover:scale-105 transition-all duration-300">
+                <Clock className="w-5 h-5 sm:w-7 sm:h-7" />
               </div>
             </CardContent>
             <div className="h-1 w-full bg-linear-to-r from-amber-400 to-amber-600 dark:from-amber-500 dark:to-amber-700" />
@@ -1009,117 +1067,205 @@ export function MLDashboard() {
           </CardContent>
         </Card>
       ) : (
-        /* Student Cards Grid (filtered) */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredStudents.map((student, index) => {
-            const colors = getRiskColor(student.riskLevel);
-            return (
-              <motion.div
-                key={student.lrn ?? `student-${index}`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Card 
-                  className={`${colors.cardBg} border-2 ${colors.border} shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden group`}
+        <>
+          {/* Student Cards Grid (filtered) */}
+          <div className={isMobile ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'}>
+            {paginatedStudents.map((student, index) => {
+              const colors = getRiskColor(student.riskLevel);
+              return (
+                <motion.div
+                  key={student.lrn ?? `student-${index}`}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="min-w-0"
                 >
-                  {/* Animated Gradient Bar */}
-                  <div className={`h-1.5 bg-linear-to-r ${colors.gradient} relative overflow-hidden`}>
-                    <div className="absolute inset-0 bg-white/30 animate-shimmer" />
-                  </div>
-                  
-                  <CardContent className="p-5 space-y-4">
-                    {/* Header with Name and Badge */}
-                    <div className="flex justify-between items-start gap-3">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 truncate group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-linear-to-r group-hover:from-slate-900 group-hover:to-slate-600 dark:group-hover:from-white dark:group-hover:to-slate-300 transition-all">
-                          {student.name}
-                        </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                          {student.lrn}
-                        </p>
+                  {isMobile ? (
+                    <Card className={`${colors.cardBg} border-2 ${colors.border} shadow-lg overflow-hidden group rounded-2xl`}> 
+                      <div className={`h-1.5 bg-linear-to-r ${colors.gradient} relative overflow-hidden`}>
+                        <div className="absolute inset-0 bg-white/30 animate-shimmer" />
                       </div>
-                      <Badge className={`${colors.badge} font-bold uppercase text-xs px-2.5 py-1 flex items-center gap-1`}>
-                        <Zap className="w-3 h-3" />
-                        {student.riskLevel}
-                      </Badge>
-                    </div>
-
-                    {/* Combined Risk Summary - Compiled Key Issues */}
-                    <div className="p-3.5 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
-                      <p className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                        Key Issues
-                      </p>
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                        {formatKeyIssues(student.patternType)}
-                      </p>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                        {student.attendanceSignal}
-                      </p>
-                    </div>
-
-                    {/* Behavior Metrics - Compact */}
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div className="rounded-lg bg-red-50 dark:bg-red-950/30 p-2.5 border border-red-100 dark:border-red-900/40">
-                        <p className="text-[10px] text-red-700 dark:text-red-300 font-semibold uppercase">Concerning</p>
-                        <p className="text-lg font-bold text-red-700 dark:text-red-300">{student.concerningEvents}</p>
-                      </div>
-                      <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2.5 border border-emerald-100 dark:border-emerald-900/40">
-                        <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold uppercase">Positive</p>
-                        <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{student.positiveEvents}</p>
-                      </div>
-                    </div>
-
-                    <StudentIncidentsDialog studentLrn={student.lrn} studentName={student.name} />
-
-                    {/* Forecast and Parent Contact Combined Row */}
-                    <div className="flex items-center gap-2 pt-1">
-                      {student.nextAbsentDate && (
-                        <div className="flex-1 p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-blue-900 dark:text-blue-300" />
-                            <p className="text-[10px] font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wider">
-                              Forecast
+                      <CardContent className="p-3 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate leading-tight">
+                              {student.name}
+                            </h3>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate mt-0.5">
+                              {student.lrn}
                             </p>
                           </div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white mb-1">
-                            {student.nextAbsentDate}
+                          <Badge className={`${colors.badge} font-bold uppercase text-[10px] px-2 py-0.5 shrink-0 flex items-center gap-1`}>
+                            <Zap className="w-3 h-3" />
+                            {student.riskLevel}
+                          </Badge>
+                        </div>
+
+                        <div className="rounded-xl bg-white/75 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 p-2.5 space-y-1.5">
+                          <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                            Key Issues
                           </p>
-                          <div className="flex items-center gap-1.5">
-                            <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                              <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: `${student.predictionConfidence}%` }}
-                                transition={{ duration: 1, delay: index * 0.1 + 0.3 }}
-                                className="h-full bg-linear-to-r from-blue-600 to-blue-500 rounded-full"
-                              />
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white leading-snug line-clamp-2">
+                            {formatKeyIssues(student.patternType)}
+                          </p>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug line-clamp-2">
+                            {student.attendanceSignal}
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="rounded-xl bg-red-50 dark:bg-red-950/30 p-2 border border-red-100 dark:border-red-900/40">
+                            <p className="text-[8px] text-red-700 dark:text-red-300 font-semibold uppercase">Concerning</p>
+                            <p className="text-base font-bold text-red-700 dark:text-red-300 leading-tight">{student.concerningEvents}</p>
+                          </div>
+                          <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 p-2 border border-emerald-100 dark:border-emerald-900/40">
+                            <p className="text-[8px] text-emerald-700 dark:text-emerald-300 font-semibold uppercase">Positive</p>
+                            <p className="text-base font-bold text-emerald-700 dark:text-emerald-300 leading-tight">{student.positiveEvents}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-2">
+                          <StudentIncidentsDialog studentLrn={student.lrn} studentName={student.name} compact />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Card 
+                      className={`${colors.cardBg} border-2 ${colors.border} shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden group`}
+                    >
+                      {/* Animated Gradient Bar */}
+                      <div className={`h-1.5 bg-linear-to-r ${colors.gradient} relative overflow-hidden`}>
+                        <div className="absolute inset-0 bg-white/30 animate-shimmer" />
+                      </div>
+                      
+                      <CardContent className="p-3 sm:p-5 space-y-3 sm:space-y-4">
+                        {/* Header with Name and Badge */}
+                        <div className="flex justify-between items-start gap-2 sm:gap-3">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mb-0.5 sm:mb-1 truncate group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-linear-to-r group-hover:from-slate-900 group-hover:to-slate-600 dark:group-hover:from-white dark:group-hover:to-slate-300 transition-all">
+                              {student.name}
+                            </h3>
+                            <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-mono">
+                              {student.lrn}
+                            </p>
+                          </div>
+                          <Badge className={`${colors.badge} font-bold uppercase text-[10px] sm:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 flex items-center gap-1`}>
+                            <Zap className="w-3 h-3" />
+                            {student.riskLevel}
+                          </Badge>
+                        </div>
+
+                        {/* Combined Risk Summary - Compiled Key Issues */}
+                        <div className="p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
+                          <p className="text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                            Key Issues
+                          </p>
+                          <p className="text-sm sm:text-sm font-semibold text-slate-900 dark:text-white leading-snug">
+                            {formatKeyIssues(student.patternType)}
+                          </p>
+                          <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                            {student.attendanceSignal}
+                          </p>
+                        </div>
+
+                        {/* Behavior Metrics - Compact */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="rounded-lg bg-red-50 dark:bg-red-950/30 p-2 border border-red-100 dark:border-red-900/40">
+                            <p className="text-[9px] text-red-700 dark:text-red-300 font-semibold uppercase">Concerning</p>
+                            <p className="text-base sm:text-lg font-bold text-red-700 dark:text-red-300">{student.concerningEvents}</p>
+                          </div>
+                          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2 border border-emerald-100 dark:border-emerald-900/40">
+                            <p className="text-[9px] text-emerald-700 dark:text-emerald-300 font-semibold uppercase">Positive</p>
+                            <p className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-300">{student.positiveEvents}</p>
+                          </div>
+                        </div>
+
+                        <StudentIncidentsDialog studentLrn={student.lrn} studentName={student.name} />
+
+                        {/* Forecast and Parent Contact Combined Row */}
+                        <div className="hidden sm:flex items-center gap-2 pt-1">
+                          {student.nextAbsentDate && (
+                            <div className="flex-1 p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-blue-900 dark:text-blue-300" />
+                                <p className="text-[10px] font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wider">
+                                  Forecast
+                                </p>
+                              </div>
+                              <p className="text-sm font-bold text-slate-900 dark:text-white mb-1">
+                                {student.nextAbsentDate}
+                              </p>
+                              <div className="flex items-center gap-1.5">
+                                <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                  <motion.div 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${student.predictionConfidence}%` }}
+                                    transition={{ duration: 1, delay: index * 0.1 + 0.3 }}
+                                    className="h-full bg-linear-to-r from-blue-600 to-blue-500 rounded-full"
+                                  />
+                                </div>
+                                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 min-w-8 text-right">
+                                  {Math.round(student.predictionConfidence)}%
+                                </span>
+                              </div>
                             </div>
-                            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 min-w-8 text-right">
-                              {Math.round(student.predictionConfidence)}%
-                            </span>
-                          </div>
+                          )}
+                          {student.parentContact && (
+                            <div className="flex-1 p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <Phone className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                  Contact
+                                </p>
+                              </div>
+                              <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                                {student.parentContact}
+                              </p>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {student.parentContact && (
-                        <div className="flex-1 p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <Phone className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                            <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                              Contact
-                            </p>
-                          </div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                            {student.parentContact}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            );
-          })}
-        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+          {filteredStudents.length > 0 && (
+            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-orange-100/80 dark:border-orange-900/30 bg-white/80 dark:bg-slate-900/55 px-4 py-3 shadow-[0_12px_30px_-20px_rgba(15,23,42,0.32)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                Showing <span className="font-semibold text-slate-900 dark:text-white">{showingFrom}-{showingTo}</span> of <span className="font-semibold text-slate-900 dark:text-white">{filteredStudents.length}</span>
+              </p>
+              <div className="flex items-center justify-between gap-2 sm:justify-end">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="h-10 w-10 rounded-full border-orange-200 text-slate-700 hover:bg-orange-50 hover:text-orange-700 dark:border-orange-900/40 dark:text-slate-200 dark:hover:bg-orange-950/30"
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  disabled={currentPageSafe === 1}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <p className="min-w-0 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 px-2">
+                  Page <span className="font-semibold text-slate-900 dark:text-white">{currentPageSafe}</span> / <span className="font-semibold text-slate-900 dark:text-white">{totalPages}</span>
+                </p>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="h-10 w-10 rounded-full border-orange-200 text-slate-700 hover:bg-orange-50 hover:text-orange-700 dark:border-orange-900/40 dark:text-slate-200 dark:hover:bg-orange-950/30"
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  disabled={currentPageSafe === totalPages}
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </motion.div>
   );
@@ -1133,12 +1279,7 @@ export function StudentRiskCard({ studentLrn, name, lrn }: { studentLrn: string,
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [supabase] = useState(() => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) return null;
-    return createClient(url, key);
-  });
+  const supabase = sharedSupabase;
 
   useEffect(() => {
     void fetchStudentSummary(false);
