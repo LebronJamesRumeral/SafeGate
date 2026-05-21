@@ -71,14 +71,14 @@ export function Header() {
       if (registration) {
         await registration.showNotification(notification.title, {
           body: notificationBody,
-          icon: '/logo.png',
-          badge: '/logo.png',
+          icon: '/SGCDC.png',
+          badge: '/SGCDC.png',
           data: { href },
         })
       } else {
         const browserNotification = new Notification(notification.title, {
           body: notificationBody,
-          icon: '/logo.png',
+          icon: '/SGCDC.png',
         })
         browserNotification.onclick = () => {
           window.focus()

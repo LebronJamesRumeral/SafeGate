@@ -6,10 +6,7 @@ const urlsToCache = [
   '/students',
   '/analytics',
   '/manifest.json',
-  '/icon-192x192.png',
-  '/icon-512x512.png',
-  '/apple-icon.png',
-  '/logo.png',
+  '/SGCDC.png',
 ];
 
 // Install event
@@ -104,8 +101,8 @@ self.addEventListener('sync', (event) => {
 self.addEventListener('push', (event) => {
   const options = {
     body: event.data ? event.data.text() : 'New notification',
-    icon: '/logo.png',
-    badge: '/logo.png',
+    icon: '/SGCDC.png',
+    badge: '/SGCDC.png',
     vibrate: [100, 50, 100],
   };
 

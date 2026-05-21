@@ -20,22 +20,22 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/icon-512x512.png',
+        url: '/SGCDC.png',
         sizes: '512x512',
         type: 'image/png',
       },
       {
-        url: '/icon-192x192.png',
+        url: '/SGCDC.png',
         sizes: '192x192',
         type: 'image/png',
       },
       {
-        url: '/icon-192x192.png',
+        url: '/SGCDC.png',
         sizes: '96x96',
         type: 'image/png',
       },
     ],
-    apple: '/apple-icon.png',
+    apple: '/SGCDC.png',
   },
 }
 
@@ -60,7 +60,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="SGCDC SafeGate" />
         <meta name="format-detection" content="telephone=no, date=no, email=no, address=no" />
         <link rel="icon" href="/SGCDC.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180" />
+        <link rel="apple-touch-icon" href="/SGCDC.png" sizes="180x180" />
         <style>{`
           * {
             font-family: 'Century Gothic', 'Trebuchet MS', system-ui, -apple-system, sans-serif !important;
