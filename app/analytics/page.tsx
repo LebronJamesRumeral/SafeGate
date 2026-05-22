@@ -982,12 +982,10 @@ export default function AnalyticsPage() {
               const height = Math.min(maxHeight, img.naturalHeight || maxHeight);
               const width = Math.round(height * ratio);
               const logoId = wb.addImage({ base64: logoBase64, extension: 'png' });
-              // center the logo across header width
-              const lastCol = Math.max(1, (sheet.columns && sheet.columns.length) || 1);
-              const centerCol = lastCol / 2;
-              const approxColsForImage = Math.max(1, Math.round(width / 40));
-              const tlCol = Math.max(0.25, centerCol - approxColsForImage / 2);
-              sheet.addImage(logoId, { tl: { col: tlCol, row: 0.08 }, ext: { width, height }, editAs: 'oneCell' });
+              // place the logo anchored on cell A1 (left side of header)
+              const tlCol = 0.15; // slight inset from left edge of A1
+              const tlRow = 0.08;
+              sheet.addImage(logoId, { tl: { col: tlCol, row: tlRow }, ext: { width, height }, editAs: 'oneCell' });
             }
           } catch (logoError) {
             console.warn('SGCDC logo could not be embedded in Excel export:', logoError);
@@ -998,9 +996,12 @@ export default function AnalyticsPage() {
           sheet.getRow(3).height = 22;
           sheet.getRow(4).height = 22;
 
-          const lastColLetter = colNumberToName(Math.max(1, sheet.columns.length || 1));
-          sheet.mergeCells(`A1:${lastColLetter}1`);
-          const kickerCell = sheet.getCell('A1');
+          const kickerCellRef = options.kickerRange.split(':')[0];
+          const titleCellRef = options.titleRange.split(':')[0];
+          const badgeCellRef = options.badgeRange.split(':')[0];
+
+          sheet.mergeCells(options.kickerRange);
+          const kickerCell = sheet.getCell(kickerCellRef);
           // Use richText to style the organization name larger, with address below and blue email
           kickerCell.value = {
             richText: [
@@ -1014,8 +1015,8 @@ export default function AnalyticsPage() {
           kickerCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
           kickerCell.border = borderAll(theme.slate200);
 
-          sheet.mergeCells(`A2:${lastColLetter}2`);
-          const titleCell = sheet.getCell('A2');
+          sheet.mergeCells(options.titleRange);
+          const titleCell = sheet.getCell(titleCellRef);
           titleCell.value = options.titleText;
           titleCell.font = { name: 'Calibri', size: 20, bold: true, color: { argb: 'FF000000' } };
           // Remove colored fill to match guidance print (plain white background)
@@ -1024,10 +1025,8 @@ export default function AnalyticsPage() {
           titleCell.border = borderAll(theme.slate200);
 
           // badge: place on far right of header area
-          const badgeStart = Math.max(1, sheet.columns.length - 1);
-          const badgeStartLetter = colNumberToName(badgeStart);
-          sheet.mergeCells(`${badgeStartLetter}1:${lastColLetter}1`);
-          const badgeCell = sheet.getCell(`${badgeStartLetter}1`);
+          sheet.mergeCells(options.badgeRange);
+          const badgeCell = sheet.getCell(badgeCellRef);
           badgeCell.value = options.badgeText;
           // Make badge subdued / border-only to match plain print header
           badgeCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };

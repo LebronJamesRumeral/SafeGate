@@ -276,29 +276,29 @@ function StudentIncidentsDialog({ studentLrn, studentName, compact = false }: { 
           {compact ? 'Incidents' : 'View All Incidents'}
         </Button>
       </DialogTrigger>
-      <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl h-auto sm:max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
-          <div className="flex items-start justify-between gap-4">
+      <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl h-auto max-h-[92vh] sm:max-h-[90vh] overflow-hidden flex flex-col p-4 sm:p-6">
+        <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-3 sm:pb-4">
+          <div className="flex items-start justify-between gap-3 sm:gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                <DialogTitle className="text-xl font-bold">Incident History</DialogTitle>
+                <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-400" />
+                <DialogTitle className="text-lg sm:text-xl font-bold leading-tight">Incident History</DialogTitle>
               </div>
-              <DialogDescription className="mt-2 text-sm">
+              <DialogDescription className="mt-1.5 sm:mt-2 text-xs sm:text-sm leading-relaxed">
                 Complete behavioral incident record for <span className="font-semibold text-slate-900 dark:text-white">{studentName}</span> ({studentLrn})
               </DialogDescription>
             </div>
             {incidents.length > 0 && (
-              <Badge className={`${severityStyle.badge} text-xs font-semibold px-3 py-1 whitespace-nowrap mr-8`}>
+              <Badge className={`${severityStyle.badge} text-[10px] sm:text-xs font-semibold px-2.5 py-1 whitespace-nowrap shrink-0 mt-3 sm:mt-0`}>
                 {filteredIncidents.length} Incident{filteredIncidents.length !== 1 ? 's' : ''}
               </Badge>
             )}
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto pr-4 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3">
-            <div className="space-y-1">
+        <div className="flex-1 overflow-y-auto pr-1 sm:pr-4 space-y-3 sm:space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-2.5 sm:p-3">
+            <div className="space-y-1 col-span-2 sm:col-span-1">
               <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
               <DatePickerInput
                 value={dateFilter}
@@ -309,7 +309,7 @@ function StudentIncidentsDialog({ studentLrn, studentName, compact = false }: { 
             <div className="space-y-1">
               <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Type</label>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="h-9 text-xs">
+                <SelectTrigger className="h-9 text-xs w-full">
                   <SelectValue placeholder="All types" />
                 </SelectTrigger>
                 <SelectContent>
@@ -323,7 +323,7 @@ function StudentIncidentsDialog({ studentLrn, studentName, compact = false }: { 
             <div className="space-y-1">
               <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Severity</label>
               <Select value={severityFilter} onValueChange={setSeverityFilter}>
-                <SelectTrigger className="h-9 text-xs">
+                <SelectTrigger className="h-9 text-xs w-full">
                   <SelectValue placeholder="All severity" />
                 </SelectTrigger>
                 <SelectContent>
@@ -354,14 +354,14 @@ function StudentIncidentsDialog({ studentLrn, studentName, compact = false }: { 
           )}
 
           {!loading && !error && incidents.length === 0 && (
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-8 text-center">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-6 sm:p-8 text-center">
               <Shield className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
               <p className="text-sm text-slate-600 dark:text-slate-400">No incidents found for this student.</p>
             </div>
           )}
 
           {!loading && !error && incidents.length > 0 && filteredIncidents.length === 0 && (
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-8 text-center">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-6 sm:p-8 text-center">
               <Shield className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
               <p className="text-sm text-slate-600 dark:text-slate-400">No incidents match the selected filters.</p>
             </div>
@@ -375,19 +375,19 @@ function StudentIncidentsDialog({ studentLrn, studentName, compact = false }: { 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: index * 0.05 }}
-                className={`rounded-lg border ${style.border} ${style.bg} p-4 hover:shadow-md transition-shadow`}
+                className={`rounded-lg border ${style.border} ${style.bg} p-3 sm:p-4 hover:shadow-md transition-shadow`}
               >
-                <div className="space-y-3">
+                <div className="space-y-2.5 sm:space-y-3">
                   {/* Header Row */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
+                  <div className="flex items-start justify-between gap-2 sm:gap-3">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <div className={`${style.iconColor}`}>
                           {getSeverityIcon(incident.severity)}
                         </div>
-                        <p className={`font-bold text-sm ${style.textColor}`}>{humanizeEventType(incident.event_type) || incident.event_type}</p>
+                        <p className={`font-bold text-sm sm:text-sm ${style.textColor} truncate`}>{humanizeEventType(incident.event_type) || incident.event_type}</p>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                         <Calendar className="w-3 h-3 inline mr-1" />
                         {new Date(incident.event_date).toLocaleDateString('en-US', {
                           weekday: 'short',
@@ -398,7 +398,7 @@ function StudentIncidentsDialog({ studentLrn, studentName, compact = false }: { 
                         at {incident.event_time}
                       </p>
                     </div>
-                    <Badge className={`${style.badge} font-semibold text-xs px-2.5 py-1 uppercase tracking-wider`}>
+                    <Badge className={`${style.badge} font-semibold text-[10px] sm:text-xs px-2.5 py-1 uppercase tracking-wider shrink-0`}>
                       {incident.severity}
                     </Badge>
                   </div>
@@ -407,10 +407,10 @@ function StudentIncidentsDialog({ studentLrn, studentName, compact = false }: { 
                   <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">{incident.description}</p>
 
                   {/* Metadata Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-400">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-400">
                     <div className="flex items-center gap-2">
                       <Users className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                      <span>
+                      <span className="min-w-0">
                         <span className="font-semibold">Reported:</span> {incident.reported_by}
                       </span>
                     </div>
