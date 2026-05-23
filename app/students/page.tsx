@@ -183,6 +183,18 @@ function getRiskLevelColor(riskLevel: string): { color: string; bg: string; bord
   }
 }
 
+// Helper function to check if a summer enrollment is active today
+function isActiveSummerEnrollment(enrollment: { start_date: string; end_date: string } | undefined): boolean {
+  if (!enrollment) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const startDate = new Date(enrollment.start_date);
+  startDate.setHours(0, 0, 0, 0);
+  const endDate = new Date(enrollment.end_date);
+  endDate.setHours(0, 0, 0, 0);
+  return today >= startDate && today <= endDate;
+}
+
 // Helper function to check if student has completed summer enrollment
 function isCompletedSummerStudent(enrollment: { start_date: string; end_date: string } | undefined): boolean {
   if (!enrollment) return false;
@@ -190,7 +202,21 @@ function isCompletedSummerStudent(enrollment: { start_date: string; end_date: st
   today.setHours(0, 0, 0, 0);
   const endDate = new Date(enrollment.end_date);
   endDate.setHours(0, 0, 0, 0);
-  return today >= endDate;
+  const completedWindowEnd = new Date(endDate);
+  completedWindowEnd.setDate(completedWindowEnd.getDate() + 7);
+  return today > endDate && today <= completedWindowEnd;
+}
+
+// Helper to check whether a given ISO date string falls within a summer enrollment
+function isDateInSummerEnrollment(enrollment: { start_date: string; end_date: string } | undefined, isoDate: string | Date): boolean {
+  if (!enrollment) return false;
+  const d = typeof isoDate === 'string' ? new Date(isoDate) : new Date(isoDate);
+  d.setHours(0, 0, 0, 0);
+  const start = new Date(enrollment.start_date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(enrollment.end_date);
+  end.setHours(0, 0, 0, 0);
+  return d >= start && d <= end;
 }
 
 // Utility to generate a random temporary LRN
@@ -2945,8 +2971,22 @@ export default function StudentsPage() {
         const dayOfWeek = current.getDay();
         
         // Only check weekdays (Monday=1 to Friday=5) and respect school year end date
-        const isBeforeSchoolYearEnd = !schoolYearEnd || current <= schoolYearEnd;
-        
+        // Allow absent synthesis for dates that are before the school year end OR
+        // dates that fall within the student's summer enrollment window.
+        const enrollmentForStudent = summerEnrollments[studentLrn];
+        let isInSummerWindow = false;
+        if (enrollmentForStudent && enrollmentForStudent.start_date && enrollmentForStudent.end_date) {
+          const s = new Date(enrollmentForStudent.start_date);
+          const e = new Date(enrollmentForStudent.end_date);
+          s.setHours(0,0,0,0);
+          e.setHours(0,0,0,0);
+          const currCopy = new Date(current);
+          currCopy.setHours(0,0,0,0);
+          isInSummerWindow = currCopy >= s && currCopy <= e;
+        }
+
+        const isBeforeSchoolYearEnd = !schoolYearEnd || current <= schoolYearEnd || isInSummerWindow;
+
         if (dayOfWeek >= 1 && dayOfWeek <= 5 && !existingDates.has(dateStr) && isBeforeSchoolYearEnd) {
           // Add an absent entry for this missing weekday
           enrichedAttendance.push({
@@ -2970,7 +3010,17 @@ export default function StudentsPage() {
         filteredAttendance = enrichedAttendance.filter(a => {
           const recordDate = new Date(a.date);
           recordDate.setHours(0, 0, 0, 0);
-          return recordDate <= schoolYearEnd;
+          if (recordDate <= schoolYearEnd) return true;
+          // allow records that are within student's summer enrollment window
+          const enrollmentForStudent = summerEnrollments[studentLrn];
+          if (enrollmentForStudent && enrollmentForStudent.start_date && enrollmentForStudent.end_date) {
+            const s = new Date(enrollmentForStudent.start_date);
+            const e = new Date(enrollmentForStudent.end_date);
+            s.setHours(0,0,0,0);
+            e.setHours(0,0,0,0);
+            if (recordDate >= s && recordDate <= e) return true;
+          }
+          return false;
         });
       }
       
@@ -3575,7 +3625,7 @@ export default function StudentsPage() {
       }
       // If showing only summer students, ensure enrollment exists
       if (showOnlySummer) {
-        if (!summerEnrollments[student.lrn]) return false;
+        if (!isActiveSummerEnrollment(summerEnrollments[student.lrn])) return false;
       }
       return matchesSearch && matchesLevel && matchesGender;
     });
@@ -3681,7 +3731,7 @@ export default function StudentsPage() {
     return Object.entries(summerEnrollments)
       .map(([lrn, enrollment]) => {
         const student = students.find((s) => s.lrn === lrn);
-        return student ? { student, enrollment } : null;
+        return student && isActiveSummerEnrollment(enrollment) ? { student, enrollment } : null;
       })
       .filter(Boolean) as Array<{ student: Student; enrollment: { id?: number; start_date: string; end_date: string } }>;
   }, [students, summerEnrollments]);
@@ -5782,6 +5832,7 @@ export default function StudentsPage() {
                                                           <thead>
                                                             <tr className="text-left text-xs text-muted-foreground">
                                                               <th className="px-3 py-2">Date</th>
+                                                              <th className="px-3 py-2">Class</th>
                                                               <th className="px-3 py-2">Status</th>
                                                               <th className="px-3 py-2">Check In</th>
                                                               <th className="px-3 py-2">Check Out</th>
@@ -5809,6 +5860,17 @@ export default function StudentsPage() {
                                                               return (
                                                                 <tr key={`${entry.date}-${entry.student_lrn}`} className="border-t border-slate-100 dark:border-slate-800">
                                                                   <td className="px-3 py-2">{new Date(entry.date).toLocaleDateString()}</td>
+                                                                  <td className="px-3 py-2">
+                                                                    {(() => {
+                                                                      const enrollment = summerEnrollments[selectedStudent.lrn];
+                                                                      const isSummerRow = isDateInSummerEnrollment(enrollment, entry.date);
+                                                                      return (
+                                                                        <Badge className={`${isSummerRow ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-700'} border-0 text-xs py-1 px-2`}>
+                                                                          {isSummerRow ? 'Summer' : 'Regular'}
+                                                                        </Badge>
+                                                                      );
+                                                                    })()}
+                                                                  </td>
                                                                   <td className="px-3 py-2">
                                                                     <div className="flex flex-col gap-1">
                                                                       <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
@@ -6252,6 +6314,7 @@ export default function StudentsPage() {
                           const RiskIcon = riskColors.icon;
                           const attendance = attendanceByLrn[student.lrn];
                           const summerEnrollment = summerEnrollments[student.lrn];
+                          const isActiveSummer = isActiveSummerEnrollment(summerEnrollment);
                           const isCompletedSummer = isCompletedSummerStudent(summerEnrollment);
                           
                           return (
@@ -6277,7 +6340,7 @@ export default function StudentsPage() {
                                     {student.is_special_case && (
                                       <img src="/Helping-Hand.png" alt="Special Case" className="w-4 h-4 ml-2" />
                                     )}
-                                    {summerEnrollment && (
+                                    {isActiveSummer && (
                                       <Sun className="w-4 h-4 text-orange-500 dark:text-orange-400 flex-shrink-0" title="Summer Class" />
                                     )}
                                     {isCompletedSummer && (
@@ -7218,6 +7281,7 @@ export default function StudentsPage() {
                                                           <thead>
                                                             <tr className="text-left text-xs text-muted-foreground">
                                                               <th className="px-3 py-2">Date</th>
+                                                              <th className="px-3 py-2">Class</th>
                                                               <th className="px-3 py-2">Status</th>
                                                               <th className="px-3 py-2">Check In</th>
                                                               <th className="px-3 py-2">Check Out</th>
@@ -7245,6 +7309,17 @@ export default function StudentsPage() {
                                                               return (
                                                                 <tr key={`${entry.date}-${entry.student_lrn}`} className="border-t border-slate-100 dark:border-slate-800">
                                                                   <td className="px-3 py-2">{new Date(entry.date).toLocaleDateString()}</td>
+                                                                  <td className="px-3 py-2">
+                                                                    {(() => {
+                                                                      const enrollment = summerEnrollments[selectedStudent.lrn];
+                                                                      const isSummerRow = isDateInSummerEnrollment(enrollment, entry.date);
+                                                                      return (
+                                                                        <Badge className={`${isSummerRow ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-700'} border-0 text-xs py-1 px-2`}>
+                                                                          {isSummerRow ? 'Summer' : 'Regular'}
+                                                                        </Badge>
+                                                                      );
+                                                                    })()}
+                                                                  </td>
                                                                   <td className="px-3 py-2">
                                                                     <div className="flex flex-col gap-1">
                                                                       <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>
@@ -7808,7 +7883,7 @@ export default function StudentsPage() {
                   </div>
                 </div>
 
-                {Object.keys(summerEnrollments).length === 0 ? (
+                {summerStudents.length === 0 ? (
                   <div className="p-8 text-center">
                     <div className="text-muted-foreground">
                       <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
@@ -7937,13 +8012,13 @@ export default function StudentsPage() {
                       Summer Class Students
                     </CardTitle>
                     <CardDescription>
-                      Students enrolled in summer class ({Object.keys(summerEnrollments).length} students)
+                      Students enrolled in summer class ({summerStudents.length} students)
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {Object.keys(summerEnrollments).length === 0 ? (
+                {summerStudents.length === 0 ? (
                   <div className="p-8 text-center">
                     <div className="text-muted-foreground">
                       <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
@@ -8905,6 +8980,7 @@ export default function StudentsPage() {
                                                           <thead>
                                                             <tr className="text-left text-xs text-muted-foreground">
                                                               <th className="px-3 py-2">Date</th>
+                                                              <th className="px-3 py-2">Class</th>
                                                               <th className="px-3 py-2">Status</th>
                                                               <th className="px-3 py-2">Check In</th>
                                                               <th className="px-3 py-2">Check Out</th>
@@ -8932,6 +9008,17 @@ export default function StudentsPage() {
                                                               return (
                                                                 <tr key={`${entry.date}-${entry.student_lrn}`} className="border-t border-slate-100 dark:border-slate-800">
                                                                   <td className="px-3 py-2">{new Date(entry.date).toLocaleDateString()}</td>
+                                                                  <td className="px-3 py-2">
+                                                                    {(() => {
+                                                                      const enrollment = summerEnrollments[selectedStudent.lrn];
+                                                                      const isSummerRow = isDateInSummerEnrollment(enrollment, entry.date);
+                                                                      return (
+                                                                        <Badge className={`${isSummerRow ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-700'} border-0 text-xs py-1 px-2`}>
+                                                                          {isSummerRow ? 'Summer' : 'Regular'}
+                                                                        </Badge>
+                                                                      );
+                                                                    })()}
+                                                                  </td>
                                                                   <td className="px-3 py-2">
                                                                     <div className="flex flex-col gap-1">
                                                                       <Badge className={`${badgeClass} border-0 py-1 px-2`}>{statusLabel}</Badge>

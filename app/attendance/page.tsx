@@ -198,6 +198,7 @@ export default function AttendancePage() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
+  const [summerEnrollments, setSummerEnrollments] = useState<Record<string, { start_date: string; end_date: string }>>({});
   const [appliedRange, setAppliedRange] = useState<{ start: string; end: string }>({ start: today, end: today });
   const [showFilters, setShowFilters] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
@@ -351,6 +352,31 @@ export default function AttendancePage() {
           }
           setStudentSchedules(scheduleMap);
         }
+      }
+
+      // Fetch summer enrollments for relevant students/logs
+      try {
+        const lrns = Array.from(new Set<string>([
+          ...(sortedStudents || []).map((s) => s.lrn),
+          ...(attendanceData || []).map((a: any) => a.student_lrn),
+        ]));
+        if (lrns.length > 0) {
+          const { data: summerData, error: summerError } = await supabase
+            .from('summer_enrollments')
+            .select('student_lrn, start_date, end_date')
+            .in('student_lrn', lrns);
+          if (!summerError && summerData) {
+            const map: Record<string, { start_date: string; end_date: string }> = {};
+            for (const row of summerData) {
+              if (row && row.student_lrn) {
+                map[row.student_lrn] = { start_date: row.start_date, end_date: row.end_date };
+              }
+            }
+            setSummerEnrollments(map);
+          }
+        }
+      } catch (err) {
+        // ignore if table doesn't exist or query fails
       }
 
       // Fetch parent notes for all students
@@ -1339,6 +1365,8 @@ export default function AttendancePage() {
                 >
                   {paginatedLogs.map((log) => {
                     const student = studentMap[log.student_lrn];
+                    const enrollment = summerEnrollments[log.student_lrn];
+                    const isSummerRow = isDateInSummerEnrollment(enrollment, log.date);
                     const normalizedStatus = String(log.attendance_status || '').toLowerCase();
                     const isHoliday = normalizedStatus === 'holiday';
                     const isCancelled = normalizedStatus === 'cancelled_class' || isHoliday;
@@ -1352,7 +1380,10 @@ export default function AttendancePage() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-sm font-medium">{student?.name || log.student_lrn}</p>
-                            <p className="text-xs text-gray-500">{log.date} • {weekdayLabels[new Date(log.date).getDay()]}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-xs text-gray-500">{log.date} • {weekdayLabels[new Date(log.date).getDay()]}</p>
+                              <Badge className={`${isSummerRow ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-700'} border-0 text-xs py-1 px-2`}>{isSummerRow ? 'Summer' : 'Regular'}</Badge>
+                            </div>
                           </div>
                           <div className="text-right">
                             <div className="text-sm">
@@ -1718,6 +1749,7 @@ export default function AttendancePage() {
                     <TableHead>Date</TableHead>
                     <TableHead>Student</TableHead>
                     <TableHead className="hidden md:table-cell">Level</TableHead>
+                    <TableHead>Class</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Check In</TableHead>
                     <TableHead>Check Out</TableHead>
@@ -1738,6 +1770,8 @@ export default function AttendancePage() {
                   ) : (
                     paginatedLogs.map((log) => {
                       const student = studentMap[log.student_lrn];
+                      const enrollment = summerEnrollments[log.student_lrn];
+                      const isSummerRow = isDateInSummerEnrollment(enrollment, log.date);
                       const normalizedStatus = String(log.attendance_status || '').toLowerCase();
                       const isHoliday = normalizedStatus === 'holiday';
                       const isCancelled = normalizedStatus === 'cancelled_class' || isHoliday;
@@ -1764,6 +1798,9 @@ export default function AttendancePage() {
                             </div>
                           </TableCell>
                           <TableCell className="hidden md:table-cell">{student?.level || 'N/A'}</TableCell>
+                          <TableCell>
+                            <Badge className={`${isSummerRow ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-700'} border-0 text-xs py-1 px-2`}>{isSummerRow ? 'Summer' : 'Regular'}</Badge>
+                          </TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-1">
                               {isCancelled ? (
@@ -1866,4 +1903,19 @@ export default function AttendancePage() {
       </motion.div>
     </DashboardLayout>
   );
+}
+
+function isDateInSummerEnrollment(enrollment?: { start_date: string; end_date: string } | null | undefined, isoDate?: string | null) {
+  if (!enrollment || !enrollment.start_date || !enrollment.end_date || !isoDate) return false;
+  try {
+    const start = new Date(enrollment.start_date);
+    const end = new Date(enrollment.end_date);
+    const d = new Date(isoDate);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    d.setHours(0, 0, 0, 0);
+    return d >= start && d <= end;
+  } catch (e) {
+    return false;
+  }
 }
