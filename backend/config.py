@@ -29,13 +29,6 @@ class Settings(BaseSettings):
         env_file = ".env"
         case_sensitive = False
         extra = "ignore"
-
-    def __init__(self, **values):
-        if not values.get('supabase_service_role_key'):
-            values['supabase_service_role_key'] = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_SERVICE_KEY') or ''
-        if not values.get('supabase_url'):
-            values['supabase_url'] = os.getenv('SUPABASE_URL', '')
-        super().__init__(**values)
     
     @property
     def is_production(self) -> bool:

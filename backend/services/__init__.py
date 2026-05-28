@@ -7,7 +7,6 @@ from models import Student, Attendance, BehaviorEvent, RiskScore, Parent
 from schemas import AttendanceCreate, AttendanceUpdate, AttendanceStats
 from schemas import BehaviorEventCreate, BehaviorEventUpdate, BehaviorStats
 from schemas import StudentCreate, StudentUpdate
-from .push_notifications import send_push_to_roles
 
 
 """Service for student-related operations."""
@@ -266,22 +265,10 @@ class BehaviorService:
                         'meta': {
                             'parent_email': student.parent_email,
                             'student_id': student.student_id,
-                            'log_id': db_event.id,
-                            'href': '/parent-behavior'
+                            'log_id': db_event.id
                         },
                         'created_by': 'system',
                     }).execute()
-                    send_push_to_roles(
-                        'Log Reviewed By Guidance',
-                        f'A new log for {student.first_name} {student.last_name} (Attention Difficulty) was approved.',
-                        ['parent', 'teacher', 'admin', 'guidance'],
-                        {
-                            'parent_email': student.parent_email,
-                            'student_id': student.student_id,
-                            'log_id': db_event.id,
-                            'href': '/parent-behavior',
-                        },
-                    )
                 except Exception as e:
                     print(f"Failed to send notification: {e}")
         return db_event

@@ -99,32 +99,15 @@ self.addEventListener('sync', (event) => {
 
 // Push notifications
 self.addEventListener('push', (event) => {
-  let payload = {
-    title: 'SafeGate',
-    body: 'New notification',
-    href: '/',
+  const options = {
+    body: event.data ? event.data.text() : 'New notification',
     icon: '/SGCDC.png',
     badge: '/SGCDC.png',
+    vibrate: [100, 50, 100],
   };
 
-  if (event.data) {
-    try {
-      payload = { ...payload, ...event.data.json() };
-    } catch (error) {
-      payload.body = event.data.text();
-    }
-  }
-
   event.waitUntil(
-    self.registration.showNotification(payload.title || 'SafeGate', {
-      body: payload.body || 'New notification',
-      icon: payload.icon || '/SGCDC.png',
-      badge: payload.badge || '/SGCDC.png',
-      vibrate: [100, 50, 100],
-      data: {
-        href: payload.href || '/',
-      },
-    })
+    self.registration.showNotification('SafeGate', options)
   );
 });
 

@@ -8,7 +8,7 @@ import uvicorn
 
 from config import settings
 from database import init_db, close_db
-from routers import health, attendance, behavior, students, risk, notifications
+from routers import health, attendance, behavior, students, risk
 
 # Configure logging
 logging.basicConfig(
@@ -59,13 +59,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         settings.frontend_url,
-        "https://safe-gate.vercel.app",
-        "https://*.vercel.app",
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
     ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -89,7 +86,6 @@ app.include_router(students.router)
 app.include_router(attendance.router)
 app.include_router(behavior.router)
 app.include_router(risk.router)
-app.include_router(notifications.router)
 
 
 # Root endpoint

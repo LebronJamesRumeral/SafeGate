@@ -153,33 +153,28 @@ function extractNotificationOwnerIdentities(meta: Record<string, any> | null): S
 }
 
 export async function createRoleNotification(input: CreateRoleNotificationInput): Promise<boolean> {
-  try {
-    const response = await fetch('/api/notifications/role', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        title: input.title,
-        message: input.message,
-        targetRoles: input.targetRoles,
-        createdBy: input.createdBy || null,
-        relatedEventId: input.relatedEventId ?? null,
-        meta: input.meta || {},
-      }),
-    });
+  const db = supabase as NonNullable<typeof supabase>;
+  if (!db) {
+    return false;
+  }
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => null);
-      console.error('Failed to create role notification:', error || response.statusText);
-      return false;
-    }
+  const { error } = await db.from('role_notifications').insert([
+    {
+      title: input.title,
+      message: input.message,
+      target_roles: input.targetRoles,
+      created_by: input.createdBy || null,
+      related_event_id: input.relatedEventId ?? null,
+      meta: input.meta || {},
+    },
+  ]);
 
-    return true;
-  } catch (error) {
+  if (error) {
     console.error('Failed to create role notification:', error);
     return false;
   }
+
+  return true;
 }
 
 function getFridayReminderKey(date = new Date()): string | null {

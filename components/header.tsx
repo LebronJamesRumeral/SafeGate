@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Sun, Moon, Bell, Lock, User as UserIcon, LogOut, Settings, Calendar, AlertTriangle, BarChart3, ClipboardCheck, MapPinned, Megaphone, Smartphone } from "lucide-react"
+import { Sun, Moon, Bell, Lock, User as UserIcon, LogOut, Settings, Calendar, AlertTriangle, BarChart3, ClipboardCheck, MapPinned, Megaphone } from "lucide-react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
@@ -11,8 +11,6 @@ import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
 import { ensureFridayParentWeeklyCheckInNotification, fetchRoleNotifications, getUnreadCount, markRoleNotificationsAsRead, resolveRoleNotificationHref, RoleNotification } from "@/lib/role-notifications"
 import { useTheme } from "@/components/theme-provider"
-import { enableDeviceNotifications } from '@/lib/push-notifications'
-import { useToast } from '@/hooks/use-toast'
 
 const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
 
@@ -31,76 +29,27 @@ export function Header() {
   const pathname = usePathname()
   const { theme, setTheme, resolvedTheme } = useTheme()
   const { user, logout } = useAuth()
-  const { toast } = useToast()
-  const isDevMode = process.env.NODE_ENV !== 'production'
   const [mounted, setMounted] = useState(false)
   const [dateTime, setDateTime] = useState<string>("")
   const [roleNotifications, setRoleNotifications] = useState<RoleNotification[]>([])
   const [notificationMenuOpen, setNotificationMenuOpen] = useState(false)
-  const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useState(false)
 
   const normalizedRole = (user?.role || '').toLowerCase()
   const unreadNotificationCount = getUnreadCount(normalizedRole, roleNotifications)
 
-  const enablePhoneNotifications = useCallback(async () => {
-    if (!normalizedRole) {
+  const requestNotificationPermission = useCallback(async () => {
+    if (typeof window === 'undefined' || !("Notification" in window)) {
       return
     }
 
-    try {
-      const message = await enableDeviceNotifications(normalizedRole, {
-        id: user?.id || null,
-        username: user?.username || null,
-        full_name: user?.full_name || null,
-        email: user?.username || null,
-      })
-
-      setDeviceNotificationsEnabled(true)
-      toast({
-        title: 'Notifications enabled',
-        description: message,
-      })
-    } catch (error) {
-      setDeviceNotificationsEnabled(false)
-      toast({
-        title: 'Unable to enable notifications',
-        description: error instanceof Error ? error.message : 'Please install the app and try again.',
-      })
-    }
-  }, [normalizedRole, toast, user?.full_name, user?.id, user?.username])
-
-  const sendTestNotification = useCallback(async () => {
-    if (typeof window === 'undefined' || !normalizedRole) {
-      return
-    }
-
-    const href = pathname || '/'
-    const registration = await navigator.serviceWorker?.getRegistration()
-
-    if (registration) {
-      await registration.showNotification('SafeGate Test Notification', {
-        body: 'This is a test notification from the development menu.',
-        icon: '/SGCDC.png',
-        badge: '/SGCDC.png',
-        data: { href },
-      })
-    } else {
-      const notification = new Notification('SafeGate Test Notification', {
-        body: 'This is a test notification from the development menu.',
-        icon: '/SGCDC.png',
-      })
-      notification.onclick = () => {
-        window.focus()
-        window.location.href = href
-        notification.close()
+    if (Notification.permission === 'default') {
+      try {
+        await Notification.requestPermission()
+      } catch (error) {
+        console.error('Notification permission request failed:', error)
       }
     }
-
-    toast({
-      title: 'Test notification sent',
-      description: 'Check the phone notification shade or lock screen.',
-    })
-  }, [normalizedRole, pathname, toast])
+  }, [])
 
   const showPushNotification = useCallback(async (notification: RoleNotification) => {
     if (typeof window === 'undefined' || !("Notification" in window)) {
@@ -140,7 +89,7 @@ export function Header() {
     } catch (error) {
       console.error('Failed to show push notification:', error)
     }
-  }, [normalizedRole])
+  }, [])
 
   const loadRoleNotifications = useCallback(async () => {
     if (!normalizedRole || !['teacher', 'admin', 'guidance', 'parent'].includes(normalizedRole)) {
@@ -173,12 +122,12 @@ export function Header() {
         return !alreadyRead && item.id > lastNotifiedId
       })
 
-      if (newestUnread && !deviceNotificationsEnabled) {
+      if (newestUnread) {
         await showPushNotification(newestUnread)
         localStorage.setItem(localStorageKey, String(newestUnread.id))
       }
     }
-  }, [deviceNotificationsEnabled, normalizedRole, showPushNotification])
+  }, [normalizedRole, showPushNotification])
 
   const markAllRoleNotificationsAsRead = useCallback(async () => {
     if (!normalizedRole || roleNotifications.length === 0) {
@@ -232,21 +181,6 @@ export function Header() {
 
     return () => clearInterval(interval)
   }, [loadRoleNotifications, mounted, normalizedRole])
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-      return
-    }
-
-    navigator.serviceWorker.ready
-      .then((registration) => registration.pushManager.getSubscription())
-      .then((subscription) => {
-        setDeviceNotificationsEnabled(Boolean(subscription))
-      })
-      .catch(() => {
-        setDeviceNotificationsEnabled(false)
-      })
-  }, [])
 
   useEffect(() => {
     if (!notificationMenuOpen) {
@@ -310,6 +244,9 @@ export function Header() {
               open={notificationMenuOpen}
               onOpenChange={(open) => {
                 setNotificationMenuOpen(open)
+                if (open) {
+                  void requestNotificationPermission()
+                }
               }}
             >
               <DropdownMenuTrigger asChild>
@@ -428,28 +365,6 @@ export function Header() {
                   )
                 })}
                 {mobileOverflowItems.length > 0 && <DropdownMenuSeparator className="my-1 sm:hidden dark:bg-slate-800" />}
-                <DropdownMenuItem
-                  className="mx-2 mb-1 cursor-pointer rounded-xl px-3 py-2 transition-all duration-150 hover:bg-orange-100 dark:hover:bg-slate-800"
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    void enablePhoneNotifications()
-                  }}
-                >
-                  <Smartphone className="mr-2 h-4 w-4" />
-                  {deviceNotificationsEnabled ? 'Phone notifications enabled' : 'Enable on this phone'}
-                </DropdownMenuItem>
-                {isDevMode && (
-                  <DropdownMenuItem
-                    className="mx-2 mb-1 cursor-pointer rounded-xl px-3 py-2 transition-all duration-150 hover:bg-orange-100 dark:hover:bg-slate-800"
-                    onSelect={(event) => {
-                      event.preventDefault()
-                      void sendTestNotification()
-                    }}
-                  >
-                    <Bell className="mr-2 h-4 w-4" />
-                    Send test notification
-                  </DropdownMenuItem>
-                )}
                 {normalizedRole === "admin" && (
                   <DropdownMenuItem asChild className="mx-2 hidden cursor-pointer rounded-xl px-3 py-2 transition-all duration-150 hover:bg-orange-100 dark:hover:bg-slate-800 sm:flex">
                     <Link href="/settings">
