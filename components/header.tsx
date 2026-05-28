@@ -11,7 +11,7 @@ import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
 import { ensureFridayParentWeeklyCheckInNotification, fetchRoleNotifications, getUnreadCount, markRoleNotificationsAsRead, resolveRoleNotificationHref, RoleNotification } from "@/lib/role-notifications"
 import { useTheme } from "@/components/theme-provider"
-import { enableDeviceNotifications, sendTestPushNotification } from '@/lib/push-notifications'
+import { enableDeviceNotifications } from '@/lib/push-notifications'
 import { useToast } from '@/hooks/use-toast'
 
 const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
@@ -70,18 +70,35 @@ export function Header() {
   }, [normalizedRole, toast, user?.full_name, user?.id, user?.username])
 
   const sendTestNotification = useCallback(async () => {
-    if (!normalizedRole) {
+    if (typeof window === 'undefined' || !normalizedRole) {
       return
     }
 
-    const result = await sendTestPushNotification(normalizedRole, pathname || '/')
-    const success = result.delivered > 0
+    const href = pathname || '/'
+    const registration = await navigator.serviceWorker?.getRegistration()
+
+    if (registration) {
+      await registration.showNotification('SafeGate Test Notification', {
+        body: 'This is a test notification from the development menu.',
+        icon: '/SGCDC.png',
+        badge: '/SGCDC.png',
+        data: { href },
+      })
+    } else {
+      const notification = new Notification('SafeGate Test Notification', {
+        body: 'This is a test notification from the development menu.',
+        icon: '/SGCDC.png',
+      })
+      notification.onclick = () => {
+        window.focus()
+        window.location.href = href
+        notification.close()
+      }
+    }
 
     toast({
-      title: success ? 'Test notification sent' : 'Test notification failed',
-      description: success
-        ? 'Check the phone notification shade or lock screen.'
-        : 'No enrolled phone subscription was found for this role.',
+      title: 'Test notification sent',
+      description: 'Check the phone notification shade or lock screen.',
     })
   }, [normalizedRole, pathname, toast])
 
