@@ -19,6 +19,32 @@ import { useTheme } from '@/components/theme-provider';
 
 type DateMode = 'all' | 'single' | 'range';
 
+type WeatherState = {
+  temp: number | null;
+  condition: string;
+  icon: typeof Cloud;
+  loading: boolean;
+};
+
+const FALLBACK_WEATHER_COORDS = {
+  latitude: 14.7948,
+  longitude: 120.2725,
+};
+
+function getWeatherDetails(code: number) {
+  if (code === 0) return { condition: 'Clear sky', icon: Sun };
+  if ([1, 2].includes(code)) return { condition: 'Mostly sunny', icon: Sun };
+  if (code === 3) return { condition: 'Mostly cloudy', icon: Cloud };
+  if ([45, 48].includes(code)) return { condition: 'Foggy', icon: Cloud };
+  if ([51, 53, 55, 56, 57].includes(code)) return { condition: 'Light drizzle', icon: Cloud };
+  if ([61, 63, 65, 66, 67].includes(code)) return { condition: 'Rainy', icon: Cloud };
+  if ([71, 73, 75, 77].includes(code)) return { condition: 'Snow', icon: Moon };
+  if ([80, 81, 82].includes(code)) return { condition: 'Showers', icon: Cloud };
+  if ([85, 86].includes(code)) return { condition: 'Snow showers', icon: Moon };
+  if ([95, 96, 99].includes(code)) return { condition: 'Thunderstorms', icon: Cloud };
+  return { condition: 'Mostly cloudy', icon: Cloud };
+}
+
 // Enforce consistent layout structure for dashboard
 export default function Dashboard() {
   const router = useRouter();
@@ -52,13 +78,12 @@ export default function Dashboard() {
   const [topStudents, setTopStudents] = useState<any[]>([]);
   const [topGrades, setTopGrades] = useState<any[]>([]);
   const [userRole, setUserRole] = useState<string>('admin');
-
-  // Weather data (mock)
-  const weather = {
-    temp: 26,
-    condition: 'Mostly cloudy',
-    icon: Cloud
-  };
+  const [weather, setWeather] = useState<WeatherState>({
+    temp: null,
+    condition: 'Loading weather...',
+    icon: Cloud,
+    loading: true,
+  });
 
   // Check authentication on mount
   useEffect(() => {
@@ -81,6 +106,69 @@ export default function Dashboard() {
     if (!isAuthenticated) return;
     fetchDashboardData();
   }, [dateMode, singleDate, rangeStart, rangeEnd, selectedLevel, isAuthenticated]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadWeather = async () => {
+      const fetchWeather = async (latitude: number, longitude: number) => {
+        const response = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto`
+        );
+        if (!response.ok) {
+          throw new Error('Failed to load weather');
+        }
+
+        const data = await response.json();
+        const current = data?.current;
+        const details = getWeatherDetails(Number(current?.weather_code ?? 3));
+
+        return {
+          temp: typeof current?.temperature_2m === 'number' ? Math.round(current.temperature_2m) : null,
+          condition: details.condition,
+          icon: details.icon,
+        };
+      };
+
+      try {
+        const weatherData = await new Promise<{ temp: number | null; condition: string; icon: typeof Cloud }>((resolve, reject) => {
+          if (!navigator.geolocation) {
+            fetchWeather(FALLBACK_WEATHER_COORDS.latitude, FALLBACK_WEATHER_COORDS.longitude).then(resolve).catch(reject);
+            return;
+          }
+
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              fetchWeather(position.coords.latitude, position.coords.longitude).then(resolve).catch(reject);
+            },
+            () => {
+              fetchWeather(FALLBACK_WEATHER_COORDS.latitude, FALLBACK_WEATHER_COORDS.longitude).then(resolve).catch(reject);
+            },
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 30 * 60 * 1000 }
+          );
+        });
+
+        if (!cancelled) {
+          setWeather({ ...weatherData, loading: false });
+        }
+      } catch {
+        if (!cancelled) {
+          setWeather({
+            temp: null,
+            condition: 'Weather unavailable',
+            icon: Cloud,
+            loading: false,
+          });
+        }
+      }
+    };
+
+    void loadWeather();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Fetch dashboard data with improved error handling and loading state
   const fetchDashboardData = async () => {
@@ -329,10 +417,15 @@ export default function Dashboard() {
             {/* Weather Widget - Compact on Mobile */}
             <div className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
               <div className="p-1.5 sm:p-2 rounded-lg bg-sky-100 dark:bg-sky-900/40">
-                <Cloud className="w-4 h-4 sm:w-5 sm:h-5 text-sky-600 dark:text-sky-400" />
+                {(() => {
+                  const WeatherIcon = weather.icon;
+                  return <WeatherIcon className="w-4 h-4 sm:w-5 sm:h-5 text-sky-600 dark:text-sky-400" />;
+                })()}
               </div>
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">{weather.temp}°C</p>
+                <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">
+                  {weather.loading || weather.temp === null ? '--' : `${weather.temp}°C`}
+                </p>
                 <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">{weather.condition}</p>
               </div>
             </div>

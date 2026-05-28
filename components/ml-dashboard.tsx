@@ -588,7 +588,7 @@ export function MLDashboard() {
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const studentsPerPage = 6;
+  const studentsPerPage = 3;
 
   // Use fixed student level options to match guidance review page
   const gradeOptions = [
