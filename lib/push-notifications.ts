@@ -1,5 +1,7 @@
 'use client'
 
+const DEFAULT_VAPID_PUBLIC_KEY = 'BPnwXZPg1TaxnJNsbEChBlCY4-2z97MF1qHBUxVZ2fR4GJ2oVzIn1isBfeQ2aID-qMdbEVbD5zqSibUrcNYXMFw'
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -14,6 +16,15 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 async function getPublicKey(): Promise<string> {
+  const envPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim()
+  if (envPublicKey) {
+    return envPublicKey
+  }
+
+  if (DEFAULT_VAPID_PUBLIC_KEY) {
+    return DEFAULT_VAPID_PUBLIC_KEY
+  }
+
   const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://safegate-pg3g.onrender.com').replace(/\/api\/?$/, '')
   const endpoints = [
     `${backendUrl}/api/push/public-key`,
