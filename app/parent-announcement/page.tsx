@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { CalendarDays, MapPin, Clock, Megaphone, BellRing, CheckCircle2, CalendarX2, TriangleAlert } from 'lucide-react';
+import { CalendarDays, MapPin, Clock, Megaphone, BellRing, CheckCircle2, CalendarX2, TriangleAlert, Info } from 'lucide-react';
 import ParentAnnouncementSkeleton from '@/components/parent-announcement-skeleton';
 import { fetchActiveSchoolEvents, ensureUpcomingSchoolEventReminders, type SchoolEvent } from '@/lib/school-events';
 import { toast } from '@/hooks/use-toast';
@@ -63,7 +63,11 @@ export default function ParentAnnouncementPage() {
   const [savingWillNotJoinEventId, setSavingWillNotJoinEventId] = useState<number | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<AnnouncementItem | null>(null);
-  const [filter, setFilter] = useState<'all' | 'announcement' | 'holiday' | 'cancellation'>('all');
+  const [detailsImagePreviewOpen, setDetailsImagePreviewOpen] = useState(false);
+  const [detailsDescriptionPreviewOpen, setDetailsDescriptionPreviewOpen] = useState(false);
+  const descriptionPreviewRef = useRef<HTMLParagraphElement | null>(null);
+  const [descriptionOverflowing, setDescriptionOverflowing] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'announcement' | 'holiday' | 'cancellation' | 'past-events'>('all');
   const [childSelectionOpen, setChildSelectionOpen] = useState(false);
   const [selectedChildren, setSelectedChildren] = useState<Set<string>>(new Set());
   const [pendingEventIntent, setPendingEventIntent] = useState<PendingEventIntent | null>(null);
@@ -199,7 +203,7 @@ export default function ParentAnnouncementPage() {
   const renderAnnouncementVisual = (item: AnnouncementItem, size: 'hero' | 'thumb' = 'hero') => {
     if (item.image_url) {
       return size === 'hero' ? (
-        <div className="h-52 w-full bg-slate-100 overflow-hidden lg:h-56">
+        <div className="h-40 sm:h-52 w-full bg-slate-100 overflow-hidden lg:h-56">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={item.image_url} alt={item.title} className="h-full w-full object-cover" />
         </div>
@@ -400,19 +404,128 @@ export default function ParentAnnouncementPage() {
     void load();
   }, [user?.username]);
 
-  const filteredAnnouncements = useMemo(() => {
-    if (filter === 'all') return announcements;
-    if (filter === 'announcement') return announcements.filter((item) => item.kind === 'announcement');
-    if (filter === 'holiday') return announcements.filter((item) => item.kind === 'holiday');
-    return announcements.filter((item) => item.kind === 'cancellation');
-  }, [announcements, filter]);
+  useEffect(() => {
+    const node = descriptionPreviewRef.current;
+    if (!node) {
+      setDescriptionOverflowing(false);
+      return;
+    }
 
-  const featured = announcements.length > 0 ? announcements[0] : null;
-  const others = useMemo(() => {
-    const supportItems = announcements.slice(1);
-    if (filter === 'all') return supportItems;
-    return supportItems.filter((item) => item.kind === filter);
-  }, [announcements, filter]);
+    const measureOverflow = () => {
+      try {
+        const clampHeight = node.clientHeight;
+        const clone = node.cloneNode(true) as HTMLElement;
+        clone.style.position = 'absolute';
+        clone.style.visibility = 'hidden';
+        clone.style.height = 'auto';
+        clone.style.maxHeight = 'none';
+        clone.style.display = 'block';
+        (clone.style as any).webkitLineClamp = 'unset';
+        (clone.style as any).webkitBoxOrient = 'vertical';
+        clone.style.width = `${node.clientWidth}px`;
+        document.body.appendChild(clone);
+        const fullHeight = clone.scrollHeight;
+        document.body.removeChild(clone);
+        setDescriptionOverflowing(fullHeight > clampHeight + 1);
+      } catch (e) {
+        setDescriptionOverflowing(node.scrollHeight > node.clientHeight + 1);
+      }
+    };
+
+    measureOverflow();
+    const ro = new ResizeObserver(measureOverflow);
+    ro.observe(node);
+    window.addEventListener('resize', measureOverflow);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measureOverflow);
+    };
+  }, [selectedAnnouncement?.id, selectedAnnouncement?.description, detailsOpen]);
+
+  // Insert clickable ellipsis when overflowing
+  useEffect(() => {
+    const node = descriptionPreviewRef.current;
+    if (!node) return;
+    const fullText = selectedAnnouncement?.description || '';
+
+    const escapeHtml = (str: string) =>
+      str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/\'/g, '&#39;');
+
+    if (!descriptionOverflowing) {
+      node.innerHTML = escapeHtml(fullText).replace(/\n/g, '<br/>');
+      return;
+    }
+
+    const clone = node.cloneNode(false) as HTMLElement;
+    clone.style.position = 'absolute';
+    clone.style.visibility = 'hidden';
+    clone.style.height = 'auto';
+    clone.style.maxHeight = 'none';
+    clone.style.display = 'block';
+    (clone.style as any).webkitLineClamp = 'unset';
+    (clone.style as any).webkitBoxOrient = 'vertical';
+    clone.style.width = `${node.clientWidth}px`;
+    document.body.appendChild(clone);
+
+    let low = 0;
+    let high = fullText.length;
+    let best = 0;
+    const clampHeight = node.clientHeight;
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      clone.textContent = fullText.slice(0, mid) + '…';
+      if (clone.scrollHeight <= clampHeight + 1) {
+        best = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    document.body.removeChild(clone);
+    const visible = fullText.slice(0, best).replace(/\s+$/,'');
+    const linkId = `pa_desc_more_${selectedAnnouncement?.id || 'x'}`;
+    node.innerHTML = `${escapeHtml(visible).replace(/\n/g, '<br/>')}<a id="${linkId}" href="#" class="ml-1 text-blue-600 hover:text-blue-700 dark:text-blue-300">…</a>`;
+
+    const link = document.getElementById(linkId);
+    if (link) {
+      const onClick = (e: Event) => {
+        e.preventDefault();
+        setDetailsDescriptionPreviewOpen(true);
+      };
+      link.addEventListener('click', onClick);
+      return () => link.removeEventListener('click', onClick);
+    }
+
+    return;
+  }, [descriptionOverflowing, selectedAnnouncement?.id, selectedAnnouncement?.description]);
+
+  const pastEventAnnouncements = useMemo(
+    () => announcements.filter((item) => isEventPassed(item.event_date, item.end_date)),
+    [announcements],
+  );
+
+  const currentAnnouncements = useMemo(
+    () => announcements.filter((item) => !isEventPassed(item.event_date, item.end_date)),
+    [announcements],
+  );
+
+  const filteredAnnouncements = useMemo(() => {
+    const visibleAnnouncements = filter === 'past-events' ? pastEventAnnouncements : currentAnnouncements;
+
+    if (filter === 'all' || filter === 'past-events') return visibleAnnouncements;
+    if (filter === 'announcement') return visibleAnnouncements.filter((item) => item.kind === 'announcement');
+    if (filter === 'holiday') return visibleAnnouncements.filter((item) => item.kind === 'holiday');
+    return visibleAnnouncements.filter((item) => item.kind === 'cancellation');
+  }, [currentAnnouncements, filter, pastEventAnnouncements]);
+
+  const featured = filteredAnnouncements.length > 0 ? filteredAnnouncements[0] : null;
+  const others = useMemo(() => filteredAnnouncements.slice(1), [filteredAnnouncements]);
 
   if (loading) {
     return (
@@ -560,6 +673,7 @@ export default function ParentAnnouncementPage() {
                 <Button variant={filter === 'announcement' ? 'default' : 'ghost'} size="sm" onClick={() => setFilter('announcement')}>Announcements</Button>
                 <Button variant={filter === 'holiday' ? 'default' : 'ghost'} size="sm" onClick={() => setFilter('holiday')}>Holidays</Button>
                 <Button variant={filter === 'cancellation' ? 'default' : 'ghost'} size="sm" onClick={() => setFilter('cancellation')}>Cancellations</Button>
+                <Button variant={filter === 'past-events' ? 'default' : 'ghost'} size="sm" onClick={() => setFilter('past-events')}>Past Events</Button>
               </div>
             </div>
 
@@ -571,17 +685,22 @@ export default function ParentAnnouncementPage() {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="overflow-hidden border-2 border-blue-200/60 bg-linear-to-br from-white to-blue-50 shadow-lg">
+              <Card className="overflow-hidden border-2 border-blue-200/60 bg-linear-to-br from-white to-blue-50 shadow-lg px-3 py-3 sm:px-6 sm:py-6 gap-4 sm:gap-6">
                 <div className="h-1.5 w-full bg-linear-to-r from-blue-500 to-cyan-500" />
                 {renderAnnouncementVisual(featured, 'hero')}
 
                 {featured.image_url ? (
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-2xl leading-tight">{featured.title}</CardTitle>
-                    <CardDescription className="text-slate-600 dark:text-slate-300">{featured.description || 'No description provided.'}</CardDescription>
+                  <CardHeader className="pb-1 px-0 sm:px-0">
+                    <CardTitle className="text-xl sm:text-2xl leading-tight">{featured.title}</CardTitle>
+                    <div
+                      className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-5 sm:leading-6 overflow-hidden"
+                      style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}
+                    >
+                      {featured.description || 'No description provided.'}
+                    </div>
                   </CardHeader>
                 ) : (
-                  <div className="px-6 pt-4 pb-2 flex items-center justify-between gap-3">
+                  <div className="px-0 pt-1 pb-0 flex items-center justify-between gap-3">
                     <Badge className={getAnnouncementStyle(featured.kind).badgeClass}>
                       {getAnnouncementStyle(featured.kind).accent}
                     </Badge>
@@ -589,26 +708,26 @@ export default function ParentAnnouncementPage() {
                   </div>
                 )}
 
-                <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <p className="text-xs uppercase text-slate-500">Date</p>
-                    <p className="text-sm flex items-center gap-2"><CalendarDays className="w-4 h-4" /> {formatEventDate(featured.event_date, featured.end_date)}</p>
+                <CardContent className="grid grid-cols-3 gap-2 sm:gap-3 px-0">
+                  <div className="min-w-0">
+                    <p className="text-[9px] sm:text-xs uppercase text-slate-500">Date</p>
+                    <p className="text-[11px] sm:text-sm flex items-center gap-1.5 min-w-0"><CalendarDays className="w-3.5 h-3.5 shrink-0" /><span className="truncate">{formatEventDate(featured.event_date, featured.end_date)}</span></p>
                   </div>
-                  <div>
-                    <p className="text-xs uppercase text-slate-500">Time</p>
-                    <p className="text-sm flex items-center gap-2"><Clock className="w-4 h-4" /> {featured.start_time ? formatTime12h(featured.start_time) : 'TBD'}{featured.end_time ? ` - ${formatTime12h(featured.end_time)}` : ''}</p>
+                  <div className="min-w-0">
+                    <p className="text-[9px] sm:text-xs uppercase text-slate-500">Time</p>
+                    <p className="text-[11px] sm:text-sm flex items-center gap-1.5 min-w-0"><Clock className="w-3.5 h-3.5 shrink-0" /><span className="truncate">{featured.start_time ? formatTime12h(featured.start_time) : 'TBD'}{featured.end_time ? ` - ${formatTime12h(featured.end_time)}` : ''}</span></p>
                   </div>
-                  <div>
-                    <p className="text-xs uppercase text-slate-500">Location</p>
-                    <p className="text-sm flex items-center gap-2"><MapPin className="w-4 h-4" /> {featured.location || 'School campus'}</p>
+                  <div className="min-w-0">
+                    <p className="text-[9px] sm:text-xs uppercase text-slate-500">Location</p>
+                    <p className="text-[11px] sm:text-sm flex items-center gap-1.5 min-w-0"><MapPin className="w-3.5 h-3.5 shrink-0" /><span className="truncate">{featured.location || 'School campus'}</span></p>
                   </div>
                 </CardContent>
-                <div className="px-6 pb-4 pt-2 border-t border-slate-200/50 space-y-2">
+                <div className="px-0 pb-1 pt-1 border-t border-slate-200/50 space-y-2">
                   <Button onClick={() => { setSelectedAnnouncement(featured); setDetailsOpen(true); }} variant="outline" className="w-full">Read more</Button>
                   {featured.source === 'event' ? (
                     <div className="flex gap-1.5">
                       <Button
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm"
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] sm:text-sm px-2 sm:px-4"
                         onClick={() => void handleNotifyJoin({
                           id: featured.event_id || 0,
                           title: featured.title,
@@ -629,7 +748,7 @@ export default function ParentAnnouncementPage() {
                         {joinNotifiedByEventId[featured.event_id || 0] ? 'Join sent' : isEventPassed(featured.event_date, featured.end_date) ? 'Event passed' : "I'll Join"}
                       </Button>
                       <Button
-                        className="flex-1 bg-orange-600 hover:bg-orange-700 text-white text-xs sm:text-sm"
+                        className="flex-1 bg-orange-600 hover:bg-orange-700 text-white text-[11px] sm:text-sm px-2 sm:px-4"
                         onClick={() => void handleNotifyWillNotJoin({
                           id: featured.event_id || 0,
                           title: featured.title,
@@ -752,55 +871,163 @@ export default function ParentAnnouncementPage() {
         </div>
 
         <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-2xl lg:max-w-2xl max-h-[92vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-bold">
-                {selectedAnnouncement?.title}
-              </DialogTitle>
-              <DialogDescription>
-                {selectedAnnouncement ? `${formatEventDate(selectedAnnouncement.event_date, selectedAnnouncement.end_date)} • Announcement details` : 'Announcement details'}
-              </DialogDescription>
-            </DialogHeader>
-            {selectedAnnouncement && (
-              <div className="space-y-4">
-                {selectedAnnouncement.image_url ? (
-                  <div className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={selectedAnnouncement.image_url} alt={selectedAnnouncement.title} className="w-full h-48 object-cover" />
+          <DialogContent className="w-[94vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl p-0 flex flex-col max-h-[86dvh] sm:max-h-[90vh] overflow-hidden border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+            <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 px-4 sm:px-6 pt-4 sm:pt-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 text-left">
+                  <div className="flex items-center gap-2">
+                    <Info className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                    <DialogTitle className="text-lg sm:text-xl font-bold">Announcement Details</DialogTitle>
                   </div>
-                ) : null}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                      <CalendarDays className="w-3 h-3" />
-                      Date
-                    </p>
-                    <p className="font-semibold text-foreground">{formatEventDate(selectedAnnouncement.event_date, selectedAnnouncement.end_date)}</p>
-                  </div>
-                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      Time
-                    </p>
-                    <p className="font-semibold text-foreground">{selectedAnnouncement.start_time ? formatTime12h(selectedAnnouncement.start_time) : 'TBD'}{selectedAnnouncement.end_time ? ` - ${formatTime12h(selectedAnnouncement.end_time)}` : ''}</p>
-                  </div>
-                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      Location
-                    </p>
-                    <p className="font-semibold text-foreground">{selectedAnnouncement.location || 'School campus'}</p>
-                  </div>
-                  <div className="col-span-1 sm:col-span-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                    <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
-                      <Megaphone className="w-3 h-3" />
-                      Description
-                    </p>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{selectedAnnouncement.description || 'No description provided.'}</p>
-                  </div>
+                  <DialogDescription className="mt-2 text-sm sm:text-base leading-relaxed">
+                    Full school event announcement for <span className="font-semibold text-slate-900 dark:text-white">{selectedAnnouncement?.title || 'selected announcement'}</span>
+                  </DialogDescription>
                 </div>
               </div>
+            </DialogHeader>
+            {selectedAnnouncement && (
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 space-y-4">
+                {selectedAnnouncement.image_url ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                    <button
+                      type="button"
+                      className="lg:col-span-3 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 relative text-left group"
+                      onClick={() => setDetailsImagePreviewOpen(true)}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={selectedAnnouncement.image_url} alt={selectedAnnouncement.title} className="w-full h-auto max-h-[58vh] object-contain" />
+                      <span className="absolute bottom-2 right-2 rounded-md bg-slate-900/70 px-2 py-1 text-[10px] text-white opacity-90 group-hover:opacity-100">
+                        Click to view full image
+                      </span>
+                    </button>
+
+                    <div className="lg:col-span-2 flex min-h-0 flex-col gap-3 lg:h-full">
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/40 p-3 space-y-2">
+                        <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Event Info</p>
+                        <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><CalendarDays className="w-4 h-4 text-slate-500" /> {formatEventDate(selectedAnnouncement.event_date, selectedAnnouncement.end_date)}</p>
+                        <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><Clock className="w-4 h-4 text-slate-500" /> {selectedAnnouncement.start_time ? formatTime12h(selectedAnnouncement.start_time) : 'TBD'}{selectedAnnouncement.end_time ? ` - ${formatTime12h(selectedAnnouncement.end_time)}` : ''}</p>
+                        <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><MapPin className="w-4 h-4 text-slate-500" /> {selectedAnnouncement.location || 'School campus'}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-sky-200 dark:border-sky-800/50 bg-white dark:bg-slate-900/40 p-4 flex min-h-0 flex-1 flex-col">
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Description</p>
+                        <div className="relative">
+                          <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                            {selectedAnnouncement.description && selectedAnnouncement.description.length > 250 ? (
+                              <>
+                                  {selectedAnnouncement.description.slice(0, 140).trimEnd()}
+                                <span className="text-blue-600 dark:text-blue-400">...</span>
+                              </>
+                            ) : (
+                              selectedAnnouncement.description || 'No description provided.'
+                            )}
+                          </p>
+                            {selectedAnnouncement.description && selectedAnnouncement.description.length > 140 && (
+                            <button
+                              onClick={() => setDetailsDescriptionPreviewOpen(true)}
+                              className="mt-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium inline-flex items-center gap-1"
+                            >
+                              Read more
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/40 p-3">
+                      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                        <div className="min-w-0 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                          <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
+                          <p className="mt-1 text-[12px] sm:text-sm leading-tight flex items-start gap-1.5 text-slate-800 dark:text-slate-100 min-w-0">
+                            <CalendarDays className="mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 shrink-0" />
+                            <span className="wrap-break-word">{formatEventDate(selectedAnnouncement.event_date, selectedAnnouncement.end_date)}</span>
+                          </p>
+                        </div>
+                        <div className="min-w-0 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                          <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Time</label>
+                          <p className="mt-1 text-[12px] sm:text-sm leading-tight flex items-start gap-1.5 text-slate-800 dark:text-slate-100 min-w-0">
+                            <Clock className="mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 shrink-0" />
+                            <span className="wrap-break-word">{selectedAnnouncement.start_time ? formatTime12h(selectedAnnouncement.start_time) : 'TBD'}{selectedAnnouncement.end_time ? ` - ${formatTime12h(selectedAnnouncement.end_time)}` : ''}</span>
+                          </p>
+                        </div>
+                        <div className="min-w-0 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                          <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Location</label>
+                          <p className="mt-1 text-[12px] sm:text-sm leading-tight flex items-start gap-1.5 text-slate-800 dark:text-slate-100 min-w-0">
+                            <MapPin className="mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 shrink-0" />
+                            <span className="wrap-break-word">{selectedAnnouncement.location || 'School campus'}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-sky-200 dark:border-sky-800/50 bg-white dark:bg-slate-900/40 p-4">
+                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Description</p>
+                      <div className="relative">
+                        <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                          {selectedAnnouncement.description && selectedAnnouncement.description.length > 250 ? (
+                            <>
+                                {selectedAnnouncement.description.slice(0, 140).trimEnd()}
+                              <span className="text-blue-600 dark:text-blue-400">...</span>
+                            </>
+                          ) : (
+                            selectedAnnouncement.description || 'No description provided.'
+                          )}
+                        </p>
+                          {selectedAnnouncement.description && selectedAnnouncement.description.length > 140 && (
+                          <button
+                            onClick={() => setDetailsDescriptionPreviewOpen(true)}
+                            className="mt-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium inline-flex items-center gap-1"
+                          >
+                            Read more
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={detailsImagePreviewOpen} onOpenChange={setDetailsImagePreviewOpen}>
+          <DialogContent className="w-[98vw] max-w-[98vw] sm:max-w-[96vw] h-[94vh] max-h-[94vh] p-2 sm:p-3 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-700">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Announcement Image Preview</DialogTitle>
+              <DialogDescription>Large preview of the selected announcement image.</DialogDescription>
+            </DialogHeader>
+            {selectedAnnouncement?.image_url ? (
+              <div className="w-full h-full flex items-center justify-center rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={selectedAnnouncement.image_url} alt={selectedAnnouncement.title} className="max-w-full max-h-[90vh] object-contain" />
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={detailsDescriptionPreviewOpen} onOpenChange={setDetailsDescriptionPreviewOpen}>
+          <DialogContent className="w-[92vw] sm:w-[94vw] lg:w-[96vw] max-w-5xl h-[82vh] max-h-[88vh] p-0 overflow-hidden bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-700">
+            <DialogHeader className="border-b border-slate-200 dark:border-slate-700 px-3 sm:px-6 py-3 sm:py-4">
+              <DialogTitle className="text-lg sm:text-xl font-bold">Announcement Description</DialogTitle>
+              <DialogDescription>
+                {selectedAnnouncement?.title ? `Full description for ${selectedAnnouncement.title}` : 'Full announcement description'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-3 sm:py-4">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-3 sm:p-5">
+                <p className="text-sm sm:text-base leading-7 text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                  {selectedAnnouncement?.description || 'No description provided.'}
+                </p>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
 

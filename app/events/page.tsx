@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
@@ -15,7 +15,8 @@ import { TimePickerInput } from '@/components/time-picker-input';
 import { DatePickerInput } from '@/components/date-picker-input';
 import { Skeleton } from '@/components/ui/skeleton';
 import EventsSkeleton from '@/components/events-skeleton';
-import { CalendarDays, MapPin, Clock, Pencil, Trash2, ImagePlus, Megaphone, Info, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CalendarDays, MapPin, Clock, Pencil, Trash2, ImagePlus, Megaphone, Info, ChevronLeft, ChevronRight, Archive } from 'lucide-react';
 import { fetchActiveSchoolEvents, createSchoolEvent, ensureUpcomingSchoolEventReminders, type SchoolEvent } from '@/lib/school-events';
 import { supabase } from '@/lib/supabase';
 import { formatTime12h } from '@/lib/time-format';
@@ -58,9 +59,15 @@ export default function EventsPage() {
   const [editingEvent, setEditingEvent] = useState<SchoolEvent | null>(null);
   const [saving, setSaving] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsImagePreviewOpen, setDetailsImagePreviewOpen] = useState(false);
+  const [detailsDescriptionPreviewOpen, setDetailsDescriptionPreviewOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<SchoolEvent | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<SchoolEvent | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveDate, setArchiveDate] = useState('');
+  const [archiveImageFilter, setArchiveImageFilter] = useState<'all' | 'with-image' | 'without-image'>('all');
+  const [archiveQuery, setArchiveQuery] = useState('');
   const [joinIntents, setJoinIntents] = useState<EventJoinIntent[]>([]);
   const [loadingJoinIntents, setLoadingJoinIntents] = useState(false);
   const [responsesPage, setResponsesPage] = useState(0);
@@ -86,9 +93,13 @@ export default function EventsPage() {
   const minimumInitialSkeletonMs = 1200;
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const showInitialSkeleton = loading && isInitialLoad;
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const eventsWithImagesCount = events.filter((item) => Boolean(item.image_url)).length;
-  const upcomingCount = events.filter((item) => (item.end_date || item.event_date || '') >= todayIso).length;
+  const todayIso = (() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  })();
   const classStartTime = '08:00';
   const classEndTime = '17:00';
 
@@ -99,6 +110,47 @@ export default function EventsPage() {
   const isEventDatePassed = (event: Pick<SchoolEvent, 'event_date' | 'end_date'> | string): boolean => {
     const endDate = typeof event === 'string' ? event : getEventEndDate(event);
     return endDate < todayIso;
+  };
+
+  const visibleEvents = events.filter((item) => !isEventDatePassed(item));
+  const eventsWithImagesCount = visibleEvents.filter((item) => Boolean(item.image_url)).length;
+  const upcomingCount = visibleEvents.length;
+
+  const archivedEvents = events
+    .filter((item) => isEventDatePassed(item))
+    .sort(
+      (a, b) =>
+        new Date((b.end_date || b.event_date || '') + 'T00:00:00').getTime() -
+        new Date((a.end_date || a.event_date || '') + 'T00:00:00').getTime()
+    );
+  const archivedEventsFiltered = archivedEvents.filter((event) => {
+    if (archiveDate) {
+      const startDate = event.event_date || '';
+      const endDate = event.end_date || event.event_date || '';
+      if (!(archiveDate >= startDate && archiveDate <= endDate)) {
+        return false;
+      }
+    }
+
+    if (archiveImageFilter === 'with-image' && !event.image_url) return false;
+    if (archiveImageFilter === 'without-image' && event.image_url) return false;
+
+    const query = archiveQuery.trim().toLowerCase();
+    if (query) {
+      const haystack = [event.title, event.description, event.location, event.event_date, event.end_date]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(query)) return false;
+    }
+
+    return true;
+  });
+
+  const clearArchiveFilters = () => {
+    setArchiveDate('');
+    setArchiveImageFilter('all');
+    setArchiveQuery('');
   };
 
   const formatEventDateRange = (event: Pick<SchoolEvent, 'event_date' | 'end_date'>): string => {
@@ -137,12 +189,19 @@ export default function EventsPage() {
   };
 
   useEffect(() => {
+    void loadEvents({ withMinimumDelay: true });
+  }, []);
+
+  useEffect(() => {
     setResponsesPage(0);
   }, [joinIntents, selectedEvent]);
 
   useEffect(() => {
-    void loadEvents({ withMinimumDelay: true });
-  }, []);
+    if (!detailsOpen) {
+      setDetailsImagePreviewOpen(false);
+      setDetailsDescriptionPreviewOpen(false);
+    }
+  }, [detailsOpen, selectedEvent?.id]);
 
   useEffect(() => {
     const loadJoinIntents = async () => {
@@ -474,6 +533,15 @@ export default function EventsPage() {
   const responsesPageSize = 5;
   const responsesTotalPages = Math.ceil(joinIntents.length / responsesPageSize) || 1;
   const paginatedJoinIntents = joinIntents.slice(responsesPage * responsesPageSize, (responsesPage + 1) * responsesPageSize);
+  const willJoinCount = joinIntents.filter((intent) => intent.status === 'join').length;
+  const willNotJoinCount = joinIntents.filter((intent) => intent.status !== 'join').length;
+
+  // Helper function to truncate description
+  const truncateDescription = (text: string, maxLength: number = 200) => {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return text.slice(0, maxLength).trim();
+  };
 
   return (
     <DashboardLayout>
@@ -489,10 +557,138 @@ export default function EventsPage() {
               </p>
             </div>
             {isAdmin && (
-              <Button onClick={openCreateDialog}>Add Event</Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setArchiveOpen(true)} className="gap-2">
+                  <Archive className="w-4 h-4" />
+                  Archive
+                </Button>
+                <Button onClick={openCreateDialog}>Add Event</Button>
+              </div>
             )}
           </div>
         )}
+
+        <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+          <DialogContent className="w-[96vw] sm:w-[92vw] max-w-4xl lg:max-w-4xl h-auto max-h-[92vh] overflow-hidden flex flex-col p-4 sm:p-6">
+            <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-3 sm:pb-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <Archive className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                    <DialogTitle className="text-lg sm:text-xl font-bold leading-tight">Archived Events</DialogTitle>
+                  </div>
+                  <DialogDescription className="mt-1.5 sm:mt-2 text-xs sm:text-sm leading-relaxed">
+                    Events whose date has already passed are shown here for reference.
+                  </DialogDescription>
+                </div>
+                {archivedEvents.length > 0 && (
+                  <Badge className="mt-3 sm:mt-0 mr-8 sm:mr-9 shrink-0 rounded-full bg-red-600 px-2.5 py-1 text-[10px] sm:text-xs font-semibold text-white shadow-lg shadow-red-500/25">
+                    {archivedEventsFiltered.length} Event{archivedEventsFiltered.length !== 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </div>
+            </DialogHeader>
+            <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-2.5 sm:p-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                <div className="space-y-1 col-span-2 sm:col-span-1">
+                  <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
+                  <DatePickerInput
+                    value={archiveDate}
+                    onChange={setArchiveDate}
+                    placeholder="dd/mm/yyyy"
+                    className="w-full h-9 px-2.5 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Type</label>
+                  <Select value={archiveImageFilter} onValueChange={(value) => setArchiveImageFilter(value as 'all' | 'with-image' | 'without-image')}>
+                    <SelectTrigger className="h-9 text-xs w-full">
+                      <SelectValue placeholder="All types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="with-image">With Image</SelectItem>
+                      <SelectItem value="without-image">Without Image</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Search</label>
+                  <Input
+                    value={archiveQuery}
+                    onChange={(e) => setArchiveQuery(e.target.value)}
+                    placeholder="Search title, location, description"
+                    className="h-9 text-xs w-full dark:bg-slate-900 dark:border-slate-600 dark:text-white dark:placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 px-1">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Showing {archivedEventsFiltered.length} of {archivedEvents.length} archived events
+                </p>
+                <Button type="button" variant="ghost" size="sm" onClick={clearArchiveFilters} className="h-8 px-3 text-xs">
+                  Clear filters
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 pt-4 space-y-3 sm:space-y-4">
+              {archivedEventsFiltered.length === 0 ? (
+                <Card className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-6 sm:p-8 text-center mt-4">
+                  <CardContent className="py-10 text-center text-muted-foreground">No archived events match the current filters.</CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+                  {archivedEventsFiltered.map((event) => (
+                    <Card key={event.id} className="overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/60">
+                      <div className="h-1.5 w-full bg-linear-to-r from-slate-500 to-slate-700" />
+                      {event.image_url ? (
+                        <div className="h-28 w-full bg-slate-100 dark:bg-slate-900 overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={event.image_url} alt={event.title} className="h-full w-full object-cover object-center" />
+                        </div>
+                      ) : null}
+                      <CardHeader className="pb-2 pt-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <CardTitle className="text-base font-bold text-slate-900 dark:text-white">{event.title}</CardTitle>
+                            <CardDescription className="mt-1 line-clamp-2 text-slate-600 dark:text-slate-400">{event.description || 'No description.'}</CardDescription>
+                          </div>
+                          <Badge variant="secondary" className="shrink-0">Past</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-2 pb-4">
+                        <p className="text-xs sm:text-sm flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                          <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500" />
+                          <span className="font-medium">{formatEventDateRange(event)}</span>
+                        </p>
+                        <p className="text-xs sm:text-sm flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                          <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500" />
+                          <span className="font-medium">{formatTime12h(event.start_time)} - {formatTime12h(event.end_time)}</span>
+                        </p>
+                        <p className="text-xs sm:text-sm flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                          <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500" />
+                          <span className="font-medium">{event.location || 'School campus'}</span>
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2 w-full"
+                          onClick={() => {
+                            setSelectedEvent(event);
+                            setDetailsOpen(true);
+                          }}
+                        >
+                          View Details
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="w-[90vw] sm:w-[88vw] max-w-4xl lg:max-w-3xl h-auto sm:h-[82vh] max-h-[88vh] overflow-hidden p-0 flex flex-col rounded-xl">
@@ -677,46 +873,124 @@ export default function EventsPage() {
             {selectedEvent && (
               <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 space-y-4">
                 {selectedEvent.image_url ? (
-                  <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={selectedEvent.image_url} alt={selectedEvent.title} className="w-full h-40 sm:h-64 object-cover" />
-                  </div>
-                ) : null}
+                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                    <button
+                      type="button"
+                      className="lg:col-span-3 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 relative text-left group"
+                      onClick={() => setDetailsImagePreviewOpen(true)}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={selectedEvent.image_url} alt={selectedEvent.title} className="w-full h-auto max-h-[58vh] object-contain" />
+                      <span className="absolute bottom-2 right-2 rounded-md bg-slate-900/70 px-2 py-1 text-[10px] text-white opacity-90 group-hover:opacity-100">
+                        Click to view full image
+                      </span>
+                    </button>
 
-                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/40 p-3">
-                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                    <div className="min-w-0 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
-                      <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
-                      <p className="mt-1 text-[12px] sm:text-sm leading-tight flex items-start gap-1.5 text-slate-800 dark:text-slate-100 min-w-0">
-                        <CalendarDays className="mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 shrink-0" />
-                        <span className="wrap-break-word">{formatEventDateRange(selectedEvent)}</span>
-                      </p>
-                    </div>
-                    <div className="min-w-0 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
-                      <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Time</label>
-                      <p className="mt-1 text-[12px] sm:text-sm leading-tight flex items-start gap-1.5 text-slate-800 dark:text-slate-100 min-w-0">
-                        <Clock className="mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 shrink-0" />
-                        <span className="wrap-break-word">{formatTime12h(selectedEvent.start_time)} - {formatTime12h(selectedEvent.end_time)}</span>
-                      </p>
-                    </div>
-                    <div className="min-w-0 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
-                      <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Location</label>
-                      <p className="mt-1 text-[12px] sm:text-sm leading-tight flex items-start gap-1.5 text-slate-800 dark:text-slate-100 min-w-0">
-                        <MapPin className="mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 shrink-0" />
-                        <span className="wrap-break-word">{selectedEvent.location || 'School campus'}</span>
-                      </p>
+                    <div className="lg:col-span-2 flex min-h-0 flex-col gap-3 lg:h-full">
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/40 p-3 space-y-2">
+                        <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Event Info</p>
+                        <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><CalendarDays className="w-4 h-4 text-slate-500" /> {formatEventDateRange(selectedEvent)}</p>
+                        <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><Clock className="w-4 h-4 text-slate-500" /> {formatTime12h(selectedEvent.start_time)} - {formatTime12h(selectedEvent.end_time)}</p>
+                        <p className="text-sm flex items-center gap-2 text-slate-800 dark:text-slate-100"><MapPin className="w-4 h-4 text-slate-500" /> {selectedEvent.location || 'School campus'}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-sky-200 dark:border-sky-800/50 bg-white dark:bg-slate-900/40 p-4 flex min-h-0 flex-1 flex-col">
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Description</p>
+                        <div className="relative">
+                          <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                            {selectedEvent.description && selectedEvent.description.length > 250 ? (
+                              <>
+                                {truncateDescription(selectedEvent.description, 250)}
+                                <span className="text-blue-600 dark:text-blue-400">...</span>
+                              </>
+                            ) : (
+                              selectedEvent.description || 'No description provided.'
+                            )}
+                          </p>
+                          {selectedEvent.description && selectedEvent.description.length > 250 && (
+                            <button
+                              onClick={() => setDetailsDescriptionPreviewOpen(true)}
+                              className="mt-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium inline-flex items-center gap-1"
+                            >
+                              Read more
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/40 p-3">
+                      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                        <div className="min-w-0 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                          <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</label>
+                          <p className="mt-1 text-[12px] sm:text-sm leading-tight flex items-start gap-1.5 text-slate-800 dark:text-slate-100 min-w-0">
+                            <CalendarDays className="mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 shrink-0" />
+                            <span className="wrap-break-word">{formatEventDateRange(selectedEvent)}</span>
+                          </p>
+                        </div>
+                        <div className="min-w-0 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                          <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Time</label>
+                          <p className="mt-1 text-[12px] sm:text-sm leading-tight flex items-start gap-1.5 text-slate-800 dark:text-slate-100 min-w-0">
+                            <Clock className="mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 shrink-0" />
+                            <span className="wrap-break-word">{formatTime12h(selectedEvent.start_time)} - {formatTime12h(selectedEvent.end_time)}</span>
+                          </p>
+                        </div>
+                        <div className="min-w-0 rounded-lg p-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                          <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Location</label>
+                          <p className="mt-1 text-[12px] sm:text-sm leading-tight flex items-start gap-1.5 text-slate-800 dark:text-slate-100 min-w-0">
+                            <MapPin className="mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 shrink-0" />
+                            <span className="wrap-break-word">{selectedEvent.location || 'School campus'}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
 
-                <div className="rounded-xl border border-sky-200 dark:border-sky-800/50 bg-white dark:bg-slate-900/40 p-4">
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Description</p>
-                  <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-                    {selectedEvent.description || 'No description provided.'}
-                  </p>
-                </div>
+                    <div className="rounded-xl border border-sky-200 dark:border-sky-800/50 bg-white dark:bg-slate-900/40 p-4">
+                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Description</p>
+                      <div className="relative">
+                        <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                          {selectedEvent.description && selectedEvent.description.length > 250 ? (
+                            <>
+                              {truncateDescription(selectedEvent.description, 250)}
+                              <span className="text-blue-600 dark:text-blue-400">...</span>
+                            </>
+                          ) : (
+                            selectedEvent.description || 'No description provided.'
+                          )}
+                        </p>
+                        {selectedEvent.description && selectedEvent.description.length > 250 && (
+                          <button
+                            onClick={() => setDetailsDescriptionPreviewOpen(true)}
+                            className="mt-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium inline-flex items-center gap-1"
+                          >
+                            Read more
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="rounded-xl border border-emerald-200 dark:border-emerald-800/50 bg-white dark:bg-slate-900/40 p-4">
                   <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Parent responses</p>
+                  <div className="mb-3 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/50 p-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Overall response count</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+                        Will join: {willJoinCount}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                        Will not join: {willNotJoinCount}
+                      </span>
+                    </div>
+                  </div>
                   {loadingJoinIntents ? (
                     <p className="text-sm text-slate-500 dark:text-slate-400">Loading responses...</p>
                   ) : joinIntents.length === 0 ? (
@@ -787,6 +1061,7 @@ export default function EventsPage() {
                           </div>
                         </div>
                       )}
+
                     </div>
                   )}
                   <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Parents who did not respond are treated as <span className="font-semibold">Will not join</span> by default.</p>
@@ -824,6 +1099,47 @@ export default function EventsPage() {
           </DialogContent>
         </Dialog>
 
+        <Dialog open={detailsImagePreviewOpen} onOpenChange={setDetailsImagePreviewOpen}>
+          <DialogContent
+            className="w-[98vw] max-w-[98vw] sm:max-w-[96vw] h-[94vh] max-h-[94vh] p-2 sm:p-3 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-700"
+            closeButtonClassName="top-3 right-3 h-11 w-11 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 shadow-lg"
+            closeIconClassName="size-6"
+          >
+            <DialogHeader className="sr-only">
+              <DialogTitle>Event Image Preview</DialogTitle>
+              <DialogDescription>Large preview of the selected event image.</DialogDescription>
+            </DialogHeader>
+            {selectedEvent?.image_url ? (
+              <div className="w-full h-full flex items-center justify-center rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={selectedEvent.image_url}
+                  alt={selectedEvent.title || 'Event image'}
+                  className="max-w-full max-h-[90vh] object-contain"
+                />
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={detailsDescriptionPreviewOpen} onOpenChange={setDetailsDescriptionPreviewOpen}>
+          <DialogContent className="w-[98vw] sm:w-[96vw] max-w-5xl h-[82vh] max-h-[88vh] p-0 overflow-hidden bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-700">
+            <DialogHeader className="border-b border-slate-200 dark:border-slate-700 px-4 sm:px-6 py-4">
+              <DialogTitle className="text-lg sm:text-xl font-bold">Event Description</DialogTitle>
+              <DialogDescription>
+                {selectedEvent?.title ? `Full description for ${selectedEvent.title}` : 'Full event description'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-4 sm:p-5">
+                <p className="text-sm sm:text-base leading-7 text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                  {selectedEvent?.description || 'No description provided.'}
+                </p>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {showInitialSkeleton ? (
           <EventsSkeleton />
         ) : (
@@ -834,13 +1150,8 @@ export default function EventsPage() {
             transition={{ duration: 0.5, ease: 'easeOut' }}
             className="space-y-5"
           >
-            {events.length === 0 ? (
-              <Card>
-                <CardContent className="py-10 text-center text-muted-foreground">No events posted yet.</CardContent>
-              </Card>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
                   {/* Total Events Card */}
                   <motion.div
                     initial={{ scale: 0.95, opacity: 0 }}
@@ -852,8 +1163,8 @@ export default function EventsPage() {
                       <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="text-[9px] sm:text-[10px] text-blue-600 dark:text-blue-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Total Events</p>
-                          <div className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400 leading-tight">{events.length}</div>
-                          <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">All posted school events</p>
+                          <div className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400 leading-tight">{visibleEvents.length}</div>
+                          <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Current and upcoming events</p>
                         </div>
                         <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white items-center justify-center shadow-md shadow-blue-500/20 dark:shadow-blue-500/10 group-hover:scale-105 transition-all duration-300">
                           <Megaphone className="w-6 h-6 sm:w-7 sm:h-7" />
@@ -918,7 +1229,7 @@ export default function EventsPage() {
                       <CardContent className="p-2.5 sm:p-4 flex items-start justify-between relative z-10 gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="text-[9px] sm:text-[10px] text-amber-600 dark:text-amber-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">No Images</p>
-                          <div className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400 leading-tight">{events.length - eventsWithImagesCount}</div>
+                          <div className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400 leading-tight">{visibleEvents.length - eventsWithImagesCount}</div>
                           <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Text-only event cards</p>
                         </div>
                         <div className="hidden sm:flex shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-linear-to-br from-amber-500 to-amber-600 text-white items-center justify-center shadow-md shadow-amber-500/20 dark:shadow-amber-500/10 group-hover:scale-105 transition-all duration-300">
@@ -928,88 +1239,95 @@ export default function EventsPage() {
                       <div className="h-1 w-full bg-linear-to-r from-amber-400 to-amber-600 dark:from-amber-500 dark:to-amber-700" />
                     </Card>
                   </motion.div>
-                </div>
+              </div>
+              {visibleEvents.length === 0 ? (
+                <Card>
+                  <CardContent className="py-10 text-center text-muted-foreground">
+                    {events.length === 0 ? 'No events posted yet.' : 'No current/upcoming events. Check Archive for past events.'}
+                  </CardContent>
+                </Card>
+              ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-5">
-              {events.sort((a, b) => {
-                const aDate = new Date(b.created_at || b.updated_at || '').getTime();
-                const bDate = new Date(a.created_at || a.updated_at || '').getTime();
-                return aDate - bDate;
-              }).map((event, index) => (
-                <motion.div
-                  key={event.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05, duration: 0.3 }}
-                >
-                  <Card className="overflow-hidden border-0 bg-linear-to-br from-white to-blue-50 dark:from-slate-900/70 dark:to-blue-950/20 shadow-lg hover:shadow-2xl transition-all duration-300 group sm:hover:scale-105 h-full">
-                    <div className="h-1.5 w-full bg-linear-to-r from-blue-500 to-cyan-500" />
-                    {event.image_url ? (
-                      <div className="h-28 sm:h-44 w-full bg-slate-100 dark:bg-slate-900 overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={event.image_url} alt={event.title} className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                      </div>
-                    ) : (
-                      <div className="h-28 sm:h-44 w-full flex items-center justify-center bg-linear-to-br from-blue-100 to-cyan-100 dark:from-blue-950/40 dark:to-cyan-950/40 text-blue-700 dark:text-blue-300">
-                        <Megaphone className="w-8 h-8 sm:w-10 sm:h-10 opacity-70 group-hover:scale-125 transition-transform duration-300" />
-                      </div>
-                    )}
-                    <CardHeader className="pb-1 sm:pb-2 pt-3 sm:pt-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <CardTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">{event.title}</CardTitle>
-                          <CardDescription className="mt-1 line-clamp-1 sm:line-clamp-2 text-slate-600 dark:text-slate-400">{event.description || 'No description.'}</CardDescription>
-                        </div>
-                        <div className="hidden sm:flex w-8 h-8 rounded-lg bg-blue-100/80 dark:bg-blue-900/40 items-center justify-center shrink-0 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/60 transition-colors">
-                          <Megaphone className="w-4 h-4 text-blue-600 dark:text-blue-300" />
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-2 pb-3 sm:pb-4">
-                      <div className="space-y-1">
-                        <p className="text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 text-slate-700 dark:text-slate-300">
-                          <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" /> 
-                          <span className="font-medium">{formatEventDateRange(event)}</span>
-                        </p>
-                        <p className="text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 text-slate-700 dark:text-slate-300">
-                          <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" /> 
-                          <span className="font-medium">{formatTime12h(event.start_time)} - {formatTime12h(event.end_time)}</span>
-                        </p>
-                        <p className="text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 text-slate-700 dark:text-slate-300">
-                          <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" /> 
-                          <span className="font-medium">{event.location || 'School campus'}</span>
-                        </p>
-                      </div>
-                      <div className="mt-2 sm:mt-3 flex items-center justify-between gap-2">
-                        <Button size="sm" className="flex-1 bg-blue-500 hover:bg-blue-600 text-white transition-all duration-200" onClick={() => { setSelectedEvent(event); setDetailsOpen(true); }}>
-                          View Details
-                        </Button>
-
-                        {isAdmin && (
-                          <div className="flex items-center gap-1.5 sm:gap-2">
-                            <div title={isEventDatePassed(event) ? 'Cannot edit past events' : 'Edit event'}>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="h-8 w-8 sm:h-9 sm:w-9 p-0 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                onClick={() => openEditDialog(event)}
-                                disabled={isEventDatePassed(event)}
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                            </div>
-                            <Button size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 flex items-center justify-center rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors" onClick={() => openDeleteConfirm(event)}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                  {[...visibleEvents].sort((a, b) => {
+                    const aDate = new Date(b.created_at || b.updated_at || '').getTime();
+                    const bDate = new Date(a.created_at || a.updated_at || '').getTime();
+                    return aDate - bDate;
+                  }).map((event, index) => (
+                    <motion.div
+                      key={event.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05, duration: 0.3 }}
+                    >
+                      <Card className="overflow-hidden border-0 bg-linear-to-br from-white to-blue-50 dark:from-slate-900/70 dark:to-blue-950/20 shadow-lg hover:shadow-2xl transition-all duration-300 group sm:hover:scale-105 h-full">
+                        <div className="h-1.5 w-full bg-linear-to-r from-blue-500 to-cyan-500" />
+                        {event.image_url ? (
+                          <div className="h-28 sm:h-44 w-full bg-slate-100 dark:bg-slate-900 overflow-hidden">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={event.image_url} alt={event.title} className="h-full w-full object-cover object-center" />
+                          </div>
+                        ) : (
+                          <div className="h-28 sm:h-44 w-full flex items-center justify-center bg-linear-to-br from-blue-100 to-cyan-100 dark:from-blue-950/40 dark:to-cyan-950/40 text-blue-700 dark:text-blue-300">
+                            <Megaphone className="w-8 h-8 sm:w-10 sm:h-10 opacity-70 group-hover:scale-125 transition-transform duration-300" />
                           </div>
                         )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-              </>
-            )}
+                        <CardHeader className="pb-1 sm:pb-2 pt-3 sm:pt-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <CardTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">{event.title}</CardTitle>
+                              <CardDescription className="mt-1 line-clamp-1 sm:line-clamp-2 text-slate-600 dark:text-slate-400">{event.description || 'No description.'}</CardDescription>
+                            </div>
+                            <div className="hidden sm:flex w-8 h-8 rounded-lg bg-blue-100/80 dark:bg-blue-900/40 items-center justify-center shrink-0 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/60 transition-colors">
+                              <Megaphone className="w-4 h-4 text-blue-600 dark:text-blue-300" />
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-2 pb-3 sm:pb-4">
+                          <div className="space-y-1">
+                            <p className="text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 text-slate-700 dark:text-slate-300">
+                              <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" />
+                              <span className="font-medium">{formatEventDateRange(event)}</span>
+                            </p>
+                            <p className="text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 text-slate-700 dark:text-slate-300">
+                              <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" />
+                              <span className="font-medium">{formatTime12h(event.start_time)} - {formatTime12h(event.end_time)}</span>
+                            </p>
+                            <p className="text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 text-slate-700 dark:text-slate-300">
+                              <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" />
+                              <span className="font-medium">{event.location || 'School campus'}</span>
+                            </p>
+                          </div>
+                          <div className="mt-2 sm:mt-3 flex items-center justify-between gap-2">
+                            <Button size="sm" className="flex-1 bg-blue-500 hover:bg-blue-600 text-white transition-all duration-200" onClick={() => { setSelectedEvent(event); setDetailsOpen(true); }}>
+                              View Details
+                            </Button>
+
+                            {isAdmin && (
+                              <div className="flex items-center gap-1.5 sm:gap-2">
+                                <div title={isEventDatePassed(event) ? 'Cannot edit past events' : 'Edit event'}>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 w-8 sm:h-9 sm:w-9 p-0 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    onClick={() => openEditDialog(event)}
+                                    disabled={isEventDatePassed(event)}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                                <Button size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 flex items-center justify-center rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors" onClick={() => openDeleteConfirm(event)}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </>
           </motion.div>
         )}
       </div>

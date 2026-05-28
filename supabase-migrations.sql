@@ -221,6 +221,79 @@ ALTER TABLE student_schedules
   ON UPDATE CASCADE
   ON DELETE CASCADE;
 
+-- Ensure all other foreign keys referencing students(lrn) will cascade updates
+ALTER TABLE attendance_logs
+  DROP CONSTRAINT IF EXISTS attendance_logs_student_lrn_fkey;
+ALTER TABLE attendance_logs
+  ADD CONSTRAINT attendance_logs_student_lrn_fkey
+  FOREIGN KEY (student_lrn)
+  REFERENCES students(lrn)
+  ON UPDATE CASCADE
+  ON DELETE CASCADE;
+
+ALTER TABLE parent_attendance_notes
+  DROP CONSTRAINT IF EXISTS parent_attendance_notes_student_lrn_fkey;
+ALTER TABLE parent_attendance_notes
+  ADD CONSTRAINT parent_attendance_notes_student_lrn_fkey
+  FOREIGN KEY (student_lrn)
+  REFERENCES students(lrn)
+  ON UPDATE CASCADE
+  ON DELETE CASCADE;
+
+ALTER TABLE student_attendance_schedules
+  DROP CONSTRAINT IF EXISTS student_attendance_schedules_student_lrn_fkey;
+ALTER TABLE student_attendance_schedules
+  ADD CONSTRAINT student_attendance_schedules_student_lrn_fkey
+  FOREIGN KEY (student_lrn)
+  REFERENCES students(lrn)
+  ON UPDATE CASCADE
+  ON DELETE CASCADE;
+
+ALTER TABLE summer_enrollments
+  DROP CONSTRAINT IF EXISTS summer_enrollments_student_lrn_fkey;
+ALTER TABLE summer_enrollments
+  ADD CONSTRAINT summer_enrollments_student_lrn_fkey
+  FOREIGN KEY (student_lrn)
+  REFERENCES students(lrn)
+  ON UPDATE CASCADE
+  ON DELETE CASCADE;
+
+ALTER TABLE attendance_patterns
+  DROP CONSTRAINT IF EXISTS attendance_patterns_student_lrn_fkey;
+ALTER TABLE attendance_patterns
+  ADD CONSTRAINT attendance_patterns_student_lrn_fkey
+  FOREIGN KEY (student_lrn)
+  REFERENCES students(lrn)
+  ON UPDATE CASCADE
+  ON DELETE CASCADE;
+
+ALTER TABLE absence_predictions
+  DROP CONSTRAINT IF EXISTS absence_predictions_student_lrn_fkey;
+ALTER TABLE absence_predictions
+  ADD CONSTRAINT absence_predictions_student_lrn_fkey
+  FOREIGN KEY (student_lrn)
+  REFERENCES students(lrn)
+  ON UPDATE CASCADE
+  ON DELETE CASCADE;
+
+ALTER TABLE student_attendance_summary
+  DROP CONSTRAINT IF EXISTS student_attendance_summary_student_lrn_fkey;
+ALTER TABLE student_attendance_summary
+  ADD CONSTRAINT student_attendance_summary_student_lrn_fkey
+  FOREIGN KEY (student_lrn)
+  REFERENCES students(lrn)
+  ON UPDATE CASCADE
+  ON DELETE CASCADE;
+
+ALTER TABLE behavioral_events
+  DROP CONSTRAINT IF EXISTS behavioral_events_student_lrn_fkey;
+ALTER TABLE behavioral_events
+  ADD CONSTRAINT behavioral_events_student_lrn_fkey
+  FOREIGN KEY (student_lrn)
+  REFERENCES students(lrn)
+  ON UPDATE CASCADE
+  ON DELETE CASCADE;
+
 -- ============================================================================
 -- DATABASE INDEXES FOR PERFORMANCE
 -- ============================================================================

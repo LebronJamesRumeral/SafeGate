@@ -219,7 +219,7 @@ export default function MasterlistPage() {
   const undergradCount = students.filter(s => (s.status || 'active') === 'undergrad').length;
 
   const exportMasterlist = async () => {
-    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Status', 'Parent Name', 'Parent Contact', 'Parent Email', 'Additional Parent Name', 'Additional Parent Contact', 'Address'];
+    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Status', 'Parent/Guardian 1 Name', 'Parent/Guardian 1 Contact', 'Parent/Guardian 1 Email', 'Parent/Guardian 2 Name', 'Parent/Guardian 2 Contact', 'Address'];
     const exportRows = filteredStudents.map((student) => {
       const age = shouldShowAge(student.level) ? calculateAgeWithDecimal(student.birthday) : 'N/A';
       const riskLevel = student.riskLevel || '';
@@ -232,11 +232,11 @@ export default function MasterlistPage() {
         Level: student.level || '',
         'Risk Level': riskLevel ? String(riskLevel).toUpperCase() : '',
         Status: student.status || 'active',
-        'Parent Name': student.parentName || '',
-        'Parent Contact': student.parentContact || '',
-        'Parent Email': student.parentEmail || '',
-        'Additional Parent Name': student.parent2Name || '',
-        'Additional Parent Contact': student.parent2Contact || '',
+        'Parent/Guardian 1 Name': student.parentName || '',
+        'Parent/Guardian 1 Contact': student.parentContact || '',
+        'Parent/Guardian 1 Email': student.parentEmail || '',
+        'Parent/Guardian 2 Name': student.parent2Name || '',
+        'Parent/Guardian 2 Contact': student.parent2Contact || '',
         Address: student.address || '',
       };
     });
@@ -628,7 +628,7 @@ export default function MasterlistPage() {
           <div className="col-span-1 sm:col-span-2 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border-2 border-blue-200 dark:border-blue-900/40">
             <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 sm:mb-2 flex items-center gap-1">
               <Mail className="w-3 h-3" />
-              Primary Parent/Guardian
+              Parent/Guardian 1
             </p>
             <p className="text-sm sm:text-base font-semibold text-foreground truncate">{selectedStudent?.parentName}</p>
             {selectedStudent?.parentContact && (
@@ -648,7 +648,7 @@ export default function MasterlistPage() {
             <div className="col-span-1 sm:col-span-2 p-2 sm:p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border-2 border-amber-200 dark:border-amber-900/40">
               <p className="text-[11px] sm:text-xs text-amber-700 dark:text-amber-300 mb-1 sm:mb-2 flex items-center gap-1 font-semibold">
                 <Mail className="w-3 h-3" />
-                Additional Parent/Guardian
+                Parent/Guardian 2
               </p>
               <p className="text-sm sm:text-base font-semibold text-foreground truncate">{selectedStudent?.parent2Name}</p>
               {selectedStudent?.parent2Contact && (
@@ -1100,8 +1100,8 @@ export default function MasterlistPage() {
                     ) : (
                       paginatedStudents.map((student, index) => (
                         <TableRow key={student.id} className="border-border/50 hover:bg-muted/50 transition-colors animate-fade-in-up" style={{ animationDelay: `${0.3 + index * 0.05}s` }}>
-                          <TableCell className="font-semibold text-foreground">{student.lrn}</TableCell>
-                          <TableCell className="font-semibold text-foreground">
+                          <TableCell className="text-foreground">{student.lrn}</TableCell>
+                          <TableCell className="text-foreground">
                             <div className="flex items-center gap-2">
                               <span>{student.name}</span>
                               {student.is_special_case && (
@@ -1129,16 +1129,16 @@ export default function MasterlistPage() {
                           </TableCell>
                           <TableCell className="text-muted-foreground hidden lg:table-cell">
                             <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2 text-xs font-medium hover:text-foreground transition-colors">
+                              <div className="flex items-center gap-2 text-xs hover:text-foreground transition-colors">
                                 <Mail className="h-3.5 w-3.5 text-primary" />
                                 <span className="truncate">{student.parentName}</span>
                               </div>
-                              <div className="flex items-center gap-2 text-xs font-medium hover:text-foreground transition-colors">
+                              <div className="flex items-center gap-2 text-xs hover:text-foreground transition-colors">
                                 <Phone className="h-3.5 w-3.5 text-primary" />
                                 {student.parentContact}
                               </div>
                               {student.parentEmail && (
-                                <div className="flex items-center gap-2 text-xs font-medium hover:text-foreground transition-colors">
+                                <div className="flex items-center gap-2 text-xs hover:text-foreground transition-colors">
                                   <Mail className="h-3.5 w-3.5 text-primary" />
                                   <span className="truncate">{student.parentEmail}</span>
                                 </div>

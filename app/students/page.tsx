@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { TimePickerInput } from '@/components/time-picker-input';
 import { DatePickerInput } from '@/components/date-picker-input';
 import { 
@@ -61,7 +62,7 @@ import {
   ArrowRightLeft
   , ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
@@ -103,7 +104,7 @@ import {
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip, 
+  Tooltip as RechartsTooltip, 
   Legend, 
   ResponsiveContainer,
   PieChart as RePieChart,
@@ -217,6 +218,36 @@ function isDateInSummerEnrollment(enrollment: { start_date: string; end_date: st
   const end = new Date(enrollment.end_date);
   end.setHours(0, 0, 0, 0);
   return d >= start && d <= end;
+}
+
+function FieldLabelWithTooltip({
+  children,
+  tooltip,
+  className = 'text-sm font-medium',
+}: {
+  children: ReactNode;
+  tooltip: string;
+  className?: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <label className={className}>{children}</label>
+      <UiTooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+            aria-label={typeof children === 'string' ? `${children} help` : 'Field help'}
+          >
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-left z-9999">
+          {tooltip}
+        </TooltipContent>
+      </UiTooltip>
+    </div>
+  );
 }
 
 // Utility to generate a random temporary LRN
@@ -1707,7 +1738,107 @@ export default function StudentsPage() {
         console.warn('Unable to snapshot current school year before advancement:', previousSchoolYearError.message);
       }
 
-      // 1. Advance students to next grade or graduate
+      // Create new school year record first. If the configured start date
+      // is in the future we will schedule advancing students to the next
+      // grade on that date (the day after the previous end_date). If the
+      // start date is today or in the past, perform the immediate advancement.
+      const startYear = new Date(schoolYearStartDate).getFullYear();
+      const endYear = new Date(schoolYearEndDate).getFullYear();
+      const label = `S.Y. ${startYear}-${endYear}`;
+
+      console.log('Creating school year (possibly scheduling advancement):', {
+        label,
+        start_date: schoolYearStartDate,
+        end_date: schoolYearEndDate,
+        is_current: true,
+      });
+
+      const { data: insertData, error: insertError } = await db
+        .from('school_years')
+        .insert({
+          label,
+          start_date: schoolYearStartDate,  // YYYY-MM-DD
+          end_date: schoolYearEndDate,      // YYYY-MM-DD
+          is_current: true,
+        })
+        .select();
+
+      if (insertError) {
+        console.warn(`Warning: Failed to create school year: ${insertError.message}`);
+      }
+
+      if (insertData && insertData.length > 0) {
+        console.log('School year created successfully:', insertData);
+      } else {
+        console.warn('School year insert returned no data - may not have been created');
+      }
+
+      const newSchoolYearId = insertData?.[0]?.id;
+
+      // Decide whether to perform immediate student advancement or schedule it
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const startDateObj = new Date(schoolYearStartDate);
+      startDateObj.setHours(0, 0, 0, 0);
+
+      const shouldAdvanceNow = startDateObj <= today;
+
+      if (!shouldAdvanceNow) {
+        // Don't update student records yet. We'll persist undo/snapshot so admin
+        // can undo or run advancement later. Notify the user that advancement
+        // is scheduled for the start date.
+        toast({
+          title: 'School Year Created',
+          description: `Advancement scheduled on ${schoolYearStartDate}. Students will be advanced automatically on that date.`,
+        });
+
+        // Persist undo state as before so admin can still undo prior to execution
+        const undoExpiresAt = new Date(Date.now() + schoolYearUndoWindowMs).toISOString();
+
+        try {
+          const { data: insertedUndo, error: insertUndoError } = await db
+            .from('school_year_undos')
+            .insert({
+              expires_at: undoExpiresAt,
+              previous_school_year: previousSchoolYearRow || null,
+              previous_students: students,
+              new_school_year_id: newSchoolYearId ?? null,
+              new_school_year_label: label,
+              is_active: true,
+            })
+            .select()
+            .maybeSingle();
+
+          if (insertUndoError) {
+            console.warn('Failed to persist undo state to DB:', insertUndoError.message);
+          }
+
+          const undoPayload: SchoolYearUndoState = {
+            id: insertedUndo?.id ?? undefined,
+            createdAt: new Date().toISOString(),
+            expiresAt: undoExpiresAt,
+            previousSchoolYear: (previousSchoolYearRow as SchoolYearRecord | null) || null,
+            previousStudents: students,
+            newSchoolYearId: newSchoolYearId ?? null,
+            newSchoolYearLabel: label,
+          };
+
+          setPreviousStudentData(students);
+          setUndoAvailable(true);
+          setUndoDeadline(undoExpiresAt);
+          setUndoState(undoPayload);
+        } catch (err) {
+          console.warn('Error creating DB undo payload:', err);
+        }
+
+        // Refresh school metadata but don't change student levels yet
+        await loadSchoolYearMetadata();
+        await fetchStudents();
+        setPendingSchoolYearConfirmation(false);
+        return;
+      }
+
+      // Otherwise, proceed to advance students immediately
       let processed = 0;
       for (const student of students) {
         let newLevel = '';
@@ -1749,39 +1880,6 @@ export default function StudentsPage() {
         processed++;
         setProcessedCount(processed);
       }
-      // 2. Create new school year record
-      const startYear = new Date(schoolYearStartDate).getFullYear();
-      const endYear = new Date(schoolYearEndDate).getFullYear();
-      const label = `S.Y. ${startYear}-${endYear}`;
-      
-      console.log('Creating school year:', {
-        label,
-        start_date: schoolYearStartDate,
-        end_date: schoolYearEndDate,
-        is_current: true,
-      });
-      
-      const { data: insertData, error: insertError } = await db
-        .from('school_years')
-        .insert({
-          label,
-          start_date: schoolYearStartDate,  // Already in YYYY-MM-DD format
-          end_date: schoolYearEndDate,      // Already in YYYY-MM-DD format
-          is_current: true,
-        })
-        .select();
-      
-      if (insertError) {
-        console.warn(`Warning: Failed to create school year: ${insertError.message}`);
-      }
-      
-      if (insertData && insertData.length > 0) {
-        console.log('School year created successfully:', insertData);
-      } else {
-        console.warn('School year insert returned no data - may not have been created');
-      }
-
-      const newSchoolYearId = insertData?.[0]?.id;
       
       // 3. Mark previous school years as not current
       let updateQuery = db
@@ -3759,7 +3857,7 @@ export default function StudentsPage() {
   const summerShowingTo = Math.min(summerCurrentPage * PAGE_SIZE, filteredSummerStudents.length);
 
   const exportToCSV = async () => {
-    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Parent Name', 'Parent Contact', 'Parent Email', 'Parent/Guardian 2 Name', 'Parent/Guardian 2 Contact', 'Address', 'Status'];
+    const headers = ['LRN', 'Name', 'Gender', 'Birthday', 'Age', 'Level', 'Risk Level', 'Parent/Guardian 1 Name', 'Parent/Guardian 1 Contact', 'Parent/Guardian 1 Email', 'Parent/Guardian 2 Name', 'Parent/Guardian 2 Contact', 'Address', 'Status'];
     const exportRows = filteredStudents.map((student) => {
       const age = shouldShowAge(student.level) ? calculateAgeWithDecimal(student.birthday) : 'N/A';
       const riskLevel = student.riskLevel || '';
@@ -3771,9 +3869,9 @@ export default function StudentsPage() {
         Age: age,
         Level: student.level || '',
         'Risk Level': riskLevel ? String(riskLevel).toUpperCase() : '',
-        'Parent Name': student.parentName || '',
-        'Parent Contact': student.parentContact || '',
-        'Parent Email': student.parentEmail || '',
+        'Parent/Guardian 1 Name': student.parentName || '',
+        'Parent/Guardian 1 Contact': student.parentContact || '',
+        'Parent/Guardian 1 Email': student.parentEmail || '',
         'Parent/Guardian 2 Name': (student as any).parent2Name || '',
         'Parent/Guardian 2 Contact': (student as any).parent2Contact || '',
         Address: student.address || '',
@@ -4206,11 +4304,11 @@ export default function StudentsPage() {
                       <div className="space-y-4 mt-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="space-y-1.5">
-                            <label className="text-sm font-medium">Summer Start Date</label>
+                            <FieldLabelWithTooltip tooltip="First day of the summer class enrollment.">Summer Start Date</FieldLabelWithTooltip>
                             <Input type="date" value={summerStartDate} onChange={(e) => setSummerStartDate(e.target.value)} />
                           </div>
                           <div className="space-y-1.5">
-                            <label className="text-sm font-medium">Summer End Date</label>
+                            <FieldLabelWithTooltip tooltip="Last day of the summer class enrollment.">Summer End Date</FieldLabelWithTooltip>
                             <Input type="date" value={summerEndDate} onChange={(e) => setSummerEndDate(e.target.value)} />
                           </div>
                         </div>
@@ -4327,11 +4425,11 @@ export default function StudentsPage() {
                     <div className="space-y-4 mt-4">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <label className="text-sm font-medium">Summer Start Date</label>
+                          <FieldLabelWithTooltip tooltip="First day of the summer class enrollment.">Summer Start Date</FieldLabelWithTooltip>
                           <Input type="date" value={summerStartDate} onChange={(e) => setSummerStartDate(e.target.value)} />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-sm font-medium">Summer End Date</label>
+                          <FieldLabelWithTooltip tooltip="Last day of the summer class enrollment.">Summer End Date</FieldLabelWithTooltip>
                           <Input type="date" value={summerEndDate} onChange={(e) => setSummerEndDate(e.target.value)} />
                         </div>
                       </div>
@@ -4489,9 +4587,7 @@ export default function StudentsPage() {
                           <div className="space-y-3">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div className="space-y-1.5">
-                                <label htmlFor="school-year-start" className="text-sm font-medium text-foreground">
-                                  School Year Start Date
-                                </label>
+                                <FieldLabelWithTooltip tooltip="Start date for the new school year (used for scheduling advancement)." className="text-sm font-medium text-foreground">School Year Start Date</FieldLabelWithTooltip>
                                 <Input
                                   id="school-year-start"
                                   type="date"
@@ -4501,9 +4597,7 @@ export default function StudentsPage() {
                                 />
                               </div>
                               <div className="space-y-1.5">
-                                <label htmlFor="school-year-end" className="text-sm font-medium text-foreground">
-                                  School Year End Date
-                                </label>
+                                <FieldLabelWithTooltip tooltip="End date for the new school year (used for scheduling advancement)." className="text-sm font-medium text-foreground">School Year End Date</FieldLabelWithTooltip>
                                 <Input
                                   id="school-year-end"
                                   type="date"
@@ -4622,7 +4716,7 @@ export default function StudentsPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">LRN *</label>
+                    <FieldLabelWithTooltip tooltip="Learner Reference Number. You can use letters, numbers, spaces, and hyphens." >LRN *</FieldLabelWithTooltip>
                     <Input
                       value={newStudentForm.lrn}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, lrn: e.target.value }))}
@@ -4632,7 +4726,7 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Last Name *</label>
+                    <FieldLabelWithTooltip tooltip="The student's family name used for sorting and search.">Last Name *</FieldLabelWithTooltip>
                     <Input
                       value={newStudentForm.lastName}
                       onChange={(e) => {
@@ -4650,7 +4744,7 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">First/Middle Name *</label>
+                    <FieldLabelWithTooltip tooltip="Enter the student's given name and middle name, if available.">First/Middle Name *</FieldLabelWithTooltip>
                     <Input
                       value={newStudentForm.firstMiddleName}
                       onChange={(e) => {
@@ -4668,7 +4762,7 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Gender *</label>
+                    <FieldLabelWithTooltip tooltip="Choose the student's gender for profile and reporting.">Gender *</FieldLabelWithTooltip>
                     <Select
                       value={newStudentForm.gender}
                       onValueChange={(value) => {
@@ -4692,7 +4786,7 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Birthday *</label>
+                    <FieldLabelWithTooltip tooltip="Used to calculate age and age-based scheduling.">Birthday *</FieldLabelWithTooltip>
                     <DatePickerInput
                       value={newStudentForm.birthday}
                       onChange={(val) => {
@@ -4709,7 +4803,7 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Year Level *</label>
+                    <FieldLabelWithTooltip tooltip="Select the student's current grade or learning level.">Year Level *</FieldLabelWithTooltip>
                     <Select
                       value={newStudentForm.level}
                       onValueChange={(value) => {
@@ -4765,7 +4859,7 @@ export default function StudentsPage() {
 
                       <div className="space-y-3">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <label className="text-sm font-medium">Daily Time Slots</label>
+                          <FieldLabelWithTooltip tooltip="Add one or more daily sessions for this student.">Daily Time Slots</FieldLabelWithTooltip>
                           <Button type="button" variant="outline" size="sm" onClick={addScheduleSlot} className="rounded-[18px] px-5">
                             Add Slot
                           </Button>
@@ -4809,7 +4903,7 @@ export default function StudentsPage() {
                   <div className="space-y-2">
                     <div className="flex items-start gap-6">
                       <div className="space-y-2 w-48">
-                        <label className="text-sm font-medium">Status</label>
+                        <FieldLabelWithTooltip tooltip="Student enrollment status (active/inactive).">Status</FieldLabelWithTooltip>
                         <Select
                           value={newStudentForm.status}
                           onValueChange={(value) => setNewStudentForm((prev) => ({ ...prev, status: value }))}
@@ -4824,7 +4918,7 @@ export default function StudentsPage() {
                         </Select>
                       </div>
                       <div className="space-y-3 w-full max-w-xs">
-                        <label className="text-sm font-medium">Special Education needs</label>
+                        <FieldLabelWithTooltip tooltip="Indicates if the learner requires special education support." className="text-sm font-medium">Special Education needs</FieldLabelWithTooltip>
                         <p className="text-xs leading-relaxed text-muted-foreground">Does this learner have educational needs?</p>
                         <div className="flex items-center gap-2">
                           <Switch
@@ -4839,7 +4933,7 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="md:col-span-2 space-y-2">
-                    <label className="text-sm font-medium">Address</label>
+                    <FieldLabelWithTooltip tooltip="Home address used for records and contact details." className="text-sm font-medium">Address</FieldLabelWithTooltip>
                     <Input
                       value={newStudentForm.address}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, address: e.target.value }))}
@@ -4849,7 +4943,7 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Parent/Guardian Name *</label>
+                    <FieldLabelWithTooltip tooltip="Primary parent or guardian listed for the student.">Parent/Guardian Name *</FieldLabelWithTooltip>
                     <Input
                       required
                       value={newStudentForm.parentName}
@@ -4868,7 +4962,7 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Parent Contact *</label>
+                    <FieldLabelWithTooltip tooltip="Primary contact number for the parent or guardian.">Parent Contact *</FieldLabelWithTooltip>
                     <Input
                       required
                       value={newStudentForm.parentContact}
@@ -4886,7 +4980,7 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="md:col-span-2 space-y-2">
-                    <label className="text-sm font-medium">Parent Email *</label>
+                    <FieldLabelWithTooltip tooltip="Primary email address used for notices and communication.">Parent Email *</FieldLabelWithTooltip>
                     <Input
                       required
                       type="email"
@@ -4909,7 +5003,7 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Parent/Guardian 2 Name (optional)</label>
+                    <FieldLabelWithTooltip tooltip="Optional second guardian name for alternate contact or household details.">Parent/Guardian 2 Name (optional)</FieldLabelWithTooltip>
                     <Input
                       value={newStudentForm.parent2Name}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parent2Name: e.target.value }))}
@@ -4919,7 +5013,7 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Parent Contact (optional)</label>
+                    <FieldLabelWithTooltip tooltip="Optional second guardian phone number.">Parent Contact (optional)</FieldLabelWithTooltip>
                     <Input
                       value={newStudentForm.parent2Contact}
                       onChange={(e) => setNewStudentForm((prev) => ({ ...prev, parent2Contact: e.target.value }))}
@@ -5225,7 +5319,8 @@ export default function StudentsPage() {
                                 <Button size="sm" variant="ghost" onClick={() => openStudentDetails(student, { tab: 'overview' })}>View</Button>
                               </DialogTrigger>
                               <DialogContent className="w-[94vw] sm:w-[92vw] max-w-4xl lg:max-w-5xl p-0 flex flex-col max-h-[86dvh] sm:max-h-[90vh] overflow-hidden">
-                                <div className="relative p-3 sm:p-6 md:p-8 max-h-[86dvh] sm:max-h-[90vh] overflow-y-auto">
+                                <TooltipProvider>
+                                  <div className="relative p-3 sm:p-6 md:p-8 max-h-[86dvh] sm:max-h-[90vh] overflow-y-auto">
                                   {selectedStudent && (
                                     <>
                                       <DialogHeader className="text-left">
@@ -5244,44 +5339,101 @@ export default function StudentsPage() {
                                             </DialogTitle>
                                             <DialogDescription asChild>
                                               <div className="space-y-2">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                <Input
-                                                  value={pendingLrn}
-                                                  onChange={e => setPendingLrn(e.target.value)}
-                                                  placeholder="Enter LRN"
-                                                  className="capitalize w-48"
-                                                  disabled={!editingStudentInfo}
-                                                />
-                                                <Select
-                                                  value={selectedStudent.level || undefined}
-                                                  onValueChange={(value) => setSelectedStudent({ ...selectedStudent, level: value })}
-                                                  disabled={!isAdmin || !editingStudentInfo}
-                                                >
-                                                  <SelectTrigger className="w-40">
-                                                    <SelectValue placeholder="Grade level" />
-                                                  </SelectTrigger>
-                                                  <SelectContent>
-                                                    {availableLevelOptions.map((level) => (
-                                                      <SelectItem key={level} value={level}>{level}</SelectItem>
-                                                    ))}
-                                                  </SelectContent>
-                                                </Select>
-                                                <Select
-                                                  value={(selectedStudent.status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active'}
-                                                  onValueChange={(value) => setSelectedStudent({ ...selectedStudent, status: value })}
-                                                  disabled={!isAdmin || !editingStudentInfo}
-                                                >
-                                                  <SelectTrigger className="w-32">
-                                                    <SelectValue placeholder="Status" />
-                                                  </SelectTrigger>
-                                                  <SelectContent>
-                                                    {STUDENT_STATUS_OPTIONS.map((status) => (
-                                                      <SelectItem key={status} value={status}>
-                                                        {status === 'active' ? 'Active' : 'Inactive'}
-                                                      </SelectItem>
-                                                    ))}
-                                                  </SelectContent>
-                                                </Select>
+                                                <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-[auto_auto_auto] sm:items-end sm:gap-4">
+                                                  <div className="flex w-[280px] min-w-[280px] flex-col gap-1">
+                                                  <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                                                    <span>LRN</span>
+                                                    <UiTooltip>
+                                                      <TooltipTrigger asChild>
+                                                        <button
+                                                          type="button"
+                                                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                                          aria-label="LRN help"
+                                                        >
+                                                          <Info className="h-3.5 w-3.5" />
+                                                        </button>
+                                                      </TooltipTrigger>
+                                                      <TooltipContent side="top" className="max-w-xs text-left z-9999">
+                                                        Learner Reference Number. You can use letters, numbers, spaces, and hyphens.
+                                                      </TooltipContent>
+                                                    </UiTooltip>
+                                                  </div>
+                                                  <Input
+                                                    value={pendingLrn}
+                                                    onChange={e => setPendingLrn(e.target.value)}
+                                                    placeholder="Enter LRN"
+                                                    className="capitalize w-full"
+                                                    disabled={!editingStudentInfo}
+                                                  />
+                                                </div>
+                                                  <div className="flex w-[180px] min-w-[180px] flex-col gap-1">
+                                                  <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                                                    <span>Grade Level</span>
+                                                    <UiTooltip>
+                                                      <TooltipTrigger asChild>
+                                                        <button
+                                                          type="button"
+                                                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                                          aria-label="Grade level help"
+                                                        >
+                                                          <Info className="h-3.5 w-3.5" />
+                                                        </button>
+                                                      </TooltipTrigger>
+                                                      <TooltipContent side="top" className="max-w-xs text-left z-9999">
+                                                        Current grade or level used for class placement and scheduling.
+                                                      </TooltipContent>
+                                                    </UiTooltip>
+                                                  </div>
+                                                  <Select
+                                                    value={selectedStudent.level || undefined}
+                                                    onValueChange={(value) => setSelectedStudent({ ...selectedStudent, level: value })}
+                                                    disabled={!isAdmin || !editingStudentInfo}
+                                                  >
+                                                    <SelectTrigger className="w-full">
+                                                      <SelectValue placeholder="Grade level" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      {availableLevelOptions.map((level) => (
+                                                        <SelectItem key={level} value={level}>{level}</SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
+                                                </div>
+                                                  <div className="flex w-[140px] min-w-[140px] flex-col gap-1">
+                                                  <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                                                    <span>Status</span>
+                                                    <UiTooltip>
+                                                      <TooltipTrigger asChild>
+                                                        <button
+                                                          type="button"
+                                                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                                          aria-label="Status help"
+                                                        >
+                                                          <Info className="h-3.5 w-3.5" />
+                                                        </button>
+                                                      </TooltipTrigger>
+                                                      <TooltipContent side="top" className="max-w-xs text-left z-9999">
+                                                        Student enrollment status shown in lists and attendance workflows.
+                                                      </TooltipContent>
+                                                    </UiTooltip>
+                                                  </div>
+                                                  <Select
+                                                    value={(selectedStudent.status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active'}
+                                                    onValueChange={(value) => setSelectedStudent({ ...selectedStudent, status: value })}
+                                                    disabled={!isAdmin || !editingStudentInfo}
+                                                  >
+                                                    <SelectTrigger className="w-full">
+                                                      <SelectValue placeholder="Status" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      {STUDENT_STATUS_OPTIONS.map((status) => (
+                                                        <SelectItem key={status} value={status}>
+                                                          {status === 'active' ? 'Active' : 'Inactive'}
+                                                        </SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
+                                                </div>
                                                 {selectedStudent.lrn && selectedStudent.lrn.startsWith('TEMP-') && (
                                                   <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-1">Temporary LRN</span>
                                                 )}
@@ -5324,10 +5476,10 @@ export default function StudentsPage() {
                                               return (
                                                 <>
                                                   <div className="col-span-2 sm:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                                                    <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                    <FieldLabelWithTooltip tooltip="The student's display name used for sorting and search." className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                       <User className="w-3 h-3" />
-                                                      Name
-                                                    </p>
+                                                      <span>Name</span>
+                                                    </FieldLabelWithTooltip>
                                                     <div className="grid grid-cols-2 gap-2 w-full max-w-md">
                                                       <Input
                                                         value={editFirstMiddleName !== null ? editFirstMiddleName : firstMiddle}
@@ -5347,7 +5499,9 @@ export default function StudentsPage() {
                                                   </div>
                                                   <div className="col-span-2 sm:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex items-start justify-start pl-4">
                                                     <div className="flex flex-col items-start ml-2 gap-2 w-full max-w-xs">
-                                                      <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Special Education needs</p>
+                                                      <FieldLabelWithTooltip tooltip="Indicates whether the learner requires educational support or accommodations." className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                                        Special Education needs
+                                                      </FieldLabelWithTooltip>
                                                       <p className="text-xs leading-relaxed text-muted-foreground">Does this learner have educational needs?</p>
                                                       <div className="flex items-center gap-2">
                                                         <Switch
@@ -5363,11 +5517,11 @@ export default function StudentsPage() {
                                                 </>
                                               );
                                             })()}
-                                            <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                                              <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
-                                                <Calendar className="w-3 h-3" />
-                                                Birthday
-                                              </p>
+                                              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                                <div className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                  <Calendar className="w-3 h-3" />
+                                                  <span>Birthday</span>
+                                                </div>
                                               {editingStudentInfo ? (
                                                 <Input
                                                   type="date"
@@ -5384,10 +5538,10 @@ export default function StudentsPage() {
                                               )}
                                             </div>
                                             <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                                              <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                              <div className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                 <User className="w-3 h-3" />
-                                                Gender
-                                              </p>
+                                                <span>Gender</span>
+                                              </div>
                                               {editingStudentInfo ? (
                                                 <Select
                                                   value={selectedStudent.gender || ''}
@@ -5407,10 +5561,7 @@ export default function StudentsPage() {
                                               )}
                                             </div>
                                             <div className="col-span-2 md:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
-                                              <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
-                                                <MapPin className="w-3 h-3" />
-                                                Address
-                                              </p>
+                                              <FieldLabelWithTooltip className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1" tooltip="Home address used for records and contact details."><><MapPin className="w-3 h-3" />Address</></FieldLabelWithTooltip>
                                               <Input
                                                 value={selectedStudent.address || ''}
                                                 onChange={e => setSelectedStudent({ ...selectedStudent, address: e.target.value })}
@@ -5420,10 +5571,7 @@ export default function StudentsPage() {
                                               />
                                             </div>
                                             <div className="col-span-2 md:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
-                                              <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
-                                                <QrCode className="w-3 h-3" />
-                                                RFID UID
-                                              </p>
+                                              <FieldLabelWithTooltip className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1" tooltip="RFID tag ID used for tap-in and tap-out scanning."><><QrCode className="w-3 h-3" />RFID UID</></FieldLabelWithTooltip>
                                               <div className="w-full space-y-1.5">
                                                 <div className="flex flex-col gap-1.5 sm:flex-row">
                                                   <Input
@@ -5463,7 +5611,7 @@ export default function StudentsPage() {
                                             </div>
                                             <div className="col-span-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col sm:flex-row justify-between items-start gap-4">
                                               <div className="space-y-1.5 w-full max-w-md">
-                                                <p className="text-xs text-muted-foreground mb-1">Parent/Guardian 1 Information</p>
+                                                <FieldLabelWithTooltip className="text-xs text-muted-foreground mb-1" tooltip="Primary guardian contact details shown in the student profile.">Parent/Guardian 1 Information</FieldLabelWithTooltip>
                                                 <div className="flex items-center gap-2 w-full">
                                                   <User className="w-4 h-4 text-muted-foreground" />
                                                   <Input
@@ -5495,7 +5643,7 @@ export default function StudentsPage() {
                                                   />
                                                 </div>
                                                 <div className="border-t border-gray-200 dark:border-gray-600 mt-3 pt-3">
-                                                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Parent/Guardian 2 Information (optional)</p>
+                                                  <FieldLabelWithTooltip className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2" tooltip="Optional alternate guardian contact details.">Parent/Guardian 2 Information (optional)</FieldLabelWithTooltip>
                                                   <div className="flex items-center gap-2">
                                                     <User className="w-4 h-4 text-muted-foreground" />
                                                     <Input
@@ -5662,7 +5810,7 @@ export default function StudentsPage() {
                                                         <div className="space-y-3">
                                                           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[220px_minmax(0,0.75fr)_minmax(0,1.25fr)]">
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Days</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Select weekdays for this schedule slot.">Days</FieldLabelWithTooltip>
                                                               <div className="flex flex-wrap gap-1.5 rounded-xl border p-1.5">
                                                                 {WEEKDAY_OPTIONS.map((day) => {
                                                                   const editableSchedule = schedule as EditableScheduleRow;
@@ -5683,7 +5831,7 @@ export default function StudentsPage() {
                                                               </div>
                                                             </div>
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Subject</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Subject or activity for this schedule slot.">Subject</FieldLabelWithTooltip>
                                                               <Input
                                                                 value={schedule.subject}
                                                                 onChange={(e) => updateScheduleDraftRow(schedule.id, 'subject', e.target.value)}
@@ -5691,7 +5839,7 @@ export default function StudentsPage() {
                                                               />
                                                             </div>
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Time</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Start and end times for the session.">Time</FieldLabelWithTooltip>
                                                               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                                                                 <TimePickerInput
                                                                   value={schedule.start_time?.slice(0, 5)}
@@ -5709,7 +5857,7 @@ export default function StudentsPage() {
                                                           </div>
                                                           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Room</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Room or location for the session.">Room</FieldLabelWithTooltip>
                                                               <Input
                                                                 value={schedule.room || ''}
                                                                 onChange={(e) => updateScheduleDraftRow(schedule.id, 'room', e.target.value)}
@@ -5718,7 +5866,7 @@ export default function StudentsPage() {
                                                               />
                                                             </div>
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Teacher</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Teacher or instructor for the session.">Teacher</FieldLabelWithTooltip>
                                                               <Input
                                                                 value={schedule.teacher_name || ''}
                                                                 onChange={(e) => updateScheduleDraftRow(schedule.id, 'teacher_name', e.target.value)}
@@ -6153,7 +6301,8 @@ export default function StudentsPage() {
                                       </Tabs>
                                     </>
                                   )}
-                                </div>
+                                  </div>
+                                </TooltipProvider>
                               </DialogContent>
                             </Dialog>
                           </div>
@@ -6523,45 +6672,101 @@ export default function StudentsPage() {
                                               </DialogTitle>
                                               <DialogDescription asChild>
                                                 <div className="space-y-2">
-                                                  <div className="flex flex-wrap items-center gap-2">
-                                                  <Input
-                                                    value={pendingLrn}
-                                                    onChange={e => setPendingLrn(e.target.value)}
-                                                    placeholder="Enter LRN"
-                                                    className="capitalize w-48"
-                                                    disabled={!editingStudentInfo}
-                                                  />
-                                                  {/* LRN update is now handled via main Confirm button */}
-                                                  <Select
-                                                    value={selectedStudent.level || undefined}
-                                                    onValueChange={(value) => setSelectedStudent({ ...selectedStudent, level: value })}
-                                                    disabled={!isAdmin || !editingStudentInfo}
-                                                  >
-                                                    <SelectTrigger className="w-40">
-                                                      <SelectValue placeholder="Grade level" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      {availableLevelOptions.map((level) => (
-                                                        <SelectItem key={level} value={level}>{level}</SelectItem>
-                                                      ))}
-                                                    </SelectContent>
-                                                  </Select>
-                                                  <Select
-                                                    value={(selectedStudent.status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active'}
-                                                    onValueChange={(value) => setSelectedStudent({ ...selectedStudent, status: value })}
-                                                    disabled={!isAdmin || !editingStudentInfo}
-                                                  >
-                                                    <SelectTrigger className="w-32">
-                                                      <SelectValue placeholder="Status" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      {STUDENT_STATUS_OPTIONS.map((status) => (
-                                                        <SelectItem key={status} value={status}>
-                                                          {status === 'active' ? 'Active' : 'Inactive'}
-                                                        </SelectItem>
-                                                      ))}
-                                                    </SelectContent>
-                                                  </Select>
+                                                  <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-[auto_auto_auto] sm:items-end sm:gap-4">
+                                                    <div className="flex w-[280px] min-w-[280px] flex-col gap-1">
+                                                      <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                                                        <span>LRN</span>
+                                                        <UiTooltip>
+                                                          <TooltipTrigger asChild>
+                                                            <button
+                                                              type="button"
+                                                              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                                              aria-label="LRN help"
+                                                            >
+                                                              <Info className="h-3.5 w-3.5" />
+                                                            </button>
+                                                          </TooltipTrigger>
+                                                          <TooltipContent side="top" className="max-w-xs text-left z-9999">
+                                                            Learner Reference Number. You can use letters, numbers, spaces, and hyphens.
+                                                          </TooltipContent>
+                                                        </UiTooltip>
+                                                      </div>
+                                                      <Input
+                                                        value={pendingLrn}
+                                                        onChange={e => setPendingLrn(e.target.value)}
+                                                        placeholder="Enter LRN"
+                                                        className="capitalize w-full"
+                                                        disabled={!editingStudentInfo}
+                                                      />
+                                                    </div>
+                                                    <div className="flex w-[180px] min-w-[180px] flex-col gap-1">
+                                                      <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                                                        <span>Grade Level</span>
+                                                        <UiTooltip>
+                                                          <TooltipTrigger asChild>
+                                                            <button
+                                                              type="button"
+                                                              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                                              aria-label="Grade level help"
+                                                            >
+                                                              <Info className="h-3.5 w-3.5" />
+                                                            </button>
+                                                          </TooltipTrigger>
+                                                          <TooltipContent side="top" className="max-w-xs text-left z-9999">
+                                                            Current grade or level used for class placement and scheduling.
+                                                          </TooltipContent>
+                                                        </UiTooltip>
+                                                      </div>
+                                                      <Select
+                                                        value={selectedStudent.level || undefined}
+                                                        onValueChange={(value) => setSelectedStudent({ ...selectedStudent, level: value })}
+                                                        disabled={!isAdmin || !editingStudentInfo}
+                                                      >
+                                                        <SelectTrigger className="w-full">
+                                                          <SelectValue placeholder="Grade level" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                          {availableLevelOptions.map((level) => (
+                                                            <SelectItem key={level} value={level}>{level}</SelectItem>
+                                                          ))}
+                                                        </SelectContent>
+                                                      </Select>
+                                                    </div>
+                                                    <div className="flex w-[140px] min-w-[140px] flex-col gap-1">
+                                                      <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                                                        <span>Status</span>
+                                                        <UiTooltip>
+                                                          <TooltipTrigger asChild>
+                                                            <button
+                                                              type="button"
+                                                              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                                              aria-label="Status help"
+                                                            >
+                                                              <Info className="h-3.5 w-3.5" />
+                                                            </button>
+                                                          </TooltipTrigger>
+                                                          <TooltipContent side="top" className="max-w-xs text-left z-9999">
+                                                            Student enrollment status shown in lists and attendance workflows.
+                                                          </TooltipContent>
+                                                        </UiTooltip>
+                                                      </div>
+                                                      <Select
+                                                        value={(selectedStudent.status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active'}
+                                                        onValueChange={(value) => setSelectedStudent({ ...selectedStudent, status: value })}
+                                                        disabled={!isAdmin || !editingStudentInfo}
+                                                      >
+                                                        <SelectTrigger className="w-full">
+                                                          <SelectValue placeholder="Status" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                          {STUDENT_STATUS_OPTIONS.map((status) => (
+                                                            <SelectItem key={status} value={status}>
+                                                              {status === 'active' ? 'Active' : 'Inactive'}
+                                                            </SelectItem>
+                                                          ))}
+                                                        </SelectContent>
+                                                      </Select>
+                                                    </div>
                                                   {selectedStudent.lrn && selectedStudent.lrn.startsWith('TEMP-') && (
                                                     <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-1">Temporary LRN</span>
                                                   )}
@@ -6645,10 +6850,10 @@ export default function StudentsPage() {
                                                 return (
                                                   <>
                                                     <div className="col-span-2 sm:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                                                      <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                      <FieldLabelWithTooltip tooltip="The student's display name used for sorting and search." className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                         <User className="w-3 h-3" />
                                                         Name
-                                                      </p>
+                                                      </FieldLabelWithTooltip>
                                                       <div className="flex flex-col sm:flex-row gap-2 w-full max-w-md items-start">
                                                         <div className="flex-1">
                                                           <div className="flex flex-col sm:flex-row gap-2">
@@ -6672,7 +6877,9 @@ export default function StudentsPage() {
                                                     </div>
                                                     <div className="col-span-2 sm:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex items-start justify-start pl-4">
                                                       <div className="flex flex-col items-start ml-2 gap-2 w-full max-w-xs">
-                                                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Special Education needs</p>
+                                                        <FieldLabelWithTooltip tooltip="Indicates whether the learner requires educational support or accommodations." className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                                          Special Education needs
+                                                        </FieldLabelWithTooltip>
                                                         <p className="text-xs leading-relaxed text-muted-foreground">Does this learner have educational needs?</p>
                                                         <div className="flex items-center gap-2">
                                                           <Switch
@@ -6689,10 +6896,10 @@ export default function StudentsPage() {
                                                 );
                                               })()}
                                               <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                                                <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                <FieldLabelWithTooltip tooltip="Used to calculate age and age-based scheduling." className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                   <Calendar className="w-3 h-3" />
                                                   Birthday
-                                                </p>
+                                                </FieldLabelWithTooltip>
                                                 {editingStudentInfo ? (
                                                   <Input
                                                     type="date"
@@ -6711,10 +6918,10 @@ export default function StudentsPage() {
                                                 )}
                                               </div>
                                               <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                                                <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                <FieldLabelWithTooltip tooltip="Student gender used for reporting and profile details." className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
                                                   <User className="w-3 h-3" />
                                                   Gender
-                                                </p>
+                                                </FieldLabelWithTooltip>
                                                 {editingStudentInfo ? (
                                                   <Select
                                                     value={selectedStudent.gender || ''}
@@ -6734,10 +6941,10 @@ export default function StudentsPage() {
                                                 )}
                                               </div>
                                               <div className="col-span-2 md:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
-                                                <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                <FieldLabelWithTooltip className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1" tooltip="Home address used for records and contact details.">
                                                   <MapPin className="w-3 h-3" />
                                                   Address
-                                                </p>
+                                                </FieldLabelWithTooltip>
                                                 <Input
                                                   value={selectedStudent.address || ''}
                                                   onChange={e => setSelectedStudent({ ...selectedStudent, address: e.target.value })}
@@ -6747,10 +6954,10 @@ export default function StudentsPage() {
                                                 />
                                               </div>
                                               <div className="col-span-2 md:col-span-1 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-start">
-                                                <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+                                                <FieldLabelWithTooltip className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1" tooltip="RFID tag ID used for tap-in and tap-out scanning.">
                                                   <QrCode className="w-3 h-3" />
                                                   RFID UID
-                                                </p>
+                                                </FieldLabelWithTooltip>
                                                 <div className="w-full space-y-1.5">
                                                     <div className="flex flex-col gap-1.5 sm:flex-row">
                                                     <Input
@@ -6790,7 +6997,9 @@ export default function StudentsPage() {
                                               </div>
                                               <div className="col-span-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col sm:flex-row justify-between items-start gap-4">
                                                 <div className="space-y-1.5 w-full max-w-md">
-                                                  <p className="text-xs text-muted-foreground mb-1">Parent/Guardian 1 Information</p>
+                                                  <FieldLabelWithTooltip className="text-xs text-muted-foreground mb-1" tooltip="Primary guardian contact details shown in the student profile.">
+                                                    Parent/Guardian 1 Information
+                                                  </FieldLabelWithTooltip>
                                                   <div className="flex items-center gap-2 w-full">
                                                     <User className="w-4 h-4 text-muted-foreground" />
                                                     <Input
@@ -6804,9 +7013,9 @@ export default function StudentsPage() {
                                                     <div className="flex items-center gap-1.5 mt-2">
                                                       <Phone className="w-4 h-4 text-muted-foreground" />
                                                       <Input
-                                                        value={selectedStudent.parent2Contact || ''}
-                                                        onChange={e => setSelectedStudent({ ...selectedStudent, parent2Contact: e.target.value })}
-                                                        placeholder="Parent/Guardian 2 Contact (optional)"
+                                                        value={selectedStudent.parentContact || ''}
+                                                        onChange={e => setSelectedStudent({ ...selectedStudent, parentContact: e.target.value })}
+                                                        placeholder="Parent/Guardian 1 Contact"
                                                         className="text-sm"
                                                         disabled={!editingStudentInfo}
                                                       />
@@ -6814,15 +7023,17 @@ export default function StudentsPage() {
                                                     <div className="flex items-center gap-1.5">
                                                       <Mail className="w-4 h-4 text-muted-foreground" />
                                                       <Input
-                                                        value={selectedStudent.parent2Email || ''}
-                                                        onChange={e => setSelectedStudent({ ...selectedStudent, parent2Email: e.target.value })}
-                                                        placeholder="Parent/Guardian 2 Email (optional)"
+                                                        value={selectedStudent.parentEmail || ''}
+                                                        onChange={e => setSelectedStudent({ ...selectedStudent, parentEmail: e.target.value })}
+                                                        placeholder="Parent/Guardian 1 Email"
                                                         className="text-sm"
                                                         disabled={!editingStudentInfo}
                                                       />
                                                     </div>
                                                   <div className="border-t border-gray-200 dark:border-gray-600 mt-3 pt-3">
-                                                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Parent/Guardian 2 Information (optional)</p>
+                                                    <FieldLabelWithTooltip tooltip="Optional alternate guardian contact details." className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                                                      Parent/Guardian 2 Information (optional)
+                                                    </FieldLabelWithTooltip>
                                                     <div className="flex items-center gap-2">
                                                       <User className="w-4 h-4 text-muted-foreground" />
                                                       <Input
@@ -7111,7 +7322,7 @@ export default function StudentsPage() {
                                                         <div className="space-y-3">
                                                           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[220px_minmax(0,0.75fr)_minmax(0,1.25fr)]">
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Days</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Select weekdays for this schedule slot.">Days</FieldLabelWithTooltip>
                                                               <div className="flex flex-wrap gap-1.5 rounded-xl border p-1.5">
                                                                 {WEEKDAY_OPTIONS.map((day) => {
                                                                   const editableSchedule = schedule as EditableScheduleRow;
@@ -7132,7 +7343,7 @@ export default function StudentsPage() {
                                                               </div>
                                                             </div>
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Subject</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Subject or activity for this schedule slot.">Subject</FieldLabelWithTooltip>
                                                               <Input
                                                                 value={schedule.subject}
                                                                 onChange={(e) => updateScheduleDraftRow(schedule.id, 'subject', e.target.value)}
@@ -7140,7 +7351,7 @@ export default function StudentsPage() {
                                                               />
                                                             </div>
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Time</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Start and end times for the session.">Time</FieldLabelWithTooltip>
                                                               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                                                                 <TimePickerInput
                                                                   value={schedule.start_time?.slice(0, 5)}
@@ -7158,7 +7369,7 @@ export default function StudentsPage() {
                                                           </div>
                                                           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Room</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Room or location for the session.">Room</FieldLabelWithTooltip>
                                                               <Input
                                                                 value={schedule.room || ''}
                                                                 onChange={(e) => updateScheduleDraftRow(schedule.id, 'room', e.target.value)}
@@ -7167,7 +7378,7 @@ export default function StudentsPage() {
                                                               />
                                                             </div>
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Teacher</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Teacher or instructor for the session.">Teacher</FieldLabelWithTooltip>
                                                               <Input
                                                                 value={schedule.teacher_name || ''}
                                                                 onChange={(e) => updateScheduleDraftRow(schedule.id, 'teacher_name', e.target.value)}
@@ -7668,7 +7879,7 @@ export default function StudentsPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
                         <XAxis dataKey="level" stroke="#6B7280" angle={-45} textAnchor="end" height={80} />
                         <YAxis stroke="#6B7280" />
-                        <Tooltip />
+                        <RechartsTooltip />
                         <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
@@ -7702,7 +7913,7 @@ export default function StudentsPage() {
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip />
+                        <RechartsTooltip />
                       </RePieChart>
                     </ResponsiveContainer>
                   </div>
@@ -8082,7 +8293,8 @@ export default function StudentsPage() {
                                   </Button>
                                 </DialogTrigger>
                                 <DialogContent className="w-[95vw] max-w-sm sm:max-w-md max-h-[85vh] sm:max-h-[92vh] overflow-y-auto p-3 sm:p-6">
-                                  <div className="flex flex-col gap-3">
+                                  <TooltipProvider>
+                                    <div className="flex flex-col gap-3">
                                     <div className="flex items-center gap-3">
                                       <Avatar className="h-12 w-12">
                                         <AvatarFallback className="bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 text-lg">
@@ -8097,19 +8309,27 @@ export default function StudentsPage() {
 
                                     <div className="grid grid-cols-1 gap-2">
                                       <div>
-                                        <p className="text-[11px] text-muted-foreground">Summer Period</p>
+                                        <FieldLabelWithTooltip tooltip="Summer enrollment period for this student." className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                          Summer Period
+                                        </FieldLabelWithTooltip>
                                         <p className="font-semibold">{enrollment.start_date} → {enrollment.end_date}</p>
                                       </div>
                                       <div>
-                                        <p className="text-[11px] text-muted-foreground">Status</p>
+                                        <FieldLabelWithTooltip tooltip="Current summer enrollment state." className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                          Status
+                                        </FieldLabelWithTooltip>
                                         <p className="font-semibold">{isCompleted ? 'Completed' : 'Active'}</p>
                                       </div>
                                       <div>
-                                        <p className="text-[11px] text-muted-foreground">Birthday</p>
+                                        <FieldLabelWithTooltip tooltip="Used to calculate age and age-based scheduling." className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                          Birthday
+                                        </FieldLabelWithTooltip>
                                         <p className="font-semibold">{student.birthday || '—'}</p>
                                       </div>
                                       <div>
-                                        <p className="text-[11px] text-muted-foreground">Parent/Guardian</p>
+                                        <FieldLabelWithTooltip tooltip="Primary guardian contact details shown in the student profile." className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                          Parent/Guardian
+                                        </FieldLabelWithTooltip>
                                         <p className="font-semibold">{student.parentName || '—'}</p>
                                         {student.parentContact && <p className="text-sm text-muted-foreground">{student.parentContact}</p>}
                                         {student.parentEmail && <p className="text-sm text-muted-foreground">{student.parentEmail}</p>}
@@ -8119,7 +8339,8 @@ export default function StudentsPage() {
                                     <div className="flex gap-2 justify-end">
                                       <Button variant="outline" size="sm" onClick={() => { setSelectedStudent(null); setDetailsOpen(false); }}>Close</Button>
                                     </div>
-                                  </div>
+                                    </div>
+                                  </TooltipProvider>
                                 </DialogContent>
                               </Dialog>
                             </div>
@@ -8240,7 +8461,8 @@ export default function StudentsPage() {
                                   <DialogContent
                                     className="w-[94vw] sm:w-[92vw] max-w-4xl lg:max-w-5xl p-0 flex flex-col max-h-[86dvh] sm:max-h-[90vh] overflow-hidden"
                                   >
-                                    <div className="relative p-3 sm:p-6 md:p-8 max-h-[86dvh] sm:max-h-[90vh] overflow-y-auto">
+                                    <TooltipProvider>
+                                      <div className="relative p-3 sm:p-6 md:p-8 max-h-[86dvh] sm:max-h-[90vh] overflow-y-auto">
                                     {selectedStudent && (
                                       <>
                                         <DialogHeader>
@@ -8259,44 +8481,101 @@ export default function StudentsPage() {
                                               </DialogTitle>
                                               <DialogDescription asChild>
                                                 <div className="space-y-2">
-                                                  <div className="flex flex-wrap items-center gap-2">
-                                                  <Input
-                                                    value={pendingLrn}
-                                                    onChange={e => setPendingLrn(e.target.value)}
-                                                    placeholder="Enter LRN"
-                                                    className="capitalize w-48"
-                                                    disabled={!editingStudentInfo}
-                                                  />
-                                                  <Select
-                                                    value={selectedStudent.level || undefined}
-                                                    onValueChange={(value) => setSelectedStudent({ ...selectedStudent, level: value })}
-                                                    disabled={!isAdmin || !editingStudentInfo}
-                                                  >
-                                                    <SelectTrigger className="w-40">
-                                                      <SelectValue placeholder="Grade level" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      {availableLevelOptions.map((level) => (
-                                                        <SelectItem key={level} value={level}>{level}</SelectItem>
-                                                      ))}
-                                                    </SelectContent>
-                                                  </Select>
-                                                  <Select
-                                                    value={(selectedStudent.status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active'}
-                                                    onValueChange={(value) => setSelectedStudent({ ...selectedStudent, status: value })}
-                                                    disabled={!isAdmin || !editingStudentInfo}
-                                                  >
-                                                    <SelectTrigger className="w-32">
-                                                      <SelectValue placeholder="Status" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      {STUDENT_STATUS_OPTIONS.map((status) => (
-                                                        <SelectItem key={status} value={status}>
-                                                          {status === 'active' ? 'Active' : 'Inactive'}
-                                                        </SelectItem>
-                                                      ))}
-                                                    </SelectContent>
-                                                  </Select>
+                                                  <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-[auto_auto_auto] sm:items-end sm:gap-4">
+                                                    <div className="flex w-[280px] min-w-[280px] flex-col gap-1">
+                                                      <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                                                        <span>LRN</span>
+                                                        <UiTooltip>
+                                                          <TooltipTrigger asChild>
+                                                            <button
+                                                              type="button"
+                                                              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                                              aria-label="LRN help"
+                                                            >
+                                                              <Info className="h-3.5 w-3.5" />
+                                                            </button>
+                                                          </TooltipTrigger>
+                                                          <TooltipContent side="top" className="max-w-xs text-left z-9999">
+                                                            Learner Reference Number. You can use letters, numbers, spaces, and hyphens.
+                                                          </TooltipContent>
+                                                        </UiTooltip>
+                                                      </div>
+                                                      <Input
+                                                        value={pendingLrn}
+                                                        onChange={e => setPendingLrn(e.target.value)}
+                                                        placeholder="Enter LRN"
+                                                        className="capitalize w-full"
+                                                        disabled={!editingStudentInfo}
+                                                      />
+                                                    </div>
+                                                    <div className="flex w-[180px] min-w-[180px] flex-col gap-1">
+                                                      <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                                                        <span>Grade Level</span>
+                                                        <UiTooltip>
+                                                          <TooltipTrigger asChild>
+                                                            <button
+                                                              type="button"
+                                                              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                                              aria-label="Grade level help"
+                                                            >
+                                                              <Info className="h-3.5 w-3.5" />
+                                                            </button>
+                                                          </TooltipTrigger>
+                                                          <TooltipContent side="top" className="max-w-xs text-left z-9999">
+                                                            Current grade or level used for class placement and scheduling.
+                                                          </TooltipContent>
+                                                        </UiTooltip>
+                                                      </div>
+                                                      <Select
+                                                        value={selectedStudent.level || undefined}
+                                                        onValueChange={(value) => setSelectedStudent({ ...selectedStudent, level: value })}
+                                                        disabled={!isAdmin || !editingStudentInfo}
+                                                      >
+                                                        <SelectTrigger className="w-full">
+                                                          <SelectValue placeholder="Grade level" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                          {availableLevelOptions.map((level) => (
+                                                            <SelectItem key={level} value={level}>{level}</SelectItem>
+                                                          ))}
+                                                        </SelectContent>
+                                                      </Select>
+                                                    </div>
+                                                    <div className="flex w-[140px] min-w-[140px] flex-col gap-1">
+                                                      <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                                                        <span>Status</span>
+                                                        <UiTooltip>
+                                                          <TooltipTrigger asChild>
+                                                            <button
+                                                              type="button"
+                                                              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                                              aria-label="Status help"
+                                                            >
+                                                              <Info className="h-3.5 w-3.5" />
+                                                            </button>
+                                                          </TooltipTrigger>
+                                                          <TooltipContent side="top" className="max-w-xs text-left z-9999">
+                                                            Student enrollment status shown in lists and attendance workflows.
+                                                          </TooltipContent>
+                                                        </UiTooltip>
+                                                      </div>
+                                                      <Select
+                                                        value={(selectedStudent.status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active'}
+                                                        onValueChange={(value) => setSelectedStudent({ ...selectedStudent, status: value })}
+                                                        disabled={!isAdmin || !editingStudentInfo}
+                                                      >
+                                                        <SelectTrigger className="w-full">
+                                                          <SelectValue placeholder="Status" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                          {STUDENT_STATUS_OPTIONS.map((status) => (
+                                                            <SelectItem key={status} value={status}>
+                                                              {status === 'active' ? 'Active' : 'Inactive'}
+                                                            </SelectItem>
+                                                          ))}
+                                                        </SelectContent>
+                                                      </Select>
+                                                    </div>
                                                   {selectedStudent.lrn && selectedStudent.lrn.startsWith('TEMP-') && (
                                                     <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-1">Temporary LRN</span>
                                                   )}
@@ -8534,7 +8813,9 @@ export default function StudentsPage() {
                                                     />
                                                   </div>
                                                   <div className="border-t border-gray-200 dark:border-gray-600 mt-3 pt-3">
-                                                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Parent/Guardian 2 Information (optional)</p>
+                                                    <FieldLabelWithTooltip className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2" tooltip="Optional alternate guardian contact details.">
+                                                      Parent/Guardian 2 Information (optional)
+                                                    </FieldLabelWithTooltip>
                                                     <div className="flex items-center gap-2">
                                                       <User className="w-4 h-4 text-muted-foreground" />
                                                       <Input
@@ -8810,7 +9091,7 @@ export default function StudentsPage() {
                                                         <div className="space-y-3">
                                                           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[220px_minmax(0,1.2fr)_minmax(0,1fr)]">
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Days</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Select weekdays for this schedule slot.">Days</FieldLabelWithTooltip>
                                                               <div className="flex flex-wrap gap-1.5 rounded-xl border p-1.5">
                                                                 {WEEKDAY_OPTIONS.map((day) => {
                                                                   const editableSchedule = schedule as EditableScheduleRow;
@@ -8831,7 +9112,7 @@ export default function StudentsPage() {
                                                               </div>
                                                             </div>
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Subject</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Subject or activity for this schedule slot.">Subject</FieldLabelWithTooltip>
                                                               <Input
                                                                 value={schedule.subject}
                                                                 onChange={(e) => updateScheduleDraftRow(schedule.id, 'subject', e.target.value)}
@@ -8839,7 +9120,7 @@ export default function StudentsPage() {
                                                               />
                                                             </div>
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Time</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Start and end times for the session.">Time</FieldLabelWithTooltip>
                                                               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                                                                   <TimePickerInput
                                                                   value={schedule.start_time?.slice(0, 5)}
@@ -8857,7 +9138,7 @@ export default function StudentsPage() {
                                                           </div>
                                                           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Room</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Room or location for the session.">Room</FieldLabelWithTooltip>
                                                               <Input
                                                                 value={schedule.room || ''}
                                                                 onChange={(e) => updateScheduleDraftRow(schedule.id, 'room', e.target.value)}
@@ -8866,7 +9147,7 @@ export default function StudentsPage() {
                                                               />
                                                             </div>
                                                             <div className="space-y-1.5">
-                                                              <label className="text-xs font-medium text-muted-foreground">Teacher</label>
+                                                              <FieldLabelWithTooltip className="text-xs font-medium text-muted-foreground" tooltip="Teacher or instructor for the session.">Teacher</FieldLabelWithTooltip>
                                                               <Input
                                                                 value={schedule.teacher_name || ''}
                                                                 onChange={(e) => updateScheduleDraftRow(schedule.id, 'teacher_name', e.target.value)}
@@ -9301,7 +9582,8 @@ export default function StudentsPage() {
                                         </Tabs>
                                       </>
                                     )}
-                                    </div>
+                                      </div>
+                                    </TooltipProvider>
                                   </DialogContent>
                                 </Dialog>
                               </TableCell>
