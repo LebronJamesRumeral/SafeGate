@@ -36,6 +36,13 @@ class PushUnsubscribeRequest(BaseModel):
     endpoint: str = Field(..., min_length=1)
 
 
+class PushTestRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    message: str = Field(..., min_length=1, max_length=2000)
+    roles: List[str] = Field(default_factory=list)
+    meta: Dict[str, Any] = Field(default_factory=dict)
+
+
 @router.get('/push/public-key')
 def get_public_key() -> dict[str, str]:
     return {'publicKey': get_vapid_public_key()}
@@ -53,6 +60,21 @@ def subscribe(request: PushSubscribeRequest) -> dict[str, bool]:
 @router.delete('/push/subscribe')
 def unsubscribe(request: PushUnsubscribeRequest) -> dict[str, bool]:
     return {'success': remove_subscription(request.endpoint)}
+
+
+@router.post('/push/test')
+def send_test_push(request: PushTestRequest) -> dict[str, Any]:
+    delivered = send_push_to_roles(
+        request.title,
+        request.message,
+        request.roles,
+        request.meta,
+    )
+
+    return {
+        'success': delivered > 0,
+        'delivered': delivered,
+    }
 
 
 @router.post('/notifications/role')

@@ -9,9 +9,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useCallback, useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
-import { createRoleNotification, ensureFridayParentWeeklyCheckInNotification, fetchRoleNotifications, getUnreadCount, markRoleNotificationsAsRead, resolveRoleNotificationHref, RoleNotification } from "@/lib/role-notifications"
+import { ensureFridayParentWeeklyCheckInNotification, fetchRoleNotifications, getUnreadCount, markRoleNotificationsAsRead, resolveRoleNotificationHref, RoleNotification } from "@/lib/role-notifications"
 import { useTheme } from "@/components/theme-provider"
-import { enableDeviceNotifications } from '@/lib/push-notifications'
+import { enableDeviceNotifications, sendTestPushNotification } from '@/lib/push-notifications'
 import { useToast } from '@/hooks/use-toast'
 
 const mobilePrimaryHrefs = ["/", "/behavioral-events", "/students", "/scan", "/attendance"]
@@ -74,24 +74,16 @@ export function Header() {
       return
     }
 
-    const success = await createRoleNotification({
-      title: 'SafeGate Test Notification',
-      message: 'This is a test push notification from the development menu.',
-      targetRoles: [normalizedRole],
-      createdBy: user?.username || 'system',
-      meta: {
-        notification_kind: 'test_push_notification',
-        href: pathname || '/',
-      },
-    })
+    const result = await sendTestPushNotification(normalizedRole, pathname || '/')
+    const success = result.delivered > 0
 
     toast({
       title: success ? 'Test notification sent' : 'Test notification failed',
       description: success
         ? 'Check the phone notification shade or lock screen.'
-        : 'The backend could not save or push the notification.',
+        : 'No enrolled phone subscription was found for this role.',
     })
-  }, [normalizedRole, pathname, toast, user?.username])
+  }, [normalizedRole, pathname, toast])
 
   const showPushNotification = useCallback(async (notification: RoleNotification) => {
     if (typeof window === 'undefined' || !("Notification" in window)) {

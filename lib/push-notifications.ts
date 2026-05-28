@@ -86,6 +86,37 @@ async function postSubscription(payload: unknown): Promise<Response> {
   throw new Error(typeof lastError === 'string' ? lastError : 'Failed to save notification subscription')
 }
 
+async function postTestPush(payload: unknown): Promise<Response> {
+  const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://safegate-pg3g.onrender.com').replace(/\/api\/?$/, '')
+  const endpoints = [
+    `${backendUrl}/api/push/test`,
+    '/api/push/test',
+  ]
+
+  let lastError: unknown = null
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (response.ok) {
+        return response
+      }
+
+      lastError = response.statusText || `HTTP ${response.status}`
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  throw new Error(typeof lastError === 'string' ? lastError : 'Failed to send test notification')
+}
+
 export async function enableDeviceNotifications(role: string, user?: { id?: string | null; username?: string | null; full_name?: string | null; email?: string | null }): Promise<string> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
     return 'Push notifications are not supported on this browser.'
@@ -118,4 +149,21 @@ export async function enableDeviceNotifications(role: string, user?: { id?: stri
   })
 
   return existingSubscription ? 'Phone notifications are already enabled.' : 'Phone notifications are enabled.'
+}
+
+export async function sendTestPushNotification(role: string, href: string): Promise<{ delivered: number }> {
+  const response = await postTestPush({
+    title: 'SafeGate Test Notification',
+    message: 'This is a test push notification from the development menu.',
+    roles: [role],
+    meta: {
+      notification_kind: 'test_push_notification',
+      href,
+    },
+  })
+
+  const data = await response.json().catch(() => ({}))
+  return {
+    delivered: typeof data?.delivered === 'number' ? data.delivered : 0,
+  }
 }
