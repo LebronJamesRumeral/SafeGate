@@ -1,7 +1,6 @@
 'use client'
 
 const DEFAULT_VAPID_PUBLIC_KEY = 'BPnwXZPg1TaxnJNsbEChBlCY4-2z97MF1qHBUxVZ2fR4GJ2oVzIn1isBfeQ2aID-qMdbEVbD5zqSibUrcNYXMFw'
-const PUSH_BACKEND_URL = 'https://safegate-pg3g.onrender.com'
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -33,12 +32,12 @@ async function getPublicKey(): Promise<string> {
   }
 
   try {
-    const response = await fetch(`${PUSH_BACKEND_URL}/api/push/public-key`, {
+    const response = await fetch('/api/push/public-key', {
       headers: {
         'Content-Type': 'application/json',
       },
       cache: 'no-store',
-      credentials: 'omit',
+      credentials: 'same-origin',
     })
 
     if (response.ok) {
@@ -58,14 +57,14 @@ async function postSubscription(payload: unknown): Promise<Response> {
   let lastError: unknown = null
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const response = await fetch(`${PUSH_BACKEND_URL}/api/push/subscribe`, {
+      const response = await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
         cache: 'no-store',
-        credentials: 'omit',
+        credentials: 'same-origin',
       })
 
       if (response.ok) {
@@ -92,14 +91,14 @@ async function postTestPush(payload: unknown): Promise<Response> {
   let lastError: unknown = null
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const response = await fetch(`${PUSH_BACKEND_URL}/api/push/test`, {
+      const response = await fetch('/api/push/test', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
         cache: 'no-store',
-        credentials: 'omit',
+        credentials: 'same-origin',
       })
 
       if (response.ok) {
