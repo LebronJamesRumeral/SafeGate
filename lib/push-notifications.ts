@@ -15,6 +15,12 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
 async function getPublicKey(): Promise<string> {
   const envPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim()
   if (envPublicKey) {
@@ -64,22 +70,31 @@ async function postSubscription(payload: unknown): Promise<Response> {
 
   let lastError: unknown = null
   for (const endpoint of endpoints) {
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        })
 
-      if (response.ok) {
-        return response
+        if (response.ok) {
+          return response
+        }
+
+        lastError = response.statusText || `HTTP ${response.status}`
+        if (![408, 429, 500, 502, 503, 504].includes(response.status)) {
+          break
+        }
+      } catch (error) {
+        lastError = error
       }
 
-      lastError = response.statusText || `HTTP ${response.status}`
-    } catch (error) {
-      lastError = error
+      if (attempt < 2) {
+        await sleep(400 * (attempt + 1))
+      }
     }
   }
 
@@ -95,22 +110,31 @@ async function postTestPush(payload: unknown): Promise<Response> {
 
   let lastError: unknown = null
   for (const endpoint of endpoints) {
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        })
 
-      if (response.ok) {
-        return response
+        if (response.ok) {
+          return response
+        }
+
+        lastError = response.statusText || `HTTP ${response.status}`
+        if (![408, 429, 500, 502, 503, 504].includes(response.status)) {
+          break
+        }
+      } catch (error) {
+        lastError = error
       }
 
-      lastError = response.statusText || `HTTP ${response.status}`
-    } catch (error) {
-      lastError = error
+      if (attempt < 2) {
+        await sleep(400 * (attempt + 1))
+      }
     }
   }
 
