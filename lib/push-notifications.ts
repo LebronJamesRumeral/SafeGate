@@ -1,6 +1,7 @@
 'use client'
 
 const DEFAULT_VAPID_PUBLIC_KEY = 'BPnwXZPg1TaxnJNsbEChBlCY4-2z97MF1qHBUxVZ2fR4GJ2oVzIn1isBfeQ2aID-qMdbEVbD5zqSibUrcNYXMFw'
+const PUSH_BACKEND_URL = 'https://safegate-pg3g.onrender.com'
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -31,70 +32,56 @@ async function getPublicKey(): Promise<string> {
     return DEFAULT_VAPID_PUBLIC_KEY
   }
 
-  const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://safegate-pg3g.onrender.com').replace(/\/api\/?$/, '')
-  const endpoints = [
-    `${backendUrl}/api/push/public-key`,
-    '/api/push/public-key',
-  ]
+  try {
+    const response = await fetch(`${PUSH_BACKEND_URL}/api/push/public-key`, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+      credentials: 'omit',
+    })
 
-  for (const endpoint of endpoints) {
-    try {
-      const response = await fetch(endpoint, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        continue
-      }
-
+    if (response.ok) {
       const data = await response.json()
       if (typeof data?.publicKey === 'string' && data.publicKey) {
         return data.publicKey
       }
-    } catch (error) {
-      continue
     }
+  } catch (error) {
+    // Fall through to the error below.
   }
 
   throw new Error('Unable to load push key')
 }
 
 async function postSubscription(payload: unknown): Promise<Response> {
-  const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://safegate-pg3g.onrender.com').replace(/\/api\/?$/, '')
-  const endpoints = [
-    `${backendUrl}/api/push/subscribe`,
-    '/api/push/subscribe',
-  ]
-
   let lastError: unknown = null
-  for (const endpoint of endpoints) {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        })
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch(`${PUSH_BACKEND_URL}/api/push/subscribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+        credentials: 'omit',
+      })
 
-        if (response.ok) {
-          return response
-        }
-
-        lastError = response.statusText || `HTTP ${response.status}`
-        if (![408, 429, 500, 502, 503, 504].includes(response.status)) {
-          break
-        }
-      } catch (error) {
-        lastError = error
+      if (response.ok) {
+        return response
       }
 
-      if (attempt < 2) {
-        await sleep(400 * (attempt + 1))
+      lastError = response.statusText || `HTTP ${response.status}`
+      if (![408, 429, 500, 502, 503, 504].includes(response.status)) {
+        break
       }
+    } catch (error) {
+      lastError = error
+    }
+
+    if (attempt < 2) {
+      await sleep(400 * (attempt + 1))
     }
   }
 
@@ -102,39 +89,33 @@ async function postSubscription(payload: unknown): Promise<Response> {
 }
 
 async function postTestPush(payload: unknown): Promise<Response> {
-  const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://safegate-pg3g.onrender.com').replace(/\/api\/?$/, '')
-  const endpoints = [
-    `${backendUrl}/api/push/test`,
-    '/api/push/test',
-  ]
-
   let lastError: unknown = null
-  for (const endpoint of endpoints) {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        })
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch(`${PUSH_BACKEND_URL}/api/push/test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+        credentials: 'omit',
+      })
 
-        if (response.ok) {
-          return response
-        }
-
-        lastError = response.statusText || `HTTP ${response.status}`
-        if (![408, 429, 500, 502, 503, 504].includes(response.status)) {
-          break
-        }
-      } catch (error) {
-        lastError = error
+      if (response.ok) {
+        return response
       }
 
-      if (attempt < 2) {
-        await sleep(400 * (attempt + 1))
+      lastError = response.statusText || `HTTP ${response.status}`
+      if (![408, 429, 500, 502, 503, 504].includes(response.status)) {
+        break
       }
+    } catch (error) {
+      lastError = error
+    }
+
+    if (attempt < 2) {
+      await sleep(400 * (attempt + 1))
     }
   }
 
