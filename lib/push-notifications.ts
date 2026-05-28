@@ -14,12 +14,11 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 async function getPublicKey(): Promise<string> {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/api\/?$/, '') || ''
-  const endpoints = ['/api/push/public-key']
-
-  if (backendUrl) {
-    endpoints.push(`${backendUrl}/api/push/public-key`)
-  }
+  const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://safegate-pg3g.onrender.com').replace(/\/api\/?$/, '')
+  const endpoints = [
+    `${backendUrl}/api/push/public-key`,
+    '/api/push/public-key',
+  ]
 
   for (const endpoint of endpoints) {
     try {
