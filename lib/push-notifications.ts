@@ -55,6 +55,37 @@ async function getPublicKey(): Promise<string> {
   throw new Error('Unable to load push key')
 }
 
+async function postSubscription(payload: unknown): Promise<Response> {
+  const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://safegate-pg3g.onrender.com').replace(/\/api\/?$/, '')
+  const endpoints = [
+    `${backendUrl}/api/push/subscribe`,
+    '/api/push/subscribe',
+  ]
+
+  let lastError: unknown = null
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (response.ok) {
+        return response
+      }
+
+      lastError = response.statusText || `HTTP ${response.status}`
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  throw new Error(typeof lastError === 'string' ? lastError : 'Failed to save notification subscription')
+}
+
 export async function enableDeviceNotifications(role: string, user?: { id?: string | null; username?: string | null; full_name?: string | null; email?: string | null }): Promise<string> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
     return 'Push notifications are not supported on this browser.'
@@ -80,21 +111,11 @@ export async function enableDeviceNotifications(role: string, user?: { id?: stri
     applicationServerKey: urlBase64ToUint8Array(await getPublicKey()),
   })
 
-  const response = await fetch('/api/push/subscribe', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      subscription: subscription.toJSON(),
-      roles: [role],
-      user_id: user?.id || null,
-    }),
+  await postSubscription({
+    subscription: subscription.toJSON(),
+    roles: [role],
+    user_id: user?.id || null,
   })
-
-  if (!response.ok) {
-    throw new Error('Failed to save notification subscription')
-  }
 
   return existingSubscription ? 'Phone notifications are already enabled.' : 'Phone notifications are enabled.'
 }
