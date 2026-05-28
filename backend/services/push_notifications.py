@@ -6,8 +6,6 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
-from pywebpush import WebPushException, webpush
-
 try:
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import ec
@@ -197,6 +195,11 @@ def _build_payload(title: str, message: str, target_roles: Iterable[str], meta: 
 
 
 def _send_web_push(subscription: dict[str, Any], payload: dict[str, Any]) -> bool:
+    try:
+        from pywebpush import WebPushException, webpush
+    except ImportError:
+        return False
+
     _, private_key = get_vapid_keys()
     try:
         webpush(

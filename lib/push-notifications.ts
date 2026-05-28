@@ -14,22 +14,35 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 async function getPublicKey(): Promise<string> {
-  const response = await fetch('/api/push/public-key', {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  })
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/api\/?$/, '') || ''
+  const endpoints = ['/api/push/public-key']
 
-  if (!response.ok) {
-    throw new Error('Unable to load push key')
+  if (backendUrl) {
+    endpoints.push(`${backendUrl}/api/push/public-key`)
   }
 
-  const data = await response.json()
-  if (typeof data?.publicKey !== 'string' || !data.publicKey) {
-    throw new Error('Push key missing from server response')
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        continue
+      }
+
+      const data = await response.json()
+      if (typeof data?.publicKey === 'string' && data.publicKey) {
+        return data.publicKey
+      }
+    } catch (error) {
+      continue
+    }
   }
 
-  return data.publicKey
+  throw new Error('Unable to load push key')
 }
 
 export async function enableDeviceNotifications(role: string, user?: { id?: string | null; username?: string | null; full_name?: string | null; email?: string | null }): Promise<string> {

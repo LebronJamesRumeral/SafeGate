@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from supabase import create_client
 
 from config import settings
 from services.push_notifications import (
@@ -60,6 +59,8 @@ def unsubscribe(request: PushUnsubscribeRequest) -> dict[str, bool]:
 def create_role_notification(request: RoleNotificationCreateRequest) -> dict[str, bool]:
     if not settings.supabase_url or not settings.supabase_service_role_key:
         raise HTTPException(status_code=500, detail='Supabase is not configured')
+
+    from supabase import create_client
 
     supabase = create_client(settings.supabase_url, settings.supabase_service_role_key)
     payload = {
