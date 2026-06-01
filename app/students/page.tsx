@@ -95,7 +95,7 @@ import StudentsSkeleton from '@/components/students-skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/lib/auth-context';
-import { getStudentImportRequiredFieldsHint, parseStudentImportRows } from '@/lib/student-import';
+import { dedupeStudentImportRows, extractStudentImportRows, getStudentImportRequiredFieldsHint, parseStudentImportRows } from '@/lib/student-import';
 import { 
   AreaChart, 
   Area, 
@@ -114,7 +114,7 @@ import {
 
 const toDisplayLrn = (lrn?: string | null): string => {
   const value = (lrn || '').trim();
-  return /^temp-\d+$/i.test(value) ? '' : value;
+  return value;
 };
 
 const YEAR_LEVEL_START_TIMES: Record<string, string> = {
@@ -4008,9 +4008,7 @@ export default function StudentsPage() {
         return;
       }
 
-      const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[firstSheetName], {
-        defval: '',
-      });
+      const rawRows = extractStudentImportRows(workbook.Sheets[firstSheetName], XLSX);
 
       const parsed = parseStudentImportRows(rawRows);
 
@@ -4023,10 +4021,20 @@ export default function StudentsPage() {
         return;
       }
 
+      const { data: existingStudents, error: existingStudentsError } = await supabase
+        .from('students')
+        .select('name, gender, birthday, address, level, parent_name, parent_contact, parent2_name, parent2_contact, parent_email, status, substatus');
+
+      if (existingStudentsError) {
+        throw existingStudentsError;
+      }
+
+      const deduped = dedupeStudentImportRows(parsed.rows, existingStudents || []);
+
 
       // Strictly clean/validate parent emails and ensure required fields
       const uniqueParents = new Map();
-      parsed.rows.forEach((row) => {
+      deduped.rows.forEach((row) => {
         // Clean and validate parent email
         let email = (row.parent_email || '').toString().trim().toLowerCase();
         if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
@@ -4072,8 +4080,13 @@ export default function StudentsPage() {
       }
 
       const chunkSize = 200;
-      for (let i = 0; i < parsed.rows.length; i += chunkSize) {
-        const chunk = parsed.rows.slice(i, i + chunkSize);
+      for (let i = 0; i < deduped.rows.length; i += chunkSize) {
+        const chunk = deduped.rows.slice(i, i + chunkSize).map(({ age, parent_email, ...student }) => ({
+          ...student,
+          parent_email: parent_email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(parent_email.trim())
+            ? parent_email.trim().toLowerCase()
+            : null,
+        }));
         const { error } = await supabase
           .from('students')
           .upsert(chunk, { onConflict: 'lrn' });
@@ -4087,7 +4100,7 @@ export default function StudentsPage() {
 
       toast({
         title: 'Import completed',
-        description: `Imported ${parsed.rows.length} student records. Skipped ${parsed.skippedMissingRequired} missing required and ${parsed.skippedEmpty} empty rows. Masterlist is now updated.`,
+        description: `Imported ${deduped.rows.length} student records. Skipped ${parsed.skippedMissingRequired} missing required, ${parsed.skippedEmpty} empty, and ${deduped.skippedDuplicate} already imported rows. Masterlist is now updated.`,
       });
     } catch (error) {
       console.error('Error importing students:', error);
