@@ -88,6 +88,7 @@ type SchoolYearUndoState = {
 };
 import { toast } from '@/hooks/use-toast';
 import { formatTime12h } from '@/lib/time-format';
+import { formatLocalDateKey, parseLocalDateKey } from '@/lib/utils';
 import { sortByLevel } from '@/lib/level-order';
 import { calculateStudentRiskScore, getActionRecommendations, type RiskScore } from '@/lib/ml-risk-calculator';
 import { StudentRiskCard } from '@/components/ml-dashboard';
@@ -2382,7 +2383,7 @@ export default function StudentsPage() {
   }) => {
     if (!supabase) return;
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = formatLocalDateKey(new Date());
       const { data: attendance, error: attendanceError } = await supabase
         .from('attendance_logs')
         .select('student_lrn, check_in_time, check_out_time, attendance_status, is_present')
@@ -2402,7 +2403,8 @@ export default function StudentsPage() {
       // Enforce summer / school year attendance rules: if today's date is after current school year end,
       // only students enrolled in summer classes should have attendance considered. Others should be marked out_of_session.
       try {
-        const todayDate = new Date(today);
+        const todayDate = parseLocalDateKey(today);
+        if (!todayDate) throw new Error('Invalid local date key');
         todayDate.setHours(0, 0, 0, 0);
         const schoolYearForCheck = options?.currentSchoolYear ?? currentSchoolYear;
         const summerEnrollmentsForCheck = options?.summerEnrollmentsOverride ?? summerEnrollments;
@@ -2490,7 +2492,7 @@ export default function StudentsPage() {
 
     if (!supabase) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = formatLocalDateKey(new Date());
     const channel = supabase
       .channel('attendance_changes')
       .on(

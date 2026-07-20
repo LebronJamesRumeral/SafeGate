@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { createClient } from '@supabase/supabase-js';
+import { formatLocalDateKey } from './utils';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -73,8 +74,7 @@ export async function getHighRiskStudents() {
       current_attendance_rate,
       risk_level,
       next_likely_absent_date,
-      next_absent_confidence,
-      students!inner(name, parent_contact, parent_email)
+      next_absent_confidence
     `)
     .in('risk_level', ['high', 'critical'])
     .order('current_attendance_rate', { ascending: true });
@@ -84,11 +84,11 @@ export async function getHighRiskStudents() {
     return [];
   }
 
-  return data.map((student) => ({
+  return (data || []).map((student: any) => ({
     lrn: student.student_lrn,
-    name: student.students.name,
-    parentContact: student.students.parent_contact || student.students.parent_email,
-    parentEmail: student.students.parent_email || null,
+    name: student.name || student.student_lrn,
+    parentContact: null,
+    parentEmail: null,
     attendanceRate: student.current_attendance_rate,
     riskLevel: student.risk_level,
     nextAbsentDate: student.next_likely_absent_date,
@@ -125,7 +125,7 @@ export async function getAllStudentsWithRiskScores() {
       return [];
     }
 
-    return (data || []).map((student: any) => {
+    return (students || []).map((student: any) => {
       const summary = student.student_attendance_summary?.[0];
       return {
         lrn: student.lrn,
@@ -159,7 +159,7 @@ export async function logAttendance(studentLrn: string, checkInTime: Date) {
         student_lrn: studentLrn,
         check_in_time: checkInTime,
         check_out_time: null,
-        date: new Date().toISOString().split('T')[0],
+        date: formatLocalDateKey(checkInTime),
         is_present: true,
       });
 
@@ -197,28 +197,10 @@ export async function logAttendance(studentLrn: string, checkInTime: Date) {
 }
 
 // ============================================================================
-// 5. DASHBOARD COMPONENT - STUDENT RISK CARD
+// 5. DASHBOARD VIEW MODEL - STUDENT RISK CARD
 // ============================================================================
 
-import React, { useEffect, useState } from 'react';
-
-export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
-  const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadData = async () => {
-      const data = await getStudentAttendanceSummary(studentLrn);
-      setSummary(data);
-      setLoading(false);
-    };
-
-    loadData();
-  }, [studentLrn]);
-
-  if (loading) return <div>Loading...</div>;
-  if (!summary) return <div>No data</div>;
-
+export function buildStudentRiskCardView(summary: any) {
   const getRiskColor = (risk: string) => {
     switch (risk) {
       case 'critical':
@@ -243,38 +225,14 @@ export function StudentRiskCard({ studentLrn }: { studentLrn: string }) {
     }
   };
 
-  return (
-    <div className={`border-l-4 p-4 rounded ${getRiskColor(summary.riskLevel)}`}>
-      <div className="flex justify-between items-start">
-        <div>
-          <h3 className="font-bold text-lg">Attendance Status</h3>
-          <p className="text-2xl font-bold mt-2">
-            {summary.attendanceRate}%
-          </p>
-          <p className="text-sm mt-1">
-            {getTrendIcon(summary.trend)} {summary.trend}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm font-semibold uppercase">
-            {summary.riskLevel}
-          </p>
-          <p className="text-xs mt-2">Risk Level</p>
-          {summary.nextLikelyAbsentDate && (
-            <p className="text-xs mt-4 bg-white bg-opacity-50 p-2 rounded">
-              Likely absent: {summary.nextLikelyAbsentDate}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {summary.daysUntilCritical && summary.daysUntilCritical > 0 && (
-        <div className="mt-3 bg-white bg-opacity-50 p-2 rounded text-sm">
-          ⚠️ {summary.daysUntilCritical} days until critical threshold (70%)
-        </div>
-      )}
-    </div>
-  );
+  return {
+    riskBadgeClass: getRiskColor(summary?.riskLevel || 'low'),
+    trendIcon: getTrendIcon(summary?.trend || 'stable'),
+    attendanceRate: summary?.attendanceRate || 0,
+    riskLevel: summary?.riskLevel || 'low',
+    nextLikelyAbsentDate: summary?.nextLikelyAbsentDate || null,
+    daysUntilCritical: summary?.daysUntilCritical || 0,
+  };
 }
 
 // ============================================================================
@@ -307,10 +265,15 @@ export async function checkAndNotifyHighRiskStudents() {
 
 async function sendParentNotification(options: {
   studentName: string;
-  parentPhone: string;
+  parentPhone?: string | null;
   message: string;
   priority: string;
 }) {
+  if (!options.parentPhone) {
+    console.log('📢 Notification skipped:', options.message);
+    return;
+  }
+
   // Implement SMS/Email service here
   console.log('📢 Notification:', options.message);
 }
@@ -406,12 +369,6 @@ export function subscribeToStudentRiskUpdates(
   studentLrn: string,
   onUpdate: (summary: any) => void
 ) {
-  const subscription = supabase
-    .from(`student_attendance_summary:student_lrn=eq.${studentLrn}`)
-    .on('*', (payload) => {
-      onUpdate(payload.new);
-    })
-    .subscribe();
-
-  return () => subscription.unsubscribe();
+  console.warn('Realtime subscription example is not enabled in this helper file.');
+  return () => undefined;
 }

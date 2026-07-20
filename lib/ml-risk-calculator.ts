@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { formatLocalDateKey } from './utils';
 
 export interface AttendanceMetrics {
   attendance_rate: number;
@@ -180,7 +181,7 @@ async function getSimpleRiskScore(studentLrn: string): Promise<RiskScore | null>
       .from('attendance_logs')
       .select('date')
       .eq('student_lrn', studentLrn)
-      .gte('date', new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+      .gte('date', formatLocalDateKey(new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)));
 
     if (attendanceError) throw attendanceError;
 
@@ -226,7 +227,7 @@ async function getSimpleRiskScore(studentLrn: string): Promise<RiskScore | null>
         late_percentage: 0,
         negative_events: 0,
         positive_events: 0,
-        calculation_date: new Date().toISOString().split('T')[0],
+        calculation_date: formatLocalDateKey(new Date()),
       }
     };
   } catch (error) {
@@ -307,7 +308,7 @@ export async function compileStudentIssues(
         .from('behavioral_events')
         .select('event_type, severity, event_date')
         .eq('student_lrn', studentLrn)
-        .gte('event_date', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+        .gte('event_date', formatLocalDateKey(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)))
         .order('event_date', { ascending: false }),
     ]);
 
@@ -395,14 +396,14 @@ export async function compileStudentIssues(
     return {
       compiledIssue,
       componentIssues: visibleIssues,
-      compiledDate: new Date().toISOString().split('T')[0],
+      compiledDate: formatLocalDateKey(new Date()),
     };
   } catch (error) {
     // console.error('Error compiling student issues:', error);
     return {
       compiledIssue: 'Unable to Compile Issues',
       componentIssues: [],
-      compiledDate: new Date().toISOString().split('T')[0],
+      compiledDate: formatLocalDateKey(new Date()),
     };
   }
 }

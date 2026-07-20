@@ -5,6 +5,7 @@ import {
   queueOfflineItem,
   requestBackgroundSync,
 } from '@/lib/offline-secure-queue';
+import { formatLocalDateKey } from '@/lib/utils';
 
 type SupabaseClientLike = {
   from: (table: string) => any;
@@ -23,7 +24,7 @@ export async function queueBehaviorEvent(payload: BehaviorEventPayload): Promise
 }
 
 async function applyAttendanceScan(supabase: SupabaseClientLike, payload: AttendanceScanPayload): Promise<void> {
-  const scanDate = payload.scanned_at.split('T')[0];
+  const scanDate = formatLocalDateKey(new Date(payload.scanned_at));
   const normalizedEarlyOutReason = payload.early_out_reason?.trim();
 
   const { data: existing, error: existingError } = await supabase

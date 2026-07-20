@@ -19,6 +19,7 @@ import { motion } from 'framer-motion';
 import { getOfflineQueueCount } from '@/lib/offline-secure-queue';
 import { queueAttendanceScan, syncOfflineQueue } from '@/lib/offline-sync';
 import { formatTime12h } from '@/lib/time-format';
+import { formatLocalDateKey } from '@/lib/utils';
 
 interface ScanResult {
   status: 'success' | 'error';
@@ -143,7 +144,7 @@ export default function ScanPage() {
       throw new Error('Supabase client not initialized');
     }
 
-    const date = scanIsoTime.split('T')[0];
+    const date = formatLocalDateKey(new Date(scanIsoTime));
     const { data: existing, error: existingError } = await supabase
       .from('attendance_logs')
       .select('id, check_in_time, check_out_time')
@@ -232,7 +233,7 @@ export default function ScanPage() {
   const recordAttendance = async (student: any) => {
     const now = new Date();
     const nowIso = now.toISOString();
-    const date = nowIso.split('T')[0];
+    const date = formatLocalDateKey(now);
 
     if (!navigator.onLine) {
       try {
