@@ -146,3 +146,14 @@ class StudentAttendanceSchedule(Base):
     
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class SystemSetting(Base):
+    """System setting model for storing global configurations."""
+    __tablename__ = "system_settings"
+    
+    key = Column(String(255), primary_key=True, index=True)
+    value = Column(JSON, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+

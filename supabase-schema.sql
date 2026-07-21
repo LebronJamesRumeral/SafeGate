@@ -1718,3 +1718,21 @@ CREATE POLICY "Enable read for all on school_year_undos" ON school_year_undos FO
 CREATE POLICY "Enable insert for all on school_year_undos" ON school_year_undos FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all on school_year_undos" ON school_year_undos FOR UPDATE USING (true);
 CREATE POLICY "Enable delete for all on school_year_undos" ON school_year_undos FOR DELETE USING (true);
+
+-- ============================================================================
+-- System settings table for global configuration management
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.system_settings (
+  key VARCHAR(255) PRIMARY KEY,
+  value JSONB NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS for system_settings table and allow basic CRUD from server/client
+ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable read for all on system_settings" ON system_settings FOR SELECT USING (true);
+CREATE POLICY "Enable insert for all on system_settings" ON system_settings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for all on system_settings" ON system_settings FOR UPDATE USING (true);
+CREATE POLICY "Enable delete for all on system_settings" ON system_settings FOR DELETE USING (true);
+

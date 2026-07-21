@@ -60,6 +60,71 @@ interface StudentIncident {
   } | null;
 }
 
+type MLRiskThreshold = 'critical' | 'high' | 'medium' | 'all';
+
+interface DashboardMLSettings {
+  riskAlertsEnabled: boolean;
+  predictionsEnabled: boolean;
+  riskThreshold: MLRiskThreshold;
+  updateFrequency: 'realtime' | 'hourly' | 'daily' | 'weekly';
+}
+
+const DEFAULT_DASHBOARD_ML_SETTINGS: DashboardMLSettings = {
+  riskAlertsEnabled: true,
+  predictionsEnabled: true,
+  riskThreshold: 'high',
+  updateFrequency: 'daily',
+};
+
+function normalizeDashboardMLSettings(raw: Partial<DashboardMLSettings> | null | undefined): DashboardMLSettings {
+  return {
+    riskAlertsEnabled:
+      typeof raw?.riskAlertsEnabled === 'boolean'
+        ? raw.riskAlertsEnabled
+        : DEFAULT_DASHBOARD_ML_SETTINGS.riskAlertsEnabled,
+    predictionsEnabled:
+      typeof raw?.predictionsEnabled === 'boolean'
+        ? raw.predictionsEnabled
+        : DEFAULT_DASHBOARD_ML_SETTINGS.predictionsEnabled,
+    riskThreshold:
+      raw?.riskThreshold === 'critical' ||
+      raw?.riskThreshold === 'high' ||
+      raw?.riskThreshold === 'medium' ||
+      raw?.riskThreshold === 'all'
+        ? raw.riskThreshold
+        : DEFAULT_DASHBOARD_ML_SETTINGS.riskThreshold,
+    updateFrequency:
+      raw?.updateFrequency === 'realtime' ||
+      raw?.updateFrequency === 'hourly' ||
+      raw?.updateFrequency === 'daily' ||
+      raw?.updateFrequency === 'weekly'
+        ? raw.updateFrequency
+        : DEFAULT_DASHBOARD_ML_SETTINGS.updateFrequency,
+  };
+}
+
+function persistDashboardMLSettings(settings: DashboardMLSettings) {
+  try {
+    window.localStorage.setItem('mlSettings', JSON.stringify(settings));
+  } catch (error) {
+    console.warn('Unable to persist ML settings locally:', error);
+  }
+}
+
+function getAllowedRiskLevels(threshold: MLRiskThreshold): Set<string> {
+  switch (threshold) {
+    case 'critical':
+      return new Set(['critical']);
+    case 'high':
+      return new Set(['critical', 'high']);
+    case 'medium':
+      return new Set(['critical', 'high', 'medium']);
+    case 'all':
+    default:
+      return new Set(['critical', 'high', 'medium', 'low', 'monitoring']);
+  }
+}
+
 function getSeverityStyle(severity: string): { 
   badge: string; 
   border: string; 
@@ -587,6 +652,7 @@ export function MLDashboard() {
   const [search, setSearch] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [mlSettings, setMlSettings] = useState<DashboardMLSettings>(DEFAULT_DASHBOARD_ML_SETTINGS);
 
   const studentsPerPage = 3;
 
@@ -607,9 +673,17 @@ export function MLDashboard() {
   // Risk level options
   const riskOptions = ['critical', 'high', 'medium', 'low'];
 
+  const allowedRiskLevels = getAllowedRiskLevels(mlSettings.riskThreshold);
+
   // Filtered students (match fixed student level labels)
   const filteredStudents = highRiskStudents.filter(s => {
     let matches = true;
+    matches = matches && allowedRiskLevels.has(String(s.riskLevel || '').toLowerCase());
+
+    if (!mlSettings.riskAlertsEnabled) {
+      matches = matches && s.riskLevel !== 'critical';
+    }
+
     if (gradeFilter !== 'all') {
       // Prefer class_level, fallback to grade/level/name extraction
       let studentLevel = '';
@@ -659,6 +733,57 @@ export function MLDashboard() {
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
   }, [totalPages]);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await fetch('/api/settings?key=mlSettings', { cache: 'no-store' });
+        if (response.ok) {
+          const json = await response.json();
+          if (json?.success && json?.data) {
+            const normalized = normalizeDashboardMLSettings(json.data as Partial<DashboardMLSettings>);
+            setMlSettings(normalized);
+            persistDashboardMLSettings(normalized);
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn('Unable to load ML settings from the database:', error);
+      }
+
+      try {
+        const raw = window.localStorage.getItem('mlSettings');
+        if (!raw) {
+          setMlSettings(DEFAULT_DASHBOARD_ML_SETTINGS);
+          persistDashboardMLSettings(DEFAULT_DASHBOARD_ML_SETTINGS);
+          return;
+        }
+        const parsed = normalizeDashboardMLSettings(JSON.parse(raw) as Partial<DashboardMLSettings>);
+        setMlSettings(parsed);
+        persistDashboardMLSettings(parsed);
+      } catch {
+        setMlSettings(DEFAULT_DASHBOARD_ML_SETTINGS);
+        persistDashboardMLSettings(DEFAULT_DASHBOARD_ML_SETTINGS);
+      }
+    };
+
+    void loadSettings();
+    const handleUpdated = () => {
+      void loadSettings();
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'mlSettings') {
+        void loadSettings();
+      }
+    };
+
+    window.addEventListener('ml-settings-updated', handleUpdated as EventListener);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('ml-settings-updated', handleUpdated as EventListener);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
 
   const filterSummary = [
     gradeFilter === 'all' ? 'All Levels' : gradeFilter,
@@ -877,6 +1002,19 @@ export function MLDashboard() {
           </p>
         </div>
       </div>
+
+      {!mlSettings.predictionsEnabled && (
+        <Card className="border-0 bg-linear-to-br from-slate-100 to-white dark:from-slate-900/70 dark:to-slate-800/60 shadow-lg overflow-hidden">
+          <div className="h-1 bg-linear-to-r from-slate-600 to-slate-700" />
+          <CardContent className="p-4">
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Predictions are disabled in ML settings.</p>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Enable predictions from the settings page to view ML risk cards.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {mlSettings.predictionsEnabled && (
+        <>
 
       {/* Filter controls */}
       <div className="mb-4">
@@ -1265,6 +1403,8 @@ export function MLDashboard() {
               </div>
             </div>
           )}
+        </>
+      )}
         </>
       )}
     </motion.div>

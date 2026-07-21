@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bell, Lock, User, School, Save, Database, Brain, Clock, ChevronRight } from 'lucide-react';
+import { Bell, Lock, User, School, Save, Database, Brain, Clock, ChevronRight, Pencil, Trash2, Eye, EyeOff, UserPlus, ShieldAlert, Edit3 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -20,7 +20,6 @@ import {
   DialogDescription,
   DialogClose,
 } from '@/components/ui/dialog';
-import { MLDashboard } from '@/components/ml-dashboard';
 
 interface YearLevelCheckoutTime {
   level: string;
@@ -34,14 +33,32 @@ interface SettingsCategory {
   color: string;
 }
 
+type MLRiskThreshold = 'critical' | 'high' | 'medium' | 'all';
+type MLUpdateFrequency = 'realtime' | 'hourly' | 'daily' | 'weekly';
+
+interface MLSettings {
+  riskAlertsEnabled: boolean;
+  predictionsEnabled: boolean;
+  riskThreshold: MLRiskThreshold;
+  updateFrequency: MLUpdateFrequency;
+}
+
+const DEFAULT_ML_SETTINGS: MLSettings = {
+  riskAlertsEnabled: true,
+  predictionsEnabled: true,
+  riskThreshold: 'high',
+  updateFrequency: 'daily',
+};
+
 export default function SettingsPage() {
   const MIN_SKELETON_DURATION_MS = 650;
   const [initialLoading, setInitialLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState('school');
+  const [activeCategory, setActiveCategory] = useState('account');
   const [notifications, setNotifications] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [autoCheckout, setAutoCheckout] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [mlSettings, setMlSettings] = useState<MLSettings>(DEFAULT_ML_SETTINGS);
   const [yearLevelTimes, setYearLevelTimes] = useState<YearLevelCheckoutTime[]>([
     { level: 'Toddler & Nursery', time: '11:30' },
     { level: 'Pre-K', time: '11:30' },
@@ -67,12 +84,22 @@ export default function SettingsPage() {
   });
   const [newUserErrors, setNewUserErrors] = useState<{ email?: string; password?: string; role?: string }>({});
   const [creatingUser, setCreatingUser] = useState(false);
+  const [showAddPassword, setShowAddPassword] = useState(false);
 
-  // State for user listing and deletion
+  // State for user listing, deletion, and editing
   const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; role: string }>>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<{ id: string; name: string } | null>(null);
+
+  // State for editing user
+  const [editingUser, setEditingUser] = useState<{ id: string; name: string; email: string; role: string } | null>(null);
+  const [editPassword, setEditPassword] = useState('');
+  const [editFullName, setEditFullName] = useState('');
+  const [editRole, setEditRole] = useState('teacher');
+  const [updatingUser, setUpdatingUser] = useState(false);
+  const [editErrors, setEditErrors] = useState<{ password?: string; full_name?: string }>({});
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   // Fetch users
   const fetchUsers = async () => {
@@ -179,19 +206,23 @@ export default function SettingsPage() {
     if (!newUser.password.trim()) {
       missingInputs.push('Password');
       validationErrors.password = 'Please provide a password.';
+    } else if (newUser.password.trim().length < 6) {
+      validationErrors.password = 'Password must be at least 6 characters.';
     }
     if (!newUser.role.trim()) {
       missingInputs.push('Role');
       validationErrors.role = 'Please select a role.';
     }
 
-    if (missingInputs.length > 0) {
+    if (missingInputs.length > 0 || Object.keys(validationErrors).length > 0) {
       setNewUserErrors(validationErrors);
-      toast({
-        title: 'Required Inputs Missing',
-        description: `Please complete: ${missingInputs.join(', ')}`,
-        variant: 'destructive',
-      });
+      if (missingInputs.length > 0) {
+        toast({
+          title: 'Required Inputs Missing',
+          description: `Please complete: ${missingInputs.join(', ')}`,
+          variant: 'destructive',
+        });
+      }
       return;
     }
 
@@ -207,12 +238,11 @@ export default function SettingsPage() {
       if (data.success) {
         toast({
           title: 'User added',
-          description: `${newUser.full_name || newUser.email} was added successfully. Password: ${newUser.password}`,
+          description: `${newUser.full_name || newUser.email} was added successfully.`,
           variant: 'default',
         });
         setNewUser({ email: '', password: '', full_name: '', role: 'teacher' });
         setNewUserErrors({});
-        // Refresh user list after adding
         fetchUsers();
       } else {
         toast({
@@ -232,37 +262,124 @@ export default function SettingsPage() {
     }
   };
 
-  const categories: SettingsCategory[] = [
-    { id: 'school', label: 'School Information', icon: <School size={20} />, color: 'blue' },
-    { id: 'account', label: 'Account Management', icon: <User size={20} />, color: 'purple' },
-    { id: 'system', label: 'System Settings', icon: <Database size={20} />, color: 'emerald' },
-    { id: 'notifications', label: 'Notifications', icon: <Bell size={20} />, color: 'orange' },
-    { id: 'security', label: 'Security', icon: <Lock size={20} />, color: 'red' },
-    { id: 'ml', label: 'ML Settings', icon: <Brain size={20} />, color: 'violet' },
-  ];
+  const handleEditUser = (user: { id: string; name: string; email: string; role: string }) => {
+    setEditingUser(user);
+    setEditFullName(user.name || '');
+    setEditRole(user.role || 'teacher');
+    setEditPassword('');
+    setEditErrors({});
+    setShowEditPassword(false);
+  };
 
-  // Load settings from localStorage
-  useEffect(() => {
-    const savedTimes = localStorage.getItem('yearLevelCheckoutTimes');
-    if (savedTimes) {
-      try {
-        setYearLevelTimes(JSON.parse(savedTimes));
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    const validationErrors: { password?: string; full_name?: string } = {};
+    if (!editFullName.trim()) {
+      validationErrors.full_name = 'Full name is required.';
+    }
+    if (editPassword && editPassword.trim().length < 6) {
+      validationErrors.password = 'Password must be at least 6 characters.';
+    }
+
+    if (Object.keys(validationErrors).length > 0) {
+      setEditErrors(validationErrors);
+      return;
+    }
+
+    setUpdatingUser(true);
+    try {
+      const res = await fetch('/api/auth/update-user', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingUser.id,
+          full_name: editFullName.trim(),
+          role: editRole,
+          password: editPassword.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
         toast({
-          title: 'Settings Loaded',
-          description: 'Year level times loaded successfully.',
+          title: 'User updated',
+          description: 'The user account details have been successfully updated.',
           variant: 'default',
         });
-      } catch (error) {
-        console.error('Error loading year level times:', error);
+        setEditingUser(null);
+        fetchUsers();
+      } else {
         toast({
-          title: 'Failed to load year level times',
-          description: error instanceof Error ? error.message : String(error),
+          title: 'Update failed',
+          description: data.error || 'Failed to update user.',
           variant: 'destructive',
         });
       }
+    } catch (err: any) {
+      toast({
+        title: 'Update failed',
+        description: err.message || 'An error occurred during user update.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdatingUser(false);
     }
+  };
 
-    // Keep the skeleton visible briefly to avoid a flash where animated content appears to override it.
+  const categories: SettingsCategory[] = [
+    { id: 'account', label: 'Account Management', icon: <User size={20} />, color: 'purple' },
+    { id: 'ml', label: 'ML Settings', icon: <Brain size={20} />, color: 'violet' },
+  ];
+
+  // Load settings from database
+  useEffect(() => {
+    const loadSettingsFromDB = async () => {
+      try {
+        const timesRes = await fetch('/api/settings?key=yearLevelCheckoutTimes');
+        const timesJson = await timesRes.json();
+        if (timesRes.ok && timesJson.success && timesJson.data) {
+          setYearLevelTimes(timesJson.data);
+        }
+
+        const mlRes = await fetch('/api/settings?key=mlSettings');
+        const mlJson = await mlRes.json();
+        if (mlRes.ok && mlJson.success && mlJson.data) {
+          const parsed = mlJson.data as Partial<MLSettings>;
+          const normalizedSettings = {
+            riskAlertsEnabled:
+              typeof parsed.riskAlertsEnabled === 'boolean'
+                ? parsed.riskAlertsEnabled
+                : DEFAULT_ML_SETTINGS.riskAlertsEnabled,
+            predictionsEnabled:
+              typeof parsed.predictionsEnabled === 'boolean'
+                ? parsed.predictionsEnabled
+                : DEFAULT_ML_SETTINGS.predictionsEnabled,
+            riskThreshold:
+              parsed.riskThreshold === 'critical' ||
+              parsed.riskThreshold === 'high' ||
+              parsed.riskThreshold === 'medium' ||
+              parsed.riskThreshold === 'all'
+                ? parsed.riskThreshold
+                : DEFAULT_ML_SETTINGS.riskThreshold,
+            updateFrequency:
+              parsed.updateFrequency === 'realtime' ||
+              parsed.updateFrequency === 'hourly' ||
+              parsed.updateFrequency === 'daily' ||
+              parsed.updateFrequency === 'weekly'
+                ? parsed.updateFrequency
+                : DEFAULT_ML_SETTINGS.updateFrequency,
+          };
+          setMlSettings(normalizedSettings);
+          window.localStorage.setItem('mlSettings', JSON.stringify(normalizedSettings));
+        }
+      } catch (error) {
+        console.error('Error loading settings from database:', error);
+      }
+    };
+
+    loadSettingsFromDB();
+
     const loadingTimer = window.setTimeout(() => {
       setInitialLoading(false);
     }, MIN_SKELETON_DURATION_MS);
@@ -278,10 +395,57 @@ export default function SettingsPage() {
     setYearLevelTimes(updatedTimes);
   };
 
-  const handleSaveSettings = () => {
-    localStorage.setItem('yearLevelCheckoutTimes', JSON.stringify(yearLevelTimes));
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+  const handleSaveSettings = async () => {
+    try {
+      const timesRes = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'yearLevelCheckoutTimes', value: yearLevelTimes }),
+      });
+      const timesJson = await timesRes.json();
+
+      const mlRes = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'mlSettings', value: mlSettings }),
+      });
+      const mlJson = await mlRes.json();
+
+      if (timesJson.success && mlJson.success) {
+        window.localStorage.setItem('mlSettings', JSON.stringify(mlSettings));
+        window.dispatchEvent(
+          new CustomEvent('ml-settings-updated', {
+            detail: mlSettings,
+          })
+        );
+        window.dispatchEvent(
+          new CustomEvent('year-level-checkout-times-updated', {
+            detail: yearLevelTimes,
+          })
+        );
+
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+        toast({
+          title: 'Settings saved',
+          description: 'Account and ML settings were updated successfully in the database.',
+          variant: 'default',
+        });
+      } else {
+        toast({
+          title: 'Failed to save settings',
+          description: timesJson.error || mlJson.error || 'Failed to update settings in the database.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      toast({
+        title: 'Failed to save settings',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    }
   };
 
   const getCategoryColor = (color: string) => {
@@ -298,9 +462,9 @@ export default function SettingsPage() {
   };
 
   const handleCategoryCancel = (categoryId: string) => {
-    // Reset form if needed
     console.log(`Cancelled changes for ${categoryId}`);
   };
+
 
   if (initialLoading) {
     return (
@@ -353,8 +517,8 @@ export default function SettingsPage() {
       <div className="animate-fade-in-up">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
-          <h1 className="mb-2 text-3xl font-bold text-slate-900 dark:text-white sm:text-4xl">Settings & Configuration</h1>
-          <p className="text-base text-gray-600 dark:text-gray-300">Manage your system preferences and settings</p>
+          <h1 className="mb-2 text-3xl font-bold text-slate-900 dark:text-white sm:text-4xl">Account & ML Settings</h1>
+          <p className="text-base text-gray-600 dark:text-gray-300">Manage user accounts and machine-learning behavior</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -452,7 +616,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-8 space-y-10">
+                <CardContent className="pt-8 space-y-6">
                   {/* Add New User Form */}
                   <div className="p-6 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-slate-50/70 dark:bg-slate-800/50 shadow-sm">
                     <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">Add New User</h3>
@@ -498,7 +662,7 @@ export default function SettingsPage() {
                   </div>
 
                   {/* Gap between Add User and User List */}
-                  <div className="h-4" />
+                  <div className="h-2" />
                   {/* User List */}
                   <div className="p-6 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-slate-50/70 dark:bg-slate-800/50 shadow-sm">
                     <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">User Accounts</h3>
@@ -524,47 +688,29 @@ export default function SettingsPage() {
                                 <td className="px-4 py-2 whitespace-nowrap">{user.email}</td>
                                 <td className="px-4 py-2 whitespace-nowrap capitalize">{user.role}</td>
                                 <td className="px-4 py-2 whitespace-nowrap text-right">
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    className="rounded-md"
-                                    disabled={deletingUserId === user.id}
-                                    onClick={() => handleDeleteUser(user.id, user.name || user.email)}
-                                  >
-                                    {deletingUserId === user.id ? 'Deleting...' : 'Delete'}
-                                  </Button>
+                                  <div className="inline-flex items-center justify-end gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="rounded-md"
+                                      onClick={() => handleEditUser(user)}
+                                    >
+                                      <Edit3 size={14} />
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      className="rounded-md"
+                                      disabled={deletingUserId === user.id}
+                                      onClick={() => handleDeleteUser(user.id, user.name || user.email)}
+                                    >
+                                      {deletingUserId === user.id ? 'Deleting...' : 'Delete'}
+                                    </Button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}
-                                {/* Delete User Confirmation Modal - render once at page level */}
-                                <Dialog open={!!confirmDeleteUser} onOpenChange={(open) => { if (!open) setConfirmDeleteUser(null); }}>
-                                  <DialogContent className="w-[96vw] max-w-md h-auto max-h-[92vh] overflow-hidden p-0 flex flex-col rounded-xl">
-                                    <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40">
-                                      <DialogTitle className="text-2xl leading-tight">Are you sure?</DialogTitle>
-                                      <DialogDescription>
-                                        This action cannot be undone. This will permanently delete the user <b>{confirmDeleteUser?.name}</b> from the system.
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    <div className="bg-white dark:bg-slate-950 px-6 py-4 flex justify-end gap-2">
-                                      <Button
-                                        variant="outline"
-                                        onClick={() => setConfirmDeleteUser(null)}
-                                        disabled={deletingUserId === confirmDeleteUser?.id}
-                                        className="min-w-24"
-                                      >
-                                        Cancel
-                                      </Button>
-                                      <Button
-                                        variant="destructive"
-                                        onClick={confirmDelete}
-                                        disabled={deletingUserId === confirmDeleteUser?.id}
-                                        className="min-w-24"
-                                      >
-                                        {deletingUserId === confirmDeleteUser?.id ? 'Deleting...' : 'Delete'}
-                                      </Button>
-                                    </div>
-                                  </DialogContent>
-                                </Dialog>
                           </tbody>
                         </table>
                       </div>
@@ -573,6 +719,67 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
             )}
+
+            <Dialog open={!!editingUser} onOpenChange={(open) => { if (!open) setEditingUser(null); }}>
+              <DialogContent showCloseButton={false} className="w-[96vw] max-w-2xl h-auto max-h-[92vh] overflow-hidden p-0 flex flex-col rounded-xl">
+                <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50/70 dark:bg-slate-900/40">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <DialogTitle className="text-2xl font-bold">Edit User</DialogTitle>
+                      <DialogDescription className="text-sm text-slate-600 dark:text-slate-400">
+                        Update the user's full name, role, or reset their password. Leave the password blank to keep the existing password.
+                      </DialogDescription>
+                    </div>
+                  </div>
+                </DialogHeader>
+                <form onSubmit={handleUpdateUser} className="bg-white dark:bg-slate-950 px-6 pb-6 pt-4 space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="editUserEmail" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Email</Label>
+                      <Input id="editUserEmail" value={editingUser?.email ?? ''} disabled className="border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/70 text-slate-700 dark:text-slate-200 rounded-lg h-11" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editUserRole" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Role</Label>
+                      <Select value={editRole} onValueChange={(value) => setEditRole(value)}>
+                        <SelectTrigger id="editUserRole" className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Administrator</SelectItem>
+                          <SelectItem value="teacher">Teacher</SelectItem>
+                          <SelectItem value="guidance">Guidance</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="editUserFullName" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Full Name</Label>
+                      <Input id="editUserFullName" value={editFullName} onChange={(e) => setEditFullName(e.target.value)} placeholder="Full Name" className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11" />
+                      {editErrors.full_name && <p className="text-sm text-red-600 dark:text-red-400">{editErrors.full_name}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editUserPassword" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Password</Label>
+                      <Input id="editUserPassword" type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="Leave blank to keep current password" className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11" autoComplete="new-password" />
+                      {editErrors.password && <p className="text-sm text-red-600 dark:text-red-400">{editErrors.password}</p>}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3 items-end pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <div className="text-sm text-slate-600 dark:text-slate-400">You must confirm this change before it can be saved.</div>
+                    <div className="flex flex-wrap gap-3 justify-end">
+                      <Button variant="outline" type="button" onClick={() => setEditingUser(null)} className="min-w-24">
+                        Cancel
+                      </Button>
+                      <Button type="submit" className="min-w-28 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg" disabled={updatingUser}>
+                        {updatingUser ? 'Saving...' : 'Save Changes'}
+                      </Button>
+                    </div>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
 
             {/* Notifications */}
             {activeCategory === 'notifications' && (
@@ -731,7 +938,12 @@ export default function SettingsPage() {
                         <p className="font-bold text-slate-900 dark:text-white text-base">ML Risk Alerts</p>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Receive alerts for students at risk of absence</p>
                       </div>
-                      <Switch defaultChecked={true} />
+                      <Switch
+                        checked={mlSettings.riskAlertsEnabled}
+                        onCheckedChange={(checked) =>
+                          setMlSettings((prev) => ({ ...prev, riskAlertsEnabled: checked }))
+                        }
+                      />
                     </div>
                   </div>
                   <div className="bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/50 rounded-xl p-6 space-y-4 hover:shadow-md transition-shadow">
@@ -740,12 +952,22 @@ export default function SettingsPage() {
                         <p className="font-bold text-slate-900 dark:text-white text-base">Enable Predictions</p>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Use ML to predict student absences and behaviors</p>
                       </div>
-                      <Switch defaultChecked={true} />
+                      <Switch
+                        checked={mlSettings.predictionsEnabled}
+                        onCheckedChange={(checked) =>
+                          setMlSettings((prev) => ({ ...prev, predictionsEnabled: checked }))
+                        }
+                      />
                     </div>
                   </div>
                   <div className="space-y-3">
                     <Label htmlFor="riskThreshold" className="text-sm font-bold text-slate-700 dark:text-slate-300">Risk Alert Threshold</Label>
-                    <Select defaultValue="high">
+                    <Select
+                      value={mlSettings.riskThreshold}
+                      onValueChange={(value: MLRiskThreshold) =>
+                        setMlSettings((prev) => ({ ...prev, riskThreshold: value }))
+                      }
+                    >
                       <SelectTrigger id="riskThreshold" className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11 focus:ring-2 focus:ring-violet-400 dark:focus:ring-violet-500">
                         <SelectValue />
                       </SelectTrigger>
@@ -759,7 +981,12 @@ export default function SettingsPage() {
                   </div>
                   <div className="space-y-3">
                     <Label htmlFor="updateFrequency" className="text-sm font-bold text-slate-700 dark:text-slate-300">Prediction Update Frequency</Label>
-                    <Select defaultValue="daily">
+                    <Select
+                      value={mlSettings.updateFrequency}
+                      onValueChange={(value: MLUpdateFrequency) =>
+                        setMlSettings((prev) => ({ ...prev, updateFrequency: value }))
+                      }
+                    >
                       <SelectTrigger id="updateFrequency" className="border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11 focus:ring-2 focus:ring-violet-400 dark:focus:ring-violet-500">
                         <SelectValue />
                       </SelectTrigger>

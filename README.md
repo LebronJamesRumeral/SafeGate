@@ -190,6 +190,16 @@ This starts both backend and frontend automatically.
 .\start-dev.bat
 ```
 
+**Windows Manual Alternative (example commands):**
+```powershell
+cd C:\path\to\safe-gate-pwa-design\backend
+.\venv\Scripts\Activate.ps1
+python main.py
+
+cd C:\path\to\safe-gate-pwa-design
+npm run dev
+```
+
 **macOS/Linux (Bash):**
 ```bash
 ./start-dev.sh
