@@ -100,8 +100,7 @@ export function Navbar() {
 
         {/* Mobile Navigation - Now handled by MobileBottomNavbar */}
       </div>
+      {/* Mobile Bottom Navigation handled in DashboardLayout on mobile */}
     </nav>
-
-    {/* Mobile Bottom Navigation handled in DashboardLayout on mobile */}
   );
 }

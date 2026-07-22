@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { HeatmapZonesProvider, useHeatmapZones } from '@/lib/heatmap-zones-context';
+import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { SchoolHeatmapSkeleton } from '@/components/school-heatmap-skeleton';
@@ -12,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Activity, AlertCircle, AlertTriangle, Calendar, Clock3, Flame, MapPinned, Phone, Plus, ShieldAlert, Target, Trash2, Users, Archive } from 'lucide-react';
+import { Activity, AlertCircle, AlertTriangle, Calendar, Clock3, Flame, MapPinned, Phone, Plus, ShieldAlert, Target, Trash2, Users, Archive, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -266,6 +267,49 @@ function isLogInZone(log: BehavioralLog, zone: HeatZone) {
 
 
 
+const HEAT_LEVEL_THEMES = {
+  Critical: {
+    gradient: 'from-red-500 to-rose-600 dark:from-red-600 dark:to-rose-700',
+    shadow: 'shadow-red-500/20 dark:shadow-red-950/40',
+    text: 'text-red-600 dark:text-red-400',
+    bg: 'bg-red-50/50 dark:bg-red-950/10',
+    border: 'border-red-200 dark:border-red-900/30',
+    badge: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+  },
+  High: {
+    gradient: 'from-orange-500 to-amber-600 dark:from-orange-600 dark:to-amber-700',
+    shadow: 'shadow-orange-500/20 dark:shadow-orange-950/40',
+    text: 'text-orange-600 dark:text-orange-400',
+    bg: 'bg-orange-50/50 dark:bg-orange-950/10',
+    border: 'border-orange-200 dark:border-orange-900/30',
+    badge: 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300'
+  },
+  Medium: {
+    gradient: 'from-amber-400 to-yellow-500 dark:from-amber-500 dark:to-yellow-600',
+    shadow: 'shadow-amber-500/20 dark:shadow-amber-950/40',
+    text: 'text-amber-600 dark:text-amber-450',
+    bg: 'bg-amber-50/50 dark:bg-amber-950/10',
+    border: 'border-amber-200/80 dark:border-amber-800/40 border-dashed',
+    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+  },
+  Low: {
+    gradient: 'from-emerald-500 to-green-600 dark:from-emerald-600 dark:to-green-700',
+    shadow: 'shadow-emerald-500/20 dark:shadow-emerald-950/40',
+    text: 'text-emerald-600 dark:text-emerald-400',
+    bg: 'bg-emerald-50/30 dark:bg-emerald-950/10',
+    border: 'border-emerald-200/60 dark:border-emerald-800/30',
+    badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+  },
+  Stable: {
+    gradient: 'from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-700',
+    shadow: 'shadow-blue-500/20 dark:shadow-blue-950/40',
+    text: 'text-blue-600 dark:text-blue-400',
+    bg: 'bg-blue-50/30 dark:bg-blue-950/10',
+    border: 'border-blue-200/60 dark:border-slate-800/60',
+    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+  }
+};
+
 function SchoolHeatmapContent() {
     // --- Overlapping Pin Interaction ---
     const [activePinId, setActivePinId] = useState<number | null>(null);
@@ -330,7 +374,8 @@ function SchoolHeatmapContent() {
   const [recentLogsModalOpen, setRecentLogsModalOpen] = useState(false);
   const [zoneDragState, setZoneDragState] = useState<ZoneDragState | null>(null);
   const [mobilePanel, setMobilePanel] = useState<'activity' | 'mapper'>('activity');
-  const [showAllMapperZonesMobile, setShowAllMapperZonesMobile] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   const { zones, loading: zonesLoading, loadZones, addZone, updateZone, deleteZone } = useHeatmapZones();
   // Handle select all toggle
@@ -485,7 +530,21 @@ function SchoolHeatmapContent() {
 
   const isInitialHeatmapLoad = loading && logs.length === 0;
 
+  const totalPages = Math.ceil(zones.length / itemsPerPage);
+  const paginatedZones = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return zones.slice(startIndex, startIndex + itemsPerPage);
+  }, [zones, currentPage, itemsPerPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [zones.length, totalPages, currentPage]);
+
   const selectedZone = zoneAnalytics.find((entry) => entry.zone.id === selectedZoneId) || zoneAnalytics[0];
+
+  const theme = selectedZone ? (HEAT_LEVEL_THEMES[selectedZone.heat.label as keyof typeof HEAT_LEVEL_THEMES] || HEAT_LEVEL_THEMES.Stable) : HEAT_LEVEL_THEMES.Stable;
 
   const selectedZoneContext = useMemo(() => {
     const zoneLogs = selectedZone?.logs || [];
@@ -973,8 +1032,8 @@ function SchoolHeatmapContent() {
                 </button>
               </div>
               <div className="flex items-center gap-3.5">
-                <div className="p-3 rounded-xl bg-linear-to-br from-sky-500 to-sky-600 text-white shadow-lg shadow-sky-500/30 dark:shadow-sky-500/20 hover:scale-110 transition-transform duration-300">
-                  <Flame className="w-5 h-5" />
+                <div className={cn("p-3 rounded-xl text-white shadow-lg transition-all duration-500 hover:scale-110 bg-gradient-to-br", theme.gradient, theme.shadow)}>
+                  <Flame className="w-5 h-5 animate-pulse" />
                 </div>
                 <div>
                   <CardTitle className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">{selectedZone?.zone.name || 'Area Overview'}</CardTitle>
@@ -984,114 +1043,170 @@ function SchoolHeatmapContent() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3 sm:space-y-5 pt-3 sm:pt-4 p-3 sm:p-6">
+            <CardContent className="space-y-4.5 pt-4 p-5 sm:p-6">
               {selectedZone ? (
                 <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-lg border border-slate-200/80 bg-linear-to-br from-slate-50 to-slate-50/50 p-3.5 dark:border-slate-700/60 dark:bg-linear-to-br dark:from-slate-900/40 dark:to-slate-800/20 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
-                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Heat Level</p>
-                      <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{selectedZone.heat.label}</p>
-                    </div>
-                    <div className="rounded-lg border border-slate-200/80 bg-linear-to-br from-slate-50 to-slate-50/50 p-3.5 dark:border-slate-700/60 dark:bg-linear-to-br dark:from-slate-900/40 dark:to-slate-800/20 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
-                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Severity Score</p>
-                      <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{selectedZone.score}</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-2.5 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Severity Breakdown</p>
-                    <div className="flex flex-wrap gap-2">
-                      {(Object.keys(selectedZone.breakdown) as Severity[]).map((severity) => (
-                        <Badge key={severity} className={`${SEVERITY_BADGE_CLASS[severity]} transition-all hover:shadow-md hover:scale-105`}>
-                          {severity}: {selectedZone.breakdown[severity]}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg border border-rose-200 bg-rose-50/70 p-3 dark:border-rose-900/50 dark:bg-rose-950/30">
-                    <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-300">
-                      <ShieldAlert className="h-3.5 w-3.5" />
-                      ML Risk Signal
-                    </p>
-                    <p className="mt-1 text-sm text-rose-800 dark:text-rose-200">
-                      {selectedZone.highRiskInZone.length} high-risk student(s) recently logged in this area.
-                    </p>
-                  </div>
-
-                  <div className="sm:hidden rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/30 space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
-                      Context Snapshot
-                    </p>
-                    <div className="space-y-1 text-xs text-indigo-900 dark:text-indigo-100">
-                      <p>
-                        Peak window: <span className="font-semibold">{selectedZoneContext.peakTimeBand}</span>
-                      </p>
-                      <p>
-                        Top incident:{' '}
-                        <span className="font-semibold">
-                          {selectedZoneContext.topIncidentTypes[0]?.[0] || 'No incidents'}
-                          {selectedZoneContext.topIncidentTypes[0]?.[1] ? ` (${selectedZoneContext.topIncidentTypes[0][1]})` : ''}
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <div className={cn("rounded-2xl border p-4 transition-all duration-300 shadow-xs hover:shadow-md", theme.bg, theme.border)}>
+                      <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5">Heat Level</p>
+                      <div className="flex items-center gap-1.5">
+                        <span className={cn("text-lg sm:text-xl font-extrabold tracking-tight", theme.text)}>
+                          {selectedZone.heat.label}
                         </span>
-                      </p>
-                      <p>
-                        Frequent situation:{' '}
-                        <span className="font-semibold">
-                          {selectedZoneContext.topSituations[0]?.[0] || 'No signal'}
-                          {selectedZoneContext.topSituations[0]?.[1] ? ` (${selectedZoneContext.topSituations[0][1]})` : ''}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="hidden sm:block rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/30 space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
-                      Contextual Behavior Analysis
-                    </p>
-                    <p className="text-xs text-indigo-800 dark:text-indigo-200">
-                      Peak situation window: <span className="font-semibold">{selectedZoneContext.peakTimeBand}</span>
-                    </p>
-
-                    <div>
-                      <p className="text-[11px] font-medium text-indigo-700 dark:text-indigo-300 mb-1">Top Incident Types</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {selectedZoneContext.topIncidentTypes.length > 0 ? selectedZoneContext.topIncidentTypes.map(([type, count], index) => (
-                          <Badge key={type} variant="outline" className="border-indigo-300 text-indigo-700 dark:border-indigo-700 dark:text-indigo-300">
-                            <span className={index > 1 ? 'hidden sm:inline' : ''}>{type} ({count})</span>
-                          </Badge>
-                        )) : (
-                          <span className="text-xs text-indigo-800/80 dark:text-indigo-200/80">No incidents in selected range.</span>
-                        )}
+                        <div className={cn("h-2.5 w-2.5 rounded-full bg-current animate-ping opacity-75", theme.text)} />
                       </div>
                     </div>
 
-                    <div>
-                      <p className="text-[11px] font-medium text-indigo-700 dark:text-indigo-300 mb-1">Frequent Situations</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {selectedZoneContext.topSituations.length > 0 ? selectedZoneContext.topSituations.map(([situation, count], index) => (
-                          <Badge key={situation} variant="outline" className="border-indigo-300 text-indigo-700 dark:border-indigo-700 dark:text-indigo-300">
-                            <span className={index > 1 ? 'hidden sm:inline' : ''}>{situation} ({count})</span>
+                    <div className="rounded-2xl border border-slate-200/80 bg-linear-to-br from-slate-50 to-white dark:border-slate-800/85 dark:from-slate-900/50 dark:to-slate-850/30 p-4 transition-all duration-300 shadow-xs hover:shadow-md">
+                      <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5">Severity Score</p>
+                      <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                        {selectedZone.score}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Severity Breakdown</p>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Total logs: {selectedZone.logs.length}</span>
+                    </div>
+                    {/* Visual Segmented Progress Bar */}
+                    <div className="h-2 w-full rounded-full overflow-hidden flex bg-slate-100 dark:bg-slate-800">
+                      {(() => {
+                        const total = selectedZone.logs.length;
+                        if (total === 0) {
+                          return <div className="w-full h-full bg-slate-200 dark:bg-slate-700" />;
+                        }
+                        const pctCritical = (selectedZone.breakdown.critical / total) * 100;
+                        const pctMajor = (selectedZone.breakdown.major / total) * 100;
+                        const pctMinor = (selectedZone.breakdown.minor / total) * 100;
+                        const pctPositive = (selectedZone.breakdown.positive / total) * 100;
+                        return (
+                          <>
+                            {pctCritical > 0 && <div style={{ width: `${pctCritical}%` }} className="bg-red-500 h-full" title={`Critical: ${selectedZone.breakdown.critical}`} />}
+                            {pctMajor > 0 && <div style={{ width: `${pctMajor}%` }} className="bg-orange-500 h-full" title={`Major: ${selectedZone.breakdown.major}`} />}
+                            {pctMinor > 0 && <div style={{ width: `${pctMinor}%` }} className="bg-amber-400 h-full" title={`Minor: ${selectedZone.breakdown.minor}`} />}
+                            {pctPositive > 0 && <div style={{ width: `${pctPositive}%` }} className="bg-emerald-500 h-full" title={`Positive: ${selectedZone.breakdown.positive}`} />}
+                          </>
+                        );
+                      })()}
+                    </div>
+                    {/* Pill Badges */}
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {(Object.keys(selectedZone.breakdown) as Severity[]).map((severity) => {
+                        const count = selectedZone.breakdown[severity];
+                        return (
+                          <Badge 
+                            key={severity} 
+                            className={cn(
+                              "text-xs font-semibold px-2.5 py-1 rounded-full transition-all duration-300",
+                              count > 0 
+                                ? SEVERITY_BADGE_CLASS[severity] + " hover:shadow-xs hover:scale-105"
+                                : "bg-slate-50 text-slate-400 dark:bg-slate-900/40 dark:text-slate-500 border border-slate-100 dark:border-slate-800/80 opacity-60"
+                            )}
+                          >
+                            <span className="capitalize">{severity}</span>
+                            <span className="ml-1.5 px-1.5 py-0.2 rounded-full bg-white/70 dark:bg-black/20 text-[10px] font-extrabold">{count}</span>
                           </Badge>
-                        )) : (
-                          <span className="text-xs text-indigo-800/80 dark:text-indigo-200/80">No contextual signals found.</span>
-                        )}
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const hasRisk = selectedZone.highRiskInZone.length > 0;
+                    return (
+                      <div className={cn(
+                        "rounded-2xl border p-4 transition-all duration-300 flex items-start gap-3.5",
+                        hasRisk
+                          ? "border-red-200 bg-red-50/70 text-red-900 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-100"
+                          : "border-emerald-100 bg-emerald-50/30 text-slate-700 dark:border-emerald-950/20 dark:bg-emerald-950/10 dark:text-slate-300"
+                      )}>
+                        <div className={cn(
+                          "p-2 rounded-xl text-white shadow-sm shrink-0",
+                          hasRisk 
+                            ? "bg-red-500 shadow-red-500/10" 
+                            : "bg-emerald-500 shadow-emerald-500/10"
+                        )}>
+                          <ShieldAlert className="h-4.5 w-4.5" />
+                        </div>
+                        <div>
+                          <p className={cn(
+                            "text-[10px] font-bold uppercase tracking-wider",
+                            hasRisk ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
+                          )}>ML Risk Signal</p>
+                          <p className="mt-1 text-xs font-semibold leading-relaxed">
+                            {hasRisk 
+                              ? `${selectedZone.highRiskInZone.length} high-risk student(s) recently logged in this area.`
+                              : "No high-risk students recently logged in this area."
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="rounded-2xl border border-indigo-100 bg-indigo-50/20 p-4 dark:border-indigo-950/20 dark:bg-indigo-950/10 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shrink-0">
+                        <Activity className="h-4 w-4" />
+                      </div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                        Contextual Behavior Analysis
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-1">
+                      <div className="flex items-center justify-between text-xs py-1.5 border-b border-indigo-100/50 dark:border-indigo-950/30">
+                        <span className="text-slate-500 dark:text-slate-400">Peak situation window</span>
+                        <span className="font-semibold text-indigo-900 dark:text-indigo-300">{selectedZoneContext.peakTimeBand}</span>
+                      </div>
+
+                      <div className="space-y-1.5 pt-1">
+                        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Top Incident Types</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedZoneContext.topIncidentTypes.length > 0 ? (
+                            selectedZoneContext.topIncidentTypes.map(([type, count]) => (
+                              <Badge key={type} className="bg-indigo-50/80 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/50 text-[10px] font-semibold py-0.5 px-2 rounded-lg">
+                                {type} • {count}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs text-slate-400 dark:text-slate-500 italic">No incidents in selected range.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 pt-1">
+                        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Frequent Situations</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedZoneContext.topSituations.length > 0 ? (
+                            selectedZoneContext.topSituations.map(([situation, count]) => (
+                              <Badge key={situation} className="bg-indigo-50/80 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/50 text-[10px] font-semibold py-0.5 px-2 rounded-lg">
+                                {situation} • {count}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs text-slate-400 dark:text-slate-500 italic">No contextual signals found.</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div>
-                    <p className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                      <Activity className="h-3.5 w-3.5" />
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
                       Recent Logs
                     </p>
-                    <div className="rounded-lg border border-slate-200/80 bg-slate-50/70 p-3 dark:border-slate-700/70 dark:bg-slate-900/40">
-                      <p className="hidden sm:block text-xs text-slate-600 dark:text-slate-300 mb-3">
-                        Logs are hidden by default for privacy. Open the modal to review room activity.
+                    <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800/85 dark:bg-slate-900/40 space-y-3">
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        Logs are hidden by default for student privacy. Review masked room activity records in a secure dialog.
                       </p>
                       <Dialog open={recentLogsModalOpen} onOpenChange={setRecentLogsModalOpen}>
                         <DialogTrigger asChild>
-                          <Button type="button" size="sm" variant="outline" className="w-full">
-                            View Recent Logs ({recentSelectedLogs.length})
+                          <Button type="button" size="sm" variant="outline" className="w-full text-xs font-semibold h-9 rounded-xl border-slate-200 dark:border-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-100 shadow-xs">
+                            <Clock3 className="h-3.5 w-3.5 mr-2" />
+                            View Logs ({recentSelectedLogs.length} recent)
                           </Button>
                         </DialogTrigger>
                         <DialogContent className="w-[96vw] sm:w-[92vw] sm:max-w-2xl max-h-[80vh] overflow-hidden">
@@ -1102,7 +1217,7 @@ function SchoolHeatmapContent() {
                             </DialogDescription>
                           </DialogHeader>
 
-                          <div className="overflow-y-auto pr-1 space-y-2">
+                          <div className="overflow-y-auto pr-1 space-y-2.5 my-2">
                             {recentSelectedLogs.length === 0 && (
                               <div className="rounded-lg border border-slate-200/80 p-3 text-sm text-slate-500 dark:border-slate-700/70 dark:text-slate-400">
                                 No logs found for this area in the selected date range.
@@ -1115,18 +1230,32 @@ function SchoolHeatmapContent() {
                               return (
                                 <div
                                   key={log.id}
-                                  className="rounded-lg border border-slate-200/80 p-3 dark:border-slate-700/70"
+                                  className="rounded-xl border border-slate-100 bg-white p-3.5 dark:border-slate-800/80 dark:bg-slate-900/60 shadow-xs hover:shadow-md transition-all duration-200"
                                 >
-                                  <div className="mb-1 flex items-center justify-between gap-2">
-                                    <p className="line-clamp-1 text-sm font-medium text-slate-900 dark:text-slate-100">
+                                  <div className="mb-2 flex items-center justify-between gap-2.5">
+                                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                                       {eventType}
                                     </p>
-                                    <Badge className={SEVERITY_BADGE_CLASS[severity]}>{severity}</Badge>
+                                    <Badge className={cn("text-[10px] font-extrabold px-2.5 py-0.5 rounded-full", SEVERITY_BADGE_CLASS[severity])}>{severity}</Badge>
                                   </div>
-                                  <p className="line-clamp-2 text-xs text-slate-600 dark:text-slate-300">{log.description || 'No description provided.'}</p>
-                                  <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-                                    {log.event_date || 'No date'} {log.event_time ? `• ${log.event_time}` : ''} • {maskStudentLrn(log.student_lrn)}
-                                  </p>
+                                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{log.description || 'No description provided.'}</p>
+                                  <div className="mt-3 pt-2 border-t border-slate-50 dark:border-slate-800/40 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                                    <div className="flex items-center gap-1">
+                                      <Calendar className="h-3 w-3" />
+                                      <span>{log.event_date || 'No date'}</span>
+                                      {log.event_time && (
+                                        <>
+                                          <span className="mx-1">•</span>
+                                          <Clock3 className="h-3 w-3" />
+                                          <span>{log.event_time}</span>
+                                        </>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1 font-medium bg-slate-50 dark:bg-slate-850 px-2 py-0.5 rounded-md border border-slate-100 dark:border-slate-800/50">
+                                      <Users className="h-3 w-3 text-slate-400" />
+                                      <span>{maskStudentLrn(log.student_lrn)}</span>
+                                    </div>
+                                  </div>
                                 </div>
                               );
                             })}
@@ -1189,73 +1318,145 @@ function SchoolHeatmapContent() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-5 pt-4 p-6 max-h-[72vh] overflow-y-auto">
-              <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-2">
-                <div>
-                  <Label htmlFor="zone-name-desktop" className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Area Name</Label>
-                  <Input id="zone-name-desktop" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} placeholder="e.g., Room A-101" className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500" />
+            <CardContent className="space-y-5 pt-4 p-6 max-h-[78vh] flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <Label htmlFor="zone-name-desktop" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Area Name</Label>
+                    <Input id="zone-name-desktop" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} placeholder="e.g., Room A-101" className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500" />
+                  </div>
+                  <div>
+                    <Label htmlFor="zone-keywords-desktop" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Location Keywords</Label>
+                    <Input
+                      id="zone-keywords-desktop"
+                      value={newZoneKeywords}
+                      onChange={(e) => setNewZoneKeywords(e.target.value)}
+                      placeholder="room a-101, science lab"
+                      className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="zone-keywords-desktop" className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Location Keywords</Label>
-                  <Input
-                    id="zone-keywords-desktop"
-                    value={newZoneKeywords}
-                    onChange={(e) => setNewZoneKeywords(e.target.value)}
-                    placeholder="room a-101, science lab"
-                    className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500"
-                  />
-                </div>
-              </div>
 
-              <Button type="button" onClick={handleAddZone} className="w-full bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Area to Heatmap
-              </Button>
-
-              <div className="flex items-center gap-3 mb-2">
-                <Checkbox
-                  checked={selectAll}
-                  onCheckedChange={(checked) => setSelectAll(!!checked)}
-                  id="select-all-zones-desktop"
-                />
-                <Label htmlFor="select-all-zones-desktop" className="text-sm cursor-pointer select-none">Select All</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="destructive"
-                  disabled={selectedZoneIds.length === 0}
-                  onClick={openDeleteDialog}
-                  className="ml-auto"
-                >
-                  <Trash2 className="h-4 w-4 mr-1" /> Delete Selected
+                <Button type="button" onClick={handleAddZone} className="w-full bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Area to Heatmap
                 </Button>
+
+                <div className="flex items-center gap-3 mb-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <Checkbox
+                    checked={selectAll}
+                    onCheckedChange={(checked) => setSelectAll(!!checked)}
+                    id="select-all-zones-desktop"
+                  />
+                  <Label htmlFor="select-all-zones-desktop" className="text-xs font-medium cursor-pointer select-none">Select All</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    disabled={selectedZoneIds.length === 0}
+                    onClick={openDeleteDialog}
+                    className="ml-auto text-xs px-2.5 h-8 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/30 border-0"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete Selected
+                  </Button>
+                </div>
+
+                <div className="relative overflow-hidden">
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.div
+                      key={`desktop-zones-page-${currentPage}`}
+                      initial={{ opacity: 0, y: 10, scale: 0.995 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.995 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                      className="grid grid-cols-1 gap-2.5"
+                    >
+                      {paginatedZones.length === 0 ? (
+                        <div className="text-center py-6 text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg dark:border-slate-700">
+                          No mapped areas found. Add one above.
+                        </div>
+                      ) : (
+                        paginatedZones.map((zone) => {
+                          const isSelected = selectedZoneId === zone.id;
+                          return (
+                            <div
+                              key={`desktop-zone-${zone.id}`}
+                              onClick={() => setSelectedZoneId(zone.id)}
+                              className={cn(
+                                "flex items-center justify-between rounded-lg border px-3 py-2 transition-all duration-200 cursor-pointer",
+                                isSelected
+                                  ? "border-amber-500 bg-amber-50/50 dark:border-amber-500/80 dark:bg-amber-950/20 ring-1 ring-amber-500/50 shadow-xs"
+                                  : "border-slate-200/80 bg-white/70 dark:bg-slate-900/50 dark:border-slate-800/80 hover:border-amber-300 dark:hover:border-amber-600/60 hover:shadow-xs"
+                              )}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0" onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={selectedZoneIds.includes(zone.id)}
+                                  onCheckedChange={() => handleZoneCheckbox(zone.id)}
+                                  id={`zone-checkbox-desktop-panel-${zone.id}`}
+                                />
+                                <div onClick={() => setSelectedZoneId(zone.id)} className="cursor-pointer min-w-0">
+                                  <p className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{zone.name}</p>
+                                  <p className="truncate text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Pos: {zone.left}% , {zone.top}% • Size: {zone.width}% × {zone.height}%
+                                  </p>
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteZone(zone.id);
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          );
+                        })
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-2.5">
-                {zones.map((zone) => (
-                  <div
-                    key={`desktop-zone-${zone.id}`}
-                    className="flex items-center justify-between rounded-lg border border-amber-200/60 bg-linear-to-r from-white to-amber-50/30 dark:from-slate-900/50 dark:to-slate-800/30 px-3.5 py-2.5 dark:border-amber-700/40 hover:border-amber-300 dark:hover:border-amber-600/60 hover:shadow-sm transition-all duration-200"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Checkbox
-                        checked={selectedZoneIds.includes(zone.id)}
-                        onCheckedChange={() => handleZoneCheckbox(zone.id)}
-                        id={`zone-checkbox-desktop-panel-${zone.id}`}
-                      />
-                      <div>
-                        <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{zone.name}</p>
-                        <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                          {zone.top}% / {zone.left}% / {zone.width}% / {zone.height}%
-                        </p>
-                      </div>
-                    </div>
-                    <Button type="button" size="icon" variant="ghost" onClick={() => handleDeleteZone(zone.id)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-4 pb-4 mt-2">
+                  <span className="text-[10px] text-slate-400">
+                    Showing <span className="font-semibold text-slate-600 dark:text-slate-300">{(currentPage - 1) * itemsPerPage + 1}</span>-
+                    <span className="font-semibold text-slate-600 dark:text-slate-300">{Math.min(zones.length, currentPage * itemsPerPage)}</span> of{' '}
+                    <span className="font-semibold text-slate-600 dark:text-slate-300">{zones.length}</span>
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 rounded-md border-slate-200 dark:border-slate-700 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-slate-800"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </Button>
+                    <span className="text-xs px-2 font-medium text-slate-700 dark:text-slate-300">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 rounded-md border-slate-200 dark:border-slate-700 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-slate-800"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -1292,13 +1493,13 @@ function SchoolHeatmapContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-4">
-              <div className="xl:col-span-2">
-                <Label htmlFor="zone-name" className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Area Name</Label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="zone-name" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Area Name</Label>
                 <Input id="zone-name" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} placeholder="e.g., Room A-101" className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500" />
               </div>
-              <div className="xl:col-span-2">
-                <Label htmlFor="zone-keywords" className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Location Keywords</Label>
+              <div>
+                <Label htmlFor="zone-keywords" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Location Keywords</Label>
                 <Input
                   id="zone-keywords"
                   value={newZoneKeywords}
@@ -1315,88 +1516,120 @@ function SchoolHeatmapContent() {
             </Button>
 
 
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1 sm:mb-2 pt-2 border-t border-slate-100 dark:border-slate-800">
               <Checkbox
                 checked={selectAll}
                 onCheckedChange={(checked) => setSelectAll(!!checked)}
                 id="select-all-zones"
               />
-              <Label htmlFor="select-all-zones" className="text-sm cursor-pointer select-none">Select All</Label>
+              <Label htmlFor="select-all-zones" className="text-xs font-medium cursor-pointer select-none">Select All</Label>
               <Button
                 type="button"
                 size="sm"
                 variant="destructive"
                 disabled={selectedZoneIds.length === 0}
                 onClick={openDeleteDialog}
-                className="ml-auto"
+                className="ml-auto text-xs px-2.5 h-8 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/30 border-0"
               >
-                <Trash2 className="h-4 w-4 mr-1" /> Delete Selected
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete Selected
               </Button>
             </div>
 
-            <div className="sm:hidden grid grid-cols-1 gap-2.5">
-              {(showAllMapperZonesMobile ? zones : zones.slice(0, 4)).map((zone) => (
-                <div
-                  key={zone.id}
-                  className="flex items-center justify-between rounded-lg border border-amber-200/60 bg-linear-to-r from-white to-amber-50/30 dark:from-slate-900/50 dark:to-slate-800/30 px-3.5 py-2.5 dark:border-amber-700/40 hover:border-amber-300 dark:hover:border-amber-600/60 hover:shadow-sm transition-all duration-200"
+            <div className="relative overflow-hidden">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={`mobile-zones-page-${currentPage}`}
+                  initial={{ opacity: 0, y: 12, scale: 0.995 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -12, scale: 0.995 }}
+                  transition={{ duration: 0.22, ease: 'easeOut' }}
+                  className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3"
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Checkbox
-                      checked={selectedZoneIds.includes(zone.id)}
-                      onCheckedChange={() => handleZoneCheckbox(zone.id)}
-                      id={`zone-checkbox-${zone.id}`}
-                    />
-                    <div>
-                      <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{zone.name}</p>
-                      <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                        {zone.top}% / {zone.left}% / {zone.width}% / {zone.height}%
-                      </p>
+                  {paginatedZones.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg dark:border-slate-700 col-span-full">
+                      No mapped areas found. Add one above.
                     </div>
-                  </div>
-                  <Button type="button" size="icon" variant="ghost" onClick={() => handleDeleteZone(zone.id)}>
-                    <Trash2 className="h-4 w-4 text-red-500" />
+                  ) : (
+                    paginatedZones.map((zone) => {
+                      const isSelected = selectedZoneId === zone.id;
+                      return (
+                        <div
+                          key={`mobile-zone-${zone.id}`}
+                          onClick={() => setSelectedZoneId(zone.id)}
+                          className={cn(
+                            "flex items-center justify-between rounded-lg border px-3.5 py-2.5 transition-all duration-200 cursor-pointer",
+                            isSelected
+                              ? "border-amber-500 bg-amber-50/50 dark:border-amber-500/80 dark:bg-amber-950/20 ring-1 ring-amber-500/50 shadow-xs"
+                              : "border-slate-200/80 bg-white/70 dark:bg-slate-900/50 dark:border-slate-800/80 hover:border-amber-300 dark:hover:border-amber-600/60 hover:shadow-xs"
+                          )}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedZoneIds.includes(zone.id)}
+                              onCheckedChange={() => handleZoneCheckbox(zone.id)}
+                              id={`zone-checkbox-mobile-${zone.id}`}
+                            />
+                            <div onClick={() => setSelectedZoneId(zone.id)} className="cursor-pointer min-w-0">
+                              <p className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{zone.name}</p>
+                              <p className="truncate text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                Pos: {zone.left}% , {zone.top}% • Size: {zone.width}% × {zone.height}%
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteZone(zone.id);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-4 pb-4 mt-2 gap-2 mb-2">
+                <span className="text-[10px] text-slate-400">
+                  Showing <span className="font-semibold text-slate-600 dark:text-slate-300">{(currentPage - 1) * itemsPerPage + 1}</span>-
+                  <span className="font-semibold text-slate-600 dark:text-slate-300">{Math.min(zones.length, currentPage * itemsPerPage)}</span> of{' '}
+                  <span className="font-semibold text-slate-600 dark:text-slate-300">{zones.length}</span> areas
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7 rounded-md border-slate-200 dark:border-slate-700 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-slate-800"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </Button>
+                  <span className="text-xs px-2 font-medium text-slate-700 dark:text-slate-300">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7 rounded-md border-slate-200 dark:border-slate-700 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-slate-800"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-              ))}
-            </div>
-
-            {zones.length > 4 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="sm:hidden w-full"
-                onClick={() => setShowAllMapperZonesMobile((prev) => !prev)}
-              >
-                {showAllMapperZonesMobile ? 'Show fewer areas' : `Show all areas (${zones.length})`}
-              </Button>
+              </div>
             )}
-
-            <div className="hidden sm:grid grid-cols-1 gap-2.5 md:grid-cols-2 lg:grid-cols-3">
-              {zones.map((zone) => (
-                <div
-                  key={zone.id}
-                  className="flex items-center justify-between rounded-lg border border-amber-200/60 bg-linear-to-r from-white to-amber-50/30 dark:from-slate-900/50 dark:to-slate-800/30 px-3.5 py-2.5 dark:border-amber-700/40 hover:border-amber-300 dark:hover:border-amber-600/60 hover:shadow-sm transition-all duration-200"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Checkbox
-                      checked={selectedZoneIds.includes(zone.id)}
-                      onCheckedChange={() => handleZoneCheckbox(zone.id)}
-                      id={`zone-checkbox-desktop-${zone.id}`}
-                    />
-                    <div>
-                      <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{zone.name}</p>
-                      <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                        {zone.top}% / {zone.left}% / {zone.width}% / {zone.height}%
-                      </p>
-                    </div>
-                  </div>
-                  <Button type="button" size="icon" variant="ghost" onClick={() => handleDeleteZone(zone.id)}>
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
-                </div>
-              ))}
-            </div>
 
             {/* Confirmation Dialog for Bulk Delete */}
             <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

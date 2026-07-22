@@ -12,6 +12,11 @@ echo ""
 # Start FastAPI Backend
 echo "[1/2] Starting FastAPI Backend on port 8000..."
 cd backend
+if [ -d "venv/bin" ]; then
+    source venv/bin/activate
+elif [ -d "venv/Scripts" ]; then
+    source venv/Scripts/activate
+fi
 python main.py &
 BACKEND_PID=$!
 

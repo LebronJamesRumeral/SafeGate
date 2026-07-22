@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bell, Lock, User, School, Save, Database, Brain, Clock, ChevronRight, Pencil, Trash2, Eye, EyeOff, UserPlus, ShieldAlert, Edit3 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Bell, Lock, User, School, Save, Database, Brain, Clock, ChevronRight, ChevronLeft, Search, Pencil, Trash2, Eye, EyeOff, UserPlus, ShieldAlert, Edit3 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -59,6 +60,12 @@ export default function SettingsPage() {
   const [autoCheckout, setAutoCheckout] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [mlSettings, setMlSettings] = useState<MLSettings>(DEFAULT_ML_SETTINGS);
+
+  // States for account search, filter, and pagination
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('all');
+  const [usersCurrentPage, setUsersCurrentPage] = useState(1);
+  const usersPerPage = 5;
   const [yearLevelTimes, setYearLevelTimes] = useState<YearLevelCheckoutTime[]>([
     { level: 'Toddler & Nursery', time: '11:30' },
     { level: 'Pre-K', time: '11:30' },
@@ -328,9 +335,47 @@ export default function SettingsPage() {
   };
 
   const categories: SettingsCategory[] = [
-    { id: 'account', label: 'Account Management', icon: <User size={20} />, color: 'purple' },
-    { id: 'ml', label: 'ML Settings', icon: <Brain size={20} />, color: 'violet' },
+    { id: 'account', label: 'Account Management', icon: <User size={16} />, color: 'purple' },
+    { id: 'ml', label: 'ML Settings', icon: <Brain size={16} />, color: 'violet' },
   ];
+
+  // Filtered and Searched user list
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => {
+      const nameMatch = (user.name || '').toLowerCase().includes(userSearchQuery.toLowerCase());
+      const emailMatch = (user.email || '').toLowerCase().includes(userSearchQuery.toLowerCase());
+      const matchesSearch = nameMatch || emailMatch;
+      
+      const matchesRole =
+        userRoleFilter === 'all' ||
+        (user.role || '').toLowerCase() === userRoleFilter.toLowerCase();
+      
+      return matchesSearch && matchesRole;
+    });
+  }, [users, userSearchQuery, userRoleFilter]);
+
+  // Paginated user list
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (usersCurrentPage - 1) * usersPerPage;
+    return filteredUsers.slice(startIndex, startIndex + usersPerPage);
+  }, [filteredUsers, usersCurrentPage, usersPerPage]);
+
+  // Total pages calculation
+  const totalUsersPages = useMemo(() => {
+    return Math.ceil(filteredUsers.length / usersPerPage);
+  }, [filteredUsers, usersPerPage]);
+
+  // Auto-clamp page if bounds change
+  useEffect(() => {
+    if (usersCurrentPage > totalUsersPages && totalUsersPages > 0) {
+      setUsersCurrentPage(totalUsersPages);
+    }
+  }, [filteredUsers.length, totalUsersPages, usersCurrentPage]);
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setUsersCurrentPage(1);
+  }, [userSearchQuery, userRoleFilter]);
 
   // Load settings from database
   useEffect(() => {
@@ -470,40 +515,59 @@ export default function SettingsPage() {
     return (
       <DashboardLayout>
         <div className="animate-pulse space-y-6">
-          <div className="space-y-3">
-            <div className="h-10 w-72 rounded-lg bg-slate-200 dark:bg-slate-700" />
-            <div className="h-4 w-96 rounded bg-slate-200 dark:bg-slate-700" />
+          {/* Header Skeleton */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 sm:mb-8 pb-4 border-b border-slate-100 dark:border-slate-800/80">
+            <div className="space-y-3">
+              <div className="h-10 w-72 rounded-lg bg-orange-300 dark:bg-orange-600" />
+              <div className="h-4 w-96 rounded bg-orange-200/70 dark:bg-orange-700/60" />
+            </div>
+            {/* Toggle Switcher Skeleton */}
+            <div className="h-11 w-80 rounded-2xl bg-orange-100/60 dark:bg-orange-950/40 p-1 flex gap-1 shrink-0 border border-orange-200/50 dark:border-orange-900/30">
+              <div className="flex-1 h-full rounded-xl bg-orange-300 dark:bg-orange-600" />
+              <div className="flex-1 h-full rounded-xl bg-orange-100/40 dark:bg-orange-950/20" />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-            <div className="rounded-xl border border-border/60 bg-card p-6 lg:col-span-1">
-              <div className="mb-4 h-5 w-28 rounded bg-slate-200 dark:bg-slate-700" />
-              <div className="space-y-3">
-                <div className="h-11 rounded-lg bg-slate-200 dark:bg-slate-700" />
-                <div className="h-11 rounded-lg bg-slate-200 dark:bg-slate-700" />
-                <div className="h-11 rounded-lg bg-slate-200 dark:bg-slate-700" />
-                <div className="h-11 rounded-lg bg-slate-200 dark:bg-slate-700" />
+          {/* Full Width Settings Card Skeleton */}
+          <div className="rounded-xl border border-border/60 bg-card p-6 sm:p-8 space-y-6">
+            <div className="mb-6 flex items-center justify-between gap-4">
+              <div className="space-y-3 flex-1">
+                <div className="h-8 w-56 rounded bg-orange-300 dark:bg-orange-600" />
+                <div className="h-4 w-80 rounded bg-orange-200/70 dark:bg-orange-700/60" />
+              </div>
+              <div className="h-14 w-14 rounded-2xl bg-orange-250 dark:bg-orange-700 shrink-0" />
+            </div>
+
+            {/* Form Fields skeleton */}
+            <div className="p-6 rounded-xl border border-orange-200/30 dark:border-orange-900/20 bg-orange-50/40 dark:bg-orange-950/10 space-y-6">
+              <div className="h-6 w-32 rounded bg-orange-300 dark:bg-orange-600" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2.5">
+                  <div className="h-4 w-16 rounded bg-orange-200/70 dark:bg-orange-700/60" />
+                  <div className="h-11 rounded-lg bg-orange-200/40 dark:bg-orange-700/30" />
+                </div>
+                <div className="space-y-2.5">
+                  <div className="h-4 w-20 rounded bg-orange-200/70 dark:bg-orange-700/60" />
+                  <div className="h-11 rounded-lg bg-orange-200/40 dark:bg-orange-700/30" />
+                </div>
+                <div className="space-y-2.5">
+                  <div className="h-4 w-14 rounded bg-orange-200/70 dark:bg-orange-700/60" />
+                  <div className="h-11 rounded-lg bg-orange-200/40 dark:bg-orange-700/30" />
+                </div>
+              </div>
+              <div className="flex justify-end pt-2">
+                <div className="h-11 w-32 rounded-lg bg-orange-300 dark:bg-orange-600" />
               </div>
             </div>
 
-            <div className="rounded-xl border border-border/60 bg-card p-6 lg:col-span-3">
-              <div className="mb-6 flex items-center justify-between gap-4">
-                <div className="space-y-3">
-                  <div className="h-8 w-56 rounded bg-slate-200 dark:bg-slate-700" />
-                  <div className="h-4 w-80 rounded bg-slate-200 dark:bg-slate-700" />
-                </div>
-                <div className="h-14 w-14 rounded-2xl bg-slate-200 dark:bg-slate-700" />
-              </div>
-
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <div className="h-24 rounded-xl bg-slate-200 dark:bg-slate-700" />
-                <div className="h-24 rounded-xl bg-slate-200 dark:bg-slate-700" />
-                <div className="h-24 rounded-xl bg-slate-200 dark:bg-slate-700 md:col-span-2" />
-              </div>
-
-              <div className="mt-8 flex justify-end gap-3">
-                <div className="h-10 w-28 rounded-lg bg-slate-200 dark:bg-slate-700" />
-                <div className="h-10 w-32 rounded-lg bg-slate-200 dark:bg-slate-700" />
+            {/* List Table skeleton */}
+            <div className="p-6 rounded-xl border border-orange-200/30 dark:border-orange-900/20 bg-orange-50/40 dark:bg-orange-950/10 space-y-4">
+              <div className="h-6 w-40 rounded bg-orange-300 dark:bg-orange-600" />
+              <div className="space-y-3">
+                <div className="h-10 rounded-lg bg-orange-200/60 dark:bg-orange-700/50" />
+                <div className="h-12 rounded-lg bg-orange-200/30 dark:bg-orange-700/20" />
+                <div className="h-12 rounded-lg bg-orange-200/30 dark:bg-orange-700/20" />
+                <div className="h-12 rounded-lg bg-orange-200/30 dark:bg-orange-700/20" />
               </div>
             </div>
           </div>
@@ -514,44 +578,36 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout>
-      <div className="animate-fade-in-up">
+      <div className="space-y-6 animate-fade-in-up">
         {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <h1 className="mb-2 text-3xl font-bold text-slate-900 dark:text-white sm:text-4xl">Account & ML Settings</h1>
-          <p className="text-base text-gray-600 dark:text-gray-300">Manage user accounts and machine-learning behavior</p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Sidebar Navigation */}
-          <div className="lg:col-span-1">
-            <Card className="shadow-lg border-border/60 lg:sticky lg:top-6">
-              <CardHeader>
-                <CardTitle className="text-lg">Categories</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {categories.map((category) => (
-                  <button
-                    key={category.id}
-                    onClick={() => setActiveCategory(category.id)}
-                    className={`w-full flex items-center justify-between gap-2 px-3 py-3 sm:px-4 rounded-lg transition-all duration-200 text-left font-medium ${
-                      activeCategory === category.id
-                        ? `bg-linear-to-r ${getCategoryColor(category.color)} text-white shadow-md`
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      {category.icon}
-                      <span className="truncate">{category.label}</span>
-                    </div>
-                    {activeCategory === category.id && <ChevronRight size={18} />}
-                  </button>
-                ))}
-              </CardContent>
-            </Card>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 sm:mb-8 pb-4 border-b border-slate-100 dark:border-slate-800/80">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold bg-linear-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">Account & ML Settings</h1>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Manage user accounts and machine-learning behavior</p>
           </div>
 
-          {/* Main Content */}
-          <div className="lg:col-span-3 space-y-6">
+          {/* Toggle Switcher */}
+          <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-slate-100/85 p-1 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70 shrink-0 self-start md:self-center">
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                type="button"
+                onClick={() => setActiveCategory(category.id)}
+                className={`flex h-9 items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-semibold transition-all duration-300 ${
+                  activeCategory === category.id
+                    ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-100'
+                    : 'text-slate-650 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                {category.icon}
+                <span>{category.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="w-full space-y-6">
             {/* School Information */}
             {activeCategory === 'school' && (
               <Card className="shadow-xl duration-200 animate-fade-in-up border-0 overflow-hidden">
@@ -665,54 +721,154 @@ export default function SettingsPage() {
                   <div className="h-2" />
                   {/* User List */}
                   <div className="p-6 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-slate-50/70 dark:bg-slate-800/50 shadow-sm">
-                    <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">User Accounts</h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 mb-5">
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white shrink-0">User Accounts</h3>
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                        {/* Search Query Input */}
+                        <div className="relative flex-1 sm:w-64">
+                          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
+                          <Input
+                            type="text"
+                            placeholder="Search by name or email..."
+                            value={userSearchQuery}
+                            onChange={(e) => setUserSearchQuery(e.target.value)}
+                            className="pl-10 h-10 w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/45 text-sm focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500"
+                          />
+                        </div>
+                        {/* Role filter dropdown */}
+                        <Select value={userRoleFilter} onValueChange={(value) => setUserRoleFilter(value)}>
+                          <SelectTrigger className="h-10 w-full sm:w-44 rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/45 text-xs">
+                            <SelectValue placeholder="All Roles" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="all">All Roles</SelectItem>
+                            <SelectItem value="admin">Administrators</SelectItem>
+                            <SelectItem value="teacher">Teachers</SelectItem>
+                            <SelectItem value="guidance">Guidance</SelectItem>
+                            <SelectItem value="parent">Parents</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
                     {loadingUsers ? (
-                      <div className="text-center py-6 text-slate-500 dark:text-slate-400">Loading users...</div>
+                      <div className="text-center py-10 text-slate-500 dark:text-slate-400">
+                        <div className="h-6 w-6 border-2 border-slate-300 border-t-slate-800 dark:border-slate-750 dark:border-t-white rounded-full animate-spin mx-auto mb-2" />
+                        <span>Loading users...</span>
+                      </div>
                     ) : users.length === 0 ? (
                       <div className="text-center py-6 text-slate-500 dark:text-slate-400">No users found.</div>
+                    ) : filteredUsers.length === 0 ? (
+                      <div className="text-center py-10 text-slate-500 dark:text-slate-400">
+                        <Search className="h-8 w-8 mx-auto text-slate-400 dark:text-slate-500 mb-2.5 opacity-65" />
+                        <p className="font-semibold text-sm">No accounts found</p>
+                        <p className="text-xs text-slate-400 mt-1">Try adjusting your search query or filter options</p>
+                      </div>
                     ) : (
                       <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-850">
                           <thead>
                             <tr>
-                              <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Name</th>
-                              <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Email</th>
-                              <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Role</th>
-                              <th className="px-4 py-2 text-right text-xs font-semibold text-slate-700 dark:text-slate-300">Actions</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-450 uppercase tracking-wider">Name</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-450 uppercase tracking-wider">Email</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-450 uppercase tracking-wider">Role</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-450 uppercase tracking-wider">Actions</th>
                             </tr>
                           </thead>
-                          <tbody>
-                            {users.map((user) => (
-                              <tr key={user.id} className="border-b border-slate-100 dark:border-slate-800">
-                                <td className="px-4 py-2 whitespace-nowrap">{user.name}</td>
-                                <td className="px-4 py-2 whitespace-nowrap">{user.email}</td>
-                                <td className="px-4 py-2 whitespace-nowrap capitalize">{user.role}</td>
-                                <td className="px-4 py-2 whitespace-nowrap text-right">
-                                  <div className="inline-flex items-center justify-end gap-2">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="rounded-md"
-                                      onClick={() => handleEditUser(user)}
-                                    >
-                                      <Edit3 size={14} />
-                                      Edit
-                                    </Button>
-                                    <Button
-                                      variant="destructive"
-                                      size="sm"
-                                      className="rounded-md"
-                                      disabled={deletingUserId === user.id}
-                                      onClick={() => handleDeleteUser(user.id, user.name || user.email)}
-                                    >
-                                      {deletingUserId === user.id ? 'Deleting...' : 'Delete'}
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            <AnimatePresence mode="popLayout" initial={false}>
+                              {paginatedUsers.map((user) => (
+                                <motion.tr
+                                  key={user.id}
+                                  initial={{ opacity: 0, y: 4 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -4 }}
+                                  transition={{ duration: 0.18 }}
+                                  className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors"
+                                >
+                                  <td className="px-4 py-3.5 whitespace-nowrap text-sm font-semibold text-slate-900 dark:text-slate-100">{user.name || '—'}</td>
+                                  <td className="px-4 py-3.5 whitespace-nowrap text-sm text-slate-650 dark:text-slate-300">{user.email}</td>
+                                  <td className="px-4 py-3.5 whitespace-nowrap text-xs font-semibold capitalize">
+                                    <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200/50 dark:border-slate-700/60 text-slate-600 dark:text-slate-350">
+                                      {user.role}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3.5 whitespace-nowrap text-right">
+                                    <div className="inline-flex items-center justify-end gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8.5 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold"
+                                        onClick={() => handleEditUser(user)}
+                                      >
+                                        <Edit3 size={12} className="mr-1.5" />
+                                        Edit
+                                      </Button>
+                                      <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        className="h-8.5 rounded-xl text-xs font-semibold"
+                                        disabled={deletingUserId === user.id}
+                                        onClick={() => handleDeleteUser(user.id, user.name || user.email)}
+                                      >
+                                        {deletingUserId === user.id ? 'Deleting...' : 'Delete'}
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </motion.tr>
+                              ))}
+                            </AnimatePresence>
                           </tbody>
                         </table>
+                      </div>
+                    )}
+
+                    {/* Pagination Controls */}
+                    {filteredUsers.length > 0 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-5 pb-2 mt-4 border-t border-slate-100 dark:border-slate-800/80">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Showing <span className="font-semibold text-slate-700 dark:text-slate-200">{Math.min(filteredUsers.length, (usersCurrentPage - 1) * usersPerPage + 1)}</span> to{' '}
+                          <span className="font-semibold text-slate-700 dark:text-slate-200">{Math.min(filteredUsers.length, usersCurrentPage * usersPerPage)}</span> of{' '}
+                          <span className="font-semibold text-slate-700 dark:text-slate-200">{filteredUsers.length}</span> user accounts
+                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            className="h-9 w-9 rounded-xl border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                            disabled={usersCurrentPage === 1 || totalUsersPages <= 1}
+                            onClick={() => setUsersCurrentPage((prev) => Math.max(1, prev - 1))}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          {Array.from({ length: Math.max(1, totalUsersPages) }, (_, i) => i + 1).map((page) => (
+                            <Button
+                              key={page}
+                              type="button"
+                              variant={usersCurrentPage === page ? 'default' : 'outline'}
+                              disabled={totalUsersPages <= 1}
+                              className={`h-9 w-9 rounded-xl text-xs font-semibold ${
+                                usersCurrentPage === page && totalUsersPages > 1
+                                  ? 'bg-linear-to-r from-blue-600 to-blue-700 text-white shadow-xs'
+                                  : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                              onClick={() => setUsersCurrentPage(page)}
+                            >
+                              {page}
+                            </Button>
+                          ))}
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            className="h-9 w-9 rounded-xl border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                            disabled={usersCurrentPage === totalUsersPages || totalUsersPages <= 1}
+                            onClick={() => setUsersCurrentPage((prev) => Math.min(totalUsersPages, prev + 1))}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1015,7 +1171,6 @@ export default function SettingsPage() {
               </Card>
             )}
           </div>
-        </div>
       </div>
     </DashboardLayout>
   );
