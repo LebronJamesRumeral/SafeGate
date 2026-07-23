@@ -403,42 +403,56 @@ export default function ScanPage() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const forcedEndDate = typeof window !== 'undefined' ? window.localStorage.getItem('schoolYearEndedAt') : null;
+    let schoolYearEndDate: string | null = null;
 
-    let schoolYearEndDate = forcedEndDate;
+    const { data: currentSchoolYear, error: currentSchoolYearError } = await supabase
+      .from('school_years')
+      .select('id, label, start_date, end_date')
+      .eq('is_current', true)
+      .maybeSingle();
 
-    if (!schoolYearEndDate) {
-      const { data: schoolYear, error: schoolYearError } = await supabase
+    if (currentSchoolYearError) {
+      throw currentSchoolYearError;
+    }
+
+    if (currentSchoolYear?.end_date) {
+      const currentEnd = new Date(currentSchoolYear.end_date);
+      currentEnd.setHours(0, 0, 0, 0);
+
+      if (today > currentEnd) {
+        await supabase
+          .from('school_years')
+          .update({ is_current: false })
+          .eq('id', currentSchoolYear.id);
+
+        schoolYearEndDate = currentSchoolYear.end_date;
+      } else {
+        return { blocked: false };
+      }
+    } else {
+      const { data: latestSchoolYear, error: latestSchoolYearError } = await supabase
         .from('school_years')
-        .select('label, end_date')
-        .eq('is_current', true)
+        .select('id, label, start_date, end_date')
+        .order('end_date', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      if (schoolYearError) {
-        throw schoolYearError;
+      if (latestSchoolYearError) {
+        throw latestSchoolYearError;
       }
 
-      if (schoolYear?.end_date) {
-        const schoolYearEnd = new Date(schoolYear.end_date);
-        schoolYearEnd.setHours(0, 0, 0, 0);
-
-        if (today > schoolYearEnd) {
-          await supabase
-            .from('school_years')
-            .update({ is_current: false })
-            .eq('label', schoolYear.label);
-
-          if (typeof window !== 'undefined') {
-            window.localStorage.setItem('schoolYearEndedAt', schoolYear.end_date);
-          }
-
-          schoolYearEndDate = schoolYear.end_date;
-        } else {
-          schoolYearEndDate = schoolYear.end_date;
-        }
+      if (!latestSchoolYear?.end_date) {
+        return { blocked: false };
       }
 
-      schoolYearEndDate = schoolYearEndDate || null;
+      const latestEnd = new Date(latestSchoolYear.end_date);
+      latestEnd.setHours(0, 0, 0, 0);
+
+      if (today > latestEnd) {
+        schoolYearEndDate = latestSchoolYear.end_date;
+      } else {
+        return { blocked: false };
+      }
     }
 
     if (!schoolYearEndDate) {
