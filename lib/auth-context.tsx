@@ -78,8 +78,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role,
       };
       localStorage.setItem('safegate_user', JSON.stringify(userObj));
-      // Set cookie for server-side auth (expires in 7 days)
-      Cookies.set('safegate_user', JSON.stringify(userObj), { expires: 7, sameSite: 'lax' });
+      // Set cookie for server-side auth (expires in 7 days) if cookies are not declined
+      const consent = typeof window !== 'undefined' ? localStorage.getItem('safegate_cookies_consent') : null;
+      if (consent !== 'declined') {
+        Cookies.set('safegate_user', JSON.stringify(userObj), { expires: 7, sameSite: 'lax' });
+      } else {
+        console.warn('Authentication cookie not set: user has declined cookies');
+      }
       // Redirect parent to /parent, others to home
       if (role === 'parent') {
         router.push('/parent');

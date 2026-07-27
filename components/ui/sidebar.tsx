@@ -82,8 +82,16 @@ function SidebarProvider({
         _setOpen(openState)
       }
 
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+      // Only set cookie if cookies consent is fully accepted
+      if (typeof window !== 'undefined') {
+        const consent = localStorage.getItem('safegate_cookies_consent');
+        if (consent === 'accepted') {
+          document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}; SameSite=Lax`;
+        } else {
+          // Clear cookie if present
+          document.cookie = `${SIDEBAR_COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax`;
+        }
+      }
     },
     [setOpenProp, open],
   )

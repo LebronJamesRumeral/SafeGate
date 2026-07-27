@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Users, UserCheck, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { CookiesBanner } from '@/components/cookies-banner';
 
 const fadeInOut = `
   @keyframes fadeInSlide {
@@ -51,6 +52,10 @@ export default function LoginPage() {
   const [policyChecked, setPolicyChecked] = useState(false);
   const [policyEverAccepted, setPolicyEverAccepted] = useState(false);
 
+  // Cookie preferences state
+  const [showCookiesBanner, setShowCookiesBanner] = useState(false);
+  const [cookiesConsent, setCookiesConsent] = useState<'accepted' | 'essential' | 'declined' | null>(null);
+
   // On mount, check if user has already accepted policy
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -58,6 +63,13 @@ export default function LoginPage() {
       if (accepted === 'true') {
         setPolicyChecked(true);
         setPolicyEverAccepted(true);
+      }
+
+      const answered = localStorage.getItem('safegate_cookies_answered');
+      const consent = localStorage.getItem('safegate_cookies_consent') as 'accepted' | 'essential' | 'declined' | null;
+      setCookiesConsent(consent);
+      if (answered !== 'true') {
+        setShowCookiesBanner(true);
       }
     }
   }, []);
@@ -90,6 +102,28 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Handle cookies consent restriction before proceeding
+    if (cookiesConsent === 'declined') {
+      setShowCookiesBanner(true);
+      toast({
+        title: 'Cookies Required',
+        description: 'Please accept at least essential cookies to log in.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!cookiesConsent) {
+      setShowCookiesBanner(true);
+      toast({
+        title: 'Cookie Choice Required',
+        description: 'Please make a cookie selection first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
 
     // Use full email and password for authentication
@@ -337,12 +371,39 @@ export default function LoginPage() {
 
             <Button 
               type="submit" 
-              variant="secondary" 
+              variant={cookiesConsent === 'declined' ? 'destructive' : 'secondary'}
               className="w-full h-14 text-base font-bold uppercase tracking-wide transition-all duration-200 hover:scale-105 active:scale-95 lg:h-12" 
               disabled={loading || !policyChecked}
             >
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? 'Logging in...' : cookiesConsent === 'declined' ? 'Cookies Blocked (Click to Reset)' : 'Login'}
             </Button>
+
+            {/* Cookies Warning Banner */}
+            {cookiesConsent === 'declined' && (
+              <div className="p-3 bg-red-50/90 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl text-xs text-red-800 dark:text-red-300 text-center select-none animate-fadeInSlide">
+                ⚠️ You have declined cookies. Essential cookies are required to authenticate your session.
+                <button
+                  type="button"
+                  onClick={() => setShowCookiesBanner(true)}
+                  className="ml-1 underline font-bold hover:text-red-900 dark:hover:text-red-200 focus:outline-none"
+                >
+                  Enable cookies
+                </button>
+              </div>
+            )}
+
+            {!cookiesConsent && (
+              <div className="p-3 bg-yellow-50/90 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-xl text-xs text-yellow-800 dark:text-yellow-300 text-center select-none animate-fadeInSlide">
+                ⚠️ Cookie preferences must be set to log in.
+                <button
+                  type="button"
+                  onClick={() => setShowCookiesBanner(true)}
+                  className="ml-1 underline font-bold hover:text-yellow-900 dark:hover:text-yellow-200 focus:outline-none"
+                >
+                  Configure cookies
+                </button>
+              </div>
+            )}
 
             {/* Privacy Policy & Terms Checkbox (only show if not ever accepted) */}
             {!policyEverAccepted && (
@@ -403,11 +464,20 @@ export default function LoginPage() {
               </div>
             )}
 
-              {/* Copyright Only */}
-              <div className="flex flex-col items-center gap-2 mt-8">
-                <hr className="w-full border-t border-slate-200 dark:border-slate-700 mb-2" />
-                <span className="text-xs font-semibold text-slate-500 dark:text-white/70 w-full text-center">© 2026 SafeGate. All rights reserved.</span>
+            {/* Copyright Only */}
+            <div className="flex flex-col items-center gap-2 mt-8">
+              <hr className="w-full border-t border-slate-200 dark:border-slate-700 mb-2" />
+              <div className="flex flex-col sm:flex-row justify-between items-center w-full px-1 gap-2 sm:gap-0">
+                <span className="text-[11px] font-semibold text-slate-500 dark:text-white/70">© 2026 SafeGate. All rights reserved.</span>
+                <button
+                  type="button"
+                  onClick={() => setShowCookiesBanner(true)}
+                  className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline focus:outline-none"
+                >
+                  Cookie Settings
+                </button>
               </div>
+            </div>
             </form>
 
           {/* Demo Credentials - Optional */}
@@ -423,6 +493,13 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+      
+      {/* Cookies Consent Banner Component */}
+      <CookiesBanner 
+        isOpen={showCookiesBanner} 
+        onClose={() => setShowCookiesBanner(false)} 
+        onConsentChange={(consent) => setCookiesConsent(consent)}
+      />
     </div>
   );
 }
