@@ -1590,24 +1590,24 @@ export function StudentRiskCard({ studentLrn, name, lrn }: { studentLrn: string,
         </div>
         
         <CardHeader className="pb-2 sm:pb-2">
-          <div className="flex justify-between items-start gap-2">
-            <div className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-lg sm:text-xl font-bold font-mono text-slate-900 dark:text-white leading-tight truncate">{name || summary?.name || 'Student Name'}</span>
-              <span className="text-[10px] sm:text-xs font-mono text-slate-500 dark:text-slate-400 truncate">{lrn || studentLrn}</span>
-            </div>
-            <Badge className={`${colors.badge} text-[10px] sm:text-xs shrink-0`}>
-              <Sparkles className="w-3 h-3 mr-0.5" />
-              {summary.riskLevel.toUpperCase()}
-            </Badge>
+          <div className="flex flex-col gap-1">
+            <span className="text-lg sm:text-xl font-bold font-mono text-slate-900 dark:text-white leading-tight">{name || summary?.name || 'Student Name'}</span>
+            <span className="text-[10px] sm:text-xs font-mono text-slate-500 dark:text-slate-400">{lrn || studentLrn}</span>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-2.5 sm:space-y-3">
           {/* Combined Risk Summary */}
           <div className="p-2.5 sm:p-3 rounded-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
-            <p className="text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
-              Key Issues
-            </p>
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <p className="text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                Key Issues
+              </p>
+              <Badge className={`${colors.badge} text-[10px] sm:text-xs shrink-0`}>
+                <Sparkles className="w-3 h-3 mr-0.5" />
+                {summary.riskLevel.toUpperCase()}
+              </Badge>
+            </div>
             <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white mb-1 line-clamp-2">
               {formatKeyIssues(summary.patternType)}
             </p>

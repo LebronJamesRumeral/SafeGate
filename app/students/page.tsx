@@ -4416,7 +4416,7 @@ export default function StudentsPage() {
                     </DialogContent>
                   </Dialog>
               </>
-            ) : (
+            ) : isAdmin ? (
               <Dialog open={newSchoolYearOpen} onOpenChange={handleSchoolYearDialogChange}>
                 <DialogTrigger asChild>
                   <Button variant="default" size="sm" className="gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600">
@@ -4706,7 +4706,8 @@ export default function StudentsPage() {
                   </AnimatePresence>
                 </DialogContent>
               </Dialog>
-            )}
+            ) : null}
+            {isAdmin && (
             <Dialog
               open={addStudentOpen}
               onOpenChange={(open) => {
@@ -5057,6 +5058,7 @@ export default function StudentsPage() {
                 </div>
               </DialogContent>
             </Dialog>
+            )}
           </div>
         </div>
 
@@ -6351,6 +6353,8 @@ export default function StudentsPage() {
                     </CardDescription>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                    {isAdmin && (
+                    <>
                     <input
                       ref={importInputRef}
                       type="file"
@@ -6382,6 +6386,8 @@ export default function StudentsPage() {
                       <Download className="w-4 h-4" />
                       Export
                     </Button>
+                    </>
+                    )}
                     <Badge variant="outline" className="bg-white dark:bg-slate-800 text-xs whitespace-nowrap">
                       {{
                        lrn: 'LRN',

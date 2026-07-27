@@ -248,7 +248,7 @@ export default function AttendancePage() {
       const resolvedEnd = await resolveSchoolYearEndDate();
       const schoolYearData = { end_date: resolvedEnd };
 
-      let studentsQuery = supabase.from('students').select('lrn, name, level');
+      let studentsQuery = supabase.from('students').select('lrn, name, level, status').eq('status', 'active');
       
       if (selectedLevel !== 'all') {
         studentsQuery = studentsQuery.eq('level', selectedLevel);
@@ -265,7 +265,7 @@ export default function AttendancePage() {
         throw studentsError;
       }
 
-      const sortedStudents = sortByLevel(studentsData || []);
+      const sortedStudents = sortByLevel((studentsData || []).filter((student) => (student.status || 'active') === 'active'));
 
       let start = rangeStart;
       let end = rangeEnd;
@@ -310,31 +310,33 @@ export default function AttendancePage() {
         }
       }
 
-      let attendanceQuery = supabase
-        .from('attendance_logs')
-        .select('id, student_lrn, check_in_time, check_out_time, date, attendance_status, is_present, is_early_out, early_out_reason')
-        .gte('date', start)
-        .lte('date', end)
-        .order('date', { ascending: false })
-        .order('check_in_time', { ascending: false });
+      let attendanceData: AttendanceLog[] = [];
+      if (sortedStudents.length > 0) {
+        let attendanceQuery = supabase
+          .from('attendance_logs')
+          .select('id, student_lrn, check_in_time, check_out_time, date, attendance_status, is_present, is_early_out, early_out_reason')
+          .gte('date', start)
+          .lte('date', end)
+          .order('date', { ascending: false })
+          .order('check_in_time', { ascending: false })
+          .in('student_lrn', sortedStudents.map(s => s.lrn));
 
-      if (selectedLevel !== 'all' && sortedStudents.length > 0) {
-        attendanceQuery = attendanceQuery.in('student_lrn', sortedStudents.map(s => s.lrn));
-      }
+        const { data, error: attendanceError } = await attendanceQuery;
 
-      const { data: attendanceData, error: attendanceError } = await attendanceQuery;
+        if (attendanceError) {
+          toast({
+            title: 'Failed to fetch attendance',
+            description: attendanceError.message || String(attendanceError),
+            variant: 'destructive',
+          });
+          throw attendanceError;
+        }
 
-      if (attendanceError) {
-        toast({
-          title: 'Failed to fetch attendance',
-          description: attendanceError.message || String(attendanceError),
-          variant: 'destructive',
-        });
-        throw attendanceError;
+        attendanceData = (data || []) as AttendanceLog[];
       }
 
       setStudents(sortedStudents);
-      setLogs(attendanceData || []);
+      setLogs(attendanceData);
       setAppliedRange({ start, end });
 
       // Fetch student schedules (entry times)
@@ -561,21 +563,21 @@ export default function AttendancePage() {
       .map((student) => {
         const presentDays = attendanceByStudent[student.lrn]?.size || 0;
         const absentDays = Math.max(effectiveSchoolDays.length - presentDays, 0);
-        const attendanceRate = effectiveSchoolDays.length
-          ? ((presentDays / effectiveSchoolDays.length) * 100).toFixed(1)
-          : '0.0';
+        const attendanceRateValue = effectiveSchoolDays.length
+          ? (presentDays / effectiveSchoolDays.length) * 100
+          : 0;
         // Severity logic: classify by attendance rate
         let severity = 'Positive';
-        if (attendanceRate < 50) severity = 'Critical';
-        else if (attendanceRate < 75) severity = 'Major';
-        else if (attendanceRate < 90) severity = 'Minor';
-        else if (attendanceRate < 95) severity = 'Neutral';
+        if (attendanceRateValue < 50) severity = 'Critical';
+        else if (attendanceRateValue < 75) severity = 'Major';
+        else if (attendanceRateValue < 90) severity = 'Minor';
+        else if (attendanceRateValue < 95) severity = 'Neutral';
         // else Positive
         return {
           ...student,
           presentDays,
           absentDays,
-          attendanceRate: parseFloat(attendanceRate),
+          attendanceRate: Number(attendanceRateValue.toFixed(1)),
           severity,
         };
       })
@@ -615,14 +617,8 @@ export default function AttendancePage() {
     }));
   };
 
-  // Remove selectedStudentSummary logic (no per-student details with severity filter)
+  // The attendance summary table no longer renders a selected-student detail panel.
   const selectedStudentSummary = null;
-
-  const absentDatesForStudent = useMemo(() => {
-    if (!selectedStudentSummary) return [] as string[];
-    const presentDates = attendanceByStudent[selectedStudentSummary.lrn] || new Set<string>();
-    return effectiveSchoolDays.filter((date) => !presentDates.has(date));
-  }, [attendanceByStudent, effectiveSchoolDays, selectedStudentSummary]);
 
   const totalAbsences = summaryRows.reduce((sum, row) => sum + row.absentDays, 0);
   const totalCheckIns = logs.filter((log) => {
@@ -1503,7 +1499,6 @@ export default function AttendancePage() {
                           <p className="text-gray-500 dark:text-gray-400">No students match your filters</p>
                           <Button variant="outline" size="sm" onClick={() => {
                             setSelectedLevel('all');
-                            setStudentFilter('all');
                             setSearch('');
                           }}>
                             Clear filters
@@ -1664,69 +1659,6 @@ export default function AttendancePage() {
           </CardContent>
             </Card>
           </>
-        )}
-
-        {/* Selected Student Details */}
-        {selectedStudentSummary && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-900">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Eye className="w-5 h-5 text-blue-500" />
-                  Student Details: {selectedStudentSummary.name}
-                </CardTitle>
-                <CardDescription>
-                  LRN: {selectedStudentSummary.lrn} • Level: {selectedStudentSummary.level}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Present Days</p>
-                    <p className="text-2xl font-bold text-emerald-600">{selectedStudentSummary.presentDays}</p>
-                  </div>
-                  <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Absent Days</p>
-                    <p className="text-2xl font-bold text-amber-600">{selectedStudentSummary.absentDays}</p>
-                  </div>
-                  <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Attendance Rate</p>
-                    <p className="text-2xl font-bold text-blue-600">{selectedStudentSummary.attendanceRate}%</p>
-                  </div>
-                </div>
-
-                {absentDatesForStudent.length > 0 && (
-                  <>
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                      Absent Dates ({absentDatesForStudent.length})
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {absentDatesForStudent.slice(0, 20).map((date) => (
-                        <Badge key={date} variant="outline" className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
-                          {date}
-                        </Badge>
-                      ))}
-                      {absentDatesForStudent.length > 20 && (
-                        <Badge variant="outline" className="border-gray-200 dark:border-gray-700">
-                          +{absentDatesForStudent.length - 20} more
-                        </Badge>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {absentDatesForStudent.length === 0 && (
-                  <div className="flex items-center gap-2 text-emerald-600">
-                    <CheckCircle className="w-5 h-5" />
-                    <span>Perfect attendance! No absences recorded.</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
         )}
 
         {/* Attendance Logs Table */}

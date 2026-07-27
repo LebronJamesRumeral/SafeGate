@@ -17,6 +17,7 @@ import { Activity, AlertCircle, AlertTriangle, Calendar, Clock3, Flame, MapPinne
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/auth-context';
 
 import React from 'react';
 type InternalSeverity = 'positive' | 'neutral' | 'minor' | 'major' | 'critical' | 'unknown';
@@ -376,6 +377,9 @@ function SchoolHeatmapContent() {
   const [mobilePanel, setMobilePanel] = useState<'activity' | 'mapper'>('activity');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   const { zones, loading: zonesLoading, loadZones, addZone, updateZone, deleteZone } = useHeatmapZones();
   // Handle select all toggle
@@ -1320,46 +1324,58 @@ function SchoolHeatmapContent() {
             </CardHeader>
             <CardContent className="space-y-5 pt-4 p-6 max-h-[78vh] flex flex-col justify-between">
               <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-3">
-                  <div>
-                    <Label htmlFor="zone-name-desktop" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Area Name</Label>
-                    <Input id="zone-name-desktop" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} placeholder="e.g., Room A-101" className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500" />
-                  </div>
-                  <div>
-                    <Label htmlFor="zone-keywords-desktop" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Location Keywords</Label>
-                    <Input
-                      id="zone-keywords-desktop"
-                      value={newZoneKeywords}
-                      onChange={(e) => setNewZoneKeywords(e.target.value)}
-                      placeholder="room a-101, science lab"
-                      className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500"
-                    />
-                  </div>
-                </div>
+                {isAdmin ? (
+                  <>
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <Label htmlFor="zone-name-desktop" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Area Name</Label>
+                        <Input id="zone-name-desktop" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} placeholder="e.g., Room A-101" className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500" />
+                      </div>
+                      <div>
+                        <Label htmlFor="zone-keywords-desktop" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Location Keywords</Label>
+                        <Input
+                          id="zone-keywords-desktop"
+                          value={newZoneKeywords}
+                          onChange={(e) => setNewZoneKeywords(e.target.value)}
+                          placeholder="room a-101, science lab"
+                          className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500"
+                        />
+                      </div>
+                    </div>
 
-                <Button type="button" onClick={handleAddZone} className="w-full bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Area to Heatmap
-                </Button>
+                    <Button type="button" onClick={handleAddZone} className="w-full bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Area to Heatmap
+                    </Button>
 
-                <div className="flex items-center gap-3 mb-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <Checkbox
-                    checked={selectAll}
-                    onCheckedChange={(checked) => setSelectAll(!!checked)}
-                    id="select-all-zones-desktop"
-                  />
-                  <Label htmlFor="select-all-zones-desktop" className="text-xs font-medium cursor-pointer select-none">Select All</Label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    disabled={selectedZoneIds.length === 0}
-                    onClick={openDeleteDialog}
-                    className="ml-auto text-xs px-2.5 h-8 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/30 border-0"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete Selected
-                  </Button>
-                </div>
+                    <div className="flex items-center gap-3 mb-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <Checkbox
+                        checked={selectAll}
+                        onCheckedChange={(checked) => setSelectAll(!!checked)}
+                        id="select-all-zones-desktop"
+                      />
+                      <Label htmlFor="select-all-zones-desktop" className="text-xs font-medium cursor-pointer select-none">Select All</Label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        disabled={selectedZoneIds.length === 0}
+                        onClick={openDeleteDialog}
+                        className="ml-auto text-xs px-2.5 h-8 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/30 border-0"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete Selected
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">Area Name and keywords are visible on list only to admins.</p>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="relative overflow-hidden">
                   <AnimatePresence mode="wait" initial={false}>
@@ -1390,11 +1406,13 @@ function SchoolHeatmapContent() {
                               )}
                             >
                               <div className="flex items-center gap-2.5 min-w-0" onClick={(e) => e.stopPropagation()}>
-                                <Checkbox
-                                  checked={selectedZoneIds.includes(zone.id)}
-                                  onCheckedChange={() => handleZoneCheckbox(zone.id)}
-                                  id={`zone-checkbox-desktop-panel-${zone.id}`}
-                                />
+                                {isAdmin && (
+                                  <Checkbox
+                                    checked={selectedZoneIds.includes(zone.id)}
+                                    onCheckedChange={() => handleZoneCheckbox(zone.id)}
+                                    id={`zone-checkbox-desktop-panel-${zone.id}`}
+                                  />
+                                )}
                                 <div onClick={() => setSelectedZoneId(zone.id)} className="cursor-pointer min-w-0">
                                   <p className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{zone.name}</p>
                                   <p className="truncate text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1402,18 +1420,20 @@ function SchoolHeatmapContent() {
                                   </p>
                                 </div>
                               </div>
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteZone(zone.id);
-                                }}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                              {isAdmin && (
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteZone(zone.id);
+                                  }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                             </div>
                           );
                         })
@@ -1493,47 +1513,57 @@ function SchoolHeatmapContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="zone-name" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Area Name</Label>
-                <Input id="zone-name" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} placeholder="e.g., Room A-101" className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500" />
+            {isAdmin ? (
+              <>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="zone-name" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Area Name</Label>
+                    <Input id="zone-name" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} placeholder="e.g., Room A-101" className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500" />
+                  </div>
+                  <div>
+                    <Label htmlFor="zone-keywords" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Location Keywords</Label>
+                    <Input
+                      id="zone-keywords"
+                      value={newZoneKeywords}
+                      onChange={(e) => setNewZoneKeywords(e.target.value)}
+                      placeholder="room a-101, science lab"
+                      className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <Button type="button" onClick={handleAddZone} className="w-full sm:w-auto bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Area to Heatmap
+                </Button>
+
+
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1 sm:mb-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <Checkbox
+                    checked={selectAll}
+                    onCheckedChange={(checked) => setSelectAll(!!checked)}
+                    id="select-all-zones"
+                  />
+                  <Label htmlFor="select-all-zones" className="text-xs font-medium cursor-pointer select-none">Select All</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    disabled={selectedZoneIds.length === 0}
+                    onClick={openDeleteDialog}
+                    className="ml-auto text-xs px-2.5 h-8 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/30 border-0"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete Selected
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Mapped areas are visible. Add/Delete controls are for admins only.</p>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="zone-keywords" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Location Keywords</Label>
-                <Input
-                  id="zone-keywords"
-                  value={newZoneKeywords}
-                  onChange={(e) => setNewZoneKeywords(e.target.value)}
-                  placeholder="room a-101, science lab"
-                  className="border-slate-200 dark:border-slate-700 focus-visible:ring-amber-500"
-                />
-              </div>
-            </div>
-
-            <Button type="button" onClick={handleAddZone} className="w-full sm:w-auto bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Area to Heatmap
-            </Button>
-
-
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1 sm:mb-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <Checkbox
-                checked={selectAll}
-                onCheckedChange={(checked) => setSelectAll(!!checked)}
-                id="select-all-zones"
-              />
-              <Label htmlFor="select-all-zones" className="text-xs font-medium cursor-pointer select-none">Select All</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="destructive"
-                disabled={selectedZoneIds.length === 0}
-                onClick={openDeleteDialog}
-                className="ml-auto text-xs px-2.5 h-8 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/30 border-0"
-              >
-                <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete Selected
-              </Button>
-            </div>
+            )}
 
             <div className="relative overflow-hidden">
               <AnimatePresence mode="wait" initial={false}>
@@ -1564,11 +1594,13 @@ function SchoolHeatmapContent() {
                           )}
                         >
                           <div className="flex items-center gap-2.5 min-w-0" onClick={(e) => e.stopPropagation()}>
-                            <Checkbox
-                              checked={selectedZoneIds.includes(zone.id)}
-                              onCheckedChange={() => handleZoneCheckbox(zone.id)}
-                              id={`zone-checkbox-mobile-${zone.id}`}
-                            />
+                            {isAdmin && (
+                              <Checkbox
+                                checked={selectedZoneIds.includes(zone.id)}
+                                onCheckedChange={() => handleZoneCheckbox(zone.id)}
+                                id={`zone-checkbox-mobile-${zone.id}`}
+                              />
+                            )}
                             <div onClick={() => setSelectedZoneId(zone.id)} className="cursor-pointer min-w-0">
                               <p className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{zone.name}</p>
                               <p className="truncate text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1576,18 +1608,20 @@ function SchoolHeatmapContent() {
                               </p>
                             </div>
                           </div>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteZone(zone.id);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {isAdmin && (
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteZone(zone.id);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       );
                     })

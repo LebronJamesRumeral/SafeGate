@@ -60,6 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
       const role = data.user.user_metadata?.role || 'user';
+      await supabase.from('profiles').upsert({
+        id: data.user.id,
+        full_name: data.user.user_metadata?.full_name || data.user.email || '',
+        role,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
       setUser({
         id: data.user.id,
         username: data.user.email ?? '',
