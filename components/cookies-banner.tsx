@@ -134,8 +134,15 @@ export function CookiesBanner({
     <>
       <style>{animation}</style>
 
-      <div className="fixed bottom-6 right-36 z-50 pointer-events-none">
-        <div className="cookie-modal pointer-events-auto w-full max-w-md rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-2xl p-6 flex flex-col gap-4">
+      {/*
+        Mobile: full-width bar pinned to the bottom, small side margins.
+        Desktop (sm+): reverts to a floating card anchored bottom-right.
+      */}
+      <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-3 pb-3 pointer-events-none sm:inset-x-auto sm:right-36 sm:bottom-6 sm:justify-end sm:px-0 sm:pb-0">
+        <div
+          className="cookie-modal pointer-events-auto w-full max-w-md rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-2xl p-4 sm:p-6 flex flex-col gap-3 sm:gap-4 max-h-[85vh] overflow-y-auto"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
 
           {/* Header */}
           <div className="flex items-start gap-3">
@@ -144,7 +151,7 @@ export function CookiesBanner({
             </div>
 
             <div>
-              <h3 className="font-bold text-slate-900 dark:text-white text-lg">
+              <h3 className="font-bold text-slate-900 dark:text-white text-base sm:text-lg">
                 Cookie Consent & Personalization
               </h3>
 
@@ -175,7 +182,7 @@ export function CookiesBanner({
                 setUserDate(e.target.value);
                 setError('');
               }}
-              className="h-10"
+              className="h-10 text-sm"
             />
 
             {error && (
@@ -203,7 +210,7 @@ export function CookiesBanner({
             <Button
               variant="outline"
               onClick={() => handleSave('declined')}
-              className="border-red-200 text-red-600 hover:bg-red-50"
+              className="border-red-200 text-red-600 hover:bg-red-50 w-full"
             >
               Decline All
             </Button>
@@ -211,13 +218,14 @@ export function CookiesBanner({
             <Button
               variant="outline"
               onClick={() => handleSave('essential')}
+              className="w-full"
             >
               Essential Only
             </Button>
 
             <Button
               onClick={() => handleSave('accepted')}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white w-full"
             >
               Accept All
             </Button>

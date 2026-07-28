@@ -1,9 +1,8 @@
-
 'use client';
 import React from 'react';
 
 import { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -247,11 +246,18 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="flex items-center lg:items-center justify-center bg-white dark:bg-slate-900 p-0 lg:p-8 min-h-screen">
+      <div className="relative flex items-start lg:items-center justify-center bg-linear-to-b from-slate-50 to-blue-50/60 dark:from-slate-950 dark:to-slate-900 lg:bg-none lg:bg-white lg:dark:bg-slate-900 p-0 lg:p-8 min-h-screen overflow-hidden">
+          {/* Decorative fill for empty space below the card on mobile */}
+          <div className="lg:hidden pointer-events-none absolute bottom-[-4rem] left-1/2 -translate-x-1/2 h-64 w-64 rounded-full bg-blue-200/30 dark:bg-blue-500/10 blur-3xl" />
+          <div className="lg:hidden pointer-events-none absolute bottom-10 right-4 h-24 w-24 rounded-full bg-orange-200/30 dark:bg-orange-500/10 blur-2xl" />
           <div className="w-full">
           {/* Branded Hero (Mobile Only) */}
-          <div className="lg:hidden mb-6 bg-linear-to-br from-blue-950 via-blue-900 to-blue-800 px-5 py-6 text-white">
-            <div className="flex items-center justify-start gap-3 mb-3">
+          <div className="lg:hidden relative z-0 bg-linear-to-br from-blue-950 via-blue-900 to-blue-800 px-6 pt-8 pb-16 text-white shadow-lg overflow-hidden">
+            {/* Decorative glow accents */}
+            <div className="pointer-events-none absolute -top-10 -right-10 h-40 w-40 rounded-full bg-blue-400/20 blur-3xl" />
+            <div className="pointer-events-none absolute bottom-0 -left-10 h-32 w-32 rounded-full bg-cyan-300/10 blur-3xl" />
+
+            <div className="relative flex items-center justify-start gap-3 mb-4">
               <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-white/15 flex items-center justify-center shadow-lg border border-white/30">
                 <Image 
                   src="/SGCDC.png" 
@@ -263,35 +269,42 @@ export default function LoginPage() {
                 />
               </div>
               <div className="text-left">
-                <p className="font-bold text-white">SafeGate</p>
-                <p className="text-xs text-blue-100">Behavior Tracking and Intervention Dashboard</p>
+                <p className="font-bold text-white leading-tight">SafeGate</p>
+                <p className="text-xs text-blue-100 leading-tight">Behavior Tracking and Intervention Dashboard</p>
               </div>
             </div>
-            <p className="text-sm text-blue-100 leading-relaxed">A smarter approach to behavior visibility, intervention workflows, and daily school operations.</p>
-            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-300/45 bg-yellow-400/20 px-2.5 py-1 text-yellow-100">
-                <Users className="h-3.5 w-3.5 text-yellow-300" />
+            <p className="relative text-sm text-blue-100 leading-relaxed">A smarter approach to behavior visibility, intervention workflows, and daily school operations.</p>
+            <div className="relative mt-5 grid grid-cols-2 gap-2 text-[11px] font-semibold">
+              <span className="inline-flex items-center justify-center gap-1.5 rounded-full border border-yellow-300/45 bg-yellow-400/15 px-2.5 py-1.5 text-yellow-100">
+                <Users className="h-3.5 w-3.5 text-yellow-300 shrink-0" />
                 TEACHERS
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-300/45 bg-orange-400/20 px-2.5 py-1 text-orange-100">
-                <UserCheck className="h-3.5 w-3.5 text-orange-300" />
+              <span className="inline-flex items-center justify-center gap-1.5 rounded-full border border-orange-300/45 bg-orange-400/15 px-2.5 py-1.5 text-orange-100">
+                <UserCheck className="h-3.5 w-3.5 text-orange-300 shrink-0" />
                 ADMIN
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/45 bg-emerald-400/20 px-2.5 py-1 text-emerald-100">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
+              <span className="inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-300/45 bg-emerald-400/15 px-2.5 py-1.5 text-emerald-100">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-300 shrink-0" />
                 GUIDANCE
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-300/45 bg-blue-400/20 px-2.5 py-1 text-blue-100">
-                <Users className="h-3.5 w-3.5 text-blue-300" />
+              <span className="inline-flex items-center justify-center gap-1.5 rounded-full border border-blue-300/45 bg-blue-400/15 px-2.5 py-1.5 text-blue-100">
+                <Users className="h-3.5 w-3.5 text-blue-300 shrink-0" />
                 PARENT
               </span>
             </div>
           </div>
 
-          <div className="w-full max-w-md lg:max-w-lg mx-auto px-4 lg:px-0 bg-white/95 dark:bg-slate-900/95 p-6 rounded-2xl shadow-lg border border-slate-200/60 lg:bg-transparent lg:dark:bg-transparent lg:p-0 lg:rounded-none lg:shadow-none lg:border-0">
+          <div className="w-full sm:max-w-md lg:max-w-lg mx-0 sm:mx-auto lg:mx-auto -mt-10 lg:mt-0 relative z-10 px-5 sm:px-8 pt-10 lg:pt-0 pb-6 lg:px-0 lg:py-0 bg-white dark:bg-slate-900 lg:bg-transparent lg:dark:bg-transparent rounded-t-3xl sm:rounded-3xl lg:rounded-none shadow-[0_-12px_35px_-18px_rgba(15,23,42,0.35)] sm:shadow-2xl lg:shadow-none border-0 sm:border sm:border-slate-200/70 sm:dark:border-slate-800 lg:border-0">
+
+          {/* Floating brand badge on the seam between hero and card (mobile/tablet only) */}
+          <div className="lg:hidden absolute left-1/2 -translate-x-1/2 -top-8 z-20 h-16 w-16 rounded-full bg-white dark:bg-slate-900 shadow-lg flex items-center justify-center ring-[6px] ring-white dark:ring-slate-900">
+            <div className="h-full w-full rounded-full bg-linear-to-br from-blue-600 via-blue-700 to-blue-900 flex items-center justify-center">
+              <ShieldCheck className="h-7 w-7 text-white" strokeWidth={2.25} />
+            </div>
+          </div>
 
           {/* Form Header */}
-          <div className="mb-8">
+          <div className="mb-6 lg:mb-8">
             <style>{fadeInOut}</style>
             <div
               key="header-login"
@@ -299,10 +312,13 @@ export default function LoginPage() {
                 animation: 'fadeInSlide 0.5s ease-out forwards',
               }}
             >
-              <h2 className="text-3xl xl:text-4xl font-bold text-slate-900 dark:text-white mb-2 text-center lg:text-left">
+              <p className="lg:hidden text-[11px] font-bold tracking-[0.2em] text-blue-600 dark:text-blue-400 text-center mb-1.5">
+                WELCOME BACK
+              </p>
+              <h2 className="text-2xl lg:text-3xl xl:text-4xl font-bold text-slate-900 dark:text-white mb-1.5 lg:mb-2 text-center lg:text-left">
                 Sign In
               </h2>
-              <p className="text-slate-600 dark:text-white/90 text-base xl:text-lg text-center lg:text-left">Your role is detected automatically after login</p>
+              <p className="text-slate-500 dark:text-white/90 text-sm lg:text-base xl:text-lg text-center lg:text-left">Your role is detected automatically after login</p>
             </div>
           </div>
 
@@ -312,29 +328,33 @@ export default function LoginPage() {
             <form 
               key="form-login"
               onSubmit={handleSubmit} 
-              className="space-y-5"
+              className="space-y-4 lg:space-y-5"
               style={{
                 animation: 'fadeInSlide 0.5s ease-out forwards',
               }}
             >
 
-            <div className="space-y-2">
+            <div className="space-y-1.5 lg:space-y-2">
               <Label htmlFor="email" className="text-slate-700 dark:text-white text-sm font-medium">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-                className="h-12 border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/50 transition-all duration-200 lg:h-auto"
-              />
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-white/50" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={loading}
+                  className="h-12 pl-10 border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/50 transition-all duration-200 lg:h-auto"
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5 lg:space-y-2">
               <Label htmlFor="password" className="text-slate-700 dark:text-white text-sm font-medium">Password</Label>
               <div className="relative">
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-white/50" />
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
@@ -343,7 +363,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   disabled={loading}
-                  className="h-12 border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/50 transition-all duration-200 pr-12 lg:h-auto"
+                  className="h-12 pl-10 border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/50 transition-all duration-200 pr-12 lg:h-auto"
                 />
                 <button
                   type="button"
@@ -372,10 +392,15 @@ export default function LoginPage() {
             <Button 
               type="submit" 
               variant={cookiesConsent === 'declined' ? 'destructive' : 'secondary'}
-              className="w-full h-14 text-base font-bold uppercase tracking-wide transition-all duration-200 hover:scale-105 active:scale-95 lg:h-12" 
+              className="group w-full h-13 lg:h-12 text-base font-bold uppercase tracking-wide transition-all duration-200 active:scale-95 lg:hover:scale-105 rounded-full lg:rounded-md shadow-md shadow-orange-900/20 lg:shadow-none inline-flex items-center justify-center gap-2" 
               disabled={loading || !policyChecked}
             >
-              {loading ? 'Logging in...' : cookiesConsent === 'declined' ? 'Cookies Blocked (Click to Reset)' : 'Login'}
+              {loading ? 'Logging in...' : cookiesConsent === 'declined' ? 'Cookies Blocked (Click to Reset)' : (
+                <>
+                  Login
+                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                </>
+              )}
             </Button>
 
             {/* Cookies Warning Banner */}
@@ -465,7 +490,7 @@ export default function LoginPage() {
             )}
 
             {/* Copyright Only */}
-            <div className="flex flex-col items-center gap-2 mt-8">
+            <div className="flex flex-col items-center gap-2 mt-6 lg:mt-8">
               <hr className="w-full border-t border-slate-200 dark:border-slate-700 mb-2" />
               <div className="flex flex-col sm:flex-row justify-between items-center w-full px-1 gap-2 sm:gap-0">
                 <span className="text-[11px] font-semibold text-slate-500 dark:text-white/70">© 2026 SafeGate. All rights reserved.</span>
@@ -480,16 +505,6 @@ export default function LoginPage() {
             </div>
             </form>
 
-          {/* Demo Credentials - Optional */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="mt-5 p-4 bg-orange-50/95 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/50 rounded-xl text-sm shadow-lg lg:shadow-none">
-              <p className="font-semibold text-orange-900 dark:text-orange-400 mb-2">Demo Credentials:</p>
-              <div className="space-y-1 text-xs text-orange-800 dark:text-orange-300">
-                <p><strong>Teacher:</strong> teacher / teacher123</p>
-                <p><strong>Admin:</strong> admin / admin123</p>
-              </div>
-            </div>
-          )}
           </div>
         </div>
       </div>
