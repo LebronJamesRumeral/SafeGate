@@ -4,6 +4,7 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -11,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { QrCode, Camera, CheckCircle, XCircle, User, Clock, Hash, Wifi, WifiOff, CloudUpload } from 'lucide-react';
+import { QrCode, Camera, CheckCircle, XCircle, User, Clock, Hash, Wifi, WifiOff, CloudUpload, Loader2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
@@ -26,6 +27,7 @@ import {
   validateAttendanceStatus,
   getAttendanceStatusDisplay,
 } from '@/lib/attendance-schedule-validation';
+import { TimePickerInput } from '@/components/time-picker-input';
 
 interface ScanResult {
   status: 'success' | 'error';
@@ -68,6 +70,9 @@ export default function ScanPage() {
   const [lastScan, setLastScan] = useState<ScanResult | null>(null);
   const [manualId, setManualId] = useState('');
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [showRfidConnection, setShowRfidConnection] = useState(false);
+  const [overrideTime, setOverrideTime] = useState('');
+  const [submittingManual, setSubmittingManual] = useState(false);
   const [rfidConnected, setRfidConnected] = useState(sharedScanRfidState.connected);
   const [connectingRfid, setConnectingRfid] = useState(sharedScanRfidState.connecting);
   const [isOnline, setIsOnline] = useState<boolean>(true);
@@ -668,10 +673,21 @@ export default function ScanPage() {
     }
   };
 
-  const recordAttendance = async (student: any, temperature: number, earlyOutReason?: string) => {
+  const recordAttendance = async (
+    student: any,
+    temperature: number,
+    earlyOutReason?: string,
+    overrideTime?: string
+  ) => {
     const now = new Date();
-    const nowIso = now.toISOString();
-    const date = formatLocalDateKey(now);
+    let scanTime = now;
+    if (overrideTime && overrideTime.trim() !== '') {
+      const [hours, minutes] = overrideTime.split(':').map(Number);
+      scanTime = new Date();
+      scanTime.setHours(hours, minutes, 0, 0);
+    }
+    const nowIso = scanTime.toISOString();
+    const date = formatLocalDateKey(scanTime);
 
     if (!navigator.onLine) {
       try {
@@ -696,8 +712,8 @@ export default function ScanPage() {
           student: student.name,
           studentId: student.lrn,
           grade: student.level,
-          time: formatTime12h(now),
-          date: now.toLocaleDateString(),
+          time: formatTime12h(scanTime),
+          date: scanTime.toLocaleDateString(),
           status: 'success',
           action,
           message: 'Saved securely offline. Will sync automatically when online.',
@@ -711,7 +727,7 @@ export default function ScanPage() {
         setLastScan({
           status: 'error',
           message: 'Unable to save attendance offline',
-          time: formatTime12h(now),
+          time: formatTime12h(scanTime),
         });
         return 'completed' as const;
       }
@@ -732,13 +748,13 @@ export default function ScanPage() {
 
       if (result.action === 'Checked In') {
         if (!supabase) {
-            throw new Error('Supabase client not initialized');
-          }
+          throw new Error('Supabase client not initialized');
+        }
 
         const client = supabase!;
 
         // Fetch the attendance status from the database
-          const { data: attendanceRecord } = await client
+        const { data: attendanceRecord } = await client
           .from('attendance_logs')
           .select('attendance_status')
           .eq('student_lrn', student.lrn)
@@ -754,16 +770,16 @@ export default function ScanPage() {
           is_invalid_timeout: attendanceStatus === 'invalid_timeout',
           minutes_early: 0,
           minutes_overtime: 0,
-          status_reason: attendanceStatus === 'late' ? 'Late arrival' : 'On time'
+          status_reason: attendanceStatus === 'late' ? 'Late arrival' : 'On time',
         });
 
         setLastScan({
           student: student.name,
           studentId: student.lrn,
           grade: student.level,
-          checkinTime: formatTime12h(now),
-          time: formatTime12h(now),
-          date: now.toLocaleDateString(),
+          checkinTime: formatTime12h(scanTime),
+          time: formatTime12h(scanTime),
+          date: scanTime.toLocaleDateString(),
           status: 'success',
           action: 'Checked In',
           attendanceStatus: attendanceStatus as any,
@@ -782,28 +798,28 @@ export default function ScanPage() {
         }
         return 'completed' as const;
       } else if (result.action === 'Already Checked Out') {
-          setLastScan({
-            student: student.name,
-            studentId: student.lrn,
-            grade: student.level,
-            time: formatTime12h(now),
-            date: now.toLocaleDateString(),
-            status: 'error',
-            message: 'Student already checked out today',
-            action: 'Check Out'
-          });
-          return 'completed' as const;
+        setLastScan({
+          student: student.name,
+          studentId: student.lrn,
+          grade: student.level,
+          time: formatTime12h(scanTime),
+          date: scanTime.toLocaleDateString(),
+          status: 'error',
+          message: 'Student already checked out today',
+          action: 'Check Out',
+        });
+        return 'completed' as const;
       } else if (result.action === 'Blocked') {
-          setLastScan({
-            student: student.name,
-            studentId: student.lrn,
-            grade: student.level,
-            time: formatTime12h(now),
-            date: now.toLocaleDateString(),
-            status: 'error',
-            message: result.message,
-          });
-          return 'completed' as const;
+        setLastScan({
+          student: student.name,
+          studentId: student.lrn,
+          grade: student.level,
+          time: formatTime12h(scanTime),
+          date: scanTime.toLocaleDateString(),
+          status: 'error',
+          message: result.message,
+        });
+        return 'completed' as const;
       } else {
         const duration = result.checkInTime
           ? calculateDuration(result.checkInTime, nowIso)
@@ -814,7 +830,7 @@ export default function ScanPage() {
         }
 
         const client = supabase!;
-        
+
         // Fetch the checkout record to check if there's an invalid timeout
         const { data: attendanceRecord } = await client
           .from('attendance_logs')
@@ -832,7 +848,7 @@ export default function ScanPage() {
           is_invalid_timeout: false,
           minutes_early: 0,
           minutes_overtime: 0,
-          status_reason: result.message || 'Checked out'
+          status_reason: result.message || 'Checked out',
         });
 
         setLastScan({
@@ -840,8 +856,8 @@ export default function ScanPage() {
           studentId: student.lrn,
           grade: student.level,
           checkinTime: result.checkInTime ? formatTime12h(result.checkInTime) : undefined,
-          time: formatTime12h(now),
-          date: now.toLocaleDateString(),
+          time: formatTime12h(scanTime),
+          date: scanTime.toLocaleDateString(),
           duration: duration,
           status: 'success',
           action: result.isEarlyOut ? 'Early Out' : 'Checked Out',
@@ -865,8 +881,8 @@ export default function ScanPage() {
           student: student.name,
           studentId: student.lrn,
           grade: student.level,
-          time: formatTime12h(now),
-          date: now.toLocaleDateString(),
+          time: formatTime12h(scanTime),
+          date: scanTime.toLocaleDateString(),
           status: 'success',
           action: 'Queued Offline',
           message: 'Network issue detected. Record saved offline and queued for sync.',
@@ -878,7 +894,7 @@ export default function ScanPage() {
         setLastScan({
           status: 'error',
           message: 'Failed to record attendance',
-          time: formatTime12h(now),
+          time: formatTime12h(scanTime),
         });
         return 'completed' as const;
       }
@@ -907,12 +923,14 @@ export default function ScanPage() {
 
     setSubmittingTemperature(true);
     try {
-      const outcome = await recordAttendance(pendingTemperatureStudent, Number(parsed.toFixed(1)));
+      const outcome = await recordAttendance(pendingTemperatureStudent, Number(parsed.toFixed(1)), undefined, overrideTime);
       setTemperatureModalOpen(false);
       setPendingTemperatureStudent(null);
       setTemperatureInput('');
       setManualId('');
+      setOverrideTime('');
       setShowManualEntry(false);
+      setShowRfidConnection(false);
       if (outcome === 'completed') {
         setScanning(true);
       }
@@ -939,7 +957,8 @@ export default function ScanPage() {
       const outcome = await recordAttendance(
         pendingEarlyOutStudent,
         pendingEarlyOutTemperature,
-        trimmedReason
+        trimmedReason,
+        overrideTime
       );
 
       if (outcome === 'completed') {
@@ -947,6 +966,7 @@ export default function ScanPage() {
         setPendingEarlyOutStudent(null);
         setPendingEarlyOutTemperature(null);
         setEarlyOutReasonInput('');
+        setOverrideTime('');
         setScanning(true);
       }
     } finally {
@@ -1134,30 +1154,37 @@ export default function ScanPage() {
   const handleManualEntry = async () => {
     if (!manualId.trim()) return false;
     
-    const student = await findStudent(manualId);
-    if (student) {
-      const parsed = Number.parseFloat(temperatureInput);
-      if (Number.isNaN(parsed) || parsed < 30 || parsed > 45) {
-        toast({
-          title: 'Invalid temperature',
-          description: 'Please enter a temperature between 30.0 and 45.0 C.',
-          variant: 'destructive',
+    setSubmittingManual(true);
+    try {
+      const student = await findStudent(manualId);
+      if (student) {
+        const parsed = Number.parseFloat(temperatureInput);
+        if (Number.isNaN(parsed) || parsed < 30 || parsed > 45) {
+          toast({
+            title: 'Invalid temperature',
+            description: 'Please enter a temperature between 30.0 and 45.0 C.',
+            variant: 'destructive',
+          });
+          return false;
+        }
+        await recordAttendance(student, Number(parsed.toFixed(1)), undefined, overrideTime);
+        setManualId('');
+        setTemperatureInput('');
+        setOverrideTime('');
+        setShowManualEntry(false);
+        setShowRfidConnection(false);
+        return true;
+      } else {
+        setLastScan({
+          status: 'error',
+          message: 'Student not found by LRN or RFID UID',
+          scannedText: manualId,
+          time: formatTime12h(new Date()),
         });
         return false;
       }
-      await recordAttendance(student, Number(parsed.toFixed(1)));
-      setManualId('');
-      setTemperatureInput('');
-      setShowManualEntry(false);
-      return true;
-    } else {
-      setLastScan({
-        status: 'error',
-        message: 'Student not found by LRN or RFID UID',
-        scannedText: manualId,
-        time: formatTime12h(new Date()),
-      });
-      return false;
+    } finally {
+      setSubmittingManual(false);
     }
   };
 
@@ -1167,7 +1194,7 @@ export default function ScanPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="space-y-6"
+        className="space-y-6 pb-32 md:pb-0"
       >
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -1444,28 +1471,187 @@ export default function ScanPage() {
                 </CardContent>
               </Card>
             )}
+            <Card className="border-0 shadow-xl overflow-hidden bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-800/50">
+              <CardContent className="p-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      rfidPortRef.current = sharedScanRfidState.port;
+                      rfidReaderRef.current = sharedScanRfidState.reader;
+                      rfidReadingActiveRef.current = sharedScanRfidState.readingActive;
+                      setRfidConnected(sharedScanRfidState.connected || !!sharedScanRfidState.port);
+                      setConnectingRfid(sharedScanRfidState.connecting);
+                      setShowManualEntry(true);
+                    }}
+                    className="w-full gap-2 border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950/20 rounded-xl font-medium"
+                  >
+                    <Hash className="w-4 h-4" />
+                    Manual Entry
+                  </Button>
 
-            <div className="space-y-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  rfidPortRef.current = sharedScanRfidState.port;
-                  rfidReaderRef.current = sharedScanRfidState.reader;
-                  rfidReadingActiveRef.current = sharedScanRfidState.readingActive;
-                  setRfidConnected(sharedScanRfidState.connected || !!sharedScanRfidState.port);
-                  setConnectingRfid(sharedScanRfidState.connecting);
-                  setShowManualEntry(true);
-                }}
-                className="w-full gap-2 border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950/20"
-              >
-                <Hash className="w-4 h-4" />
-                Manual Entry
-              </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      rfidPortRef.current = sharedScanRfidState.port;
+                      rfidReaderRef.current = sharedScanRfidState.reader;
+                      rfidReadingActiveRef.current = sharedScanRfidState.readingActive;
+                      setRfidConnected(sharedScanRfidState.connected || !!sharedScanRfidState.port);
+                      setConnectingRfid(sharedScanRfidState.connecting);
+                      setShowRfidConnection(true);
+                    }}
+                    className={`w-full gap-2 rounded-xl transition-all font-medium ${
+                      rfidConnected
+                        ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/20'
+                        : 'border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/20'
+                    }`}
+                  >
+                    <Wifi className="w-4 h-4" />
+                    {rfidConnected ? 'RFID Tap' : 'RFID Tap'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-              <Dialog
-                open={showManualEntry}
-                onOpenChange={(open) => {
+            <Dialog
+              open={showRfidConnection}
+              onOpenChange={(open) => {
+                if (!submittingManual) {
+                  if (open) {
+                    rfidPortRef.current = sharedScanRfidState.port;
+                    rfidReaderRef.current = sharedScanRfidState.reader;
+                    rfidReadingActiveRef.current = sharedScanRfidState.readingActive;
+                    setRfidConnected(sharedScanRfidState.connected || !!sharedScanRfidState.port);
+                    setConnectingRfid(sharedScanRfidState.connecting);
+                  }
+                  setShowRfidConnection(open);
+                }
+              }}
+            >
+              <DialogContent className="sm:max-w-md rounded-xl bg-white dark:bg-slate-950 p-6">
+                <DialogHeader className="pb-4">
+                  <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+                    <Wifi className="w-5 h-5 text-blue-500" />
+                    RFID Tap
+                  </DialogTitle>
+                  <DialogDescription className="text-sm mt-1 text-slate-600 dark:text-slate-400">
+                    Connect hardware and scan tags to submit attendance.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 border rounded-xl bg-slate-50/70 dark:bg-slate-900/50">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-2 rounded-full ${rfidConnected ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 animate-pulse' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                        <Wifi className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-semibold">
+                        Reader: {rfidConnected ? 'Connected' : 'Disconnected'}
+                      </span>
+                    </div>
+
+                    {!rfidConnected ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void connectRfidReader()}
+                        disabled={connectingRfid || submittingManual}
+                        className="text-xs h-8 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400"
+                      >
+                        {connectingRfid ? 'Connecting...' : 'Connect'}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void disconnectRfidReader()}
+                        disabled={submittingManual}
+                        className="text-xs h-8 border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400"
+                      >
+                        Disconnect
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="rfidLrn" className="text-xs font-semibold text-slate-700 dark:text-slate-300">LRN or RFID UID</Label>
+                      <Input
+                        id="rfidLrn"
+                        placeholder="Tap card to scan UID"
+                        value={manualId}
+                        disabled={submittingManual}
+                        onChange={(e) => setManualId(normalizeRfidUid(e.target.value))}
+                        className="bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500/20 h-11"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="rfidTemp" className="text-xs font-semibold text-slate-700 dark:text-slate-300">Temperature</Label>
+                      <Input
+                        id="rfidTemp"
+                        type="number"
+                        min="30"
+                        max="45"
+                        step="0.1"
+                        placeholder="Temperature (e.g. 36.7)"
+                        value={temperatureInput}
+                        disabled={submittingManual}
+                        onChange={(e) => setTemperatureInput(e.target.value)}
+                        className="bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500/20 h-11"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="rfidOverrideTime" className="text-xs font-semibold text-slate-700 dark:text-slate-300">Time In (Optional)</Label>
+                      <TimePickerInput
+                        id="rfidOverrideTime"
+                        value={overrideTime}
+                        onChange={setOverrideTime}
+                        disabled={submittingManual}
+                        placeholder="Select override time"
+                        className="h-11"
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="default"
+                    onClick={() => void handleManualEntry()}
+                    size="lg"
+                    disabled={submittingManual || !manualId.trim() || !temperatureInput.trim()}
+                    className="w-full gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 shadow-lg shadow-blue-500/25 rounded-lg h-11 text-white font-semibold"
+                  >
+                    {submittingManual ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Wifi size={16} />
+                        Submit Attendance
+                      </>
+                    )}
+                  </Button>
+
+                  <p className="text-xs text-center text-slate-500 dark:text-slate-400">
+                    {rfidConnected
+                      ? 'Reader connected. Tapping a tag will populate the LRN/UID above.'
+                      : 'Connect your serial RFID device to enable tap scanning.'}
+                  </p>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog
+              open={showManualEntry}
+              onOpenChange={(open) => {
+                if (!submittingManual) {
                   if (open) {
                     rfidPortRef.current = sharedScanRfidState.port;
                     rfidReaderRef.current = sharedScanRfidState.reader;
@@ -1474,87 +1660,106 @@ export default function ScanPage() {
                     setConnectingRfid(sharedScanRfidState.connecting);
                   }
                   setShowManualEntry(open);
-                }}
-              >
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                      <Hash className="w-4 h-4 text-orange-500" />
-                      Manual Entry
-                    </DialogTitle>
-                    <DialogDescription>
-                      Enter student LRN or RFID UID to auto check in or check out.
-                    </DialogDescription>
-                  </DialogHeader>
+                }
+              }}
+            >
+              <DialogContent className="sm:max-w-md rounded-xl bg-white dark:bg-slate-950 p-6">
+                <DialogHeader className="pb-4">
+                  <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+                    <Hash className="w-5 h-5 text-orange-500" />
+                    Manual Entry
+                  </DialogTitle>
+                  <DialogDescription className="text-sm mt-1 text-slate-600 dark:text-slate-400">
+                    Enter student LRN or RFID UID and temperature to record attendance manually.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  {rfidConnected && (
+                    <div className="flex items-center gap-2 px-3 py-2 border border-emerald-200 dark:border-emerald-900 bg-emerald-50/40 dark:bg-emerald-950/15 rounded-lg text-emerald-700 dark:text-emerald-400 text-xs">
+                      <Wifi className="w-3.5 h-3.5 animate-pulse" />
+                      <span>RFID Reader connected. Tapping a card will auto-fill LRN/UID.</span>
+                    </div>
+                  )}
 
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      {!rfidConnected ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => void connectRfidReader()}
-                          disabled={connectingRfid}
-                          className="flex-1"
-                        >
-                          {connectingRfid ? 'Connecting RFID Reader...' : 'Connect RFID Reader'}
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => void disconnectRfidReader()}
-                          className="flex-1"
-                        >
-                          Disconnect RFID Reader
-                        </Button>
-                      )}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="manualLrn" className="text-xs font-semibold text-slate-700 dark:text-slate-300">LRN or RFID UID</Label>
+                      <Input
+                        id="manualLrn"
+                        placeholder="Enter Student LRN or RFID UID"
+                        value={manualId}
+                        disabled={submittingManual}
+                        onChange={(e) => setManualId(normalizeRfidUid(e.target.value))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            void handleManualEntry();
+                          }
+                        }}
+                        className="bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500/20 h-11"
+                      />
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {rfidConnected
-                        ? 'Reader connected. Tap a tag to auto-fill UID below.'
-                        : 'Connect first, then tap a tag to auto-type the UID.'}
-                    </p>
 
-                    <Input
-                      placeholder="Enter Student LRN or RFID UID"
-                      value={manualId}
-                      onChange={(e) => setManualId(normalizeRfidUid(e.target.value))}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          void handleManualEntry();
-                        }
-                      }}
-                      className="bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500/20"
-                    />
-                    <Input
-                      type="number"
-                      min="30"
-                      max="45"
-                      step="0.1"
-                      placeholder="Temperature (e.g. 36.7)"
-                      value={temperatureInput}
-                      onChange={(e) => setTemperatureInput(e.target.value)}
-                      className="bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500/20"
-                    />
+                    <div className="space-y-1.5">
+                      <Label htmlFor="manualTemp" className="text-xs font-semibold text-slate-700 dark:text-slate-300">Temperature</Label>
+                      <Input
+                        id="manualTemp"
+                        type="number"
+                        min="30"
+                        max="45"
+                        step="0.1"
+                        placeholder="Temperature (e.g. 36.7)"
+                        value={temperatureInput}
+                        disabled={submittingManual}
+                        onChange={(e) => setTemperatureInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            void handleManualEntry();
+                          }
+                        }}
+                        className="bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500/20 h-11"
+                      />
+                    </div>
 
-                    <Button
-                      variant="default"
-                      onClick={() => void handleManualEntry()}
-                      size="lg"
-                      className="w-full gap-2 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 shadow-lg shadow-orange-500/25"
-                    >
-                      <Hash size={16} />
-                      Submit
-                    </Button>
-
-                    <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                      <kbd className="px-2 py-1 text-xs border rounded-md bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600">Enter</kbd>
-                      to submit
-                    </p>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="manualOverrideTime" className="text-xs font-semibold text-slate-700 dark:text-slate-300">Time In (Optional)</Label>
+                      <TimePickerInput
+                        id="manualOverrideTime"
+                        value={overrideTime}
+                        onChange={setOverrideTime}
+                        disabled={submittingManual}
+                        placeholder="Select override time"
+                        className="h-11"
+                      />
+                    </div>
                   </div>
-                </DialogContent>
-              </Dialog>
+
+                  <Button
+                    variant="default"
+                    onClick={() => void handleManualEntry()}
+                    size="lg"
+                    disabled={submittingManual || !manualId.trim() || !temperatureInput.trim()}
+                    className="w-full gap-2 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 shadow-lg shadow-orange-500/25 rounded-lg h-11 text-white"
+                  >
+                    {submittingManual ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Hash size={16} />
+                        Submit Attendance
+                      </>
+                    )}
+                  </Button>
+
+                  <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2 justify-center">
+                    Press <kbd className="px-1.5 py-0.5 text-2xs border rounded-md bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600">Enter</kbd> to submit
+                  </p>
+                </div>
+              </DialogContent>
+            </Dialog>
               <Dialog
                 open={temperatureModalOpen}
                 onOpenChange={(open) => {
@@ -1642,7 +1847,6 @@ export default function ScanPage() {
                   </div>
                 </DialogContent>
               </Dialog>
-            </div>
           </div>
         </div>
       </motion.div>

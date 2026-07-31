@@ -9,9 +9,10 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Bell, Lock, User, School, Save, Database, Brain, Clock, ChevronRight, ChevronLeft, Search, Pencil, Trash2, Eye, EyeOff, UserPlus, ShieldAlert, Edit3 } from 'lucide-react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import {
   Dialog,
   DialogContent,
@@ -98,14 +99,22 @@ export default function SettingsPage() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<{ id: string; name: string } | null>(null);
+  const deleteTimers = useRef<{
+    [key: string]: {
+      timeoutId: NodeJS.Timeout;
+      intervalId: NodeJS.Timeout;
+      toastId: string;
+    };
+  }>({});
 
   // State for editing user
   const [editingUser, setEditingUser] = useState<{ id: string; name: string; email: string; role: string } | null>(null);
+  const [editEmail, setEditEmail] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editFullName, setEditFullName] = useState('');
   const [editRole, setEditRole] = useState('teacher');
   const [updatingUser, setUpdatingUser] = useState(false);
-  const [editErrors, setEditErrors] = useState<{ password?: string; full_name?: string }>({});
+  const [editErrors, setEditErrors] = useState<{ password?: string; full_name?: string; email?: string }>({});
   const [showEditPassword, setShowEditPassword] = useState(false);
 
   // Fetch users
@@ -140,46 +149,156 @@ export default function SettingsPage() {
     }
   }, [activeCategory]);
 
+  useEffect(() => {
+    return () => {
+      // Clear any pending deletion timers on unmount
+      Object.values(deleteTimers.current).forEach((timer) => {
+        clearTimeout(timer.timeoutId);
+        clearInterval(timer.intervalId);
+      });
+    };
+  }, []);
+
   // Open modal for delete confirmation
   const handleDeleteUser = (id: string, name: string) => {
     setConfirmDeleteUser({ id, name });
   };
 
-  // Confirm delete action
-  const confirmDelete = async () => {
+  // Confirm delete action (initiates a 5s countdown with undo support)
+  const confirmDelete = () => {
     if (!confirmDeleteUser) return;
-    setDeletingUserId(confirmDeleteUser.id);
-    try {
-      const res = await fetch('/api/auth/delete-user', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: confirmDeleteUser.id }),
+    const targetUser = users.find((u) => u.id === confirmDeleteUser.id);
+    if (!targetUser) {
+      setConfirmDeleteUser(null);
+      return;
+    }
+
+    const userId = targetUser.id;
+    const userName = targetUser.name || targetUser.email;
+
+    // 1. Hide confirmation modal
+    setConfirmDeleteUser(null);
+
+    // 2. Optimistically remove user from local list
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
+
+    // 3. Setup countdown timer
+    let timeLeft = 5;
+
+    // Callback when undo is clicked
+    const handleUndo = () => {
+      // Clear timers
+      if (deleteTimers.current[userId]) {
+        clearTimeout(deleteTimers.current[userId].timeoutId);
+        clearInterval(deleteTimers.current[userId].intervalId);
+        delete deleteTimers.current[userId];
+      }
+
+      // Restore user to local list
+      setUsers((prev) => {
+        if (prev.some((u) => u.id === userId)) return prev;
+        return [...prev, targetUser].sort((a, b) => a.name.localeCompare(b.name));
       });
-      const data = await res.json();
-      if (data.success) {
-        toast({
-          title: 'User Deleted',
-          description: `${confirmDeleteUser.name} was deleted successfully.`,
-          variant: 'default',
+
+      // Dismiss the active toast
+      dismiss();
+
+      // Show cancellation toast
+      toast({
+        title: 'Deletion Cancelled',
+        description: `Deletion of ${userName} was undone.`,
+        variant: 'default',
+      });
+    };
+
+    // Trigger initial toast
+    const { id: toastId, dismiss, update } = toast({
+      title: 'Deleting User',
+      description: `Deleting ${userName} in ${timeLeft}s...`,
+      action: (
+        <ToastAction altText="Undo deletion" onClick={handleUndo}>
+          Undo
+        </ToastAction>
+      ),
+    });
+
+    const intervalId = setInterval(() => {
+      timeLeft--;
+      if (timeLeft > 0) {
+        update({
+          id: toastId,
+          title: 'Deleting User',
+          description: `Deleting ${userName} in ${timeLeft}s...`,
+          action: (
+            <ToastAction altText="Undo deletion" onClick={handleUndo}>
+              Undo
+            </ToastAction>
+          ),
         });
-        setUsers((prev) => prev.filter((u) => u.id !== confirmDeleteUser.id));
       } else {
+        clearInterval(intervalId);
+      }
+    }, 1000);
+
+    const timeoutId = setTimeout(async () => {
+      // Clean up timer references
+      if (deleteTimers.current[userId]) {
+        clearInterval(deleteTimers.current[userId].intervalId);
+        delete deleteTimers.current[userId];
+      }
+
+      // Dismiss the countdown toast
+      dismiss();
+
+      // Perform actual API delete
+      setDeletingUserId(userId);
+      try {
+        const res = await fetch('/api/auth/delete-user', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: userId }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          toast({
+            title: 'User Deleted',
+            description: `${userName} was deleted successfully.`,
+            variant: 'default',
+          });
+        } else {
+          // Restore user if delete failed
+          setUsers((prev) => {
+            if (prev.some((u) => u.id === userId)) return prev;
+            return [...prev, targetUser].sort((a, b) => a.name.localeCompare(b.name));
+          });
+          toast({
+            title: 'Failed to Delete User',
+            description: data.error || 'Failed to delete user',
+            variant: 'destructive',
+          });
+        }
+      } catch (err: any) {
+        // Restore user if delete failed
+        setUsers((prev) => {
+          if (prev.some((u) => u.id === userId)) return prev;
+          return [...prev, targetUser].sort((a, b) => a.name.localeCompare(b.name));
+        });
         toast({
           title: 'Failed to Delete User',
-          description: data.error || 'Failed to delete user',
+          description: err.message || 'Failed to delete user',
           variant: 'destructive',
         });
+      } finally {
+        setDeletingUserId(null);
       }
-    } catch (err: any) {
-      toast({
-        title: 'Failed to Delete User',
-        description: err.message || 'Failed to delete user',
-        variant: 'destructive',
-      });
-    } finally {
-      setDeletingUserId(null);
-      setConfirmDeleteUser(null);
-    }
+    }, 5000);
+
+    // Save timer IDs so we can cancel them on undo or component unmount
+    deleteTimers.current[userId] = {
+      timeoutId,
+      intervalId,
+      toastId,
+    };
   };
 
   const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -271,6 +390,7 @@ export default function SettingsPage() {
 
   const handleEditUser = (user: { id: string; name: string; email: string; role: string }) => {
     setEditingUser(user);
+    setEditEmail(user.email || '');
     setEditFullName(user.name || '');
     setEditRole(user.role || 'teacher');
     setEditPassword('');
@@ -282,7 +402,10 @@ export default function SettingsPage() {
     e.preventDefault();
     if (!editingUser) return;
 
-    const validationErrors: { password?: string; full_name?: string } = {};
+    const validationErrors: { password?: string; full_name?: string; email?: string } = {};
+    if (!editEmail.trim()) {
+      validationErrors.email = 'Email is required.';
+    }
     if (!editFullName.trim()) {
       validationErrors.full_name = 'Full name is required.';
     }
@@ -302,6 +425,7 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editingUser.id,
+          email: editEmail.trim(),
           full_name: editFullName.trim(),
           role: editRole,
           password: editPassword.trim() || undefined,
@@ -698,6 +822,7 @@ export default function SettingsPage() {
                               <SelectItem value="admin">Administrator</SelectItem>
                               <SelectItem value="teacher">Teacher</SelectItem>
                               <SelectItem value="guidance">Guidance</SelectItem>
+                              <SelectItem value="parent">Parent</SelectItem>
                             </SelectContent>
                           </Select>
                           {newUserErrors.role && <p className="text-sm text-red-600 dark:text-red-400">{newUserErrors.role}</p>}
@@ -892,7 +1017,19 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="editUserEmail" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Email</Label>
-                      <Input id="editUserEmail" value={editingUser?.email ?? ''} disabled className="border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/70 text-slate-700 dark:text-slate-200 rounded-lg h-11" />
+                      <Input
+                        id="editUserEmail"
+                        type="email"
+                        value={editEmail}
+                        onChange={(e) => {
+                          setEditEmail(e.target.value);
+                          if (e.target.value.trim()) {
+                            setEditErrors((prev) => ({ ...prev, email: undefined }));
+                          }
+                        }}
+                        className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white rounded-lg h-11 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500"
+                      />
+                      {editErrors.email && <p className="text-sm text-red-600 dark:text-red-400">{editErrors.email}</p>}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="editUserRole" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Role</Label>
@@ -904,6 +1041,7 @@ export default function SettingsPage() {
                           <SelectItem value="admin">Administrator</SelectItem>
                           <SelectItem value="teacher">Teacher</SelectItem>
                           <SelectItem value="guidance">Guidance</SelectItem>
+                          <SelectItem value="parent">Parent</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -934,6 +1072,32 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </form>
+              </DialogContent>
+            </Dialog>
+
+            {/* Delete User Confirmation Dialog */}
+            <Dialog open={!!confirmDeleteUser} onOpenChange={(open) => { if (!open) setConfirmDeleteUser(null); }}>
+              <DialogContent showCloseButton={false} className="w-[96vw] max-w-md h-auto p-6 rounded-xl bg-white dark:bg-slate-950">
+                <DialogHeader className="pb-4">
+                  <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white">Confirm Deletion</DialogTitle>
+                  <DialogDescription className="text-sm mt-2 text-slate-600 dark:text-slate-400">
+                    Are you sure you want to delete the user account for <span className="font-semibold text-slate-900 dark:text-white">{confirmDeleteUser?.name}</span>? This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="flex gap-3 justify-end mt-4">
+                  <Button variant="outline" type="button" onClick={() => setConfirmDeleteUser(null)} className="rounded-lg">
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    type="button"
+                    onClick={confirmDelete}
+                    className="rounded-lg bg-red-600 hover:bg-red-700 text-white"
+                    disabled={deletingUserId !== null}
+                  >
+                    {deletingUserId ? 'Deleting...' : 'Delete'}
+                  </Button>
+                </DialogFooter>
               </DialogContent>
             </Dialog>
 

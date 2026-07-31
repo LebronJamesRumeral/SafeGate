@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, password, full_name, role } = body;
+    const { id, email, password, full_name, role } = body;
 
     if (!id) {
       return Response.json({ success: false, error: 'Missing user id' }, { status: 400 });
@@ -28,6 +28,11 @@ export async function PUT(request: Request) {
 
     const updateData: any = {};
     const userMetadata: any = {};
+
+    if (email && email.trim() !== '') {
+      updateData.email = email.trim();
+      updateData.email_confirm = true;
+    }
 
     if (password && password.trim() !== '') {
       updateData.password = password.trim();
@@ -68,6 +73,100 @@ export async function PUT(request: Request) {
 
       if (profileError) {
         console.warn('Failed to sync profile updates to profiles table:', profileError.message);
+      }
+    }
+
+    // Keep the parents table in sync
+    const actualRole = role || (userData.user?.user_metadata?.role || userData.user?.app_metadata?.role || '').toString().toLowerCase();
+    const isParent = actualRole === 'parent';
+
+    if (isParent) {
+      const { data: parentRecord } = await supabase
+        .from('parents')
+        .select('id, parent_email')
+        .eq('user_id', id)
+        .maybeSingle();
+
+      const newEmail = email ? email.trim() : null;
+
+      if (parentRecord) {
+        const oldEmail = parentRecord.parent_email;
+
+        if (newEmail && newEmail !== oldEmail) {
+          const { data: duplicateParent } = await supabase
+            .from('parents')
+            .select('id')
+            .eq('parent_email', newEmail)
+            .maybeSingle();
+
+          if (!duplicateParent) {
+            const { error: insertError } = await supabase.from('parents').insert({
+              parent_email: newEmail,
+              full_name: full_name !== undefined ? full_name.trim() : (parentRecord as any).full_name || '',
+              user_id: null,
+            });
+
+            if (!insertError) {
+              await supabase
+                .from('parent_attendance_notes')
+                .update({ parent_email: newEmail })
+                .eq('parent_email', oldEmail);
+
+              await supabase
+                .from('students')
+                .update({ parent_email: newEmail })
+                .eq('parent_email', oldEmail);
+
+              await supabase
+                .from('parents')
+                .update({ user_id: id, full_name: full_name !== undefined ? full_name.trim() : undefined })
+                .eq('parent_email', newEmail);
+
+              await supabase
+                .from('parents')
+                .delete()
+                .eq('parent_email', oldEmail);
+            } else {
+              console.warn('Failed to insert new parent record for cascade:', insertError.message);
+            }
+          } else {
+            await supabase
+              .from('parents')
+              .update({ user_id: id, full_name: full_name !== undefined ? full_name.trim() : undefined })
+              .eq('id', duplicateParent.id);
+
+            await supabase
+              .from('parents')
+              .update({ user_id: null })
+              .eq('id', parentRecord.id);
+          }
+        } else {
+          if (full_name !== undefined) {
+            await supabase
+              .from('parents')
+              .update({ full_name: full_name.trim() })
+              .eq('user_id', id);
+          }
+        }
+      } else if (newEmail) {
+        const { data: existingParent } = await supabase
+          .from('parents')
+          .select('id')
+          .eq('parent_email', newEmail)
+          .maybeSingle();
+
+        if (existingParent) {
+          await supabase
+            .from('parents')
+            .update({ user_id: id, full_name: full_name !== undefined ? full_name.trim() : undefined })
+            .eq('id', existingParent.id);
+        } else {
+          await supabase.from('parents').insert({
+            parent_email: newEmail,
+            full_name: full_name !== undefined ? full_name.trim() : '',
+            user_id: id,
+          });
+        }
       }
     }
 
