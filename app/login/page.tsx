@@ -173,7 +173,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 overflow-hidden">
+    <div className="min-h-screen min-h-[100dvh] grid grid-cols-1 lg:grid-cols-2 overflow-hidden">
       {/* Left Side - Navy Background */}
       <div className="hidden lg:flex flex-col justify-center bg-linear-to-br from-blue-950 via-blue-900 to-blue-800 dark:from-blue-950 dark:via-blue-900 dark:to-slate-950 px-8 py-10 xl:px-12 xl:py-14 text-white overflow-hidden min-h-screen">
         <div>
@@ -294,10 +294,10 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="w-full sm:max-w-md lg:max-w-lg mx-0 sm:mx-auto lg:mx-auto -mt-10 lg:mt-0 relative z-10 px-5 sm:px-8 pt-10 lg:pt-0 pb-6 lg:px-0 lg:py-0 bg-white dark:bg-slate-900 lg:bg-transparent lg:dark:bg-transparent rounded-t-3xl sm:rounded-3xl lg:rounded-none shadow-[0_-12px_35px_-18px_rgba(15,23,42,0.35)] sm:shadow-2xl lg:shadow-none border-0 sm:border sm:border-slate-200/70 sm:dark:border-slate-800 lg:border-0">
+          <div className="w-full sm:max-w-md lg:max-w-lg mx-0 sm:mx-auto lg:mx-auto mt-12 lg:mt-0 relative z-10 px-5 sm:px-8 pt-10 lg:pt-0 pb-6 lg:px-0 lg:py-0 bg-white dark:bg-slate-900 lg:bg-transparent lg:dark:bg-transparent rounded-t-3xl sm:rounded-3xl lg:rounded-none shadow-[0_-12px_35px_-18px_rgba(15,23,42,0.35)] sm:shadow-2xl lg:shadow-none border-0 sm:border sm:border-slate-200/70 sm:dark:border-slate-800 lg:border-0">
 
           {/* Floating brand badge on the seam between hero and card (mobile/tablet only) */}
-          <div className="lg:hidden absolute left-1/2 -translate-x-1/2 -top-8 z-20 h-16 w-16 rounded-full bg-white dark:bg-slate-900 shadow-lg flex items-center justify-center ring-[6px] ring-white dark:ring-slate-900">
+          <div className="lg:hidden absolute left-1/2 -translate-x-1/2 -top-8 z-0 h-16 w-16 rounded-full bg-white dark:bg-slate-900 shadow-lg flex items-center justify-center ring-[6px] ring-white dark:ring-slate-900">
             <div className="h-full w-full rounded-full bg-linear-to-br from-blue-600 via-blue-700 to-blue-900 flex items-center justify-center">
               <ShieldCheck className="h-7 w-7 text-white" strokeWidth={2.25} />
             </div>
@@ -457,32 +457,62 @@ export default function LoginPage() {
 
             {/* Modal for Privacy Policy and Terms */}
             {showPolicyModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md animate-fadeIn p-4 sm:p-6">
-                  <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-xl sm:max-w-lg max-h-[90vh] overflow-auto px-6 py-6 sm:px-10 sm:py-10 flex flex-col items-center animate-fadeInModal" style={{fontFamily: 'inherit'}}>
-                    <button
-                      className="absolute top-3 right-3 sm:top-4 sm:right-4 text-slate-400 hover:text-red-500 text-2xl font-bold focus:outline-none"
-                      onClick={handleDeclinePolicy}
-                      aria-label="Decline"
-                    >
-                      ×
-                    </button>
-                    <h3 className="text-2xl sm:text-3xl font-bold mb-6 text-slate-900 dark:text-white font-mono text-center">Privacy Policy</h3>
-                    <p className="text-sm sm:text-base mb-6 text-slate-700 dark:text-slate-300 text-center leading-relaxed font-mono">
-                      Your privacy is important to us. We do not share your data with third parties. All information is handled securely and in accordance with applicable laws.
-                    </p>
-                    <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-slate-900 dark:text-white font-mono text-center">Terms of Service</h3>
-                      <p className="text-sm sm:text-base text-slate-700 dark:text-slate-300 text-center leading-relaxed font-mono" style={{marginBottom: '0.5rem'}}>
-                        By using SafeGate, you agree to use the app solely for its intended purpose of managing and monitoring school attendance, behavioral events, and related activities. All actions within the app must comply with school policies and applicable laws. Unauthorized access, data misuse, or attempts to disrupt the service are strictly prohibited and may result in suspension or legal action. SafeGate is designed to protect student privacy and ensure a safe school environment.
-                      </p>
-                    <div className="flex w-full gap-4 mt-6 sm:mt-8 sm:flex-row flex-col sm:justify-center sm:items-center">
-                      <Button variant="outline" onClick={handleDeclinePolicy} className="w-full sm:w-auto px-4 sm:px-6 py-2 text-base font-semibold">Decline</Button>
-                      <Button variant="secondary" onClick={handleAcceptPolicy} className="w-full sm:w-auto px-4 sm:px-6 py-2 text-base font-semibold">Accept</Button>
+              <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm animate-fadeIn p-0 lg:items-center lg:p-6">
+                <div className="relative bg-white dark:bg-slate-900 rounded-t-3xl shadow-2xl w-full max-w-full lg:max-w-xl h-[90vh] lg:h-auto max-h-[90vh] overflow-hidden border-t border-slate-200 dark:border-slate-800 lg:border-none lg:rounded-3xl flex flex-col animate-fadeInModal" style={{ fontFamily: 'inherit' }}>
+                  <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 px-5 py-4 sm:px-8 sm:py-6">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.4em] font-semibold text-slate-500 dark:text-slate-400">Privacy Policy</p>
+                        <h3 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white leading-tight">Consent & terms</h3>
+                      </div>
+                      <button
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 hover:text-slate-900 dark:hover:text-white shadow-sm focus:outline-none"
+                        onClick={handleDeclinePolicy}
+                        aria-label="Close"
+                      >
+                        ×
+                      </button>
                     </div>
                   </div>
+
+                  <div className="flex-1 overflow-y-auto px-5 pb-5 sm:px-8 sm:pb-6 lg:px-10 lg:pb-8 space-y-6 text-slate-700 dark:text-slate-300">
+                    <div className="space-y-4">
+                      <h4 className="text-lg font-semibold text-slate-900 dark:text-white">Why this matters</h4>
+                      <p className="text-sm leading-7">
+                        We use this policy to keep your data secure and to make sure SafeGate is used safely for attendance, behavioral tracking, and school operations.
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h4 className="text-lg font-semibold text-slate-900 dark:text-white">Privacy Policy</h4>
+                      <p className="text-sm leading-7">
+                        Your privacy is important to us. We do not share your data with third parties. All information is handled securely and in accordance with applicable laws.
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h4 className="text-lg font-semibold text-slate-900 dark:text-white">Terms of Service</h4>
+                      <p className="text-sm leading-7">
+                        By using SafeGate, you agree to use the app solely for its intended purpose of managing and monitoring school attendance, behavioral events, and related activities. All actions within the app must comply with school policies and applicable laws.
+                      </p>
+                      <p className="text-sm leading-7">
+                        Unauthorized access, data misuse, or attempts to disrupt the service are strictly prohibited and may result in suspension or legal action. SafeGate is designed to protect student privacy and ensure a safe school environment.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="px-5 pb-5 sm:px-8 sm:pb-6 lg:px-10 lg:pb-8">
+                    <div className="grid gap-3">
+                      <Button variant="secondary" onClick={handleAcceptPolicy} className="w-full px-4 py-3 text-base font-semibold">Accept</Button>
+                      <Button variant="outline" onClick={handleDeclinePolicy} className="w-full px-4 py-3 text-base font-semibold">Decline</Button>
+                    </div>
+                  </div>
+                </div>
+
                 <style>{`
                   @keyframes fadeInModal {
-                    from { opacity: 0; transform: scale(0.96) translateY(20px); }
-                    to { opacity: 1; transform: scale(1) translateY(0); }
+                    from { opacity: 0; transform: translateY(20px); }
+                    to { opacity: 1; transform: translateY(0); }
                   }
                   .animate-fadeInModal { animation: fadeInModal 0.25s cubic-bezier(.4,0,.2,1) both; }
                 `}</style>
