@@ -2,11 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Sun, Moon, Bell, Lock, User as UserIcon, LogOut, Settings, Calendar, AlertTriangle, BarChart3, ClipboardCheck, MapPinned, Megaphone } from "lucide-react"
+import { Sun, Moon, Bell, BellRing, Lock, User as UserIcon, LogOut, Settings, Calendar, AlertTriangle, BarChart3, ClipboardCheck, MapPinned } from "lucide-react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { useCallback, useEffect, useState } from "react"
+import { registerServiceWorkerAndSubscribe, subscribeUserToServer, unsubscribeUserFromServer, unsubscribeClientOnly, getCurrentSubscription } from "@/lib/push-notifications"
+import { toast } from '@/hooks/use-toast'
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
 import { ensureFridayParentWeeklyCheckInNotification, fetchRoleNotifications, getUnreadCount, markRoleNotificationsAsRead, resolveRoleNotificationHref, RoleNotification } from "@/lib/role-notifications"
@@ -201,6 +203,62 @@ export function Header() {
 
   const currentTheme = mounted ? resolvedTheme : 'light'
 
+  
+
+  const [isSubscribed, setIsSubscribed] = useState<boolean>(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    void (async () => {
+      const sub = await getCurrentSubscription()
+      setIsSubscribed(Boolean(sub))
+    })()
+  }, [])
+
+  const handleSubscribeToggle = useCallback(async () => {
+    try {
+      if (isSubscribed) {
+        // unsubscribe locally immediately for snappy UI
+        const endpoint = await unsubscribeClientOnly()
+        if (endpoint) {
+          setIsSubscribed(false)
+          toast({ title: 'Unsubscribed', description: 'You will no longer receive push notifications' })
+          // remove from server in background
+          void (async () => {
+            const ok = await unsubscribeUserFromServer(endpoint)
+            if (!ok) {
+              toast({ title: 'Server unsubscribe failed', description: 'Could not remove subscription from server' })
+            }
+          })()
+        } else {
+          toast({ title: 'Unsubscribe failed', description: 'Could not remove local subscription' })
+        }
+        return
+      }
+
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
+      const subscription = await registerServiceWorkerAndSubscribe(vapidKey)
+      if (!subscription) {
+        console.warn('Subscription failed')
+        return
+      }
+
+      // Optimistic success: update UI immediately
+      setIsSubscribed(true)
+      toast({ title: 'Subscribed', description: 'Push notifications enabled' })
+      // Save subscription to server in background; report failure separately
+      void (async () => {
+        const saved = await subscribeUserToServer(subscription, user?.id || null)
+        if (!saved) {
+          toast({ title: 'Subscription save failed', description: 'Server failed to save the subscription' })
+        }
+      })()
+    } catch (err) {
+      console.error('Subscribe toggle error', err)
+      toast({ title: 'Subscription error', description: 'An error occurred while subscribing' })
+    }
+  }, [isSubscribed, user])
+
   return (
     <>
       {/* Blue top bar */}
@@ -265,13 +323,26 @@ export function Header() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-80 rounded-2xl border border-slate-300/70 bg-white p-0 shadow-xl dark:border-slate-700 dark:bg-slate-900">
-                <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {unreadNotificationCount > 0
-                      ? `${unreadNotificationCount} unread update${unreadNotificationCount === 1 ? '' : 's'}`
-                      : 'All caught up'}
-                  </p>
+                <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {unreadNotificationCount > 0
+                        ? `${unreadNotificationCount} unread update${unreadNotificationCount === 1 ? '' : 's'}`
+                        : 'All caught up'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant={isSubscribed ? 'default' : 'ghost'}
+                      size="icon"
+                      onClick={() => void handleSubscribeToggle()}
+                      className={`rounded-md h-8 w-8 flex items-center justify-center ${isSubscribed ? 'bg-emerald-500 text-white' : 'text-slate-700 dark:text-slate-200'}`}
+                      title={isSubscribed ? 'Unsubscribe from push notifications' : 'Subscribe to push notifications'}
+                    >
+                      <BellRing className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <div className="max-h-80 overflow-y-auto py-1">
                   {roleNotifications.length === 0 && (
@@ -318,6 +389,10 @@ export function Header() {
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* (moved subscription control into Notifications panel) */}
+
+            {/* (no test push button) */}
 
             {/* User Menu */}
             <DropdownMenu>
