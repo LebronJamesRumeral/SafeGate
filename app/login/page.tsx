@@ -457,7 +457,7 @@ export default function LoginPage() {
 
             {/* Modal for Privacy Policy and Terms */}
             {showPolicyModal && (
-              <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm animate-fadeIn p-0 lg:items-center lg:p-6">
+              <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm animate-fadeIn p-0 pt-[constant(safe-area-inset-top,0px)] pt-[env(safe-area-inset-top,0px)] lg:items-center lg:p-6 lg:pt-[constant(safe-area-inset-top,0px)] lg:pt-[env(safe-area-inset-top,0px)]">
                 <div className="relative bg-white dark:bg-slate-900 rounded-t-3xl shadow-2xl w-full max-w-full lg:max-w-xl h-[90vh] lg:h-auto max-h-[90vh] overflow-hidden border-t border-slate-200 dark:border-slate-800 lg:border-none lg:rounded-3xl flex flex-col animate-fadeInModal" style={{ fontFamily: 'inherit' }}>
                   <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 px-5 py-4 sm:px-8 sm:py-6">
                     <div className="flex items-center justify-between gap-3">
@@ -475,7 +475,7 @@ export default function LoginPage() {
                     </div>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto px-5 pb-5 sm:px-8 sm:pb-6 lg:px-10 lg:pb-8 space-y-6 text-slate-700 dark:text-slate-300">
+                  <div className="flex-1 overflow-y-auto px-5 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sm:px-8 sm:pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] lg:px-10 lg:pb-8 space-y-6 text-slate-700 dark:text-slate-300">
                     <div className="space-y-4">
                       <h4 className="text-lg font-semibold text-slate-900 dark:text-white">Why this matters</h4>
                       <p className="text-sm leading-7">

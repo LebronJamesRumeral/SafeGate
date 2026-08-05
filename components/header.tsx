@@ -264,7 +264,7 @@ export function Header() {
       {/* Blue top bar */}
       <div className="h-2 bg-linear-to-r from-[#1e3a8a] to-[#2563eb] dark:from-slate-900 dark:to-slate-800" />
       
-      <header className="sticky top-2 z-20 backdrop-blur-lg px-4 py-3 sm:px-6 sm:py-4 shadow-md bg-white/97 dark:bg-slate-950/97 border-b border-orange-200/30 dark:border-slate-800/60 transition-all duration-300 ease-out">
+      <header className="sticky top-[constant(safe-area-inset-top,0px)] top-[env(safe-area-inset-top,0px)] z-20 backdrop-blur-lg px-4 py-3 pt-[constant(safe-area-inset-top,0px)] pt-[env(safe-area-inset-top,0px)] sm:top-0 sm:pt-0 sm:px-6 sm:py-4 shadow-md bg-white/97 dark:bg-slate-950/97 border-b border-orange-200/30 dark:border-slate-800/60 transition-all duration-300 ease-out">
         <div className="flex items-center justify-between">
           {/* Left side - Date/Time and Logo */}
           <div className="flex min-w-0 items-center gap-2 sm:gap-4">

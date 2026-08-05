@@ -39,7 +39,7 @@ export function Navbar() {
   const navItems = user ? allNavItems.filter(item => item.roles.includes(user.role)) : [];
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-orange-200/50 dark:border-slate-700/50 shadow-sm">
+    <nav className="sticky top-[constant(safe-area-inset-top,0px)] top-[env(safe-area-inset-top,0px)] z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-orange-200/50 dark:border-slate-700/50 shadow-sm pt-[env(safe-area-inset-top,0px)] sm:top-0 sm:pt-0">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
