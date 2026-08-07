@@ -13,6 +13,22 @@ import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { CookiesBanner } from '@/components/cookies-banner';
 
+const LOGIN_COOLDOWN_SECONDS = 60;
+const LOGIN_MAX_FAILURES = 3;
+const LOGIN_COOLDOWN_STORAGE_KEY = 'safegate_login_cooldown_until';
+const LOGIN_FAILURES_STORAGE_KEY = 'safegate_login_failures';
+
+type LoginCooldownToast = {
+  id: string;
+  dismiss: () => void;
+  update: (toast: {
+    id: string;
+    title: string;
+    description: string;
+    variant: 'default' | 'destructive';
+  }) => void;
+};
+
 const fadeInOut = `
   @keyframes fadeInSlide {
     from {
@@ -43,9 +59,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const { toast } = useToast();
+  const { toast: showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const { login, logout } = useAuth();
+  const [cooldownEndsAt, setCooldownEndsAt] = useState<number | null>(null);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const cooldownToastRef = React.useRef<LoginCooldownToast | null>(null);
   // Privacy Policy modal and checkbox state
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [policyChecked, setPolicyChecked] = useState(false);
@@ -70,8 +89,130 @@ export default function LoginPage() {
       if (answered !== 'true') {
         setShowCookiesBanner(true);
       }
+
+      const storedCooldownEndsAt = Number(localStorage.getItem(LOGIN_COOLDOWN_STORAGE_KEY));
+      if (storedCooldownEndsAt && storedCooldownEndsAt > Date.now()) {
+        setCooldownEndsAt(storedCooldownEndsAt);
+      } else {
+        localStorage.removeItem(LOGIN_COOLDOWN_STORAGE_KEY);
+        localStorage.removeItem(LOGIN_FAILURES_STORAGE_KEY);
+      }
     }
   }, []);
+
+  React.useEffect(() => {
+    if (!cooldownEndsAt) {
+      setCooldownRemaining(0);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const remainingSeconds = Math.max(0, Math.ceil((cooldownEndsAt - Date.now()) / 1000));
+      setCooldownRemaining(remainingSeconds);
+
+      if (remainingSeconds <= 0) {
+        setCooldownEndsAt(null);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(LOGIN_COOLDOWN_STORAGE_KEY);
+          localStorage.removeItem(LOGIN_FAILURES_STORAGE_KEY);
+        }
+
+        if (cooldownToastRef.current) {
+          cooldownToastRef.current.dismiss();
+          cooldownToastRef.current = null;
+        }
+        return;
+      }
+
+      if (!cooldownToastRef.current) {
+        cooldownToastRef.current = showToast({
+          title: 'Login temporarily locked',
+          description: `Too many failed attempts. Try again in ${remainingSeconds} second${remainingSeconds === 1 ? '' : 's'}.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      cooldownToastRef.current.update({
+        id: cooldownToastRef.current.id,
+        title: 'Login temporarily locked',
+        description: `Too many failed attempts. Try again in ${remainingSeconds} second${remainingSeconds === 1 ? '' : 's'}.`,
+        variant: 'destructive',
+      });
+    };
+
+    updateCountdown();
+    const interval = window.setInterval(updateCountdown, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [cooldownEndsAt]);
+
+  React.useEffect(() => {
+    if (!cooldownToastRef.current || !cooldownEndsAt || cooldownRemaining <= 0) {
+      return;
+    }
+
+    cooldownToastRef.current.update({
+      id: cooldownToastRef.current.id,
+      title: 'Login temporarily locked',
+      description: `Too many failed attempts. Try again in ${cooldownRemaining} second${cooldownRemaining === 1 ? '' : 's'}.`,
+      variant: 'destructive',
+    });
+  }, [cooldownRemaining, cooldownEndsAt]);
+
+  const startCooldown = () => {
+    const cooldownEnds = Date.now() + LOGIN_COOLDOWN_SECONDS * 1000;
+    setCooldownEndsAt(cooldownEnds);
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(LOGIN_COOLDOWN_STORAGE_KEY, cooldownEnds.toString());
+    }
+
+    cooldownToastRef.current = showToast({
+      title: 'Login temporarily locked',
+      description: `Too many failed attempts. Try again in ${LOGIN_COOLDOWN_SECONDS} seconds.`,
+      variant: 'destructive',
+    });
+  };
+
+  const registerFailedAttempt = () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const nextFailures = Number(localStorage.getItem(LOGIN_FAILURES_STORAGE_KEY) || '0') + 1;
+    localStorage.setItem(LOGIN_FAILURES_STORAGE_KEY, String(nextFailures));
+
+    if (nextFailures >= LOGIN_MAX_FAILURES) {
+      localStorage.removeItem(LOGIN_FAILURES_STORAGE_KEY);
+      startCooldown();
+      return;
+    }
+
+    const attemptsLeft = LOGIN_MAX_FAILURES - nextFailures;
+    showToast({
+      title: 'Login Failed',
+      description: `Invalid email or password. ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} left before a ${LOGIN_COOLDOWN_SECONDS}-second lockout.`,
+      variant: 'destructive',
+    });
+  };
+
+  const clearCooldown = () => {
+    setCooldownEndsAt(null);
+    setCooldownRemaining(0);
+
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(LOGIN_COOLDOWN_STORAGE_KEY);
+      localStorage.removeItem(LOGIN_FAILURES_STORAGE_KEY);
+    }
+
+    if (cooldownToastRef.current) {
+      cooldownToastRef.current.dismiss();
+      cooldownToastRef.current = null;
+    }
+  };
+
+  const isLoginLocked = cooldownRemaining > 0;
 
   // When checkbox is clicked, show modal instead of toggling
   const handlePolicyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,10 +243,19 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
 
+    if (isLoginLocked) {
+      showToast({
+        title: 'Login temporarily locked',
+        description: `Please wait ${cooldownRemaining} second${cooldownRemaining === 1 ? '' : 's'} before trying again.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // Handle cookies consent restriction before proceeding
     if (cookiesConsent === 'declined') {
       setShowCookiesBanner(true);
-      toast({
+      showToast({
         title: 'Cookies Required',
         description: 'Please accept at least essential cookies to log in.',
         variant: 'destructive',
@@ -115,7 +265,7 @@ export default function LoginPage() {
 
     if (!cookiesConsent) {
       setShowCookiesBanner(true);
-      toast({
+      showToast({
         title: 'Cookie Choice Required',
         description: 'Please make a cookie selection first.',
         variant: 'destructive',
@@ -129,19 +279,17 @@ export default function LoginPage() {
     const success = await login(email, password);
     if (!success) {
       setError('Invalid email or password');
-      toast({
-        title: 'Login Failed',
-        description: 'Invalid email or password',
-        variant: 'destructive',
-      });
+      registerFailedAttempt();
       setLoading(false);
       return;
     }
 
+    clearCooldown();
+
     // Fetch the latest user from Supabase after login
     if (!supabase) {
       setError('Supabase client is not configured');
-      toast({
+      showToast({
         title: 'Login Failed',
         description: 'Supabase client is not configured',
         variant: 'destructive',
@@ -156,7 +304,7 @@ export default function LoginPage() {
     if (!allowedRoles.includes(role)) {
       await logout();
       setError('Your account role is not allowed in this system. Please contact an administrator.');
-      toast({
+      showToast({
         title: 'Access Denied',
         description: 'Your account role is not allowed in this system. Please contact an administrator.',
         variant: 'destructive',
@@ -164,7 +312,8 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    toast({
+    clearCooldown();
+    showToast({
       title: 'Login Successful',
       description: `Welcome, ${role === 'parent' ? 'Parent' : role.charAt(0).toUpperCase() + role.slice(1)}!`,
       variant: 'default',
@@ -393,9 +542,9 @@ export default function LoginPage() {
               type="submit" 
               variant={cookiesConsent === 'declined' ? 'destructive' : 'secondary'}
               className="group w-full h-13 lg:h-12 text-base font-bold uppercase tracking-wide transition-all duration-200 active:scale-95 lg:hover:scale-105 rounded-full lg:rounded-md shadow-md shadow-orange-900/20 lg:shadow-none inline-flex items-center justify-center gap-2" 
-              disabled={loading || !policyChecked}
+              disabled={loading || !policyChecked || isLoginLocked}
             >
-              {loading ? 'Logging in...' : cookiesConsent === 'declined' ? 'Cookies Blocked (Click to Reset)' : (
+              {loading ? 'Logging in...' : isLoginLocked ? `Locked for ${cooldownRemaining}s` : cookiesConsent === 'declined' ? 'Cookies Blocked (Click to Reset)' : (
                 <>
                   Login
                   <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
