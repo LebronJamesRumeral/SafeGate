@@ -14,7 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { CookiesBanner } from '@/components/cookies-banner';
 
 const LOGIN_COOLDOWN_SECONDS = 60;
-const LOGIN_MAX_FAILURES = 3;
+const LOGIN_MAX_FAILURES = 6;
 const LOGIN_COOLDOWN_STORAGE_KEY = 'safegate_login_cooldown_until';
 const LOGIN_FAILURES_STORAGE_KEY = 'safegate_login_failures';
 
