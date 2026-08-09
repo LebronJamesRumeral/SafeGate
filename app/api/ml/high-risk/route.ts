@@ -108,6 +108,9 @@ export async function GET(request: Request) {
       eventCountsByLrn.set(lrn, next);
     });
 
+    // Calculate risk info but avoid per-student duplicate RPCs by using the RPC once and
+    // reusing local aggregates. Also avoid triggering `compileStudentIssues`'s internal
+    // RPC by passing pre-fetched data.
     const calculated = await Promise.all(
       studentList.map(async (student: any) => {
         const { data: riskRows, error: riskError } = await supabase.rpc('calculate_student_risk_score', {
@@ -142,11 +145,14 @@ export async function GET(request: Request) {
             late_percentage: latePercentage,
           });
         }
-        
+
         const behaviorStatus = deriveBehaviorStatus(level, concerningEvents);
         const attendanceSignal = buildAttendanceSignal(attendanceRate, Number(risk.attendance_component || 0), latePercentage);
-        // Compile multiple issues into a single comprehensive term
-        const issueCompilation = await compileStudentIssues(student.lrn);
+
+        // Provide pre-fetched behavioral events for compileStudentIssues to avoid
+        // triggering another RPC for the same student.
+        const behavioralEventsForStudent = (recentBehavioralEvents || []).filter((e: any) => String(e.student_lrn || '') === String(student.lrn || ''));
+        const issueCompilation = await compileStudentIssues(student.lrn, { riskScore: risk, behavioralEvents: behavioralEventsForStudent });
         const patternType = issueCompilation.compiledIssue;
 
         return {

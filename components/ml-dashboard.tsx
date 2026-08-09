@@ -844,29 +844,58 @@ export function MLDashboard() {
       if (!silent) {
         setError(null);
       }
-      
       const response = await fetch('/api/ml/high-risk', { cache: 'no-store' });
       const result = await response.json().catch(() => null);
 
-      if (!result) {
-        console.warn('No valid response from ML API');
-        if (!silent) {
-          setHighRiskStudents([]);
-        }
-        return;
-      }
+      // Primary source: ML API
+      if (result && result.success !== false && result.data && Array.isArray(result.data) && result.data.length > 0) {
+        setHighRiskStudents(result.data);
+        setHasLoadedOnce(true);
+      } else {
+        // Fallback: if ML API returned empty or errored, try a fast Supabase query using stored `risk_level`.
+        console.warn('ML API empty or unavailable, using Supabase fallback for high-risk students');
+        if (supabase) {
+          try {
+            const { data: studentsData, error: studentsError } = await supabase
+              .from('students')
+              .select('lrn, name, parent_contact, level, risk_level')
+              .eq('status', 'active')
+              .in('risk_level', ['high', 'critical', 'medium'])
+              .limit(100);
 
-      if (result.success === false || (result.error && !result.data)) {
-        setError(result.error || result.message || 'Unable to load data');
-        if (!silent) {
-          setHighRiskStudents([]);
-        }
-        return;
-      }
+            if (!studentsError && studentsData && studentsData.length > 0) {
+              const mapped = studentsData.map((s: any) => ({
+                lrn: s.lrn,
+                name: s.name || 'Unknown',
+                parentContact: s.parent_contact || 'N/A',
+                riskLevel: (s.risk_level || 'low') as any,
+                behaviorStatus: 'watch' as any,
+                concerningEvents: 0,
+                positiveEvents: 0,
+                patternType: '',
+                attendanceSignal: '',
+                nextAbsentDate: null,
+                predictionConfidence: 0,
+                class_level: s.level,
+              }));
 
-      const students = result.data || [];
-      setHighRiskStudents(Array.isArray(students) ? students : []);
-      setHasLoadedOnce(true);
+              setHighRiskStudents(mapped);
+              setHasLoadedOnce(true);
+            } else {
+              if (!silent) setHighRiskStudents([]);
+              if (studentsError && !silent) setError('Unable to load high-risk students');
+            }
+          } catch (supError) {
+            console.error('Supabase fallback error:', supError);
+            if (!silent) {
+              setHighRiskStudents([]);
+              setError('Unable to load data.');
+            }
+          }
+        } else {
+          if (!silent) setHighRiskStudents([]);
+        }
+      }
     } catch (err) {
       console.error('Error fetching high-risk students:', err);
       if (!silent) {

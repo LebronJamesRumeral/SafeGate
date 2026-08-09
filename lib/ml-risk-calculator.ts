@@ -250,14 +250,18 @@ export async function calculateBatchRiskScores(
   }
 
   try {
-    const promises = studentLrns.map(lrn => calculateStudentRiskScore(lrn));
-    const scores = await Promise.all(promises);
-
-    scores.forEach((score, index) => {
-      if (score) {
-        results.set(studentLrns[index], score);
-      }
-    });
+    // Limit concurrency to avoid flooding the RPC with too many parallel requests
+    const BATCH_SIZE = 8;
+    for (let i = 0; i < studentLrns.length; i += BATCH_SIZE) {
+      const chunk = studentLrns.slice(i, i + BATCH_SIZE);
+      const chunkPromises = chunk.map(lrn => calculateStudentRiskScore(lrn));
+      const chunkResults = await Promise.all(chunkPromises);
+      chunkResults.forEach((score, idx) => {
+        if (score) {
+          results.set(chunk[idx], score);
+        }
+      });
+    }
 
     // console.log(`Risk scores calculated: ${results.size}/${studentLrns.length} students`);
     return results;
@@ -299,22 +303,20 @@ export async function getStudentMLProfile(studentLrn: string) {
  * Uses data from the entire history (90+ days) to capture complete picture
  */
 export async function compileStudentIssues(
-  studentLrn: string
+  studentLrn: string,
+  options?: { riskScore?: RiskScore | null; behavioralEvents?: any[] }
 ): Promise<{ compiledIssue: string; componentIssues: string[]; compiledDate: string }> {
   try {
-    const [riskScore, behavioralEvents] = await Promise.all([
-      calculateStudentRiskScore(studentLrn),
-      supabase
-        .from('behavioral_events')
-        .select('event_type, severity, event_date')
-        .eq('student_lrn', studentLrn)
-        .gte('event_date', formatLocalDateKey(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)))
-        .order('event_date', { ascending: false }),
-    ]);
+    const riskScore = options?.riskScore ?? await calculateStudentRiskScore(studentLrn);
+    const behavioralEventsData = options?.behavioralEvents ?? ((await supabase
+      .from('behavioral_events')
+      .select('event_type, severity, event_date')
+      .eq('student_lrn', studentLrn)
+      .gte('event_date', formatLocalDateKey(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)))
+      .order('event_date', { ascending: false })).data ?? []);
 
     const attendanceIssues: string[] = [];
     const behaviorIssues: string[] = [];
-    const behavioralEventsData = behavioralEvents.data || [];
     const nonPositiveEvents = behavioralEventsData.filter((event: any) => String(event.severity || '').toLowerCase() !== 'positive');
     const nonPositiveEventCount = nonPositiveEvents.length;
 

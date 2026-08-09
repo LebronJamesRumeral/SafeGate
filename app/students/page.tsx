@@ -2333,25 +2333,29 @@ export default function StudentsPage() {
       });
       setStudents(sortByLevel(mappedStudents));
 
-      // Fetch risk scores for all students
-      const riskScorePromises = mappedStudents.map(async (student) => {
-        try {
-          const score = await calculateStudentRiskScore(student.lrn);
-          // If no score or no records, default to low
-          if (!score || !score.risk_level) {
-            return { lrn: student.lrn, score: { risk_level: 'low' } };
-          }
-          return { lrn: student.lrn, score };
-        } catch (error) {
-          console.error(`Error fetching risk score for ${student.lrn}:`, error);
-          return { lrn: student.lrn, score: { risk_level: 'low' } };
-        }
-      });
-
-      const riskResults = await Promise.all(riskScorePromises);
+      // Populate risk scores from stored fields for fast initial render.
+      // Avoid calling heavy RPC `calculate_student_risk_score` for every student on page load.
       const riskMap: Record<string, RiskScore | null> = {};
-      riskResults.forEach(result => {
-        riskMap[result.lrn] = result.score;
+      mappedStudents.forEach((student: any) => {
+        const storedLevel = student.risk_level || student.riskLevel || 'low';
+        const storedScore = (student.risk_score !== undefined && student.risk_score !== null) ? Number(student.risk_score) : 0;
+        riskMap[student.lrn] = {
+          risk_score: storedScore,
+          risk_level: storedLevel,
+          attendance_component: Number(student.attendance_component || 0),
+          behavior_component: Number(student.behavior_component || 0),
+          pattern_component: Number(student.pattern_component || 0),
+          confidence: Number(student.confidence || 0),
+          breakdown: {
+            attendance_rate: Number(student.attendance_rate || 0),
+            days_present: Number(student.days_present || 0),
+            school_days: Number(student.school_days || 0),
+            late_percentage: Number(student.late_percentage || 0),
+            negative_events: Number(student.negative_events || 0),
+            positive_events: Number(student.positive_events || 0),
+            calculation_date: student.calculation_date || formatLocalDateKey(new Date()),
+          },
+        };
       });
       setRiskScores(riskMap);
     } catch (error) {

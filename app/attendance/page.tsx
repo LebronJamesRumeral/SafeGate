@@ -244,17 +244,20 @@ export default function AttendancePage() {
     try {
       setLoading(true);
 
-      // Resolve school year end date from the table (prefer latest end_date)
-      const resolvedEnd = await resolveSchoolYearEndDate();
-      const schoolYearData = { end_date: resolvedEnd };
 
+      // Resolve school year end date and fetch students in parallel
       let studentsQuery = supabase.from('students').select('lrn, name, level, status').eq('status', 'active');
-      
       if (selectedLevel !== 'all') {
         studentsQuery = studentsQuery.eq('level', selectedLevel);
       }
 
-      const { data: studentsData, error: studentsError } = await studentsQuery;
+      const [studentsRes, resolvedEnd] = await Promise.all([
+        studentsQuery,
+        resolveSchoolYearEndDate()
+      ]);
+
+      const { data: studentsData, error: studentsError } = studentsRes || {};
+      const schoolYearData = { end_date: resolvedEnd };
 
       if (studentsError) {
         toast({
@@ -339,34 +342,47 @@ export default function AttendancePage() {
       setLogs(attendanceData);
       setAppliedRange({ start, end });
 
-      // Fetch student schedules (entry times)
+      // Fetch student schedules, summer enrollments, and parent notes in parallel
+      let notesData = null;
       if (sortedStudents.length > 0) {
-        const { data: schedules, error: schedulesError } = await supabase
-          .from('student_attendance_schedules')
-          .select('student_lrn, entry_time')
-          .in('student_lrn', sortedStudents.map(s => s.lrn))
-          .eq('is_active', true);
+        try {
+          const lrns = Array.from(new Set<string>([
+            ...(sortedStudents || []).map((s) => s.lrn),
+            ...(attendanceData || []).map((a: any) => a.student_lrn),
+          ]));
 
-        if (!schedulesError && schedules) {
-          const scheduleMap: Record<string, string | null> = {};
-          for (const schedule of schedules) {
-            scheduleMap[schedule.student_lrn] = schedule.entry_time;
+          const schedulesPromise = supabase
+            .from('student_attendance_schedules')
+            .select('student_lrn, entry_time')
+            .in('student_lrn', sortedStudents.map(s => s.lrn))
+            .eq('is_active', true);
+
+          const summerPromise = lrns.length > 0
+            ? supabase
+                .from('summer_enrollments')
+                .select('student_lrn, start_date, end_date')
+                .in('student_lrn', lrns)
+            : Promise.resolve({ data: null, error: null });
+
+          const notesPromise = supabase
+            .from('parent_attendance_notes')
+            .select('attendance_log_id, student_lrn, parent_email, note_text, created_at')
+            .in('student_lrn', sortedStudents.map(s => s.lrn));
+
+          const [schedulesRes, summerRes, notesRes] = await Promise.all([schedulesPromise, summerPromise, notesPromise]);
+
+          const { data: schedules, error: schedulesError } = schedulesRes || {};
+          const { data: summerData, error: summerError } = summerRes || {};
+          notesData = (notesRes || {}).data || null;
+
+          if (!schedulesError && schedules) {
+            const scheduleMap: Record<string, string | null> = {};
+            for (const schedule of schedules) {
+              scheduleMap[schedule.student_lrn] = schedule.entry_time;
+            }
+            setStudentSchedules(scheduleMap);
           }
-          setStudentSchedules(scheduleMap);
-        }
-      }
 
-      // Fetch summer enrollments for relevant students/logs
-      try {
-        const lrns = Array.from(new Set<string>([
-          ...(sortedStudents || []).map((s) => s.lrn),
-          ...(attendanceData || []).map((a: any) => a.student_lrn),
-        ]));
-        if (lrns.length > 0) {
-          const { data: summerData, error: summerError } = await supabase
-            .from('summer_enrollments')
-            .select('student_lrn, start_date, end_date')
-            .in('student_lrn', lrns);
           if (!summerError && summerData) {
             const map: Record<string, { start_date: string; end_date: string }> = {};
             for (const row of summerData) {
@@ -376,16 +392,12 @@ export default function AttendancePage() {
             }
             setSummerEnrollments(map);
           }
-        }
-      } catch (err) {
-        // ignore if table doesn't exist or query fails
-      }
 
-      // Fetch parent notes for all students
-      const { data: notesData } = await supabase
-        .from('parent_attendance_notes')
-        .select('attendance_log_id, student_lrn, parent_email, note_text, created_at')
-        .in('student_lrn', sortedStudents.map(s => s.lrn));
+          // continue with notesData processing below
+        } catch (err) {
+          // ignore if table doesn't exist or query fails
+        }
+      }
 
       // Fetch attendance log dates
       const attendanceLogIds = notesData?.map(n => n.attendance_log_id) || [];

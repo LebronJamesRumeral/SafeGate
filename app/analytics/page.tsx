@@ -222,11 +222,32 @@ export default function AnalyticsPage() {
         });
         return;
       }
+      // Build independent queries: students and school-year lookups
       let studentsQuery = supabase.from('students').select('*', { count: 'exact' });
       if (selectedLevel !== 'all') {
         studentsQuery = studentsQuery.eq('level', selectedLevel);
       }
-      const { data: students, error: studentsError } = await studentsQuery;
+      const currentYearQuery = supabase
+        .from('school_years')
+        .select('end_date, is_current')
+        .eq('is_current', true)
+        .maybeSingle();
+      const latestYearQuery = supabase
+        .from('school_years')
+        .select('end_date, is_current')
+        .order('start_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const [studentsRes, currentSchoolYearRes, latestSchoolYearRes] = await Promise.all([
+        studentsQuery,
+        currentYearQuery,
+        latestYearQuery
+      ]);
+
+      const { data: students, error: studentsError } = studentsRes || {};
+      const { data: currentSchoolYear } = currentSchoolYearRes || {};
+      const { data: latestSchoolYear } = latestSchoolYearRes || {};
 
       if (studentsError) {
         toast({
@@ -239,26 +260,7 @@ export default function AnalyticsPage() {
 
       const totalStudents = students?.length || 0;
 
-      // Fetch the active school year, then fall back to the latest school year record
-      // so analytics still respects the closed school-year boundary after it ends.
-      const { data: currentSchoolYear } = await supabase
-        .from('school_years')
-        .select('end_date, is_current')
-        .eq('is_current', true)
-        .maybeSingle();
-
-      let schoolYearEndDate = currentSchoolYear?.end_date || null;
-
-      if (!schoolYearEndDate) {
-        const { data: latestSchoolYear } = await supabase
-          .from('school_years')
-          .select('end_date, is_current')
-          .order('start_date', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        schoolYearEndDate = latestSchoolYear?.end_date || null;
-      }
+      let schoolYearEndDate = currentSchoolYear?.end_date || latestSchoolYear?.end_date || null;
 
       const normalizeRange = (start: string, end: string) => {
         if (!start || !end) return [end, end];
@@ -336,7 +338,36 @@ export default function AnalyticsPage() {
         attendanceQuery = attendanceQuery.in('student_lrn', levelStudentLrns);
       }
 
-      const { data: attendance, error: attendanceError } = await attendanceQuery;
+      // Build behavioral query (can be fetched in parallel with attendance)
+      let behavioralQuery = supabase
+        .from('behavioral_events')
+        .select(`
+          id,
+          student_lrn,
+          event_type,
+          severity,
+          event_date,
+          event_time,
+          created_at,
+          students(name, level),
+          event_categories(name, category_type, color_code, severity_level)
+        `)
+        .gte('event_date', dateRange[0])
+        .lte('event_date', dateRange[dateRange.length - 1]);
+
+      if (selectedLevel !== 'all' && students && students.length > 0) {
+        const levelStudentLrns = students.map(s => s.lrn);
+        behavioralQuery = behavioralQuery.in('student_lrn', levelStudentLrns);
+      }
+
+      // Execute attendance and behavioral queries together
+      const [attendanceRes, behavioralRes] = await Promise.all([
+        attendanceQuery,
+        behavioralQuery
+      ]);
+
+      const { data: attendance, error: attendanceError } = attendanceRes || {};
+      const { data: behavioralEvents, error: behavioralError } = behavioralRes || {};
 
       if (attendanceError) {
         setLoading(false);

@@ -180,20 +180,12 @@ export default function Dashboard() {
     try {
       setLoading(true);
 
-      // Fetch total students
+      // Build independent Supabase query builders first (do not await yet)
       let studentsQuery = supabase.from('students').select('*', { count: 'exact' });
       if (selectedLevel !== 'all') {
         studentsQuery = studentsQuery.eq('level', selectedLevel);
       }
-      const { data: students, error: studentsError } = await studentsQuery;
-      if (studentsError) {
-        setLoading(false);
-        // Optionally show a toast or error message here
-        return;
-      }
-      const totalStudents = students?.length || 0;
 
-      // Build attendance query based on date mode
       let attendanceQuery = supabase
         .from('attendance_logs')
         .select('*, students(name, level)');
@@ -206,10 +198,42 @@ export default function Dashboard() {
           .lte('date', rangeEnd);
       }
 
-      const { data: attendance, error: attendanceError } = await attendanceQuery;
+      let behavioralQuery = supabase
+        .from('behavioral_events')
+        .select('*, students(level)');
+
+      if (dateMode === 'single') {
+        behavioralQuery = behavioralQuery.eq('event_date', singleDate);
+      } else if (dateMode === 'range') {
+        behavioralQuery = behavioralQuery
+          .gte('event_date', rangeStart)
+          .lte('event_date', rangeEnd);
+      }
+
+      // studentsActiveQuery is used by ML scoring; it does not depend on other queries
+      const studentsActiveQuery = supabase.from('students').select('lrn').eq('status', 'active');
+
+      // Execute independent queries in parallel
+      const [studentsRes, attendanceRes, behavioralRes, studentsActiveRes] = await Promise.all([
+        studentsQuery,
+        attendanceQuery,
+        behavioralQuery,
+        studentsActiveQuery,
+      ]);
+
+      const { data: students, error: studentsError } = studentsRes || {};
+      const { data: attendance, error: attendanceError } = attendanceRes || {};
+      const { data: behavioralEvents, error: behavioralError } = behavioralRes || {};
+      const { data: studentsActiveData, error: studentsActiveError } = studentsActiveRes || {};
+
+      if (studentsError) {
+        setLoading(false);
+        return;
+      }
+      const totalStudents = students?.length || 0;
+
       if (attendanceError) {
         setLoading(false);
-        // Optionally show a toast or error message here
         return;
       }
 
@@ -281,21 +305,6 @@ export default function Dashboard() {
         .slice(0, 4);
       setTopGrades(topGradesData);
 
-      // Fetch behavioral data
-      let behavioralQuery = supabase
-        .from('behavioral_events')
-        .select('*, students(level)');
-
-      if (dateMode === 'single') {
-        behavioralQuery = behavioralQuery.eq('event_date', singleDate);
-      } else if (dateMode === 'range') {
-        behavioralQuery = behavioralQuery
-          .gte('event_date', rangeStart)
-          .lte('event_date', rangeEnd);
-      }
-
-      const { data: behavioralEvents, error: behavioralError } = await behavioralQuery;
-
       if (!behavioralError && behavioralEvents) {
         let filteredBehavioral = behavioralEvents;
         if (selectedLevel !== 'all') {
@@ -310,16 +319,13 @@ export default function Dashboard() {
         // Calculate students at risk using improved ML function (with fallback)
         let studentsAtRisk = 0;
         try {
-          const studentsData = await supabase
-            .from('students')
-            .select('lrn')
-            .eq('status', 'active');
+          if (studentsActiveError) throw studentsActiveError;
 
-          if (studentsData.data && studentsData.data.length > 0) {
+          if (studentsActiveData && studentsActiveData.length > 0) {
             const riskScores = await calculateBatchRiskScores(
-              studentsData.data.map(s => s.lrn)
+              studentsActiveData.map((s: any) => s.lrn)
             );
-            riskScores.forEach((score) => {
+            riskScores.forEach((score: any) => {
               if (score && (score.risk_level === 'high' || score.risk_level === 'critical')) {
                 studentsAtRisk++;
               }

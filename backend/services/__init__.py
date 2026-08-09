@@ -151,16 +151,14 @@ class AttendanceService:
         end_date: Optional[datetime] = None
     ) -> AttendanceStats:
         """Calculate attendance statistics for a student."""
-        query = db.query(Attendance).filter(Attendance.student_id == student_id)
-        
+        base = db.query(Attendance).filter(Attendance.student_id == student_id)
         if start_date:
-            query = query.filter(Attendance.date >= start_date)
+            base = base.filter(Attendance.date >= start_date)
         if end_date:
-            query = query.filter(Attendance.date <= end_date)
-        
-        records = query.all()
-        total_days = len(records)
-        
+            base = base.filter(Attendance.date <= end_date)
+
+        # Use aggregate queries to avoid loading all rows into memory
+        total_days = base.count()
         if total_days == 0:
             return AttendanceStats(
                 student_id=student_id,
@@ -170,13 +168,13 @@ class AttendanceService:
                 late_days=0,
                 attendance_rate=100.0
             )
-        
-        present_days = len([r for r in records if r.status == "present"])
-        absent_days = len([r for r in records if r.status == "absent"])
-        late_days = len([r for r in records if r.status == "late"])
-        
+
+        present_days = base.filter(Attendance.status == 'present').count()
+        absent_days = base.filter(Attendance.status == 'absent').count()
+        late_days = base.filter(Attendance.status == 'late').count()
+
         attendance_rate = (present_days / total_days * 100) if total_days > 0 else 0.0
-        
+
         return AttendanceStats(
             student_id=student_id,
             total_days=total_days,
@@ -228,6 +226,58 @@ class BehaviorService:
             query = query.filter(BehaviorEvent.timestamp <= end_date)
         
         return query.order_by(BehaviorEvent.timestamp.desc()).offset(skip).limit(limit).all()
+
+    @staticmethod
+    def get_behavior_summary(
+        db: Session,
+        student_id: int,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> dict:
+        """Return aggregated behavior metrics for a student to avoid loading full event rows.
+
+        Returns a dict with keys: total_events, negative_count, negative_severity_total, parent_report_count
+        """
+        query = db.query(BehaviorEvent).filter(BehaviorEvent.student_id == student_id)
+        if start_date:
+            query = query.filter(BehaviorEvent.timestamp >= start_date)
+        if end_date:
+            query = query.filter(BehaviorEvent.timestamp <= end_date)
+
+        total_events = query.count()
+
+        negative_q = query.filter(BehaviorEvent.event_type == 'negative')
+        negative_count = negative_q.count()
+        positive_count = query.filter(BehaviorEvent.event_type == 'positive').count()
+        # Sum severity for negative events (handle None)
+        negative_severity_total = db.query(func.coalesce(func.sum(BehaviorEvent.severity), 0)).filter(
+            BehaviorEvent.student_id == student_id,
+            BehaviorEvent.event_type == 'negative',
+            BehaviorEvent.timestamp >= (start_date if start_date else datetime(1970,1,1))
+        )
+        if end_date:
+            negative_severity_total = negative_severity_total.filter(BehaviorEvent.timestamp <= end_date)
+        negative_severity_total = negative_severity_total.scalar() or 0
+
+        # Count approved parent reports
+        parent_report_count_q = db.query(func.count()).filter(
+            BehaviorEvent.student_id == student_id,
+            BehaviorEvent.reported_by.ilike('%@parent'),
+            getattr(BehaviorEvent, 'approved', True) == True,
+        )
+        if start_date:
+            parent_report_count_q = parent_report_count_q.filter(BehaviorEvent.timestamp >= start_date)
+        if end_date:
+            parent_report_count_q = parent_report_count_q.filter(BehaviorEvent.timestamp <= end_date)
+        parent_report_count = parent_report_count_q.scalar() or 0
+
+        return {
+            'total_events': total_events,
+            'negative_count': negative_count,
+            'positive_count': positive_count,
+            'negative_severity_total': negative_severity_total,
+            'parent_report_count': parent_report_count
+        }
     
     @staticmethod
     def update_behavior_event(
@@ -348,20 +398,25 @@ class RiskScoringService:
         # Set lookback date
         start_date = datetime.utcnow() - timedelta(days=days_lookback)
         
-        # Get statistics
+        # Get statistics using aggregated summaries to avoid loading large row sets
         attendance_stats = AttendanceService.get_attendance_stats(db, student_id, start_date)
-        behavior_stats = BehaviorService.get_behavior_stats(db, student_id, start_date)
-        
-        # Calculate behavioral score (0-100)
-        # Higher negative events = lower score
+        summary = BehaviorService.get_behavior_summary(db, student_id, start_date)
+
+        # Derive behavior stats from summary
+        behavior_stats = BehaviorStats(
+            student_id=student_id,
+            positive_events=summary.get('positive_count', 0),
+            negative_events=summary.get('negative_count', 0),
+            total_events=summary.get('total_events', 0),
+            average_severity=round((summary.get('negative_severity_total', 0) / summary.get('total_events', 1)) if summary.get('total_events', 0) > 0 else 0.0, 2)
+        )
+
+        # Calculate behavioral score (0-100) using aggregated negative severity
         negative_weight = 40
-        behaviors = BehaviorService.get_student_behavior_events(db, student_id, start_date)
-        
-        if behaviors:
-            negative_severity_total = sum(
-                b.severity for b in behaviors if b.event_type == "negative"
-            )
-            negative_severity_avg = negative_severity_total / len(behaviors) if behaviors else 0
+        total_events = summary.get('total_events', 0)
+        negative_severity_total = summary.get('negative_severity_total', 0)
+        if total_events > 0:
+            negative_severity_avg = negative_severity_total / total_events
             behavioral_score = max(0, 100 - (negative_severity_avg * negative_weight))
         else:
             behavioral_score = 100.0
@@ -372,10 +427,7 @@ class RiskScoringService:
         
         # --- Parent Report Minor Risk Penalty ---
         # Count approved behavior events reported by parents
-        parent_report_count = sum(
-            1 for b in behaviors
-            if b.reported_by and b.reported_by.lower().endswith("@parent") and getattr(b, "approved", False)
-        )
+        parent_report_count = summary.get('parent_report_count', 0)
         # If your parent emails are not in the form ...@parent, adjust the check above accordingly
         # Example: if you store parent emails, you may want to check for a domain or a flag
 
@@ -411,6 +463,12 @@ class RiskScoringService:
             db.commit()
             db.refresh(existing_score)
             existing_score.parent_report_count = parent_report_count
+            # Attach computed stats so callers can reuse without additional DB reads
+            try:
+                existing_score.attendance_stats = attendance_stats
+                existing_score.behavior_stats = behavior_stats
+            except Exception:
+                pass
             return existing_score
         else:
             new_score = RiskScore(
@@ -424,6 +482,12 @@ class RiskScoringService:
             db.commit()
             db.refresh(new_score)
             new_score.parent_report_count = parent_report_count
+            # Attach computed stats so callers can reuse without additional DB reads
+            try:
+                new_score.attendance_stats = attendance_stats
+                new_score.behavior_stats = behavior_stats
+            except Exception:
+                pass
             return new_score
     
     @staticmethod

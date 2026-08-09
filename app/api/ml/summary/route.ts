@@ -119,8 +119,8 @@ export async function GET(request: Request) {
     const attendanceSignal = buildAttendanceSignal(attendanceRate, Number(risk.attendance_component || 0), latePercentage);
     const trend = deriveTrendLabel(Array.isArray(trendRows) && trendRows.length > 0 ? trendRows[0] : null);
 
-    // Compile multiple issues into a single comprehensive term
-    const issueCompilation = await compileStudentIssues(studentLrn);
+    // Compile multiple issues into a single comprehensive term (pass existing risk to avoid duplicate RPC)
+    const issueCompilation = await compileStudentIssues(studentLrn, { riskScore: risk });
     const patternType = issueCompilation.compiledIssue;
 
     return Response.json({

@@ -19,11 +19,24 @@ def get_students_with_parent_link(db: Session = Depends(get_db)):
     """Get all students with parent linkage status (isLinked)."""
     students = db.query(StudentService.Student).all()
     result = []
+    # Collect parent emails to avoid N+1 queries
+    parent_emails = set()
+    for student in students:
+        if student.parent_email:
+            parent_emails.add((student.parent_email or '').strip().lower())
+
+    linked_emails = set()
+    if parent_emails:
+        parents = db.query(Parent).filter(Parent.parent_email.in_(list(parent_emails))).all()
+        for p in parents:
+            if p and p.parent_email:
+                linked_emails.add(p.parent_email.strip().lower())
+
     for student in students:
         parent_email = (student.parent_email or '').strip().lower() if student.parent_email else None
         is_linked = False
-        if parent_email:
-            is_linked = db.query(exists().where(Parent.parent_email == parent_email)).scalar()
+        if parent_email and parent_email in linked_emails:
+            is_linked = True
         result.append({
             "id": student.id,
             "first_name": student.first_name,
@@ -107,15 +120,19 @@ def get_student_dashboard(
     try:
         from datetime import datetime, timedelta
         start_date = datetime.utcnow() - timedelta(days=days_lookback)
-        
-        attendance_stats = AttendanceService.get_attendance_stats(
-            db, student_id, start_date
-        )
-        behavior_stats = BehaviorService.get_behavior_stats(
-            db, student_id, start_date
-        )
+
+        # Calculate risk score first (it already computes attendance and behavior stats)
         risk_score = RiskScoringService.calculate_risk_score(db, student_id, days_lookback)
-        
+
+        # Reuse stats attached to the returned risk_score when available to avoid duplicate DB reads
+        attendance_stats = getattr(risk_score, 'attendance_stats', None)
+        behavior_stats = getattr(risk_score, 'behavior_stats', None)
+
+        if attendance_stats is None:
+            attendance_stats = AttendanceService.get_attendance_stats(db, student_id, start_date)
+        if behavior_stats is None:
+            behavior_stats = BehaviorService.get_behavior_stats(db, student_id, start_date)
+
         return StudentDashboard(
             student=student,
             attendance_stats=attendance_stats,
