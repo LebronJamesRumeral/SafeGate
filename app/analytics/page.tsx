@@ -392,6 +392,14 @@ export default function AnalyticsPage() {
           return !isNoClass && (a.is_present !== false);
         }).length;
 
+        const absentCount = dayAttendance.filter(a => {
+          const status = String(a.attendance_status || '').toLowerCase();
+          const isNoClass = status === 'holiday' || status === 'cancelled_class';
+          if (isNoClass) return false;
+          if (status === 'absent') return true;
+          return a.is_present === false;
+        }).length;
+
         const lateCount = dayAttendance.filter(a => {
           const status = String(a.attendance_status || '').toLowerCase();
           const isNoClass = status === 'holiday' || status === 'cancelled_class';
@@ -410,7 +418,7 @@ export default function AnalyticsPage() {
           day: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
           date,
           present: presentCount,
-          absent: Math.max(effectiveTotal - presentCount, 0),
+          absent: absentCount,
           late: lateCount,
           cancelled: cancelledCount,
           holiday: holidayCount,
@@ -502,7 +510,7 @@ export default function AnalyticsPage() {
       });
 
       // Fetch behavioral data (matching behavioral-events page pattern)
-      let behavioralQuery = supabase
+      let behavioralStatsQuery = supabase
         .from('behavioral_events')
         .select(`
           id,
@@ -520,14 +528,14 @@ export default function AnalyticsPage() {
 
       if (selectedLevel !== 'all' && students && students.length > 0) {
         const levelStudentLrns = students.map(s => s.lrn);
-        behavioralQuery = behavioralQuery.in('student_lrn', levelStudentLrns);
+        behavioralStatsQuery = behavioralStatsQuery.in('student_lrn', levelStudentLrns);
       }
 
-      const { data: behavioralEvents, error: behavioralError } = await behavioralQuery;
+      const { data: behavioralEventsForStats, error: behavioralStatsError } = await behavioralStatsQuery;
 
-      if (!behavioralError && behavioralEvents) {
-        const positiveEvents = behavioralEvents.filter(e => resolveBehaviorSeverity(e) === 'positive').length;
-        const negativeEvents = behavioralEvents.filter(e => {
+      if (!behavioralStatsError && behavioralEventsForStats) {
+        const positiveEvents = behavioralEventsForStats.filter(e => resolveBehaviorSeverity(e) === 'positive').length;
+        const negativeEvents = behavioralEventsForStats.filter(e => {
           const severity = resolveBehaviorSeverity(e);
           return severity === 'major' || severity === 'critical';
         }).length;
@@ -535,7 +543,7 @@ export default function AnalyticsPage() {
 
         // Type breakdown (use event_type field)
         const typeMap = new Map();
-        behavioralEvents.forEach(event => {
+        behavioralEventsForStats.forEach(event => {
           const type = event.event_type || 'Other';
           typeMap.set(type, (typeMap.get(type) || 0) + 1);
         });
@@ -546,7 +554,7 @@ export default function AnalyticsPage() {
 
         // Severity distribution
         const severityMap = new Map();
-        behavioralEvents.forEach(event => {
+        behavioralEventsForStats.forEach(event => {
           const severity = event.severity || 'unknown';
           severityMap.set(severity, (severityMap.get(severity) || 0) + 1);
         });
@@ -557,7 +565,7 @@ export default function AnalyticsPage() {
 
         // Weekly trend (detailed by severity)
         const weeklyTrend = last7Days.map(date => {
-          const dayEvents = behavioralEvents.filter(e => e.event_date === date);
+          const dayEvents = behavioralEventsForStats.filter(e => e.event_date === date);
           const positive = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'positive').length;
           const minor = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'minor').length;
           const major = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'major').length;
@@ -576,7 +584,7 @@ export default function AnalyticsPage() {
 
         // Calculate students at risk
         const studentEventMap = new Map();
-        behavioralEvents.forEach(event => {
+        behavioralEventsForStats.forEach(event => {
           const lrn = event.student_lrn;
           if (!studentEventMap.has(lrn)) {
             studentEventMap.set(lrn, { positive: 0, negative: 0 });
