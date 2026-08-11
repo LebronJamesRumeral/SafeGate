@@ -55,9 +55,10 @@ export async function GET(request: Request) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Fetch all active students with their stored risk levels
     const { data: students, error: studentsError } = await supabase
       .from('students')
-      .select('lrn, name, parent_contact, parent_email, level')
+      .select('lrn, name, parent_contact, parent_email, level, risk_level')
       .eq('status', 'active');
 
     if (studentsError) {
@@ -77,7 +78,7 @@ export async function GET(request: Request) {
 
     const { data: summaries } = await supabase
       .from('student_attendance_summary')
-      .select('student_lrn, risk_level, next_likely_absent_date, next_absent_confidence')
+      .select('student_lrn, risk_level, current_attendance_rate, next_likely_absent_date, next_absent_confidence')
       .in('student_lrn', studentList.map((s) => s.lrn));
 
     const summaryByLrn = new Map((summaries || []).map((row: any) => [row.student_lrn, row]));
@@ -108,51 +109,26 @@ export async function GET(request: Request) {
       eventCountsByLrn.set(lrn, next);
     });
 
-    // Calculate risk info but avoid per-student duplicate RPCs by using the RPC once and
-    // reusing local aggregates. Also avoid triggering `compileStudentIssues`'s internal
-    // RPC by passing pre-fetched data.
+    // Calculate risk info using stored values instead of recalculating for each student
     const calculated = await Promise.all(
       studentList.map(async (student: any) => {
-        const { data: riskRows, error: riskError } = await supabase.rpc('calculate_student_risk_score', {
-          p_student_lrn: student.lrn,
-        });
-
-        if (riskError || !riskRows || riskRows.length === 0) {
-          return null;
-        }
-
-        const risk = riskRows[0];
-        const breakdown = risk.breakdown || {};
-        const rpcConcerningEvents = Number(breakdown.negative_events || 0);
-        const rpcPositiveEvents = Number(breakdown.positive_events || 0);
-        const directCounts = eventCountsByLrn.get(student.lrn) || { concerning: 0, positive: 0, total: 0 };
-        const concerningEvents = Math.max(rpcConcerningEvents, directCounts.concerning);
-        const positiveEvents = Math.max(rpcPositiveEvents, directCounts.positive);
-        const attendanceRate = Number(breakdown.attendance_rate || 0);
-        const latePercentage = Number(breakdown.late_percentage || 0);
+        // Use the stored risk_level from the students table (already calculated by update_student_summary)
+        const storedRiskLevel = String(student.risk_level || 'low') as RiskLevel;
+        
+        // Get additional details from the summary table
         const summary = summaryByLrn.get(student.lrn);
+        
+        const directCounts = eventCountsByLrn.get(student.lrn) || { concerning: 0, positive: 0, total: 0 };
+        const attendanceRate = Number(summary?.current_attendance_rate || 0);
+        const latePercentage = 0; // Not critical for display
 
-        // Prefer the ML risk score so the dashboard matches the Student page.
-        // Fall back to the stored summary only if the RPC result is unavailable.
-        let level = String(risk.risk_level || summary?.risk_level || 'low') as RiskLevel;
-
-        // Only apply downgrade logic when we do not have a computed ML score.
-        if (!risk.risk_level) {
-          level = applyRiskDowngrade(level, {
-            attendance_rate: attendanceRate,
-            negative_events: concerningEvents,
-            positive_events: positiveEvents,
-            late_percentage: latePercentage,
-          });
-        }
-
-        const behaviorStatus = deriveBehaviorStatus(level, concerningEvents);
-        const attendanceSignal = buildAttendanceSignal(attendanceRate, Number(risk.attendance_component || 0), latePercentage);
+        const behaviorStatus = deriveBehaviorStatus(storedRiskLevel, directCounts.concerning);
+        const attendanceSignal = buildAttendanceSignal(attendanceRate, 0, latePercentage);
 
         // Provide pre-fetched behavioral events for compileStudentIssues to avoid
         // triggering another RPC for the same student.
         const behavioralEventsForStudent = (recentBehavioralEvents || []).filter((e: any) => String(e.student_lrn || '') === String(student.lrn || ''));
-        const issueCompilation = await compileStudentIssues(student.lrn, { riskScore: risk, behavioralEvents: behavioralEventsForStudent });
+        const issueCompilation = await compileStudentIssues(student.lrn, { behavioralEvents: behavioralEventsForStudent });
         const patternType = issueCompilation.compiledIssue;
 
         return {
@@ -161,10 +137,10 @@ export async function GET(request: Request) {
           parentContact: student.parent_contact || 'N/A',
           parentEmail: student.parent_email || null,
           class_level: student.level || '',
-          riskLevel: level,
+          riskLevel: storedRiskLevel,
           behaviorStatus,
-          concerningEvents,
-          positiveEvents,
+          concerningEvents: directCounts.concerning,
+          positiveEvents: directCounts.positive,
           totalEvents: directCounts.total,
           patternType,
           attendanceSignal,
@@ -175,7 +151,6 @@ export async function GET(request: Request) {
     );
 
     const highRiskStudents = calculated
-      .filter((student): student is NonNullable<typeof student> => Boolean(student))
       .filter((student) => {
         // Focus dashboard strictly on medium/high/critical risk tiers.
         return student.riskLevel === 'critical' || student.riskLevel === 'high' || student.riskLevel === 'medium';

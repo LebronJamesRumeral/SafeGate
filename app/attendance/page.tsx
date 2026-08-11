@@ -146,6 +146,10 @@ function getMonthRange(monthValue: string) {
   };
 }
 
+function isActiveStudentStatus(status?: string | null) {
+  return (status ?? 'active').toString().trim().toLowerCase() === 'active';
+}
+
 function getSchoolDays(start: string, end: string) {
   if (!start || !end) return [] as string[];
   const days: string[] = [];
@@ -246,7 +250,7 @@ export default function AttendancePage() {
 
 
       // Resolve school year end date and fetch students in parallel
-      let studentsQuery = supabase.from('students').select('lrn, name, level, status').eq('status', 'active');
+      let studentsQuery = supabase.from('students').select('lrn, name, level, status');
       if (selectedLevel !== 'all') {
         studentsQuery = studentsQuery.eq('level', selectedLevel);
       }
@@ -268,7 +272,7 @@ export default function AttendancePage() {
         throw studentsError;
       }
 
-      const sortedStudents = sortByLevel((studentsData || []).filter((student) => (student.status || 'active') === 'active'));
+      const sortedStudents = sortByLevel((studentsData || []).filter((student) => isActiveStudentStatus(student.status)));
 
       let start = rangeStart;
       let end = rangeEnd;
@@ -564,6 +568,22 @@ export default function AttendancePage() {
 
   const summaryRows = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
+    const noClassCounts = new Map<string, { cancelledDays: number; holidayDays: number }>();
+
+    logs.forEach((log) => {
+      const normalizedStatus = String(log.attendance_status || '').toLowerCase();
+      if (!isNoClassStatus(normalizedStatus)) return;
+
+      const existing = noClassCounts.get(log.student_lrn) || { cancelledDays: 0, holidayDays: 0 };
+      if (normalizedStatus === 'cancelled_class') {
+        existing.cancelledDays += 1;
+      }
+      if (normalizedStatus === 'holiday') {
+        existing.holidayDays += 1;
+      }
+      noClassCounts.set(log.student_lrn, existing);
+    });
+
     let rows = students
       .filter((student) => (selectedLevel === 'all' ? true : student.level === selectedLevel))
       .filter((student) =>
@@ -574,6 +594,9 @@ export default function AttendancePage() {
       )
       .map((student) => {
         const presentDays = attendanceByStudent[student.lrn]?.size || 0;
+        const noClass = noClassCounts.get(student.lrn) || { cancelledDays: 0, holidayDays: 0 };
+        const cancelledDays = noClass.cancelledDays;
+        const holidayDays = noClass.holidayDays;
         const absentDays = Math.max(effectiveSchoolDays.length - presentDays, 0);
         const attendanceRateValue = effectiveSchoolDays.length
           ? (presentDays / effectiveSchoolDays.length) * 100
@@ -588,6 +611,8 @@ export default function AttendancePage() {
         return {
           ...student,
           presentDays,
+          cancelledDays,
+          holidayDays,
           absentDays,
           attendanceRate: Number(attendanceRateValue.toFixed(1)),
           severity,
@@ -755,14 +780,19 @@ export default function AttendancePage() {
       description: 'Please wait while attendance records are updated.',
     });
     try {
-      const { data: activeStudents, error: studentsError } = await supabase
+      const { data: allStudents, error: studentsError } = await supabase
         .from('students')
-        .select('lrn')
-        .eq('status', 'active');
+        .select('lrn, status');
 
       if (studentsError) throw studentsError;
 
-      const studentLrns = (activeStudents || []).map((item: { lrn: string }) => item.lrn).filter(Boolean);
+      const studentLrns = [...new Set(
+        (allStudents || [])
+          .filter((item) => isActiveStudentStatus(item.status))
+          .map((item) => item.lrn)
+          .filter(Boolean)
+      )];
+
       if (studentLrns.length === 0) {
         toast({ title: 'No active students', description: 'No active student records were found.' });
         return;
@@ -1306,7 +1336,10 @@ export default function AttendancePage() {
                               <div className={`font-semibold ${row.attendanceRate >= 90 ? 'text-emerald-600' : row.attendanceRate >= 75 ? 'text-blue-600' : row.attendanceRate >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>
                                 {row.attendanceRate}%
                               </div>
-                              <div className="text-xs text-muted-foreground">{row.presentDays} present • {row.absentDays} absent</div>
+                              <div className="text-xs text-muted-foreground">
+                                {row.presentDays} present • {row.absentDays} absent
+                                {(row.cancelledDays || row.holidayDays) ? ` • ${row.cancelledDays + row.holidayDays} no class` : ''}
+                              </div>
                             </div>
                           </div>
                           <div className="mt-2 flex items-center gap-2">
@@ -1480,6 +1513,24 @@ export default function AttendancePage() {
                     </TableHead>
                     <TableHead 
                       className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
+                      onClick={() => handleSort('cancelledDays')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Cancelled
+                        <ArrowUpDown className="w-3 h-3" />
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
+                      onClick={() => handleSort('holidayDays')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Holiday
+                        <ArrowUpDown className="w-3 h-3" />
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
                       onClick={() => handleSort('attendanceRate')}
                     >
                       <div className="flex items-center gap-1">
@@ -1499,13 +1550,16 @@ export default function AttendancePage() {
                         <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-16 animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-12 animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-12 animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-12 animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-12 animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-16 animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-6 bg-slate-200 dark:bg-slate-700 rounded-full w-20 animate-pulse"></div></TableCell>
                         <TableCell><div className="h-6 bg-slate-200 dark:bg-slate-700 rounded-full w-20 animate-pulse"></div></TableCell>
                       </TableRow>
                     ))
                   ) : summaryRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12">
+                      <TableCell colSpan={9} className="text-center py-12">
                         <div className="flex flex-col items-center gap-2">
                           <Users className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 dark:text-gray-400">No students match your filters</p>
@@ -1549,6 +1603,16 @@ export default function AttendancePage() {
                           <TableCell>
                             <Badge variant="outline" className="border-gray-200 dark:border-gray-700">
                               {row.absentDays}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0">
+                              {row.cancelledDays}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">
+                              {row.holidayDays}
                             </Badge>
                           </TableCell>
                           <TableCell>

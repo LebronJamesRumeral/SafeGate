@@ -83,6 +83,11 @@ function normalizeText(value: string | null | undefined) {
   return (value || '').toLowerCase().trim();
 }
 
+function isActiveStudentStatus(status?: string | null) {
+  const normalized = (status ?? 'active').toString().trim().toLowerCase();
+  return normalized === 'active' || normalized === 'enrolled' || normalized === 'current' || normalized === 'on_roll' || normalized === 'student' || normalized === '' || normalized === 'null';
+}
+
 function getSingleRelation<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? value[0] || null : value;
@@ -258,7 +263,12 @@ export default function AnalyticsPage() {
         throw studentsError;
       }
 
-      const totalStudents = students?.length || 0;
+      const studentsForAnalytics = (students || []).filter((student: any) => {
+        const statusValue = student?.status ?? student?.student_status ?? student?.is_active ?? 'active';
+        if (typeof statusValue === 'boolean') return statusValue;
+        return isActiveStudentStatus(String(statusValue));
+      });
+      const totalStudents = studentsForAnalytics.length;
 
       let schoolYearEndDate = currentSchoolYear?.end_date || latestSchoolYear?.end_date || null;
 
@@ -327,15 +337,18 @@ export default function AnalyticsPage() {
       });
 
       // Fetch attendance logs with specific fields (matching attendance page pattern)
+      const studentsForRange = studentsForAnalytics.map((student: any) => student.lrn);
+
       let attendanceQuery = supabase
         .from('attendance_logs')
         .select('id, student_lrn, check_in_time, check_out_time, date, attendance_status, is_present')
         .gte('date', dateRange[0])
         .lte('date', dateRange[dateRange.length - 1]);
 
-      if (selectedLevel !== 'all' && students && students.length > 0) {
-        const levelStudentLrns = students.map(s => s.lrn);
-        attendanceQuery = attendanceQuery.in('student_lrn', levelStudentLrns);
+      if (studentsForRange.length > 0) {
+        attendanceQuery = attendanceQuery.in('student_lrn', studentsForRange);
+      } else {
+        attendanceQuery = attendanceQuery.in('student_lrn', ['__no_students__']);
       }
 
       // Build behavioral query (can be fetched in parallel with attendance)
@@ -355,9 +368,10 @@ export default function AnalyticsPage() {
         .gte('event_date', dateRange[0])
         .lte('event_date', dateRange[dateRange.length - 1]);
 
-      if (selectedLevel !== 'all' && students && students.length > 0) {
-        const levelStudentLrns = students.map(s => s.lrn);
-        behavioralQuery = behavioralQuery.in('student_lrn', levelStudentLrns);
+      if (studentsForRange.length > 0) {
+        behavioralQuery = behavioralQuery.in('student_lrn', studentsForRange);
+      } else {
+        behavioralQuery = behavioralQuery.in('student_lrn', ['__no_students__']);
       }
 
       // Execute attendance and behavioral queries together
@@ -379,40 +393,74 @@ export default function AnalyticsPage() {
         return;
       }
 
-      // Calculate weekly stats (last 7 days) — include cancelled and holiday counts
+      // Calculate weekly stats using the full active roster as the denominator so
+      // students without a logged scan are still included in the school total.
+      const attendanceByDate = new Map<string, {
+        present: Set<string>;
+        late: Set<string>;
+        absent: Set<string>;
+        cancelled: Set<string>;
+        holiday: Set<string>;
+      }>();
+
+      (attendance || []).forEach((record: any) => {
+        const dateKey = String(record.date || '');
+        if (!dateKey) return;
+
+        const status = String(record.attendance_status || '').trim().toLowerCase();
+        const studentLrn = String(record.student_lrn || '');
+        if (!studentLrn) return;
+
+        const bucket = attendanceByDate.get(dateKey) || {
+          present: new Set<string>(),
+          late: new Set<string>(),
+          absent: new Set<string>(),
+          cancelled: new Set<string>(),
+          holiday: new Set<string>(),
+        };
+
+        if (status === 'holiday') {
+          bucket.holiday.add(studentLrn);
+        } else if (status === 'cancelled_class') {
+          bucket.cancelled.add(studentLrn);
+        } else if (record.is_present === false || status === 'absent') {
+          bucket.absent.add(studentLrn);
+        } else if (record.check_in_time) {
+          const checkInTime = new Date(record.check_in_time);
+          if (!Number.isNaN(checkInTime.getTime())) {
+            const cutoff = new Date(checkInTime);
+            cutoff.setHours(8, 30, 0, 0);
+            if (checkInTime > cutoff) {
+              bucket.late.add(studentLrn);
+            } else {
+              bucket.present.add(studentLrn);
+            }
+          } else {
+            bucket.present.add(studentLrn);
+          }
+        } else {
+          bucket.present.add(studentLrn);
+        }
+
+        attendanceByDate.set(dateKey, bucket);
+      });
+
       const weeklyData = last7Days.map(date => {
-        const dayAttendance = attendance?.filter(a => a.date === date) || [];
+        const dayStats = attendanceByDate.get(date) || {
+          present: new Set<string>(),
+          late: new Set<string>(),
+          absent: new Set<string>(),
+          cancelled: new Set<string>(),
+          holiday: new Set<string>(),
+        };
 
-        const holidayCount = dayAttendance.filter(a => String(a.attendance_status || '').toLowerCase() === 'holiday').length;
-        const cancelledCount = dayAttendance.filter(a => String(a.attendance_status || '').toLowerCase() === 'cancelled_class').length;
-
-        const presentCount = dayAttendance.filter(a => {
-          const status = String(a.attendance_status || '').toLowerCase();
-          const isNoClass = status === 'holiday' || status === 'cancelled_class';
-          return !isNoClass && (a.is_present !== false);
-        }).length;
-
-        const absentCount = dayAttendance.filter(a => {
-          const status = String(a.attendance_status || '').toLowerCase();
-          const isNoClass = status === 'holiday' || status === 'cancelled_class';
-          if (isNoClass) return false;
-          if (status === 'absent') return true;
-          return a.is_present === false;
-        }).length;
-
-        const lateCount = dayAttendance.filter(a => {
-          const status = String(a.attendance_status || '').toLowerCase();
-          const isNoClass = status === 'holiday' || status === 'cancelled_class';
-          if (isNoClass) return false;
-          if (!a.check_in_time) return false;
-          const checkInTime = new Date(a.check_in_time);
-          const cutoffTime = new Date(checkInTime);
-          cutoffTime.setHours(8, 30, 0, 0);
-          return checkInTime > cutoffTime;
-        }).length;
-
-        const effectiveTotal = Math.max(totalStudents - cancelledCount - holidayCount, 0);
-        const attendanceRate = effectiveTotal > 0 ? (presentCount / effectiveTotal) * 100 : 0;
+        const hasNoClass = dayStats.cancelled.size > 0 || dayStats.holiday.size > 0;
+        const presentCount = hasNoClass ? 0 : dayStats.present.size;
+        const lateCount = hasNoClass ? 0 : dayStats.late.size;
+        const cancelledCount = hasNoClass ? totalStudents : dayStats.cancelled.size;
+        const holidayCount = hasNoClass && dayStats.holiday.size > 0 ? totalStudents : dayStats.holiday.size;
+        const absentCount = hasNoClass ? 0 : Math.max(totalStudents - presentCount - lateCount - cancelledCount - holidayCount, 0);
+        const attendanceRate = hasNoClass ? 0 : (totalStudents > 0 ? ((presentCount + lateCount) / totalStudents) * 100 : 0);
 
         return {
           day: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
@@ -426,22 +474,29 @@ export default function AnalyticsPage() {
         };
       });
 
-      // Calculate monthly trend with cancelled/holiday adjustment
+      // Calculate monthly trend against the full active roster, not just scanned students.
       const monthlyTrend = dateRange.map(date => {
-        const dayAttendance = attendance?.filter(a => a.date === date) || [];
-        const holidayCount = dayAttendance.filter(a => String(a.attendance_status || '').toLowerCase() === 'holiday').length;
-        const cancelledCount = dayAttendance.filter(a => String(a.attendance_status || '').toLowerCase() === 'cancelled_class').length;
-        const presentCount = dayAttendance.filter(a => {
-          const status = String(a.attendance_status || '').toLowerCase();
-          const isNoClass = status === 'holiday' || status === 'cancelled_class';
-          return !isNoClass && (a.is_present !== false);
-        }).length;
-        const effectiveTotal = Math.max(totalStudents - cancelledCount - holidayCount, 0);
-        const attendancePct = effectiveTotal > 0 ? (presentCount / effectiveTotal) * 100 : 0;
+        const dayStats = attendanceByDate.get(date) || {
+          present: new Set<string>(),
+          late: new Set<string>(),
+          absent: new Set<string>(),
+          cancelled: new Set<string>(),
+          holiday: new Set<string>(),
+        };
+
+        const hasNoClass = dayStats.cancelled.size > 0 || dayStats.holiday.size > 0;
+        const presentCount = hasNoClass ? 0 : dayStats.present.size;
+        const lateCount = hasNoClass ? 0 : dayStats.late.size;
+        const cancelledCount = hasNoClass ? totalStudents : dayStats.cancelled.size;
+        const holidayCount = hasNoClass && dayStats.holiday.size > 0 ? totalStudents : dayStats.holiday.size;
+        const attendancePct = hasNoClass ? 0 : (totalStudents > 0 ? ((presentCount + lateCount) / totalStudents) * 100 : 0);
+
         return {
           date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           attendance: attendancePct,
-          present: presentCount
+          present: presentCount + lateCount,
+          cancelled: cancelledCount,
+          holiday: holidayCount
         };
       });
 
@@ -451,26 +506,27 @@ export default function AnalyticsPage() {
       // Calculate total late arrivals this week
       const lateArrivals = weeklyData.reduce((sum, day) => sum + (day.late || 0), 0);
 
-      // Calculate level stats and include cancelled/holiday counts for badges
-      const levels = [...new Set(students?.map(s => s.level))];
+      // Calculate level stats from the full active roster for each grade.
+      const levels = [...new Set(studentsForAnalytics.map((s: any) => s.level).filter(Boolean))].sort();
       const levelStats = await Promise.all(levels.map(async level => {
-        const levelStudents = students?.filter(s => s.level === level) || [];
+        const levelStudents = studentsForAnalytics.filter((s: any) => s.level === level) || [];
         const levelTotal = levelStudents.length;
-        
+
         const { data: levelAttendance } = supabase
           ? await supabase
               .from('attendance_logs')
-              .select('student_lrn, attendance_status, date, is_present')
+              .select('student_lrn, attendance_status, date, is_present, check_in_time')
               .in('student_lrn', levelStudents.map(s => s.lrn))
               .gte('date', last7Days[0])
               .lte('date', last7Days[last7Days.length - 1])
           : { data: [] };
 
-        const presentSet = new Set();
-        const cancelledDates = new Set();
-        const holidayDates = new Set();
+        const presentSet = new Set<string>();
+        const lateSet = new Set<string>();
+        const cancelledDates = new Set<string>();
+        const holidayDates = new Set<string>();
 
-        (levelAttendance || []).forEach(a => {
+        (levelAttendance || []).forEach((a: any) => {
           const status = String(a.attendance_status || '').toLowerCase();
           if (status === 'cancelled_class') {
             if (a.date) cancelledDates.add(a.date);
@@ -480,18 +536,36 @@ export default function AnalyticsPage() {
             if (a.date) holidayDates.add(a.date);
             return;
           }
-          if (a.is_present !== false) {
-            presentSet.add(a.student_lrn);
+
+          if (a.is_present === false || status === 'absent') {
+            return;
           }
+
+          if (a.check_in_time) {
+            const checkInTime = new Date(a.check_in_time);
+            if (!Number.isNaN(checkInTime.getTime())) {
+              const cutoff = new Date(checkInTime);
+              cutoff.setHours(8, 30, 0, 0);
+              if (checkInTime > cutoff) {
+                lateSet.add(a.student_lrn);
+              } else {
+                presentSet.add(a.student_lrn);
+              }
+              return;
+            }
+          }
+
+          presentSet.add(a.student_lrn);
         });
 
         const uniquePresent = presentSet.size;
-        const attendancePct = levelTotal > 0 ? (uniquePresent / levelTotal) * 100 : 0;
+        const uniqueLate = lateSet.size;
+        const attendancePct = levelTotal > 0 ? ((uniquePresent + uniqueLate) / levelTotal) * 100 : 0;
 
         return {
           grade: level,
           total: levelTotal,
-          present: uniquePresent,
+          present: Math.max(levelTotal, uniquePresent + uniqueLate),
           attendance: parseFloat(attendancePct.toFixed(1)),
           trend: attendancePct > 75 ? 'up' : attendancePct < 50 ? 'down' : 'stable',
           cancelledDays: cancelledDates.size,
@@ -602,68 +676,70 @@ export default function AnalyticsPage() {
         const riskDistribution = { high: 0, medium: 0, low: 0 };
         const atRiskStudentsList = [];
 
-        // Prefer canonical risk level from student_attendance_summary when available
-        const levelStudentLrns = (students || []).map((s: any) => s.lrn).filter(Boolean);
-        const summaryMap = new Map<string, string>();
-        if (levelStudentLrns.length > 0) {
-          try {
-            const { data: summaries } = await supabase
-              .from('student_attendance_summary')
-              .select('student_lrn, risk_level')
-              .in('student_lrn', levelStudentLrns);
-            (summaries || []).forEach((row: any) => summaryMap.set(row.student_lrn, row.risk_level));
-          } catch (err) {
-            // if summary fetch fails, we'll fallback to heuristic below
-            console.error('Failed to fetch student summaries for analytics:', err);
-          }
-        }
+        const workingSchoolDays = new Set(
+          dateRange.filter((dateStr) => {
+            const day = new Date(dateStr);
+            const dayOfWeek = day.getDay();
+            return dayOfWeek >= 1 && dayOfWeek <= 5;
+          })
+        );
 
-        for (const student of students || []) {
+        for (const student of studentsForAnalytics) {
+          const studentLogs = (attendance || []).filter((entry: any) => entry.student_lrn === student.lrn);
+          const studentSchoolDays = new Set<string>();
+          const studentPresentDays = new Set<string>();
+          const studentCancelledDays = new Set<string>();
+          const studentHolidayDays = new Set<string>();
+
+          studentLogs.forEach((entry: any) => {
+            const entryDate = String(entry.date || '');
+            if (!entryDate || !workingSchoolDays.has(entryDate)) return;
+            const status = String(entry.attendance_status || '').trim().toLowerCase();
+            studentSchoolDays.add(entryDate);
+
+            if (status === 'cancelled_class') {
+              studentCancelledDays.add(entryDate);
+              return;
+            }
+            if (status === 'holiday') {
+              studentHolidayDays.add(entryDate);
+              return;
+            }
+
+            if (entry.is_present !== false && entry.attendance_status !== 'absent') {
+              studentPresentDays.add(entryDate);
+            }
+          });
+
+          const effectiveSchoolDays = Math.max(studentSchoolDays.size - studentCancelledDays.size - studentHolidayDays.size, 0);
+          const attendanceRate = effectiveSchoolDays > 0 ? (studentPresentDays.size / effectiveSchoolDays) * 100 : 100;
           const studentStats = studentEventMap.get(student.lrn) || { positive: 0, negative: 0 };
-          const studentAttendance = attendance?.filter(a => a.student_lrn === student.lrn).length || 0;
-          const attendanceRate = (studentAttendance / dateRange.length) * 100;
 
-          // Use DB summary risk if available
-          const summaryRisk = summaryMap.get(student.lrn);
           let riskLevel = 'low';
-          if (summaryRisk) {
-            riskLevel = summaryRisk;
-            if (riskLevel === 'high' || riskLevel === 'critical') {
-              studentsAtRisk++;
-              riskDistribution.high++;
-            } else if (riskLevel === 'medium') {
-              riskDistribution.medium++;
-            } else {
-              riskDistribution.low++;
-            }
+          if (attendanceRate < 75 || studentStats.negative >= 3) {
+            riskLevel = 'high';
+            studentsAtRisk++;
+            riskDistribution.high++;
+          } else if (attendanceRate < 85 || studentStats.negative >= 1) {
+            riskLevel = 'medium';
+            riskDistribution.medium++;
           } else {
-            // Fallback heuristic (legacy behavior)
-            if (studentStats.negative >= 3 || attendanceRate < 70) {
-              riskLevel = 'high';
-              studentsAtRisk++;
-              riskDistribution.high++;
-            } else if (studentStats.negative >= 1 || attendanceRate < 85) {
-              riskLevel = 'medium';
-              riskDistribution.medium++;
-            } else {
-              riskDistribution.low++;
-            }
+            riskDistribution.low++;
           }
 
-            if (riskLevel !== 'low') {
-              atRiskStudentsList.push({
-                name: student.full_name || student.lrn,
-                lrn: student.lrn,
-                riskLevel,
-                attendanceRate,
-                negativeEvents: studentStats.negative,
-                positiveEvents: studentStats.positive
-              });
-            }
+          if (riskLevel !== 'low') {
+            atRiskStudentsList.push({
+              name: student.full_name || student.lrn,
+              lrn: student.lrn,
+              riskLevel,
+              attendanceRate,
+              negativeEvents: studentStats.negative,
+              positiveEvents: studentStats.positive
+            });
+          }
         }
 
-          // expose at-risk students separately so we can render a quick list
-          setAtRiskStudents(atRiskStudentsList);
+        setAtRiskStudents(atRiskStudentsList);
 
           setBehavioralStats({
           totalEvents: behavioralEvents.length,

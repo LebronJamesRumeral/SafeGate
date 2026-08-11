@@ -1,6 +1,12 @@
 import { supabase } from './supabase';
 import { formatLocalDateKey } from './utils';
 
+const NO_CLASS_ATTENDANCE_STATUSES = new Set(['holiday', 'cancelled_class']);
+
+function isNoClassAttendanceStatus(status?: string | null): boolean {
+  return NO_CLASS_ATTENDANCE_STATUSES.has(String(status || '').trim().toLowerCase());
+}
+
 export interface AttendanceMetrics {
   attendance_rate: number;
   days_present: number;
@@ -176,17 +182,22 @@ async function getSimpleRiskScore(studentLrn: string): Promise<RiskScore | null>
   try {
     // console.log(`[ML FALLBACK] Computing simple risk score for ${studentLrn} using direct queries`);
     
-    // Fetch attendance data
+    // Fetch attendance data and exclude no-class days from the attendance denominator.
     const { data: attendanceData, error: attendanceError } = await supabase
       .from('attendance_logs')
-      .select('date')
+      .select('date, attendance_status, is_present')
       .eq('student_lrn', studentLrn)
       .gte('date', formatLocalDateKey(new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)));
 
     if (attendanceError) throw attendanceError;
 
-    // Count school days (Mon-Fri only)
-    const schoolDays = attendanceData?.filter((log: any) => {
+    const validAttendanceLogs = (attendanceData || []).filter((log: any) => {
+      const status = String(log?.attendance_status || '').trim().toLowerCase();
+      return !isNoClassAttendanceStatus(status);
+    });
+
+    // Count school days (Mon-Fri only) while skipping holiday/cancelled-class days.
+    const schoolDays = validAttendanceLogs.filter((log: any) => {
       const dayOfWeek = new Date(log.date).getDay();
       return dayOfWeek >= 1 && dayOfWeek <= 5;
     }).length || 0;
@@ -196,19 +207,45 @@ async function getSimpleRiskScore(studentLrn: string): Promise<RiskScore | null>
 
     // If no attendance records, treat as new student: risk is low
     let simpleRiskScore = 0;
+    let attendanceComponent = 0;
     let riskLevel: 'low' | 'medium' | 'high' | 'critical' = 'low';
+    
+    // Calculate attendance rate (assuming ~20 school days per month, so 60 days ~3 months)
+    const assumedSchoolDaysInPeriod = 60; // 3 months of school days
+    const attendanceRate = schoolDays ? (schoolDays / assumedSchoolDaysInPeriod) * 100 : 0;
+    
     if (schoolDays === 0) {
       simpleRiskScore = 0;
+      attendanceComponent = 0;
       riskLevel = 'low';
-    } else if (schoolDays < 20) {
-      simpleRiskScore = 70; // Low attendance = high risk
-      riskLevel = 'high';
-    } else if (schoolDays < 30) {
-      simpleRiskScore = 50;
+    } else if (attendanceRate >= 90) {
+      attendanceComponent = 0;
+      simpleRiskScore = 5;
+      riskLevel = 'low';
+    } else if (attendanceRate >= 80) {
+      attendanceComponent = 5;
+      simpleRiskScore = 10;
+      riskLevel = 'low';
+    } else if (attendanceRate >= 70) {
+      attendanceComponent = 12;
+      simpleRiskScore = 17;
+      riskLevel = 'low';
+    } else if (attendanceRate >= 60) {
+      attendanceComponent = 18;
+      simpleRiskScore = 23;
       riskLevel = 'medium';
+    } else if (attendanceRate >= 50) {
+      attendanceComponent = 25;
+      simpleRiskScore = 30;
+      riskLevel = 'medium';
+    } else if (attendanceRate >= 40) {
+      attendanceComponent = 35;
+      simpleRiskScore = 40;
+      riskLevel = 'high';
     } else {
-      simpleRiskScore = 20;
-      riskLevel = 'low';
+      attendanceComponent = 45;
+      simpleRiskScore = 50;
+      riskLevel = 'high';
     }
 
     // console.log(`[ML FALLBACK] Risk score (simple method): ${simpleRiskScore} (${riskLevel}) for ${studentLrn}`);
@@ -216,12 +253,12 @@ async function getSimpleRiskScore(studentLrn: string): Promise<RiskScore | null>
     return {
       risk_score: simpleRiskScore,
       risk_level: riskLevel,
-      attendance_component: schoolDays < 20 ? 30 : 10,
+      attendance_component: attendanceComponent,
       behavior_component: 0,
       pattern_component: 0,
       confidence: 60,
       breakdown: {
-        attendance_rate: schoolDays ? (schoolDays / 40) * 100 : 0,
+        attendance_rate: attendanceRate,
         days_present: schoolDays,
         school_days: schoolDays,
         late_percentage: 0,

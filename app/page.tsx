@@ -5,11 +5,10 @@ import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Clock, AlertTriangle, CheckCircle, TrendingUp, XCircle, BarChart3, Activity, Calendar, Filter, Cloud, Sun, Moon, ChevronDown } from 'lucide-react';
+import { Users, Clock, AlertTriangle, CheckCircle, TrendingUp, XCircle, BarChart3, Activity, Calendar, Filter, Cloud, Sun, Moon, ChevronDown, AlertCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
-import { calculateStudentRiskScore, calculateBatchRiskScores } from '@/lib/ml-risk-calculator';
 import { MLDashboard } from '@/components/ml-dashboard';
 import { DashboardSkeleton } from '@/components/dashboard-skeleton';
 import { DateLevelFilter } from '@/components/date-level-filter';
@@ -73,6 +72,7 @@ export default function Dashboard() {
     positiveEvents: 0,
     negativeEvents: 0,
     studentsAtRisk: 0,
+    criticalRiskStudents: 0,
     categoryDistribution: [] as { name: string; value: number }[]
   });
   const [topStudents, setTopStudents] = useState<any[]>([]);
@@ -211,7 +211,10 @@ export default function Dashboard() {
       }
 
       // studentsActiveQuery is used by ML scoring; it does not depend on other queries
-      const studentsActiveQuery = supabase.from('students').select('lrn').eq('status', 'active');
+      const studentsActiveQuery = supabase
+        .from('students')
+        .select('lrn, level, risk_level')
+        .eq('status', 'active');
 
       // Execute independent queries in parallel
       const [studentsRes, attendanceRes, behavioralRes, studentsActiveRes] = await Promise.all([
@@ -318,22 +321,25 @@ export default function Dashboard() {
 
         // Calculate students at risk using improved ML function (with fallback)
         let studentsAtRisk = 0;
+        let criticalRiskStudents = 0;
         try {
           if (studentsActiveError) throw studentsActiveError;
 
+          // Use stored risk_level from the students table (already calculated by update_student_summary)
           if (studentsActiveData && studentsActiveData.length > 0) {
-            const riskScores = await calculateBatchRiskScores(
-              studentsActiveData.map((s: any) => s.lrn)
-            );
-            riskScores.forEach((score: any) => {
-              if (score && (score.risk_level === 'high' || score.risk_level === 'critical')) {
+            studentsActiveData.forEach((student: any) => {
+              const riskLevel = String(student.risk_level || 'low').toLowerCase();
+              if (riskLevel === 'critical') {
+                criticalRiskStudents++;
+                studentsAtRisk++;
+              } else if (riskLevel === 'high') {
                 studentsAtRisk++;
               }
             });
           }
         } catch (riskError) {
           // Fallback: Simple calculation based on behavioral events
-          console.warn('ML risk scoring unavailable, using fallback method:', riskError);
+          console.warn('Risk level data unavailable, using fallback method:', riskError);
           const studentEventMap = new Map();
           filteredBehavioral.forEach(event => {
             const lrn = event.student_lrn;
@@ -348,7 +354,10 @@ export default function Dashboard() {
             }
           });
           studentEventMap.forEach((stats) => {
-            if (stats.negative >= 2) {
+            if (stats.negative >= 3) {
+              criticalRiskStudents++;
+              studentsAtRisk++;
+            } else if (stats.negative >= 1) {
               studentsAtRisk++;
             }
           });
@@ -366,6 +375,7 @@ export default function Dashboard() {
           positiveEvents,
           negativeEvents,
           studentsAtRisk,
+          criticalRiskStudents,
           categoryDistribution
         });
       }
@@ -561,7 +571,7 @@ export default function Dashboard() {
             </Card>
           </motion.div>
 
-          {/* Major/Critical Incidents Card */}
+          {/* Critical Risk Students Card */}
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -572,11 +582,11 @@ export default function Dashboard() {
               <CardContent className="p-2 sm:p-3 md:p-4 flex items-start justify-between relative z-10 gap-1.5 sm:gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-[8px] sm:text-[9px] md:text-[10px] text-orange-600 dark:text-orange-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Critical</p>
-                  <div className="text-base sm:text-lg md:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">{behavioralStats.negativeEvents}</div>
-                  <p className="text-[7px] sm:text-[8px] md:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Incidents</p>
+                  <div className="text-base sm:text-lg md:text-2xl font-bold text-orange-600 dark:text-orange-400 leading-tight">{behavioralStats.criticalRiskStudents}</div>
+                  <p className="text-[7px] sm:text-[8px] md:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Students</p>
                 </div>
                 <div className="hidden md:flex shrink-0 w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-lg sm:rounded-xl bg-linear-to-br from-orange-500 to-orange-600 text-white items-center justify-center shadow-md shadow-orange-500/20 dark:shadow-orange-500/10 group-hover:scale-105 transition-all duration-300">
-                  <XCircle className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
+                  <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
                 </div>
               </CardContent>
               <div className="h-0.5 sm:h-1 w-full bg-linear-to-r from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700" />
