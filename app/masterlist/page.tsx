@@ -1033,6 +1033,7 @@ export default function MasterlistPage() {
                         <SelectContent>
                           <SelectItem value="all">All Status</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
                           <SelectItem value="undergrad">Undergrad</SelectItem>
                         </SelectContent>
                       </Select>

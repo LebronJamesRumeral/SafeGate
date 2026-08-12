@@ -1352,6 +1352,8 @@ function BehavioralEventsPageContent() {
       event_type?: string;
       severity?: string;
       description?: string;
+      location?: string;
+      witness_names?: string;
     } = {};
 
     if (formData.report_mode === 'group' && targetStudentSelectors.length < 2) {
@@ -1376,6 +1378,16 @@ function BehavioralEventsPageContent() {
     if (!formData.severity || formData.severity === 'all') {
       missingInputs.push('Severity');
       validationErrors.severity = 'Please select a severity.';
+    }
+
+    if (!formData.location) {
+      missingInputs.push('Location');
+      validationErrors.location = 'Please select a location.';
+    }
+
+    if (!formData.witness_names.trim()) {
+      missingInputs.push('Witness');
+      validationErrors.witness_names = 'Please select a witness.';
     }
 
     if (!trimmedDescription) {
@@ -2573,7 +2585,7 @@ function BehavioralEventsPageContent() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="location">Location</Label>
+                      <Label htmlFor="location">Location <span className="text-red-500">*</span></Label>
                       <Select
                         value={formData.location || '__none__'}
                         onValueChange={(value) => setFormData({ ...formData, location: value === '__none__' ? '' : value })}
@@ -2593,12 +2605,15 @@ function BehavioralEventsPageContent() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {addEventValidationErrors.location && (
+                        <p className="text-sm text-red-600 dark:text-red-400">{addEventValidationErrors.location}</p>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         Select the exact year-level room (Kinder, Grade 1, Grade 2, and so on) for cleaner heatmap tracking.
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="witness_names">Witness (Teacher Account)</Label>
+                      <Label htmlFor="witness_names">Witness (Teacher Account) <span className="text-red-500">*</span></Label>
                       <Select
                         value={formData.witness_names || '__none__'}
                         onValueChange={(value) =>
@@ -2623,6 +2638,9 @@ function BehavioralEventsPageContent() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {addEventValidationErrors.witness_names && (
+                        <p className="text-sm text-red-600 dark:text-red-400">{addEventValidationErrors.witness_names}</p>
+                      )}
                       {!loadingTeachers && teachers.length === 0 && (
                         <p className="text-xs text-amber-600">No teacher accounts found in auth users with role=teacher.</p>
                       )}

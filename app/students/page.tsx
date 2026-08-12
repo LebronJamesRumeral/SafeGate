@@ -3716,21 +3716,19 @@ export default function StudentsPage() {
       // Only include students with status 'active' (exclude inactive: dropped/undergrad)
       if (student.status !== 'active') return false;
       const term = search.toLowerCase();
-      const matchesSearch = student.name.toLowerCase().includes(term) ||
-                            student.lrn.toLowerCase().includes(term) ||
-                            student.parentName.toLowerCase().includes(term);
-      const matchesLevel = filterGrade === 'all' || student.level === filterGrade;
-      const matchesGender = filterGender === 'all' || student.gender === filterGender;
-      // Risk filter
-      if (filterRisk !== 'all') {
-        const riskScore = riskScores[student.lrn];
-        if (!riskScore) return false;
-        return riskScore.risk_level === filterRisk;
-      }
-      // If showing only summer students, ensure enrollment exists
-      if (showOnlySummer) {
-        if (!isActiveSummerEnrollment(summerEnrollments[student.lrn])) return false;
-      }
+      const name = (student.name || '').toLowerCase();
+      const lrn = (student.lrn || '').toLowerCase();
+      const parent = (student.parentName || student.parent_name || '').toLowerCase();
+      const matchesSearch = name.includes(term) || lrn.includes(term) || parent.includes(term);
+      const level = (student.level || '').trim();
+      const gender = (student.gender || '').trim();
+      const matchesLevel = filterGrade === 'all' || level === filterGrade;
+      const matchesGender = filterGender === 'all' || gender === filterGender;
+      const matchesRisk = filterRisk === 'all'
+        ? true
+        : riskScores[student.lrn]?.risk_level === filterRisk;
+      if (!matchesRisk) return false;
+      if (showOnlySummer && !isActiveSummerEnrollment(summerEnrollments[student.lrn])) return false;
       return matchesSearch && matchesLevel && matchesGender;
     });
 
@@ -3843,17 +3841,18 @@ export default function StudentsPage() {
   const filteredSummerStudents = useMemo(() => {
     return summerStudents.filter(({ student }) => {
       const term = search.toLowerCase();
-      const matchesSearch = student.name.toLowerCase().includes(term) ||
-                            student.lrn.toLowerCase().includes(term) ||
-                            student.parentName.toLowerCase().includes(term);
-      const matchesLevel = filterGrade === 'all' || student.level === filterGrade;
-      const matchesGender = filterGender === 'all' || student.gender === filterGender;
-      if (filterRisk !== 'all') {
-        const riskScore = riskScores[student.lrn];
-        if (!riskScore) return false;
-        return matchesSearch && matchesLevel && matchesGender && riskScore.risk_level === filterRisk;
-      }
-      return matchesSearch && matchesLevel && matchesGender;
+      const name = (student.name || '').toLowerCase();
+      const lrn = (student.lrn || '').toLowerCase();
+      const parent = (student.parentName || student.parent_name || '').toLowerCase();
+      const matchesSearch = name.includes(term) || lrn.includes(term) || parent.includes(term);
+      const level = (student.level || '').trim();
+      const gender = (student.gender || '').trim();
+      const matchesLevel = filterGrade === 'all' || level === filterGrade;
+      const matchesGender = filterGender === 'all' || gender === filterGender;
+      const matchesRisk = filterRisk === 'all'
+        ? true
+        : riskScores[student.lrn]?.risk_level === filterRisk;
+      return matchesSearch && matchesLevel && matchesGender && matchesRisk;
     });
   }, [summerStudents, search, filterGrade, filterGender, filterRisk, riskScores]);
 
