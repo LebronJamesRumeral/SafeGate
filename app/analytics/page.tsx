@@ -454,11 +454,13 @@ export default function AnalyticsPage() {
           holiday: new Set<string>(),
         };
 
-        const hasNoClass = dayStats.cancelled.size > 0 || dayStats.holiday.size > 0;
+        const hasHoliday = dayStats.holiday.size > 0;
+        const hasCancellation = dayStats.cancelled.size > 0 && !hasHoliday;
+        const hasNoClass = hasCancellation || hasHoliday;
         const presentCount = hasNoClass ? 0 : dayStats.present.size;
         const lateCount = hasNoClass ? 0 : dayStats.late.size;
-        const cancelledCount = hasNoClass ? totalStudents : dayStats.cancelled.size;
-        const holidayCount = hasNoClass && dayStats.holiday.size > 0 ? totalStudents : dayStats.holiday.size;
+        const cancelledCount = hasCancellation ? totalStudents : 0;
+        const holidayCount = hasHoliday ? totalStudents : 0;
         const absentCount = hasNoClass ? 0 : Math.max(totalStudents - presentCount - lateCount - cancelledCount - holidayCount, 0);
         const attendanceRate = hasNoClass ? 0 : (totalStudents > 0 ? ((presentCount + lateCount) / totalStudents) * 100 : 0);
 
@@ -484,11 +486,13 @@ export default function AnalyticsPage() {
           holiday: new Set<string>(),
         };
 
-        const hasNoClass = dayStats.cancelled.size > 0 || dayStats.holiday.size > 0;
+        const hasHoliday = dayStats.holiday.size > 0;
+        const hasCancellation = dayStats.cancelled.size > 0 && !hasHoliday;
+        const hasNoClass = hasCancellation || hasHoliday;
         const presentCount = hasNoClass ? 0 : dayStats.present.size;
         const lateCount = hasNoClass ? 0 : dayStats.late.size;
-        const cancelledCount = hasNoClass ? totalStudents : dayStats.cancelled.size;
-        const holidayCount = hasNoClass && dayStats.holiday.size > 0 ? totalStudents : dayStats.holiday.size;
+        const cancelledCount = hasCancellation ? totalStudents : 0;
+        const holidayCount = hasHoliday ? totalStudents : 0;
         const attendancePct = hasNoClass ? 0 : (totalStudents > 0 ? ((presentCount + lateCount) / totalStudents) * 100 : 0);
 
         return {
@@ -568,7 +572,7 @@ export default function AnalyticsPage() {
           present: Math.max(levelTotal, uniquePresent + uniqueLate),
           attendance: parseFloat(attendancePct.toFixed(1)),
           trend: attendancePct > 75 ? 'up' : attendancePct < 50 ? 'down' : 'stable',
-          cancelledDays: cancelledDates.size,
+          cancelledDays: [...cancelledDates].filter((date) => !holidayDates.has(date)).length,
           holidayDays: holidayDates.size
         };
       }));

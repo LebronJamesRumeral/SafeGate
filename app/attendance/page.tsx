@@ -770,8 +770,8 @@ export default function AttendancePage() {
     }
 
     setSubmittingCancelClasses(true);
-    const attendanceStatus = cancelAsHoliday ? 'holiday' : 'cancelled_class';
-    const operationLabel = cancelAsHoliday ? 'holiday schedule' : 'class cancellation';
+    const selectedStatus = cancelAsHoliday ? 'holiday' : 'cancelled_class';
+    const operationLabel = selectedStatus === 'holiday' ? 'holiday schedule' : 'class cancellation';
     const notificationTitle = cancelAsHoliday ? 'School Holiday' : 'Classes Cancelled';
     const notificationKind = cancelAsHoliday ? 'school_holiday' : 'class_cancellation';
 
@@ -805,7 +805,7 @@ export default function AttendancePage() {
           check_in_time: `${date}T00:00:00.000Z`,
           check_out_time: null,
           is_present: false,
-          attendance_status: attendanceStatus,
+          attendance_status: selectedStatus,
           is_late: false,
           is_invalid_timeout: false,
         }))
@@ -834,7 +834,7 @@ export default function AttendancePage() {
           cancelled_start_date: startDate,
           cancelled_end_date: endDate,
           cancelled_dates: datesToCancel,
-          attendance_status: attendanceStatus,
+          attendance_status: selectedStatus,
           reason: cancelReason.trim() || null,
           href: '/parent-attendance',
         },
@@ -1410,7 +1410,7 @@ export default function AttendancePage() {
                     const isSummerRow = isDateInSummerEnrollment(enrollment, log.date);
                     const normalizedStatus = String(log.attendance_status || '').toLowerCase();
                     const isHoliday = normalizedStatus === 'holiday';
-                    const isCancelled = normalizedStatus === 'cancelled_class' || isHoliday;
+                    const isCancelled = normalizedStatus === 'cancelled_class';
                     const checkIn = new Date(log.check_in_time);
                     const checkOut = log.check_out_time ? new Date(log.check_out_time) : null;
                     const duration = checkOut ? Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60)) : null;
@@ -1782,7 +1782,7 @@ export default function AttendancePage() {
                       const isSummerRow = isDateInSummerEnrollment(enrollment, log.date);
                       const normalizedStatus = String(log.attendance_status || '').toLowerCase();
                       const isHoliday = normalizedStatus === 'holiday';
-                      const isCancelled = normalizedStatus === 'cancelled_class' || isHoliday;
+                      const isCancelled = normalizedStatus === 'cancelled_class';
                       const checkIn = new Date(log.check_in_time);
                       const checkOut = log.check_out_time ? new Date(log.check_out_time) : null;
                       const duration = checkOut 
