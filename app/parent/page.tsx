@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { getParentStudents } from '@/lib/parent-data';
-import { supabase } from '@/lib/supabase';
+import { fetchAllSupabaseRows, supabase } from '@/lib/supabase';
 import { Users, CheckCircle, AlertCircle, GraduationCap, Search, Brain } from 'lucide-react';
 
 import { StudentRiskCard } from "@/components/ml-dashboard";
@@ -55,19 +55,19 @@ export default function ParentDashboard() {
         const events: any = {};
         for (const child of data) {
           // Attendance logs
-          const { data: attLogs } = await supabase
+          const { data: attLogs } = await fetchAllSupabaseRows<any>(supabase
             .from('attendance_logs')
             .select('*')
             .eq('student_lrn', child.lrn)
-            .order('date', { ascending: false });
+            .order('date', { ascending: false }));
           logs[child.lrn] = attLogs || [];
           // Behavioral events (approved only)
-          const { data: behEvents } = await supabase
+          const { data: behEvents } = await fetchAllSupabaseRows<any>(supabase
             .from('behavioral_events')
             .select('*')
             .eq('student_lrn', child.lrn)
             .in('guidance_status', ['approved', 'approved_for_ml'])
-            .order('event_date', { ascending: false });
+            .order('event_date', { ascending: false }));
           events[child.lrn] = behEvents || [];
         }
         setAttendanceLogs(logs);

@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Activity, AlertCircle, AlertTriangle, Calendar, Clock3, Flame, MapPinned, Phone, Plus, ShieldAlert, Target, Trash2, Users, Archive, ChevronLeft, ChevronRight } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { fetchAllSupabaseRows, supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
@@ -447,8 +447,7 @@ function SchoolHeatmapContent() {
       let query = supabase
         .from('behavioral_events')
         .select('id, event_type, severity, description, location, student_lrn, event_date, event_time, created_at, students(level), event_categories(name, severity_level)')
-        .order('event_date', { ascending: false })
-        .limit(1000);
+        .order('event_date', { ascending: false });
 
       if (daysFilter !== 'all') {
         const days = Number(daysFilter);
@@ -459,7 +458,7 @@ function SchoolHeatmapContent() {
       }
 
       const [logsResult, riskResult] = await Promise.all([
-        query,
+        fetchAllSupabaseRows<BehavioralLog>(query),
         fetch('/api/ml/high-risk').then(async (response) => {
           if (!response.ok) return { success: true, data: [] as HighRiskStudent[] };
           return response.json();

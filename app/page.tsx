@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Users, Clock, AlertTriangle, CheckCircle, TrendingUp, XCircle, BarChart3, Activity, Calendar, Filter, Cloud, Sun, Moon, ChevronDown, AlertCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { supabase } from '@/lib/supabase';
+import { fetchAllSupabaseRows, supabase } from '@/lib/supabase';
 import { MLDashboard } from '@/components/ml-dashboard';
 import { DashboardSkeleton } from '@/components/dashboard-skeleton';
 import { DateLevelFilter } from '@/components/date-level-filter';
@@ -218,10 +218,10 @@ export default function Dashboard() {
 
       // Execute independent queries in parallel
       const [studentsRes, attendanceRes, behavioralRes, studentsActiveRes] = await Promise.all([
-        studentsQuery,
-        attendanceQuery,
-        behavioralQuery,
-        studentsActiveQuery,
+        fetchAllSupabaseRows(studentsQuery),
+        fetchAllSupabaseRows(attendanceQuery),
+        fetchAllSupabaseRows(behavioralQuery),
+        fetchAllSupabaseRows(studentsActiveQuery),
       ]);
 
       const { data: students, error: studentsError } = studentsRes || {};

@@ -9,6 +9,21 @@ export const supabase = isValidUrl && supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
+export async function fetchAllSupabaseRows<T>(query: any, pageSize = 1000): Promise<{ data: T[]; error: any }> {
+  const rows: T[] = [];
+  let page = 0;
+
+  while (true) {
+    const { data, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
+    if (error) return { data: rows, error };
+
+    const pageRows = (data || []) as T[];
+    rows.push(...pageRows);
+    if (pageRows.length < pageSize) return { data: rows, error: null };
+    page += 1;
+  }
+}
+
 // Database types
 export interface Student {
   id: number;

@@ -136,9 +136,84 @@ function buildTypeBreakdown(items: { type: string; count: number }[]) {
   };
 }
 
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// --- FIX: normalize any date-ish value (Date object, 'YYYY-MM-DD', or timestamp string)
+// into a plain 'YYYY-MM-DD' key. This guarantees the keys built from Supabase rows
+// match the keys generated for the weekly/monthly date range, regardless of whether
+// the `date` column comes back as a pure date or a timestamp.
+function toDateKey(value: string | Date | null | undefined): string {
+  if (!value) return '';
+  if (value instanceof Date) {
+    const y = value.getUTCFullYear();
+    const m = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(value.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
+  if (isoDateOnly.test(value)) return value;
+  const datePart = value.split('T')[0];
+  return isoDateOnly.test(datePart) ? datePart : value;
+}
+
+// --- FIX: build a date range using pure UTC math. The previous version used
+// new Date(start)/current.setDate() which are affected by the browser's local
+// timezone, causing generated dates to drift a day off from the real attendance
+// records depending on the viewer's timezone.
+function buildDateRangeUTC(start: string, end: string) {
+  const days: string[] = [];
+  if (!start || !end) return days;
+  const [sy, sm, sd] = start.split('-').map(Number);
+  const [ey, em, ed] = end.split('-').map(Number);
+  if ([sy, sm, sd, ey, em, ed].some((n) => Number.isNaN(n))) return days;
+
+  let cursor = Date.UTC(sy, sm - 1, sd);
+  const endTime = Date.UTC(ey, em - 1, ed);
+  while (cursor <= endTime) {
+    const d = new Date(cursor);
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    days.push(`${y}-${m}-${day}`);
+    cursor += 24 * 60 * 60 * 1000; // UTC has no DST, so +1 day is always exactly 24h
+  }
+  return days;
+}
+
+// --- FIX: UTC-safe day-of-week check (was using `new Date(dateStr).getDay()`,
+// which reinterprets the date string in the browser's local timezone).
+function isWeekdayUTC(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if ([y, m, d].some((n) => Number.isNaN(n))) return false;
+  const dayOfWeek = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return dayOfWeek >= 1 && dayOfWeek <= 5;
+}
+
+// --- FIX: format a 'YYYY-MM-DD' key for display, pinned to UTC so the label
+// never shifts a day for viewers outside UTC.
+function formatDateLabelUTC(dateStr: string, options: Intl.DateTimeFormatOptions) {
+  return new Date(`${dateStr}T00:00:00Z`).toLocaleDateString('en-US', { ...options, timeZone: 'UTC' });
+}
+
+function isLateForSchedule(checkInTime: string | null | undefined, entryTime: string | null | undefined) {
+  if (!checkInTime || !entryTime) return false;
+  const checkIn = new Date(checkInTime);
+  if (Number.isNaN(checkIn.getTime())) return false;
+
+  const [entryHours, entryMinutes] = entryTime.split(':').slice(0, 2).map(Number);
+  if (Number.isNaN(entryHours) || Number.isNaN(entryMinutes)) return false;
+
+  return checkIn.getHours() * 60 + checkIn.getMinutes() > entryHours * 60 + entryMinutes;
+}
+
 // Enforce consistent layout structure for analytics
 export default function AnalyticsPage() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = formatLocalDate(new Date());
   const [dateMode, setDateMode] = useState<DateMode>('all');
   const [rangeStart, setRangeStart] = useState(today);
   const [rangeEnd, setRangeEnd] = useState(today);
@@ -243,16 +318,23 @@ export default function AnalyticsPage() {
         .order('start_date', { ascending: false })
         .limit(1)
         .maybeSingle();
+      const earliestAttendanceQuery = supabase
+        .from('attendance_logs')
+        .select('date')
+        .order('date', { ascending: true })
+        .limit(1);
 
-      const [studentsRes, currentSchoolYearRes, latestSchoolYearRes] = await Promise.all([
+      const [studentsRes, currentSchoolYearRes, latestSchoolYearRes, earliestAttendanceRes] = await Promise.all([
         studentsQuery,
         currentYearQuery,
-        latestYearQuery
+        latestYearQuery,
+        earliestAttendanceQuery
       ]);
 
       const { data: students, error: studentsError } = studentsRes || {};
       const { data: currentSchoolYear } = currentSchoolYearRes || {};
       const { data: latestSchoolYear } = latestSchoolYearRes || {};
+      const { data: earliestAttendance } = earliestAttendanceRes || {};
 
       if (studentsError) {
         toast({
@@ -282,15 +364,7 @@ export default function AnalyticsPage() {
           ? normalizeRange(rangeStart, rangeEnd)
           : dateMode === 'single'
             ? [singleDate, singleDate]
-            : (() => {
-                const end = new Date();
-                const start = new Date();
-                start.setDate(end.getDate() - 29);
-                return [
-                  start.toISOString().split('T')[0],
-                  end.toISOString().split('T')[0]
-                ];
-              })();
+            : [earliestAttendance?.[0]?.date || today, today];
 
       let constrainedStart = normalizedStart;
       let constrainedEnd = normalizedEnd;
@@ -316,25 +390,19 @@ export default function AnalyticsPage() {
         }
       }
 
-      const buildDateRange = (start: string, end: string) => {
-        const days: string[] = [];
-        const startDate = new Date(start);
-        const endDate = new Date(end);
-        const current = new Date(startDate);
-        while (current <= endDate) {
-          days.push(current.toISOString().split('T')[0]);
-          current.setDate(current.getDate() + 1);
-        }
-        return days;
-      };
-
-      const dateRange = buildDateRange(constrainedStart, constrainedEnd);
-      // Filter to only weekdays (Monday-Friday, not Saturday-Sunday)
-      const last7Days = dateRange.slice(-7).filter(dateStr => {
-        const date = new Date(dateStr);
-        const dayOfWeek = date.getDay();
-        return dayOfWeek >= 1 && dayOfWeek <= 5; // 1 = Monday, 5 = Friday
-      });
+      // FIX: use the UTC-safe range builder instead of the old local-timezone-dependent one
+      const dateRange = buildDateRangeUTC(constrainedStart, constrainedEnd);
+      // FIX: use UTC-safe weekday check
+      const schoolDays = dateRange.filter(isWeekdayUTC); // 1 = Monday ... 5 = Friday
+      // NOTE: last7Days used to be `schoolDays.slice(-7)` computed right here, i.e. the
+      // last 7 weekdays counting back from "today" regardless of whether any attendance
+      // was actually logged on those days. If real attendance data hasn't caught up to
+      // the current calendar date (or a day simply has zero rows for any reason), those
+      // days were still included and rendered as 100% absent for the whole roster (since
+      // presentCount/lateCount default to 0 when a day has no bucket), which is what made
+      // the Weekly Attendance Trend look completely wrong even though the underlying
+      // attendance_logs data was fine. It's now computed further below, once we actually
+      // know which days have logged attendance (see the FIX comment near attendanceByDate).
 
       // Fetch attendance logs with specific fields (matching attendance page pattern)
       const studentsForRange = studentsForAnalytics.map((student: any) => student.lrn);
@@ -374,14 +442,29 @@ export default function AnalyticsPage() {
         behavioralQuery = behavioralQuery.in('student_lrn', ['__no_students__']);
       }
 
+      const schedulesQuery = studentsForRange.length > 0
+        ? supabase
+            .from('student_attendance_schedules')
+            .select('student_lrn, entry_time')
+            .eq('is_active', true)
+            .in('student_lrn', studentsForRange)
+        : Promise.resolve({ data: [], error: null });
+
       // Execute attendance and behavioral queries together
-      const [attendanceRes, behavioralRes] = await Promise.all([
+      const [attendanceRes, behavioralRes, schedulesRes] = await Promise.all([
         attendanceQuery,
-        behavioralQuery
+        behavioralQuery,
+        schedulesQuery
       ]);
 
       const { data: attendance, error: attendanceError } = attendanceRes || {};
       const { data: behavioralEvents, error: behavioralError } = behavioralRes || {};
+      const scheduleByLrn = new Map<string, string>();
+      (schedulesRes?.data || []).forEach((schedule: any) => {
+        if (schedule.student_lrn && schedule.entry_time) {
+          scheduleByLrn.set(schedule.student_lrn, schedule.entry_time);
+        }
+      });
 
       if (attendanceError) {
         setLoading(false);
@@ -404,7 +487,10 @@ export default function AnalyticsPage() {
       }>();
 
       (attendance || []).forEach((record: any) => {
-        const dateKey = String(record.date || '');
+        // FIX: normalize the record's date so it matches the 'YYYY-MM-DD' keys
+        // generated by buildDateRangeUTC, regardless of whether Supabase returns
+        // a plain date or a timestamp.
+        const dateKey = toDateKey(record.date);
         if (!dateKey) return;
 
         const status = String(record.attendance_status || '').trim().toLowerCase();
@@ -426,15 +512,8 @@ export default function AnalyticsPage() {
         } else if (record.is_present === false || status === 'absent') {
           bucket.absent.add(studentLrn);
         } else if (record.check_in_time) {
-          const checkInTime = new Date(record.check_in_time);
-          if (!Number.isNaN(checkInTime.getTime())) {
-            const cutoff = new Date(checkInTime);
-            cutoff.setHours(8, 30, 0, 0);
-            if (checkInTime > cutoff) {
-              bucket.late.add(studentLrn);
-            } else {
-              bucket.present.add(studentLrn);
-            }
+          if (isLateForSchedule(record.check_in_time, scheduleByLrn.get(studentLrn))) {
+            bucket.late.add(studentLrn);
           } else {
             bucket.present.add(studentLrn);
           }
@@ -444,6 +523,15 @@ export default function AnalyticsPage() {
 
         attendanceByDate.set(dateKey, bucket);
       });
+
+      // FIX: pick the last 7 *school days that actually have attendance rows logged*,
+      // instead of blindly counting back 7 weekdays from "today". This is the real
+      // fix for the Weekly Attendance Trend showing everyone as absent: previously,
+      // if recent days had no attendance data yet, they were still included and every
+      // student defaulted to "absent" for them. We now prefer real, populated days and
+      // only fall back to the raw weekday list if nothing has been logged at all.
+      const schoolDaysWithData = schoolDays.filter((date) => attendanceByDate.has(date));
+      const last7Days = (schoolDaysWithData.length > 0 ? schoolDaysWithData : schoolDays).slice(-7);
 
       const weeklyData = last7Days.map(date => {
         const dayStats = attendanceByDate.get(date) || {
@@ -465,7 +553,8 @@ export default function AnalyticsPage() {
         const attendanceRate = hasNoClass ? 0 : (totalStudents > 0 ? ((presentCount + lateCount) / totalStudents) * 100 : 0);
 
         return {
-          day: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+          // FIX: label formatted in UTC so the weekday never shifts for viewers outside UTC
+          day: formatDateLabelUTC(date, { weekday: 'short' }),
           date,
           present: presentCount,
           absent: absentCount,
@@ -496,7 +585,8 @@ export default function AnalyticsPage() {
         const attendancePct = hasNoClass ? 0 : (totalStudents > 0 ? ((presentCount + lateCount) / totalStudents) * 100 : 0);
 
         return {
-          date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          // FIX: label formatted in UTC
+          date: formatDateLabelUTC(date, { month: 'short', day: 'numeric' }),
           attendance: attendancePct,
           present: presentCount + lateCount,
           cancelled: cancelledCount,
@@ -521,8 +611,8 @@ export default function AnalyticsPage() {
               .from('attendance_logs')
               .select('student_lrn, attendance_status, date, is_present, check_in_time')
               .in('student_lrn', levelStudents.map(s => s.lrn))
-              .gte('date', last7Days[0])
-              .lte('date', last7Days[last7Days.length - 1])
+              .gte('date', dateRange[0])
+              .lte('date', dateRange[dateRange.length - 1])
           : { data: [] };
 
         const presentSet = new Set<string>();
@@ -532,12 +622,14 @@ export default function AnalyticsPage() {
 
         (levelAttendance || []).forEach((a: any) => {
           const status = String(a.attendance_status || '').toLowerCase();
+          // FIX: normalize date key for consistency with the rest of the page
+          const rowDateKey = toDateKey(a.date);
           if (status === 'cancelled_class') {
-            if (a.date) cancelledDates.add(a.date);
+            if (rowDateKey) cancelledDates.add(rowDateKey);
             return;
           }
           if (status === 'holiday') {
-            if (a.date) holidayDates.add(a.date);
+            if (rowDateKey) holidayDates.add(rowDateKey);
             return;
           }
 
@@ -546,17 +638,12 @@ export default function AnalyticsPage() {
           }
 
           if (a.check_in_time) {
-            const checkInTime = new Date(a.check_in_time);
-            if (!Number.isNaN(checkInTime.getTime())) {
-              const cutoff = new Date(checkInTime);
-              cutoff.setHours(8, 30, 0, 0);
-              if (checkInTime > cutoff) {
-                lateSet.add(a.student_lrn);
-              } else {
-                presentSet.add(a.student_lrn);
-              }
-              return;
+            if (isLateForSchedule(a.check_in_time, scheduleByLrn.get(a.student_lrn))) {
+              lateSet.add(a.student_lrn);
+            } else {
+              presentSet.add(a.student_lrn);
             }
+            return;
           }
 
           presentSet.add(a.student_lrn);
@@ -569,7 +656,7 @@ export default function AnalyticsPage() {
         return {
           grade: level,
           total: levelTotal,
-          present: Math.max(levelTotal, uniquePresent + uniqueLate),
+          present: Math.min(levelTotal, uniquePresent + uniqueLate),
           attendance: parseFloat(attendancePct.toFixed(1)),
           trend: attendancePct > 75 ? 'up' : attendancePct < 50 ? 'down' : 'stable',
           cancelledDays: [...cancelledDates].filter((date) => !holidayDates.has(date)).length,
@@ -643,14 +730,17 @@ export default function AnalyticsPage() {
 
         // Weekly trend (detailed by severity)
         const weeklyTrend = last7Days.map(date => {
-          const dayEvents = behavioralEventsForStats.filter(e => e.event_date === date);
+          // FIX: normalize event_date before comparing so timestamp-vs-date mismatches
+          // don't cause every day to show zero events
+          const dayEvents = behavioralEventsForStats.filter(e => toDateKey(e.event_date) === date);
           const positive = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'positive').length;
           const minor = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'minor').length;
           const major = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'major').length;
           const critical = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'critical').length;
           const other = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'other').length;
           return {
-            date: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+            // FIX: UTC-safe label
+            date: formatDateLabelUTC(date, { weekday: 'short' }),
             positive,
             minor,
             major,
@@ -680,13 +770,8 @@ export default function AnalyticsPage() {
         const riskDistribution = { high: 0, medium: 0, low: 0 };
         const atRiskStudentsList = [];
 
-        const workingSchoolDays = new Set(
-          dateRange.filter((dateStr) => {
-            const day = new Date(dateStr);
-            const dayOfWeek = day.getDay();
-            return dayOfWeek >= 1 && dayOfWeek <= 5;
-          })
-        );
+        // FIX: use the UTC-safe weekday check for consistency with dateRange/schoolDays above
+        const workingSchoolDays = new Set(dateRange.filter(isWeekdayUTC));
 
         for (const student of studentsForAnalytics) {
           const studentLogs = (attendance || []).filter((entry: any) => entry.student_lrn === student.lrn);
@@ -696,7 +781,8 @@ export default function AnalyticsPage() {
           const studentHolidayDays = new Set<string>();
 
           studentLogs.forEach((entry: any) => {
-            const entryDate = String(entry.date || '');
+            // FIX: normalize date key
+            const entryDate = toDateKey(entry.date);
             if (!entryDate || !workingSchoolDays.has(entryDate)) return;
             const status = String(entry.attendance_status || '').trim().toLowerCase();
             studentSchoolDays.add(entryDate);

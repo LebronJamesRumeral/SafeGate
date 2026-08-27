@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { useHeatmapZones } from '@/lib/heatmap-zones-context';
+import { fetchAllSupabaseRows } from '@/lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -986,7 +987,7 @@ function BehavioralEventsPageContent() {
       setLoading(true);
 
       // Fetch behavioral events with student and category data
-      const { data: eventsData, error: eventsError } = await supabase
+      const { data: eventsData, error: eventsError } = await fetchAllSupabaseRows<any>(supabase
         .from('behavioral_events')
         .select(`
           id,
@@ -1013,7 +1014,7 @@ function BehavioralEventsPageContent() {
           students(name, level),
           event_categories(name, category_type, color_code)
         `)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }));
 
       if (eventsError) {
         console.error('Events error:', eventsError);
@@ -1034,7 +1035,7 @@ function BehavioralEventsPageContent() {
 
       setEvents(normalizedEvents);
 
-      const { data: achievementsData, error: achievementsError } = await supabase
+      const { data: achievementsData, error: achievementsError } = await fetchAllSupabaseRows<any>(supabase
         .from('achievements')
         .select(`
           id,
@@ -1050,7 +1051,7 @@ function BehavioralEventsPageContent() {
           updated_at,
           students(name, level)
         `)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }));
 
       if (achievementsError) {
         console.error('Achievements error:', achievementsError);

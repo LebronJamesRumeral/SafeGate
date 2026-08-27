@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import ParentAttendanceSkeleton from '@/components/parent-attendance-skeleton';
 import DatePickerInput from '@/components/date-picker-input';
 import { getParentStudents } from '@/lib/parent-data';
-import { supabase } from '@/lib/supabase';
+import { fetchAllSupabaseRows, supabase } from '@/lib/supabase';
 import { humanizeEventType } from '@/lib/event-types';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { formatTime12h } from '@/lib/time-format';
@@ -105,11 +105,11 @@ export default function ParentAttendancePage() {
         const behaviorDetailsByDate: any = {};
         const notesByLogId: Record<string, string> = {};
         for (const child of data) {
-          const { data: attLogs } = await supabase
+          const { data: attLogs } = await fetchAllSupabaseRows<any>(supabase
             .from('attendance_logs')
             .select('*')
             .eq('student_lrn', child.lrn)
-            .order('date', { ascending: false });
+            .order('date', { ascending: false }));
 
           const { data: schoolYearData } = await supabase
             .from('school_years')
@@ -165,12 +165,12 @@ export default function ParentAttendancePage() {
             return da < db ? 1 : -1;
           });
 
-          const { data: behEvents } = await supabase
+          const { data: behEvents } = await fetchAllSupabaseRows<any>(supabase
             .from('behavioral_events')
             .select('event_date, event_time, severity, event_type, description, location, reported_by, parent_notified, follow_up_required, notes')
             .eq('student_lrn', child.lrn)
             .in('guidance_status', ['approved', 'approved_for_ml'])
-            .order('event_date', { ascending: false });
+            .order('event_date', { ascending: false }));
 
           const { data: noteRows } = await supabase
             .from('parent_attendance_notes')

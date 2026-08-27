@@ -147,7 +147,14 @@ function getMonthRange(monthValue: string) {
 }
 
 function isActiveStudentStatus(status?: string | null) {
-  return (status ?? 'active').toString().trim().toLowerCase() === 'active';
+  const normalized = (status ?? 'active').toString().trim().toLowerCase();
+  return normalized === 'active' || normalized === 'enrolled' || normalized === 'current' || normalized === 'on_roll' || normalized === 'student' || normalized === '' || normalized === 'null';
+}
+
+function toDateKey(value: string | null | undefined) {
+  if (!value) return '';
+  const datePart = value.split('T')[0];
+  return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : value;
 }
 
 function getSchoolDays(start: string, end: string) {
@@ -328,18 +335,30 @@ export default function AttendancePage() {
           .order('check_in_time', { ascending: false })
           .in('student_lrn', sortedStudents.map(s => s.lrn));
 
-        const { data, error: attendanceError } = await attendanceQuery;
+        const pageSize = 1000;
+        let page = 0;
+        while (true) {
+          const { data, error: attendanceError } = await attendanceQuery.range(page * pageSize, (page + 1) * pageSize - 1);
 
-        if (attendanceError) {
-          toast({
-            title: 'Failed to fetch attendance',
-            description: attendanceError.message || String(attendanceError),
-            variant: 'destructive',
-          });
-          throw attendanceError;
+          if (attendanceError) {
+            toast({
+              title: 'Failed to fetch attendance',
+              description: attendanceError.message || String(attendanceError),
+              variant: 'destructive',
+            });
+            throw attendanceError;
+          }
+
+          const pageData = (data || []) as AttendanceLog[];
+          attendanceData.push(...pageData);
+          if (pageData.length < pageSize) break;
+          page += 1;
         }
 
-        attendanceData = (data || []) as AttendanceLog[];
+        attendanceData = attendanceData.map((log) => ({
+          ...log,
+          date: toDateKey(log.date),
+        }));
       }
 
       setStudents(sortedStudents);
