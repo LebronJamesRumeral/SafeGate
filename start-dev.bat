@@ -11,7 +11,20 @@ echo.
 
 REM Start FastAPI Backend in a new window
 echo [1/2] Starting FastAPI Backend on port 8000...
-start cmd /k "cd backend && call venv\Scripts\activate.bat && python main.py"
+
+REM Create venv if it doesn't exist
+if not exist backend\venv (
+	echo Virtual environment not found — creating one...
+	python -m venv backend\venv
+)
+
+REM Install/update backend dependencies, then start the server
+if exist backend\requirements.txt (
+	start cmd /k "cd backend && call venv\Scripts\activate.bat && pip install -r requirements.txt && python main.py"
+) else (
+	echo WARNING: backend\requirements.txt not found — starting without installing dependencies.
+	start cmd /k "cd backend && call venv\Scripts\activate.bat && python main.py"
+)
 
 REM Wait a moment for backend to start
 timeout /t 3 /nobreak
