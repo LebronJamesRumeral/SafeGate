@@ -185,6 +185,27 @@ function buildDateRangeUTC(start: string, end: string) {
   return days;
 }
 
+async function fetchAllRows<T>(query: any, pageSize = 1000): Promise<T[]> {
+  let offset = 0;
+  const allRows: T[] = [];
+
+  while (true) {
+    const { data, error } = await query.range(offset, offset + pageSize - 1);
+    if (error) {
+      throw error;
+    }
+
+    const page = (data || []) as T[];
+    allRows.push(...page);
+
+    if (page.length < pageSize) {
+      return allRows;
+    }
+
+    offset += page.length;
+  }
+}
+
 // --- FIX: UTC-safe day-of-week check (was using `new Date(dateStr).getDay()`,
 // which reinterprets the date string in the browser's local timezone).
 function isWeekdayUTC(dateStr: string) {
@@ -411,7 +432,8 @@ export default function AnalyticsPage() {
         .from('attendance_logs')
         .select('id, student_lrn, check_in_time, check_out_time, date, attendance_status, is_present')
         .gte('date', dateRange[0])
-        .lte('date', dateRange[dateRange.length - 1]);
+        .lte('date', dateRange[dateRange.length - 1])
+        .order('date', { ascending: true });
 
       if (studentsForRange.length > 0) {
         attendanceQuery = attendanceQuery.in('student_lrn', studentsForRange);
@@ -434,7 +456,8 @@ export default function AnalyticsPage() {
           event_categories(name, category_type, color_code, severity_level)
         `)
         .gte('event_date', dateRange[0])
-        .lte('event_date', dateRange[dateRange.length - 1]);
+        .lte('event_date', dateRange[dateRange.length - 1])
+        .order('event_date', { ascending: true });
 
       if (studentsForRange.length > 0) {
         behavioralQuery = behavioralQuery.in('student_lrn', studentsForRange);
@@ -450,31 +473,20 @@ export default function AnalyticsPage() {
             .in('student_lrn', studentsForRange)
         : Promise.resolve({ data: [], error: null });
 
-      // Execute attendance and behavioral queries together
-      const [attendanceRes, behavioralRes, schedulesRes] = await Promise.all([
-        attendanceQuery,
-        behavioralQuery,
+      // Fetch the complete attendance and behavioral datasets in pages so wide ranges
+      // are not silently truncated by PostgREST's default 1000-row cap.
+      const [attendance, behavioralEvents, schedulesRes] = await Promise.all([
+        fetchAllRows<any>(attendanceQuery),
+        fetchAllRows<any>(behavioralQuery),
         schedulesQuery
       ]);
 
-      const { data: attendance, error: attendanceError } = attendanceRes || {};
-      const { data: behavioralEvents, error: behavioralError } = behavioralRes || {};
       const scheduleByLrn = new Map<string, string>();
       (schedulesRes?.data || []).forEach((schedule: any) => {
         if (schedule.student_lrn && schedule.entry_time) {
           scheduleByLrn.set(schedule.student_lrn, schedule.entry_time);
         }
       });
-
-      if (attendanceError) {
-        setLoading(false);
-        toast({
-          title: 'Failed to fetch attendance',
-          description: attendanceError.message || String(attendanceError),
-          variant: 'destructive',
-        });
-        return;
-      }
 
       // Calculate weekly stats using the full active roster as the denominator so
       // students without a logged scan are still included in the school total.
@@ -602,18 +614,11 @@ export default function AnalyticsPage() {
 
       // Calculate level stats from the full active roster for each grade.
       const levels = [...new Set(studentsForAnalytics.map((s: any) => s.level).filter(Boolean))].sort();
-      const levelStats = await Promise.all(levels.map(async level => {
+      const levelStats = levels.map(level => {
         const levelStudents = studentsForAnalytics.filter((s: any) => s.level === level) || [];
         const levelTotal = levelStudents.length;
-
-        const { data: levelAttendance } = supabase
-          ? await supabase
-              .from('attendance_logs')
-              .select('student_lrn, attendance_status, date, is_present, check_in_time')
-              .in('student_lrn', levelStudents.map(s => s.lrn))
-              .gte('date', dateRange[0])
-              .lte('date', dateRange[dateRange.length - 1])
-          : { data: [] };
+        const levelLrns = new Set(levelStudents.map((s: any) => s.lrn));
+        const levelAttendance = (attendance || []).filter((record: any) => levelLrns.has(String(record.student_lrn)));
 
         const presentSet = new Set<string>();
         const lateSet = new Set<string>();
@@ -622,7 +627,6 @@ export default function AnalyticsPage() {
 
         (levelAttendance || []).forEach((a: any) => {
           const status = String(a.attendance_status || '').toLowerCase();
-          // FIX: normalize date key for consistency with the rest of the page
           const rowDateKey = toDateKey(a.date);
           if (status === 'cancelled_class') {
             if (rowDateKey) cancelledDates.add(rowDateKey);
@@ -662,7 +666,7 @@ export default function AnalyticsPage() {
           cancelledDays: [...cancelledDates].filter((date) => !holidayDates.has(date)).length,
           holidayDays: holidayDates.size
         };
-      }));
+      });
 
       setStats({
         averageAttendance: parseFloat(averageAttendance.toFixed(1)),
@@ -674,180 +678,151 @@ export default function AnalyticsPage() {
         attendanceByHour: generateHourlyData(attendance || [])
       });
 
-      // Fetch behavioral data (matching behavioral-events page pattern)
-      let behavioralStatsQuery = supabase
-        .from('behavioral_events')
-        .select(`
-          id,
-          student_lrn,
-          event_type,
-          severity,
-          event_date,
-          event_time,
-          created_at,
-          students(name, level),
-          event_categories(name, category_type, color_code, severity_level)
-        `)
-        .gte('event_date', dateRange[0])
-        .lte('event_date', dateRange[dateRange.length - 1]);
+      const positiveEvents = behavioralEvents.filter(e => resolveBehaviorSeverity(e) === 'positive').length;
+      const negativeEvents = behavioralEvents.filter(e => {
+        const severity = resolveBehaviorSeverity(e);
+        return severity === 'major' || severity === 'critical';
+      }).length;
 
-      if (selectedLevel !== 'all' && students && students.length > 0) {
-        const levelStudentLrns = students.map(s => s.lrn);
-        behavioralStatsQuery = behavioralStatsQuery.in('student_lrn', levelStudentLrns);
-      }
+      // Type breakdown (use event_type field)
+      const typeMap = new Map();
+      behavioralEvents.forEach(event => {
+        const type = event.event_type || 'Other';
+        typeMap.set(type, (typeMap.get(type) || 0) + 1);
+      });
+      const typeBreakdown = Array.from(typeMap.entries()).map(([type, count]) => ({
+        type,
+        count
+      }));
 
-      const { data: behavioralEventsForStats, error: behavioralStatsError } = await behavioralStatsQuery;
+      // Severity distribution
+      const severityMap = new Map();
+      behavioralEvents.forEach(event => {
+        const severity = event.severity || 'unknown';
+        severityMap.set(severity, (severityMap.get(severity) || 0) + 1);
+      });
+      const severityDistribution = Array.from(severityMap.entries()).map(([severity, count]) => ({
+        severity,
+        count
+      }));
 
-      if (!behavioralStatsError && behavioralEventsForStats) {
-        const positiveEvents = behavioralEventsForStats.filter(e => resolveBehaviorSeverity(e) === 'positive').length;
-        const negativeEvents = behavioralEventsForStats.filter(e => {
-          const severity = resolveBehaviorSeverity(e);
-          return severity === 'major' || severity === 'critical';
-        }).length;
+      // Weekly trend (detailed by severity)
+      const weeklyTrend = last7Days.map(date => {
+        // FIX: normalize event_date before comparing so timestamp-vs-date mismatches
+        // don't cause every day to show zero events
+        const dayEvents = behavioralEvents.filter(e => toDateKey(e.event_date) === date);
+        const positive = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'positive').length;
+        const minor = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'minor').length;
+        const major = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'major').length;
+        const critical = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'critical').length;
+        const other = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'other').length;
+        return {
+          // FIX: UTC-safe label
+          date: formatDateLabelUTC(date, { weekday: 'short' }),
+          positive,
+          minor,
+          major,
+          critical,
+          other,
+          total: dayEvents.length
+        };
+      });
 
+      // Calculate students at risk
+      const studentEventMap = new Map();
+      behavioralEvents.forEach(event => {
+        const lrn = event.student_lrn;
+        if (!studentEventMap.has(lrn)) {
+          studentEventMap.set(lrn, { positive: 0, negative: 0 });
+        }
+        const stats = studentEventMap.get(lrn);
+        const severity = resolveBehaviorSeverity(event);
+        if (severity === 'positive') {
+          stats.positive++;
+        } else if (severity === 'major' || severity === 'critical') {
+          stats.negative++;
+        }
+      });
 
-        // Type breakdown (use event_type field)
-        const typeMap = new Map();
-        behavioralEventsForStats.forEach(event => {
-          const type = event.event_type || 'Other';
-          typeMap.set(type, (typeMap.get(type) || 0) + 1);
-        });
-        const typeBreakdown = Array.from(typeMap.entries()).map(([type, count]) => ({
-          type,
-          count
-        }));
+      let studentsAtRisk = 0;
+      const riskDistribution = { high: 0, medium: 0, low: 0 };
+      const atRiskStudentsList = [];
 
-        // Severity distribution
-        const severityMap = new Map();
-        behavioralEventsForStats.forEach(event => {
-          const severity = event.severity || 'unknown';
-          severityMap.set(severity, (severityMap.get(severity) || 0) + 1);
-        });
-        const severityDistribution = Array.from(severityMap.entries()).map(([severity, count]) => ({
-          severity,
-          count
-        }));
+      // FIX: use the UTC-safe weekday check for consistency with dateRange/schoolDays above
+      const workingSchoolDays = new Set(dateRange.filter(isWeekdayUTC));
 
-        // Weekly trend (detailed by severity)
-        const weeklyTrend = last7Days.map(date => {
-          // FIX: normalize event_date before comparing so timestamp-vs-date mismatches
-          // don't cause every day to show zero events
-          const dayEvents = behavioralEventsForStats.filter(e => toDateKey(e.event_date) === date);
-          const positive = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'positive').length;
-          const minor = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'minor').length;
-          const major = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'major').length;
-          const critical = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'critical').length;
-          const other = dayEvents.filter(e => resolveBehaviorSeverity(e) === 'other').length;
-          return {
-            // FIX: UTC-safe label
-            date: formatDateLabelUTC(date, { weekday: 'short' }),
-            positive,
-            minor,
-            major,
-            critical,
-            other,
-            total: dayEvents.length
-          };
-        });
+      for (const student of studentsForAnalytics) {
+        const studentLogs = (attendance || []).filter((entry: any) => entry.student_lrn === student.lrn);
+        const studentSchoolDays = new Set<string>();
+        const studentPresentDays = new Set<string>();
+        const studentCancelledDays = new Set<string>();
+        const studentHolidayDays = new Set<string>();
 
-        // Calculate students at risk
-        const studentEventMap = new Map();
-        behavioralEventsForStats.forEach(event => {
-          const lrn = event.student_lrn;
-          if (!studentEventMap.has(lrn)) {
-            studentEventMap.set(lrn, { positive: 0, negative: 0 });
+        studentLogs.forEach((entry: any) => {
+          // FIX: normalize date key
+          const entryDate = toDateKey(entry.date);
+          if (!entryDate || !workingSchoolDays.has(entryDate)) return;
+          const status = String(entry.attendance_status || '').trim().toLowerCase();
+          studentSchoolDays.add(entryDate);
+
+          if (status === 'cancelled_class') {
+            studentCancelledDays.add(entryDate);
+            return;
           }
-          const stats = studentEventMap.get(lrn);
-          const severity = resolveBehaviorSeverity(event);
-          if (severity === 'positive') {
-            stats.positive++;
-          } else if (severity === 'major' || severity === 'critical') {
-            stats.negative++;
-          }
-        });
-
-        let studentsAtRisk = 0;
-        const riskDistribution = { high: 0, medium: 0, low: 0 };
-        const atRiskStudentsList = [];
-
-        // FIX: use the UTC-safe weekday check for consistency with dateRange/schoolDays above
-        const workingSchoolDays = new Set(dateRange.filter(isWeekdayUTC));
-
-        for (const student of studentsForAnalytics) {
-          const studentLogs = (attendance || []).filter((entry: any) => entry.student_lrn === student.lrn);
-          const studentSchoolDays = new Set<string>();
-          const studentPresentDays = new Set<string>();
-          const studentCancelledDays = new Set<string>();
-          const studentHolidayDays = new Set<string>();
-
-          studentLogs.forEach((entry: any) => {
-            // FIX: normalize date key
-            const entryDate = toDateKey(entry.date);
-            if (!entryDate || !workingSchoolDays.has(entryDate)) return;
-            const status = String(entry.attendance_status || '').trim().toLowerCase();
-            studentSchoolDays.add(entryDate);
-
-            if (status === 'cancelled_class') {
-              studentCancelledDays.add(entryDate);
-              return;
-            }
-            if (status === 'holiday') {
-              studentHolidayDays.add(entryDate);
-              return;
-            }
-
-            if (entry.is_present !== false && entry.attendance_status !== 'absent') {
-              studentPresentDays.add(entryDate);
-            }
-          });
-
-          const effectiveSchoolDays = Math.max(studentSchoolDays.size - studentCancelledDays.size - studentHolidayDays.size, 0);
-          const attendanceRate = effectiveSchoolDays > 0 ? (studentPresentDays.size / effectiveSchoolDays) * 100 : 100;
-          const studentStats = studentEventMap.get(student.lrn) || { positive: 0, negative: 0 };
-
-          let riskLevel = 'low';
-          if (attendanceRate < 75 || studentStats.negative >= 3) {
-            riskLevel = 'high';
-            studentsAtRisk++;
-            riskDistribution.high++;
-          } else if (attendanceRate < 85 || studentStats.negative >= 1) {
-            riskLevel = 'medium';
-            riskDistribution.medium++;
-          } else {
-            riskDistribution.low++;
+          if (status === 'holiday') {
+            studentHolidayDays.add(entryDate);
+            return;
           }
 
-          if (riskLevel !== 'low') {
-            atRiskStudentsList.push({
-              name: student.full_name || student.lrn,
-              lrn: student.lrn,
-              riskLevel,
-              attendanceRate,
-              negativeEvents: studentStats.negative,
-              positiveEvents: studentStats.positive
-            });
+          if (entry.is_present !== false && entry.attendance_status !== 'absent') {
+            studentPresentDays.add(entryDate);
           }
+        });
+
+        const effectiveSchoolDays = Math.max(studentSchoolDays.size - studentCancelledDays.size - studentHolidayDays.size, 0);
+        const attendanceRate = effectiveSchoolDays > 0 ? (studentPresentDays.size / effectiveSchoolDays) * 100 : 100;
+        const studentStats = studentEventMap.get(student.lrn) || { positive: 0, negative: 0 };
+
+        let riskLevel = 'low';
+        if (attendanceRate < 75 || studentStats.negative >= 3) {
+          riskLevel = 'high';
+          studentsAtRisk++;
+          riskDistribution.high++;
+        } else if (attendanceRate < 85 || studentStats.negative >= 1) {
+          riskLevel = 'medium';
+          riskDistribution.medium++;
+        } else {
+          riskDistribution.low++;
         }
 
-        setAtRiskStudents(atRiskStudentsList);
-
-          setBehavioralStats({
-          totalEvents: behavioralEvents.length,
-          positiveEvents,
-          negativeEvents,
-          studentsAtRisk,
-          categoryBreakdown: typeBreakdown,
-          riskDistribution: [
-            { level: 'Low Risk', count: riskDistribution.low, color: 'emerald', percentage: (riskDistribution.low / totalStudents) * 100 },
-            { level: 'Medium Risk', count: riskDistribution.medium, color: 'amber', percentage: (riskDistribution.medium / totalStudents) * 100 },
-            { level: 'High Risk', count: riskDistribution.high, color: 'rose', percentage: (riskDistribution.high / totalStudents) * 100 }
-          ],
-          weeklyTrend,
-          severityDistribution
-        });
-
-
+        if (riskLevel !== 'low') {
+          atRiskStudentsList.push({
+            name: student.full_name || student.lrn,
+            lrn: student.lrn,
+            riskLevel,
+            attendanceRate,
+            negativeEvents: studentStats.negative,
+            positiveEvents: studentStats.positive
+          });
+        }
       }
+
+      setAtRiskStudents(atRiskStudentsList);
+
+      setBehavioralStats({
+        totalEvents: behavioralEvents.length,
+        positiveEvents,
+        negativeEvents,
+        studentsAtRisk,
+        categoryBreakdown: typeBreakdown,
+        riskDistribution: [
+          { level: 'Low Risk', count: riskDistribution.low, color: 'emerald', percentage: (riskDistribution.low / totalStudents) * 100 },
+          { level: 'Medium Risk', count: riskDistribution.medium, color: 'amber', percentage: (riskDistribution.medium / totalStudents) * 100 },
+          { level: 'High Risk', count: riskDistribution.high, color: 'rose', percentage: (riskDistribution.high / totalStudents) * 100 }
+        ],
+        weeklyTrend,
+        severityDistribution
+      });
 
     } catch (error) {
       console.error('Error fetching analytics data:', error);

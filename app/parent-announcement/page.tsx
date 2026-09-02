@@ -14,7 +14,7 @@ import ParentAnnouncementSkeleton from '@/components/parent-announcement-skeleto
 import { fetchActiveSchoolEvents, ensureUpcomingSchoolEventReminders, type SchoolEvent } from '@/lib/school-events';
 import { toast } from '@/hooks/use-toast';
 import { createRoleNotification, fetchRoleNotifications, type RoleNotification } from '@/lib/role-notifications';
-import { supabase } from '@/lib/supabase';
+import { fetchAllSupabaseRows, supabase } from '@/lib/supabase';
 import { getParentStudents } from '@/lib/parent-data';
 import { formatTime12h } from '@/lib/time-format';
 
@@ -260,12 +260,13 @@ export default function ParentAnnouncementPage() {
 
         const noClassAnnouncements = supabase
           ? await (async () => {
-              const { data: rows } = await supabase
-                .from('attendance_logs')
-                .select('date, attendance_status, created_at')
-                .in('attendance_status', ['holiday', 'cancelled_class'])
-                .order('date', { ascending: false })
-                .limit(200);
+              const { data: rows } = await fetchAllSupabaseRows<any>(
+                supabase
+                  .from('attendance_logs')
+                  .select('date, attendance_status, created_at')
+                  .in('attendance_status', ['holiday', 'cancelled_class'])
+                  .order('date', { ascending: false })
+              );
 
               const seen = new Set<string>();
               return (rows || [])

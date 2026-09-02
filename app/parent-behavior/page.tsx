@@ -15,7 +15,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getParentStudents } from '@/lib/parent-data';
-import { supabase } from '@/lib/supabase';
+import { fetchAllSupabaseRows, supabase } from '@/lib/supabase';
 import { formatReporterLabel, humanizeEventType } from '@/lib/event-types';
 import { toast } from '@/hooks/use-toast';
 import { GraduationCap, Search } from 'lucide-react';
@@ -196,18 +196,18 @@ export default function ParentBehaviorPage() {
         const events: any = {};
         const achievements: any = {};
         for (const child of data) {
-          const { data: behEvents } = await supabase
+          const { data: behEvents } = await fetchAllSupabaseRows<any>(supabase
             .from('behavioral_events')
             .select('*')
             .eq('student_lrn', child.lrn)
             .in('guidance_status', ['approved', 'approved_for_ml'])
-            .order('event_date', { ascending: false });
+            .order('event_date', { ascending: false }));
 
-          const { data: achievementEvents } = await supabase
+          const { data: achievementEvents } = await fetchAllSupabaseRows<any>(supabase
             .from('achievements')
             .select('*')
             .eq('student_lrn', child.lrn)
-            .order('achievement_date', { ascending: false });
+            .order('achievement_date', { ascending: false }));
 
           events[child.lrn] = behEvents || [];
           achievements[child.lrn] = achievementEvents || [];

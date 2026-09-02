@@ -5,8 +5,9 @@ import { Sidebar, SidebarContext } from "@/components/sidebar"
 import { Header } from "@/components/header"
 import { MobileBottomNavbar } from "@/components/mobile-bottom-navbar"
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt"
-import { useContext, useState, useEffect } from "react"
+import { useContext, useState, useEffect, useRef } from "react"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { usePathname } from "next/navigation"
 
 // DashboardLayout provides sidebar context and enforces layout structure
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -58,6 +59,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { collapsed } = useContext(SidebarContext)
   const isMobile = useIsMobile()
+  const pathname = usePathname()
+  const mainRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
+  }, [pathname])
 
   const fadeInUp = `
     @keyframes fadeInUp {
@@ -101,7 +111,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       
       <div className="flex flex-col min-h-screen">
         <Header />
-        <main className="flex-1 overflow-auto px-4 pb-24 pt-4 sm:px-6 sm:pt-6 md:pb-6 lg:px-10 lg:pb-6">
+        <main ref={mainRef} className="flex-1 overflow-auto px-4 pb-24 pt-4 sm:px-6 sm:pt-6 md:pb-6 lg:px-10 lg:pb-6">
           <div className="max-w-7xl mx-auto">
             {children}
           </div>

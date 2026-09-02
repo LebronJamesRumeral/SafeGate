@@ -191,6 +191,27 @@ async function resolveSchoolYearEndDate() {
   return data?.end_date || null;
 }
 
+async function fetchAllRows<T>(query: any, pageSize = 1000): Promise<T[]> {
+  let offset = 0;
+  const allRows: T[] = [];
+
+  while (true) {
+    const { data, error } = await query.range(offset, offset + pageSize - 1);
+    if (error) {
+      throw error;
+    }
+
+    const page = (data || []) as T[];
+    allRows.push(...page);
+
+    if (page.length < pageSize) {
+      return allRows;
+    }
+
+    offset += page.length;
+  }
+}
+
 // Enforce consistent layout structure for attendance page
 export default function AttendancePage() {
   const { user } = useAuth();
@@ -262,22 +283,12 @@ export default function AttendancePage() {
         studentsQuery = studentsQuery.eq('level', selectedLevel);
       }
 
-      const [studentsRes, resolvedEnd] = await Promise.all([
-        studentsQuery,
+      const [studentsData, resolvedEnd] = await Promise.all([
+        fetchAllRows<any>(studentsQuery),
         resolveSchoolYearEndDate()
       ]);
 
-      const { data: studentsData, error: studentsError } = studentsRes || {};
       const schoolYearData = { end_date: resolvedEnd };
-
-      if (studentsError) {
-        toast({
-          title: 'Failed to fetch students',
-          description: studentsError.message || String(studentsError),
-          variant: 'destructive',
-        });
-        throw studentsError;
-      }
 
       const sortedStudents = sortByLevel((studentsData || []).filter((student) => isActiveStudentStatus(student.status)));
 
@@ -374,11 +385,13 @@ export default function AttendancePage() {
             ...(attendanceData || []).map((a: any) => a.student_lrn),
           ]));
 
-          const schedulesPromise = supabase
-            .from('student_attendance_schedules')
-            .select('student_lrn, entry_time')
-            .in('student_lrn', sortedStudents.map(s => s.lrn))
-            .eq('is_active', true);
+          const schedulesPromise = fetchAllRows<any>(
+            supabase
+              .from('student_attendance_schedules')
+              .select('student_lrn, entry_time')
+              .in('student_lrn', sortedStudents.map(s => s.lrn))
+              .eq('is_active', true)
+          );
 
           const summerPromise = lrns.length > 0
             ? supabase
@@ -387,18 +400,19 @@ export default function AttendancePage() {
                 .in('student_lrn', lrns)
             : Promise.resolve({ data: null, error: null });
 
-          const notesPromise = supabase
-            .from('parent_attendance_notes')
-            .select('attendance_log_id, student_lrn, parent_email, note_text, created_at')
-            .in('student_lrn', sortedStudents.map(s => s.lrn));
+          const notesPromise = fetchAllRows<any>(
+            supabase
+              .from('parent_attendance_notes')
+              .select('attendance_log_id, student_lrn, parent_email, note_text, created_at')
+              .in('student_lrn', sortedStudents.map(s => s.lrn))
+          );
 
-          const [schedulesRes, summerRes, notesRes] = await Promise.all([schedulesPromise, summerPromise, notesPromise]);
+          const [schedules, summerRes, notesRes] = await Promise.all([schedulesPromise, summerPromise, notesPromise]);
 
-          const { data: schedules, error: schedulesError } = schedulesRes || {};
           const { data: summerData, error: summerError } = summerRes || {};
-          notesData = (notesRes || {}).data || null;
+          notesData = notesRes || null;
 
-          if (!schedulesError && schedules) {
+          if (Array.isArray(schedules)) {
             const scheduleMap: Record<string, string | null> = {};
             for (const schedule of schedules) {
               scheduleMap[schedule.student_lrn] = schedule.entry_time;
@@ -564,13 +578,13 @@ export default function AttendancePage() {
 
   const sortedLogs = useMemo(() => {
     return [...logs].sort((a, b) => {
+      const byDate = String(b.date || '').localeCompare(String(a.date || ''));
+      if (byDate !== 0) return byDate;
+
       const nameA = String(studentMap[a.student_lrn]?.name || a.student_lrn || '').toLowerCase();
       const nameB = String(studentMap[b.student_lrn]?.name || b.student_lrn || '').toLowerCase();
       const byName = nameA.localeCompare(nameB);
       if (byName !== 0) return byName;
-
-      const byDate = String(b.date || '').localeCompare(String(a.date || ''));
-      if (byDate !== 0) return byDate;
 
       return String(b.check_in_time || '').localeCompare(String(a.check_in_time || ''));
     });
@@ -676,7 +690,13 @@ export default function AttendancePage() {
   // The attendance summary table no longer renders a selected-student detail panel.
   const selectedStudentSummary = null;
 
-  const totalAbsences = summaryRows.reduce((sum, row) => sum + row.absentDays, 0);
+  const totalAbsences = useMemo(() => {
+    return students.reduce((sum, student) => {
+      const presentDays = attendanceByStudent[student.lrn]?.size || 0;
+      return sum + Math.max(effectiveSchoolDays.length - presentDays, 0);
+    }, 0);
+  }, [students, attendanceByStudent, effectiveSchoolDays.length]);
+
   const totalCheckIns = logs.filter((log) => {
     const isCancelled = isNoClassStatus(log.attendance_status);
     return !isCancelled && log.is_present !== false;

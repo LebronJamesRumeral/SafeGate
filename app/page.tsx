@@ -44,6 +44,11 @@ function getWeatherDetails(code: number) {
   return { condition: 'Mostly cloudy', icon: Cloud };
 }
 
+function isActiveStudentStatus(status?: string | null) {
+  const normalized = (status ?? 'active').toString().trim().toLowerCase();
+  return normalized === 'active' || normalized === 'enrolled' || normalized === 'current' || normalized === 'on_roll' || normalized === 'student' || normalized === '' || normalized === 'null';
+}
+
 // Enforce consistent layout structure for dashboard
 export default function Dashboard() {
   const router = useRouter();
@@ -210,11 +215,12 @@ export default function Dashboard() {
           .lte('event_date', rangeEnd);
       }
 
-      // studentsActiveQuery is used by ML scoring; it does not depend on other queries
+      // studentsActiveQuery is used by ML scoring; it does not depend on other queries.
+      // Status normalization happens client-side so enrolled/current/on_roll/blank rows
+      // are treated as active without missing valid roster entries.
       const studentsActiveQuery = supabase
         .from('students')
-        .select('lrn, level, risk_level')
-        .eq('status', 'active');
+        .select('lrn, level, risk_level, status');
 
       // Execute independent queries in parallel
       const [studentsRes, attendanceRes, behavioralRes, studentsActiveRes] = await Promise.all([
@@ -229,27 +235,38 @@ export default function Dashboard() {
       const { data: behavioralEvents, error: behavioralError } = behavioralRes || {};
       const { data: studentsActiveData, error: studentsActiveError } = studentsActiveRes || {};
 
+      const studentsList = (students || []) as any[];
+      const attendanceList = (attendance || []) as any[];
+      const behavioralList = (behavioralEvents || []) as any[];
+      const activeStudentsForRiskList = (studentsActiveData || []) as any[];
+
       if (studentsError) {
         setLoading(false);
         return;
       }
-      const totalStudents = students?.length || 0;
+
+      const activeStudents = studentsList.filter((student: any) => isActiveStudentStatus(student.status));
+      const totalStudents = activeStudents.length;
 
       if (attendanceError) {
         setLoading(false);
         return;
       }
 
-      // Filter by level if selected
-      let filteredAttendance = attendance || [];
-      if (selectedLevel !== 'all') {
-        filteredAttendance = filteredAttendance.filter(a => a.students?.level === selectedLevel);
-      }
+      // Single cleaned attendance filter: level-aware, no synthetic cancelled/holiday rows,
+      // and no rows marked absent by the scan system.
+      const filteredAttendance: any[] = attendanceList.filter((a: any) => {
+        if (selectedLevel !== 'all' && a.students?.level !== selectedLevel) return false;
+        const status = String(a.attendance_status || '').trim().toLowerCase();
+        if (status === 'cancelled_class' || status === 'holiday') return false;
+        if (a.is_present === false) return false;
+        return true;
+      });
 
-      // Calculate stats
+      // Calculate stats from the cleaned attendance array
       const totalPresent = new Set(filteredAttendance.map(a => a.student_lrn)).size;
       const totalCheckIns = filteredAttendance.length;
-      
+
       const lateArrivals = filteredAttendance.filter(a => {
         const checkInTime = new Date(a.check_in_time);
         const hours = checkInTime.getHours();
@@ -308,14 +325,14 @@ export default function Dashboard() {
         .slice(0, 4);
       setTopGrades(topGradesData);
 
-      if (!behavioralError && behavioralEvents) {
-        let filteredBehavioral = behavioralEvents;
+      if (!behavioralError && behavioralList.length > 0) {
+        let filteredBehavioral: any[] = behavioralList;
         if (selectedLevel !== 'all') {
-          filteredBehavioral = behavioralEvents.filter(e => e.students?.level === selectedLevel);
+          filteredBehavioral = behavioralList.filter((e: any) => e.students?.level === selectedLevel);
         }
 
-        const positiveEvents = filteredBehavioral.filter(e => e.severity === 'positive').length;
-        const negativeEvents = filteredBehavioral.filter(e => 
+        const positiveEvents = filteredBehavioral.filter((e: any) => e.severity === 'positive').length;
+        const negativeEvents = filteredBehavioral.filter((e: any) => 
           e.severity === 'major' || e.severity === 'critical'
         ).length;
 
@@ -325,9 +342,11 @@ export default function Dashboard() {
         try {
           if (studentsActiveError) throw studentsActiveError;
 
+          const activeStudentsForRisk = activeStudentsForRiskList.filter((student: any) => isActiveStudentStatus(student.status));
+
           // Use stored risk_level from the students table (already calculated by update_student_summary)
-          if (studentsActiveData && studentsActiveData.length > 0) {
-            studentsActiveData.forEach((student: any) => {
+          if (activeStudentsForRisk.length > 0) {
+            activeStudentsForRisk.forEach((student: any) => {
               const riskLevel = String(student.risk_level || 'low').toLowerCase();
               if (riskLevel === 'critical') {
                 criticalRiskStudents++;
@@ -341,7 +360,7 @@ export default function Dashboard() {
           // Fallback: Simple calculation based on behavioral events
           console.warn('Risk level data unavailable, using fallback method:', riskError);
           const studentEventMap = new Map();
-          filteredBehavioral.forEach(event => {
+          filteredBehavioral.forEach((event: any) => {
             const lrn = event.student_lrn;
             if (!studentEventMap.has(lrn)) {
               studentEventMap.set(lrn, { negative: 0, positive: 0 });
@@ -365,7 +384,7 @@ export default function Dashboard() {
 
         // Compute category distribution
         const categoryMap = new Map<string, number>();
-        filteredBehavioral.forEach(event => {
+        filteredBehavioral.forEach((event: any) => {
           const category = event.event_categories?.category_type || event.category_type || event.event_type || 'Other';
           categoryMap.set(category, (categoryMap.get(category) || 0) + 1);
         });

@@ -125,6 +125,11 @@ function getAllowedRiskLevels(threshold: MLRiskThreshold): Set<string> {
   }
 }
 
+function isActiveStudentStatus(status?: string | null) {
+  const normalized = (status ?? 'active').toString().trim().toLowerCase();
+  return normalized === 'active' || normalized === 'enrolled' || normalized === 'current' || normalized === 'on_roll' || normalized === 'student' || normalized === '' || normalized === 'null';
+}
+
 function getSeverityStyle(severity: string): { 
   badge: string; 
   border: string; 
@@ -858,26 +863,31 @@ export function MLDashboard() {
           try {
             const { data: studentsData, error: studentsError } = await supabase
               .from('students')
-              .select('lrn, name, parent_contact, level, risk_level')
-              .eq('status', 'active')
-              .in('risk_level', ['high', 'critical', 'medium'])
-              .limit(100);
+              .select('lrn, name, parent_contact, level, risk_level, status')
+              .in('risk_level', ['high', 'critical', 'medium']);
 
             if (!studentsError && studentsData && studentsData.length > 0) {
-              const mapped = studentsData.map((s: any) => ({
-                lrn: s.lrn,
-                name: s.name || 'Unknown',
-                parentContact: s.parent_contact || 'N/A',
-                riskLevel: (s.risk_level || 'low') as any,
-                behaviorStatus: 'watch' as any,
-                concerningEvents: 0,
-                positiveEvents: 0,
-                patternType: '',
-                attendanceSignal: '',
-                nextAbsentDate: null,
-                predictionConfidence: 0,
-                class_level: s.level,
-              }));
+              const activeStudentsData = studentsData.filter((student: any) => isActiveStudentStatus(student.status));
+
+              const mapped = activeStudentsData
+                .map((s: any) => ({
+                  lrn: s.lrn,
+                  name: s.name || 'Unknown',
+                  parentContact: s.parent_contact || 'N/A',
+                  riskLevel: (s.risk_level || 'low') as any,
+                  behaviorStatus: 'watch' as any,
+                  concerningEvents: 0,
+                  positiveEvents: 0,
+                  patternType: '',
+                  attendanceSignal: '',
+                  nextAbsentDate: null,
+                  predictionConfidence: 0,
+                  class_level: s.level,
+                }))
+                .sort((a: any, b: any) => {
+                  const severityWeight: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0 };
+                  return (severityWeight[b.riskLevel] ?? 0) - (severityWeight[a.riskLevel] ?? 0);
+                });
 
               setHighRiskStudents(mapped);
               setHasLoadedOnce(true);

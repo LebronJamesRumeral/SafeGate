@@ -95,6 +95,16 @@ export default function ParentDashboard() {
     );
   });
 
+  const attendanceRecordCount = Object.values(attendanceLogs).reduce((acc: number, logs: any) => {
+    if (!Array.isArray(logs)) return acc;
+    return acc + logs.filter((log: any) => {
+      const status = String(log.attendance_status || '').trim().toLowerCase();
+      if (status === 'cancelled_class' || status === 'holiday') return false;
+      if (log.is_present === false) return false;
+      return true;
+    }).length;
+  }, 0);
+
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in-up px-2 sm:px-0">
@@ -135,7 +145,7 @@ export default function ParentDashboard() {
               <div className="flex-1 min-w-0">
                 <p className="text-[8px] sm:text-[9px] md:text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Attendance Records</p>
                 <div className="text-base sm:text-lg md:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{
-                  Object.values(attendanceLogs).reduce((acc: number, logs: any) => acc + (Array.isArray(logs) ? logs.length : 0), 0)
+                  attendanceRecordCount
                 }</div>
                 <p className="text-[7px] sm:text-[8px] md:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Total attendance logs</p>
               </div>

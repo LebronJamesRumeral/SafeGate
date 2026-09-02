@@ -130,10 +130,12 @@ export default function ParentAttendancePage() {
 
           const existingLogs = (attLogs || []).slice();
           const presentDates = new Set<string>();
+          const loggedDates = new Set<string>();
           const isNoClassStatus = (s: any) => ['cancelled_class', 'holiday'].includes(String(s || '').toLowerCase());
           for (const l of existingLogs) {
             const d = String(l.date || '').slice(0, 10);
             if (!d) continue;
+            loggedDates.add(d);
             // treat only actual check-ins as present
             if (isNoClassStatus(l.attendance_status)) continue;
             if (l.is_present === false) continue;
@@ -144,7 +146,7 @@ export default function ParentAttendancePage() {
           const syntheticAbsents: any[] = [];
           for (const d of recentSchoolDays) {
             if (schoolYearEnd && d > schoolYearEnd) continue;
-            if (!presentDates.has(d)) {
+            if (!loggedDates.has(d) && !presentDates.has(d)) {
               syntheticAbsents.push({
                 id: `abs-${child.lrn}-${d}`,
                 student_lrn: child.lrn,

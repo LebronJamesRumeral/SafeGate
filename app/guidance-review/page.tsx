@@ -28,7 +28,7 @@ import {
   SelectLabel,
   SelectSeparator
 } from '@/components/ui/select';
-import { supabase } from '@/lib/supabase';
+import { fetchAllSupabaseRows, supabase } from '@/lib/supabase';
 import { formatReporterLabel, humanizeEventType } from '@/lib/event-types';
 import { formatTime12h } from '@/lib/time-format';
 import { toast } from '@/hooks/use-toast';
@@ -198,6 +198,11 @@ function computeCombinedBehaviorScore(suggestedScore: number, guidanceScore: num
   return clampScore((suggestedScore + guidanceScore) / 2);
 }
 
+function isActiveStudentStatus(status?: string | null) {
+  const normalized = (status ?? 'active').toString().trim().toLowerCase();
+  return normalized === 'active' || normalized === 'enrolled' || normalized === 'current' || normalized === 'on_roll' || normalized === 'student' || normalized === '' || normalized === 'null';
+}
+
 function deriveGuidanceInputFromFinalScore(suggestedScore: number, finalScore: number) {
   return clampScore(finalScore * 2 - suggestedScore);
 }
@@ -355,12 +360,11 @@ export default function GuidanceReviewPage() {
       const { data, error } = await supabase
         .from('students')
         .select('lrn, name, level, status')
-        .eq('status', 'active')
         .order('name', { ascending: true });
 
       if (error) throw error;
 
-      const loaded = (data || []) as StudentRecord[];
+      const loaded = ((data || []) as StudentRecord[]).filter((student) => isActiveStudentStatus(student.status));
       setStudents(loaded);
 
       // Keep details empty by default until the user explicitly selects a student.
@@ -396,21 +400,23 @@ export default function GuidanceReviewPage() {
         setLoadingDetails(true);
       }
       const [eventsResult, attendanceResult] = await Promise.all([
-        supabase
-          .from('behavioral_events')
-          .select(
-            'id, student_lrn, event_type, severity, description, proof_image_url, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, guidance_score_input, guidance_behavior_score, created_at'
-          )
-          .eq('student_lrn', studentLrn)
-          .order('created_at', { ascending: false })
-          .limit(200),
-        supabase
-          .from('attendance_logs')
-          .select('id, student_lrn, date, check_in_time, check_out_time, created_at')
-          .eq('student_lrn', studentLrn)
-          .order('date', { ascending: false })
-          .order('check_in_time', { ascending: false })
-          .limit(200),
+        fetchAllSupabaseRows<any>(
+          supabase
+            .from('behavioral_events')
+            .select(
+              'id, student_lrn, event_type, severity, description, proof_image_url, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, guidance_score_input, guidance_behavior_score, created_at'
+            )
+            .eq('student_lrn', studentLrn)
+            .order('created_at', { ascending: false })
+        ),
+        fetchAllSupabaseRows<any>(
+          supabase
+            .from('attendance_logs')
+            .select('id, student_lrn, date, check_in_time, check_out_time, created_at')
+            .eq('student_lrn', studentLrn)
+            .order('date', { ascending: false })
+            .order('check_in_time', { ascending: false })
+        ),
       ]);
 
       if (eventsResult.error) throw eventsResult.error;
@@ -447,14 +453,15 @@ export default function GuidanceReviewPage() {
       if (!isSilent) {
         setLoadingPending(true);
       }
-      const { data, error } = await supabase
-        .from('behavioral_events')
-        .select(
-          'id, student_lrn, event_type, severity, description, proof_image_url, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, guidance_score_input, guidance_behavior_score, created_at, students(name, level)'
-        )
-        .eq('guidance_status', 'pending_guidance')
-        .order('created_at', { ascending: false })
-        .limit(150);
+      const { data, error } = await fetchAllSupabaseRows<any>(
+        supabase
+          .from('behavioral_events')
+          .select(
+            'id, student_lrn, event_type, severity, description, proof_image_url, event_date, event_time, location, reported_by, guidance_status, guidance_reviewed_by, guidance_reviewed_at, guidance_intervention_notes, guidance_score_input, guidance_behavior_score, created_at, students(name, level)'
+          )
+          .eq('guidance_status', 'pending_guidance')
+          .order('created_at', { ascending: false })
+      );
 
       if (error) throw error;
 
@@ -493,14 +500,13 @@ export default function GuidanceReviewPage() {
         )
         .eq('guidance_status', 'approved_for_ml')
         .order('event_date', { ascending: false })
-        .order('event_time', { ascending: false })
-        .limit(500);
+        .order('event_time', { ascending: false });
 
       if (approvedDateFrom) query = query.gte('event_date', approvedDateFrom);
       if (approvedDateTo) query = query.lte('event_date', approvedDateTo);
       if (approvedStudentSelection.length > 0) query = query.in('student_lrn', approvedStudentSelection);
 
-      const { data, error } = await query;
+      const { data, error } = await fetchAllSupabaseRows<any>(query);
       if (error) throw error;
 
       const normalized = ((data || []) as BehavioralEventRecord[]).map((event) => ({

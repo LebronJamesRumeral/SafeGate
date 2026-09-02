@@ -382,6 +382,11 @@ function SchoolHeatmapContent() {
   const isAdmin = user?.role === 'admin';
 
   const { zones, loading: zonesLoading, loadZones, addZone, updateZone, deleteZone } = useHeatmapZones();
+  const [pendingZoneEdits, setPendingZoneEdits] = useState<Record<number, Partial<HeatZone>>>({});
+  const displayZones = useMemo(
+    () => zones.map((zone) => ({ ...zone, ...(pendingZoneEdits[zone.id] ?? {}) })),
+    [zones, pendingZoneEdits]
+  );
   // Handle select all toggle
   useEffect(() => {
     if (selectAll) {
@@ -416,19 +421,16 @@ function SchoolHeatmapContent() {
 
   // Load zones from Supabase on mount
   React.useEffect(() => {
-    loadZones().then(() => {
-      // Set default selected zone
-      if (zones && zones.length > 0) setSelectedZoneId(zones[0].id);
-    });
+    void loadZones();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Update selectedZoneId if zones change and selected is missing
   React.useEffect(() => {
-    if (zones.length > 0 && (selectedZoneId == null || !zones.some(z => z.id === selectedZoneId))) {
-      setSelectedZoneId(zones[0].id);
+    if (displayZones.length > 0 && (selectedZoneId == null || !displayZones.some(z => z.id === selectedZoneId))) {
+      setSelectedZoneId(displayZones[0].id);
     }
-  }, [zones, selectedZoneId]);
+  }, [displayZones, selectedZoneId]);
 
   useEffect(() => {
     void fetchData();
@@ -451,8 +453,9 @@ function SchoolHeatmapContent() {
 
       if (daysFilter !== 'all') {
         const days = Number(daysFilter);
-        const fromDate = new Date();
-        fromDate.setDate(fromDate.getDate() - days);
+        const now = new Date();
+        const utcNow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+        const fromDate = new Date(Date.UTC(utcNow.getUTCFullYear(), utcNow.getUTCMonth(), utcNow.getUTCDate() - days));
         const dateKey = fromDate.toISOString().split('T')[0];
         query = query.gte('event_date', dateKey);
       }
@@ -482,7 +485,7 @@ function SchoolHeatmapContent() {
     }
   };
   const zoneAnalytics = useMemo(() => {
-    return zones.map((zone) => {
+    return displayZones.map((zone) => {
       const zoneLogs = logs.filter((log) => isLogInZone(log, zone));
       const score = zoneLogs.reduce((acc, log) => acc + SEVERITY_WEIGHT[getResolvedSeverity(log)], 0);
 
@@ -533,11 +536,11 @@ function SchoolHeatmapContent() {
 
   const isInitialHeatmapLoad = loading && logs.length === 0;
 
-  const totalPages = Math.ceil(zones.length / itemsPerPage);
+  const totalPages = Math.ceil(displayZones.length / itemsPerPage);
   const paginatedZones = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
-    return zones.slice(startIndex, startIndex + itemsPerPage);
-  }, [zones, currentPage, itemsPerPage]);
+    return displayZones.slice(startIndex, startIndex + itemsPerPage);
+  }, [displayZones, currentPage, itemsPerPage]);
 
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
@@ -682,7 +685,7 @@ function SchoolHeatmapContent() {
       const dxPercent = ((event.clientX - zoneDragState.startClientX) / mapRect.width) * 100;
       const dyPercent = ((event.clientY - zoneDragState.startClientY) / mapRect.height) * 100;
 
-      const zone = zones.find((z) => z.id === zoneDragState.zoneId);
+      const zone = displayZones.find((z) => z.id === zoneDragState.zoneId);
       if (!zone) return;
 
       let updates: Partial<HeatZone> = {};
@@ -696,11 +699,25 @@ function SchoolHeatmapContent() {
         const nextHeight = Math.max(minSize, Math.min(100 - zone.top, zoneDragState.initialHeight + dyPercent));
         updates = { width: Number(nextWidth.toFixed(2)), height: Number(nextHeight.toFixed(2)) };
       }
-      // Persist update to Supabase
-      updateZone(zone.id, updates);
+
+      setPendingZoneEdits((prev) => ({
+        ...prev,
+        [zone.id]: {
+          ...(prev[zone.id] ?? {}),
+          ...updates,
+        },
+      }));
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = async () => {
+      const zone = displayZones.find((z) => z.id === zoneDragState.zoneId);
+      if (zone) {
+        const pendingUpdates = pendingZoneEdits[zone.id] ?? {};
+        if (Object.keys(pendingUpdates).length > 0) {
+          await updateZone(zone.id, pendingUpdates);
+        }
+      }
+      setPendingZoneEdits({});
       setZoneDragState(null);
     };
 
@@ -712,7 +729,7 @@ function SchoolHeatmapContent() {
       window.removeEventListener('mouseup', handleMouseUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoneDragState, zones]);
+  }, [zoneDragState, displayZones, pendingZoneEdits, updateZone]);
 
   // ...rest of the component remains unchanged, but use zones from context
 
