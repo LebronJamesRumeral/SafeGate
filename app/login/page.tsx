@@ -313,11 +313,6 @@ export default function LoginPage() {
       return;
     }
     clearCooldown();
-    showToast({
-      title: 'Login Successful',
-      description: `Welcome, ${role === 'parent' ? 'Parent' : role.charAt(0).toUpperCase() + role.slice(1)}!`,
-      variant: 'default',
-    });
     setLoading(false);
   };
 

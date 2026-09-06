@@ -43,9 +43,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       router.push('/login');
     }
     setLoading(false);
-  }, [pathname, router]);
+  }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
+    setLoading(true);
     try {
       if (!supabase) {
         console.error('Supabase client is not configured');
@@ -85,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         console.warn('Authentication cookie not set: user has declined cookies');
       }
+      sessionStorage.setItem('safegate_just_logged_in', role);
       // Redirect parent to /parent, others to home
       if (role === 'parent') {
         router.push('/parent');
@@ -95,14 +97,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Login error:', error);
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
   const logout = () => {
+    setLoading(true);
     setUser(null);
     localStorage.removeItem('safegate_user');
+    sessionStorage.removeItem('safegate_just_logged_in');
     Cookies.remove('safegate_user');
     router.push('/login');
+    setLoading(false);
   };
 
   return (
