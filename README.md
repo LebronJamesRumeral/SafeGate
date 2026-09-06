@@ -1,10 +1,20 @@
 
 # SafeGate - Attendance & Behavior Analytics Platform
 
-A modern, production-ready platform combining a responsive Next.js frontend with a robust FastAPI backend for comprehensive attendance tracking and behavioral analytics, including intelligent schedule-based attendance validation and ML risk scoring.
+A production-ready platform combining a responsive Next.js frontend with a FastAPI backend for comprehensive attendance tracking and behavioral analytics, including schedule-based attendance validation and ML risk scoring.
 
-**Status:** Production-Ready | **Version:** 2.0 (Schedule System Integrated)
-**Last Updated:** April 2026
+**Status:** Production-Ready | **Version:** 2.1 (Mobile Auth and PWA Experience)
+**Last Updated:** September 2026
+
+### Current Release Highlights
+
+- Supabase Auth-based login and role-aware routing for administrators, teachers, guidance personnel, and parents.
+- Auth transition loading state shared across login, logout, and session restoration.
+- Branded mobile loading shell with a three-second animated progress bar and staggered skeleton animations.
+- Dashboard reveal synchronized with both authentication completion and the loading-bar completion event.
+- Login-success toast deferred until the dashboard is visible, with a one-time session flag to prevent repeats.
+- Installable PWA experience with responsive layouts, service-worker registration, offline queue support, and mobile navigation.
+- FastAPI REST API with attendance, behavior, student, risk, health, and schedule-related services.
 
 ---
 
@@ -326,7 +336,7 @@ curl http://localhost:8000/api/students
 │  └──────────────────────────────────────────────────────┘   │
 └──────────────────────┬──────────────────────────────────────┘
                        │
-                       │ REST API (HTTP/HTTPS)
+                       │ REST API through Next.js proxy (HTTP/HTTPS)
                        │
 ┌──────────────────────▼──────────────────────────────────────┐
 │                    APPLICATION LAYER                        │
@@ -361,7 +371,7 @@ curl http://localhost:8000/api/students
 1. User clicks button in web browser
 2. React component calls API (lib/api.ts)
 3. Request goes to http://localhost:3000/api/...
-4. Next.js proxy (app/api/[...path]/route.ts) forwards to backend
+4. Next.js proxy (app/api/[...path]/route.ts) forwards to the configured FastAPI backend
 5. FastAPI receives at http://localhost:8000/api/...
 6. Router finds matching endpoint
 7. Service layer executes business logic
@@ -374,9 +384,9 @@ curl http://localhost:8000/api/students
 
 | Layer | Technology | Version |
 |-------|-----------|---------|
-| **Frontend Framework** | Next.js | 14+ |
+| **Frontend Framework** | Next.js | 16 |
 | **Frontend Language** | TypeScript | Latest |
-| **Frontend UI** | React | 18+ |
+| **Frontend UI** | React | 19 |
 | **Frontend Styling** | Tailwind CSS | Latest |
 | **Backend Framework** | FastAPI | 0.104+ |
 | **Backend Language** | Python | 3.8+ |
@@ -1185,6 +1195,18 @@ python verify_setup.py
 
 ## 🚀 Deployment Guide
 
+### Current Production Topology
+
+The production system is deployed as two application services with Supabase as the managed data and authentication platform:
+
+- **Frontend:** Next.js application deployed to a Node.js-compatible frontend host such as Vercel.
+- **Backend:** FastAPI/Uvicorn service deployed separately, currently configured by default to use `https://safegate-pg3g.onrender.com` when `NEXT_PUBLIC_BACKEND_URL` is not provided.
+- **Database and authentication:** Supabase PostgreSQL and Supabase Auth.
+- **API access:** Browser requests use the Next.js `/api/[...path]` proxy, which forwards them to the FastAPI backend.
+- **Mobile delivery:** The frontend is installable as a PWA through `public/manifest.json` and registers `public/sw.js`.
+
+Set `NEXT_PUBLIC_BACKEND_URL` explicitly in the frontend hosting environment when using a different backend host. Do not rely on the fallback URL for a new production deployment without confirming that it is the intended service.
+
 ### Prepare for Production
 
 #### 1. Update `.env` Settings
@@ -1222,7 +1244,7 @@ python main.py
 
 ### Deployment Options
 
-#### Option 1: Vercel + Railway (Recommended)
+#### Option 1: Vercel + Railway
 
 **Frontend to Vercel:**
 1. Push code to GitHub
@@ -1237,9 +1259,25 @@ python main.py
 4. Deploy
 5. Get public URL and update Frontend URL
 
-#### Option 2: Docker
+#### Option 2: Vercel + Render
 
-**Create backend Dockerfile:**
+This matches the backend URL currently used by the frontend fallback configuration.
+
+**Frontend to Vercel:**
+1. Connect the repository to Vercel.
+2. Set `NEXT_PUBLIC_BACKEND_URL` to the deployed Render backend URL.
+3. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+4. Deploy the Next.js application.
+
+**Backend to Render:**
+1. Create a Web Service from the repository and use `backend` as the root directory.
+2. Install dependencies from `backend/requirements.txt`.
+3. Start with `uvicorn main:app --host 0.0.0.0 --port $PORT`.
+4. Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FRONTEND_URL`, `ENVIRONMENT=production`, and `DEBUG=False`.
+
+#### Option 3: Docker
+
+**Backend Dockerfile:** `backend/Dockerfile`
 
 ```dockerfile
 FROM python:3.11-slim
@@ -1256,7 +1294,7 @@ docker build -t safegate-backend .
 docker run -p 8000:8000 -e SUPABASE_URL=... safegate-backend
 ```
 
-#### Option 3: Traditional Hosting
+#### Option 4: Traditional Hosting
 
 **Linux VPS Setup:**
 
@@ -1305,6 +1343,9 @@ Before deploying:
 - [ ] Set CORS origins correctly
 - [ ] Run full test suite
 - [ ] Get database credentials for production
+- [ ] Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the frontend host
+- [ ] Set `NEXT_PUBLIC_BACKEND_URL` to the intended deployed FastAPI service
+- [ ] Verify the PWA manifest, service worker, and production mobile loading flow
 
 ---
 
