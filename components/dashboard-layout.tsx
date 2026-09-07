@@ -36,7 +36,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <div className="w-16 sm:w-64 bg-slate-100 dark:bg-slate-900/80 border-r border-slate-200 dark:border-slate-800 animate-pulse" />
         <div className="flex-1 flex flex-col">
           <div className="h-16 bg-white/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 animate-pulse" />
-          <main className="flex-1 p-4 sm:p-8 bg-linear-to-br from-slate-50 via-white to-orange-50 dark:from-slate-950 dark:via-slate-900 dark:to-orange-950/30">
+          <main className="app-page-background flex-1 p-4 sm:p-8">
             {/* Children will be skeletons or loading UI */}
             {children}
           </main>
@@ -88,7 +88,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div 
-      className="relative flex-1 transition-all duration-300 overflow-hidden bg-linear-to-br from-white via-blue-50/30 to-orange-50/20 dark:from-slate-950 dark:via-slate-900/80 dark:to-slate-950"
+      className="app-page-background relative flex-1 transition-all duration-300 overflow-hidden"
       style={{
         marginLeft: isMobile ? '0px' : collapsed ? '80px' : '256px'
       }}>

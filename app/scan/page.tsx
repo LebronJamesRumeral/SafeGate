@@ -28,6 +28,7 @@ import {
   getAttendanceStatusDisplay,
 } from '@/lib/attendance-schedule-validation';
 import { TimePickerInput } from '@/components/time-picker-input';
+import { isSyntheticCancellationRecord } from '@/lib/attendance-status';
 
 interface ScanResult {
   status: 'success' | 'error';
@@ -546,7 +547,7 @@ export default function ScanPage() {
     const date = formatLocalDateKey(scanTime);
     const { data: existing, error: existingError } = await supabase
       .from('attendance_logs')
-      .select('id, check_in_time, check_out_time')
+      .select('id, check_in_time, check_in_temperature, check_out_time, attendance_status, cancellation_status, is_present')
       .eq('student_lrn', studentLrn)
       .eq('date', date)
       .order('check_in_time', { ascending: false })
@@ -594,6 +595,25 @@ export default function ScanPage() {
       return {
         action: 'Checked In' as const,
       };
+    }
+
+    if (isSyntheticCancellationRecord(existing[0])) {
+      const validation = validateAttendanceStatus(schedule, scanTime);
+      const { error } = await supabase
+        .from('attendance_logs')
+        .update({
+          check_in_time: scanIsoTime,
+          check_in_temperature: temperature ?? null,
+          check_out_time: null,
+          is_present: true,
+          attendance_status: validation.attendance_status,
+          is_late: validation.is_late,
+          is_invalid_timeout: false,
+        })
+        .eq('id', existing[0].id);
+
+      if (error) throw error;
+      return { action: 'Checked In' as const };
     }
 
     if (existing[0].check_out_time) {

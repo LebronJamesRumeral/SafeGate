@@ -67,6 +67,7 @@ import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
 import { supabase, type Student as BaseStudent } from '@/lib/supabase';
+import { getAttendanceStatusLabel, isCancellationStatus, isHolidayStatus } from '@/lib/attendance-status';
 
 // Extend Student type to include isLinked for local use
 type Student = BaseStudent & { isLinked?: boolean };
@@ -6009,11 +6010,9 @@ export default function StudentsPage() {
                                                           <tbody>
                                                             {paginated.map((entry: any) => {
                                                               const rawStatus = (entry.attendance_status || '').toLowerCase();
-                                                              const statusLabel = rawStatus
-                                                                ? (rawStatus === 'present' ? 'Present' : rawStatus === 'absent' ? 'Absent' : rawStatus === 'holiday' ? 'Holiday' : rawStatus === 'cancelled_class' ? 'Cancelled' : rawStatus === 'late' ? 'Late' : rawStatus)
-                                                                : (entry.is_present ? 'Present' : 'Absent');
+                                                              const statusLabel = rawStatus ? getAttendanceStatusLabel(rawStatus) : (entry.is_present ? 'Present' : 'Absent');
                                                               const noClass = isNoClassStatus(entry.attendance_status || entry.attendanceStatus);
-                                                              const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
+                                                              const badgeClass = isHolidayStatus(rawStatus) ? 'bg-sky-100 text-sky-700' : isCancellationStatus(rawStatus) ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
                                                               let isLate = false;
                                                               if (!noClass && entry.check_in_time && entry.is_present !== false) {
                                                                 const entryTimeFromSchedule = behavioralData?.entryTime;
@@ -6586,10 +6585,10 @@ export default function StudentsPage() {
                                 {attendance ? (
                                   (() => {
                                     const status = attendance.attendanceStatus;
-                                    if (status && isNoClassStatus(status)) {
+                                    if (status && (isNoClassStatus(status) || isCancellationStatus(status))) {
                                       const normalized = status.toLowerCase();
-                                      const label = normalized === 'holiday' ? 'Holiday' : 'Cancelled';
-                                      const badgeClass = normalized === 'holiday' ? 'bg-sky-100 text-sky-700 border-0 text-xs' : 'bg-slate-100 text-slate-700 border-0 text-xs';
+                                      const label = getAttendanceStatusLabel(normalized);
+                                      const badgeClass = isHolidayStatus(normalized) ? 'bg-sky-100 text-sky-700 border-0 text-xs' : 'bg-slate-100 text-slate-700 border-0 text-xs';
                                       return (
                                         <div className="flex flex-col gap-1">
                                           <Badge className={badgeClass}>{label}</Badge>
@@ -7525,11 +7524,9 @@ export default function StudentsPage() {
                                                           <tbody>
                                                             {paginated.map((entry: any) => {
                                                               const rawStatus = (entry.attendance_status || '').toLowerCase();
-                                                              const statusLabel = rawStatus
-                                                                ? (rawStatus === 'present' ? 'Present' : rawStatus === 'absent' ? 'Absent' : rawStatus === 'holiday' ? 'Holiday' : rawStatus === 'cancelled_class' ? 'Cancelled' : rawStatus === 'late' ? 'Late' : rawStatus)
-                                                                : (entry.is_present ? 'Present' : 'Absent');
+                                                              const statusLabel = rawStatus ? getAttendanceStatusLabel(rawStatus) : (entry.is_present ? 'Present' : 'Absent');
                                                               const noClass = isNoClassStatus(entry.attendance_status || entry.attendanceStatus);
-                                                              const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
+                                                              const badgeClass = isHolidayStatus(rawStatus) ? 'bg-sky-100 text-sky-700' : isCancellationStatus(rawStatus) ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
                                                               let isLate = false;
                                                               if (!noClass && entry.check_in_time && entry.is_present !== false) {
                                                                 const entryTimeFromSchedule = behavioralData?.entryTime;
@@ -9294,11 +9291,9 @@ export default function StudentsPage() {
                                                           <tbody>
                                                             {paginated.map((entry: any) => {
                                                               const rawStatus = (entry.attendance_status || '').toLowerCase();
-                                                              const statusLabel = rawStatus
-                                                                ? (rawStatus === 'present' ? 'Present' : rawStatus === 'absent' ? 'Absent' : rawStatus === 'holiday' ? 'Holiday' : rawStatus === 'cancelled_class' ? 'Cancelled' : rawStatus === 'late' ? 'Late' : rawStatus)
-                                                                : (entry.is_present ? 'Present' : 'Absent');
+                                                              const statusLabel = rawStatus ? getAttendanceStatusLabel(rawStatus) : (entry.is_present ? 'Present' : 'Absent');
                                                               const noClass = isNoClassStatus(entry.attendance_status || entry.attendanceStatus);
-                                                              const badgeClass = rawStatus === 'holiday' ? 'bg-sky-100 text-sky-700' : rawStatus === 'cancelled_class' ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
+                                                              const badgeClass = isHolidayStatus(rawStatus) ? 'bg-sky-100 text-sky-700' : isCancellationStatus(rawStatus) ? 'bg-slate-100 text-slate-700' : rawStatus === 'absent' ? 'bg-rose-100 text-rose-700' : rawStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700';
                                                               let isLate = false;
                                                               if (!noClass && entry.check_in_time && entry.is_present !== false) {
                                                                 const entryTimeFromSchedule = behavioralData?.entryTime;

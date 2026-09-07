@@ -17,6 +17,7 @@ import { fetchAllSupabaseRows, supabase } from '@/lib/supabase';
 import { humanizeEventType } from '@/lib/event-types';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { formatTime12h } from '@/lib/time-format';
+import { getAttendanceStatusLabel, isCancellationStatus, isHolidayStatus, isNoClassStatus, isSyntheticCancellationRecord } from '@/lib/attendance-status';
 import { Users, CheckCircle2, Clock3, XCircle, TrendingUp, AlertTriangle, Star, MinusCircle, FileText, CalendarDays, Shield, MapPin, UserRound, Bell } from 'lucide-react';
 import { motion } from "framer-motion";
 
@@ -131,7 +132,6 @@ export default function ParentAttendancePage() {
           const existingLogs = (attLogs || []).slice();
           const presentDates = new Set<string>();
           const loggedDates = new Set<string>();
-          const isNoClassStatus = (s: any) => ['cancelled_class', 'holiday'].includes(String(s || '').toLowerCase());
           for (const l of existingLogs) {
             const d = String(l.date || '').slice(0, 10);
             if (!d) continue;
@@ -561,10 +561,12 @@ export default function ParentAttendancePage() {
         if (status === 'present') acc.present += 1;
         else if (status === 'late') acc.late += 1;
         else if (status === 'absent') acc.absent += 1;
+        else if (isCancellationStatus(status)) acc.cancelled += 1;
+        else if (isHolidayStatus(status)) acc.holiday += 1;
       }
       return acc;
     },
-    { present: 0, late: 0, absent: 0 }
+    { present: 0, late: 0, absent: 0, cancelled: 0, holiday: 0 }
   );
 
   return (
@@ -672,7 +674,7 @@ export default function ParentAttendancePage() {
 
         {/* Attendance Summary */}
         <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4 mb-6">
             <Card className="border-0 bg-linear-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
               <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/15 dark:bg-emerald-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />
               <CardContent className="p-2.5 sm:p-4 flex items-start justify-between gap-4 relative z-10">
@@ -717,6 +719,34 @@ export default function ParentAttendancePage() {
               </CardContent>
               <div className="h-1 w-full bg-linear-to-r from-red-400 to-red-600 dark:from-red-500 dark:to-red-700" />
             </Card>
+
+            <Card className="border-0 bg-linear-to-br from-slate-50 to-white dark:from-slate-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+              <CardContent className="p-2.5 sm:p-4 flex items-start justify-between gap-4 relative z-10">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] sm:text-[10px] text-slate-600 dark:text-slate-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Cancelled</p>
+                  <div className="text-lg sm:text-2xl font-bold text-slate-600 dark:text-slate-300 leading-tight">{attendanceSummary.cancelled}</div>
+                  <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Full or half day</p>
+                </div>
+                <div className="hidden md:flex shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-slate-500 text-white items-center justify-center shadow-md group-hover:scale-105 transition-all duration-300">
+                  <CalendarDays className="w-5 h-5 sm:w-6 sm:h-6" />
+                </div>
+              </CardContent>
+              <div className="h-1 w-full bg-linear-to-r from-slate-400 to-slate-600" />
+            </Card>
+
+            <Card className="border-0 bg-linear-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
+              <CardContent className="p-2.5 sm:p-4 flex items-start justify-between gap-4 relative z-10">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] sm:text-[10px] text-blue-600 dark:text-blue-400 font-semibold mb-0.5 uppercase tracking-wide leading-tight">Holiday</p>
+                  <div className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-300 leading-tight">{attendanceSummary.holiday}</div>
+                  <p className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">No class days</p>
+                </div>
+                <div className="hidden md:flex shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-blue-500 text-white items-center justify-center shadow-md group-hover:scale-105 transition-all duration-300">
+                  <CalendarDays className="w-5 h-5 sm:w-6 sm:h-6" />
+                </div>
+              </CardContent>
+              <div className="h-1 w-full bg-linear-to-r from-blue-400 to-blue-600" />
+            </Card>
           </div>
         </div>
 
@@ -748,7 +778,7 @@ export default function ParentAttendancePage() {
                 const filteredLogs = logs.filter((log: any) => {
                   const logDate = String(log.date || '').slice(0, 10);
                   const statusRaw = String(log.attendance_status || '').toLowerCase();
-                  const status = statusRaw === 'cancelled_class' ? 'cancelled' : statusRaw === 'holiday' ? 'holiday' : statusRaw;
+                  const status = isNoClassStatus(statusRaw) ? statusRaw === 'holiday' ? 'holiday' : 'cancelled' : statusRaw;
                   const stats = behaviorIndicators[child.lrn]?.[logDate];
                   const hasBehavior = Boolean(stats && stats.total > 0);
                   const positiveCount = stats?.positive || 0;
@@ -934,10 +964,18 @@ export default function ParentAttendancePage() {
                                       <TableCell colSpan={6} className="text-center text-muted-foreground py-8">No attendance records match the selected filters.</TableCell>
                                     </TableRow>
                                   ) : (
-                                    filteredLogs.slice(0, 30).map((log: any) => (
+                                    filteredLogs.slice(0, 30).map((log: any) => {
+                                      const normalizedStatus = String(log.attendance_status || '').toLowerCase();
+                                      const hasRealCheckIn = Boolean(log.check_in_time) && !isSyntheticCancellationRecord(log);
+                                      const partialCancellationStatus = String(log.cancellation_status || '').toLowerCase() || (isCancellationStatus(normalizedStatus) && normalizedStatus !== 'cancelled_class' ? normalizedStatus : '');
+                                      const displayStatus = hasRealCheckIn && partialCancellationStatus
+                                        ? `Present - ${getAttendanceStatusLabel(partialCancellationStatus)}`
+                                        : getAttendanceStatusLabel(log.attendance_status);
+
+                                      return (
                                       <TableRow key={log.id} className="border-border/50 hover:bg-muted/50 transition-colors animate-fade-in-up">
                                         <TableCell className="py-3 px-4 text-sm">{log.date}</TableCell>
-                                        <TableCell className="py-3 px-4 text-sm">{log.check_in_time ? formatTime12h(log.check_in_time) : '-'}</TableCell>
+                                        <TableCell className="py-3 px-4 text-sm">{hasRealCheckIn ? formatTime12h(log.check_in_time) : '-'}</TableCell>
                                         <TableCell className="py-3 px-4 text-sm">{log.check_out_time ? formatTime12h(log.check_out_time) : '-'}</TableCell>
                                         <TableCell className="py-3 px-4 text-sm">
                                           <Badge
@@ -946,18 +984,14 @@ export default function ParentAttendancePage() {
                                                 ? 'bg-emerald-100 text-emerald-700 border-0 text-xs'
                                                 : String(log.attendance_status).toLowerCase() === 'late'
                                                 ? 'bg-orange-100 text-orange-700 border-0 text-xs'
-                                                : String(log.attendance_status).toLowerCase() === 'holiday'
+                                                : isHolidayStatus(log.attendance_status)
                                                 ? 'bg-blue-100 text-blue-700 border-0 text-xs'
-                                                : String(log.attendance_status).toLowerCase() === 'cancelled_class'
+                                                : isCancellationStatus(log.attendance_status)
                                                 ? 'bg-slate-200 text-slate-700 border-0 text-xs'
                                                 : 'bg-red-100 text-red-700 border-0 text-xs'
                                             }
                                           >
-                                            {String(log.attendance_status).toLowerCase() === 'holiday'
-                                              ? 'Holiday'
-                                              : String(log.attendance_status).toLowerCase() === 'cancelled_class'
-                                              ? 'Cancelled'
-                                              : String(log.attendance_status || '').charAt(0).toUpperCase() + String(log.attendance_status || '').slice(1)}
+                                            {displayStatus}
                                           </Badge>
                                         </TableCell>
                                         <TableCell className="py-3 px-4 text-sm">
@@ -1011,7 +1045,8 @@ export default function ParentAttendancePage() {
                                           {renderBehaviorByDay(child, String(log.date || ''))}
                                         </TableCell>
                                       </TableRow>
-                                    ))
+                                      );
+                                    })
                                   )}
                                 </TableBody>
                               </Table>

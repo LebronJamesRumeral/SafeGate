@@ -50,6 +50,7 @@ import { toast } from '@/hooks/use-toast';
 import { formatTime12h } from '@/lib/time-format';
 import { useAuth } from '@/lib/auth-context';
 import { createRoleNotification } from '@/lib/role-notifications';
+import { isSyntheticCancellationRecord } from '@/lib/attendance-status';
 import { MLDashboard } from '@/components/ml-dashboard';
 import AttendanceSkeleton from '@/components/attendance-skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -83,9 +84,11 @@ type AttendanceLog = {
   id: number;
   student_lrn: string;
   check_in_time: string;
+  check_in_temperature?: number | null;
   check_out_time: string | null;
   date: string;
   attendance_status?: string | null;
+  cancellation_status?: string | null;
   is_present?: boolean | null;
   is_early_out?: boolean | null;
   early_out_reason?: string | null;
@@ -94,6 +97,7 @@ type AttendanceLog = {
 const weekdayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
 const NO_CLASS_STATUSES = new Set(['cancelled_class', 'holiday']);
+const HALF_DAY_CANCELLATION_STATUSES = new Set(['cancelled_morning', 'cancelled_afternoon']);
 const YEAR_LEVEL_START_TIMES: Record<string, string> = {
   'Toddler & Nursery': '11:30',
   'Pre-K': '11:30',
@@ -110,7 +114,34 @@ const YEAR_LEVEL_START_TIMES: Record<string, string> = {
 };
 
 function isNoClassStatus(status?: string | null) {
-  return NO_CLASS_STATUSES.has(String(status || '').toLowerCase());
+  const normalizedStatus = String(status || '').toLowerCase();
+  return NO_CLASS_STATUSES.has(normalizedStatus) || HALF_DAY_CANCELLATION_STATUSES.has(normalizedStatus);
+}
+
+function isFullDayNoClassStatus(status?: string | null) {
+  const normalizedStatus = String(status || '').toLowerCase();
+  return normalizedStatus === 'cancelled_class' || normalizedStatus === 'holiday';
+}
+
+function isCancellationStatus(status?: string | null) {
+  const normalizedStatus = String(status || '').toLowerCase();
+  return normalizedStatus === 'cancelled_class' || HALF_DAY_CANCELLATION_STATUSES.has(normalizedStatus);
+}
+
+function getPartialCancellationStatus(log: Pick<AttendanceLog, 'attendance_status' | 'cancellation_status'>) {
+  const storedCancellation = String(log.cancellation_status || '').toLowerCase();
+  if (HALF_DAY_CANCELLATION_STATUSES.has(storedCancellation)) return storedCancellation;
+
+  const attendanceStatus = String(log.attendance_status || '').toLowerCase();
+  return HALF_DAY_CANCELLATION_STATUSES.has(attendanceStatus) ? attendanceStatus : '';
+}
+
+function getCancellationLabel(status?: string | null) {
+  const normalizedStatus = String(status || '').toLowerCase();
+  if (normalizedStatus === 'cancelled_morning') return 'Cancelled Morning';
+  if (normalizedStatus === 'cancelled_afternoon') return 'Cancelled Afternoon';
+  if (normalizedStatus === 'holiday') return 'Holiday';
+  return 'Cancelled';
 }
 
 function getLateThreshold(studentLevel?: string | null) {
@@ -243,6 +274,8 @@ export default function AttendancePage() {
   const [cancelDateEnd, setCancelDateEnd] = useState(today);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelAsHoliday, setCancelAsHoliday] = useState(false);
+  const [cancelHalfDay, setCancelHalfDay] = useState(false);
+  const [cancelHalfDayPeriod, setCancelHalfDayPeriod] = useState<'morning' | 'afternoon'>('morning');
   const [submittingCancelClasses, setSubmittingCancelClasses] = useState(false);
   const [summaryPage, setSummaryPage] = useState(1);
   const [logPage, setLogPage] = useState(1);
@@ -339,7 +372,7 @@ export default function AttendancePage() {
       if (sortedStudents.length > 0) {
         let attendanceQuery = supabase
           .from('attendance_logs')
-          .select('id, student_lrn, check_in_time, check_out_time, date, attendance_status, is_present, is_early_out, early_out_reason')
+          .select('id, student_lrn, check_in_time, check_in_temperature, check_out_time, date, attendance_status, cancellation_status, is_present, is_early_out, early_out_reason')
           .gte('date', start)
           .lte('date', end)
           .order('date', { ascending: false })
@@ -533,7 +566,7 @@ export default function AttendancePage() {
   const cancelledDatesSet = useMemo(() => {
     return new Set(
       logs
-        .filter((log) => isNoClassStatus(log.attendance_status))
+        .filter((log) => isFullDayNoClassStatus(log.attendance_status))
         .map((log) => log.date)
     );
   }, [logs]);
@@ -552,9 +585,10 @@ export default function AttendancePage() {
 
   const attendanceByStudent = useMemo(() => {
     return logs.reduce((acc, log) => {
-      const isCancelled = isNoClassStatus(log.attendance_status);
-      if (isCancelled) return acc;
-      if (log.is_present === false) return acc;
+      const isFullDayNoClass = isFullDayNoClassStatus(log.attendance_status);
+      const hasRealCheckIn = Boolean(log.check_in_time) && !isSyntheticCancellationRecord(log);
+      if (isFullDayNoClass) return acc;
+      if (log.is_present === false && !hasRealCheckIn) return acc;
       if (!acc[log.student_lrn]) {
         acc[log.student_lrn] = new Set<string>();
       }
@@ -565,9 +599,10 @@ export default function AttendancePage() {
 
   const attendanceByDate = useMemo(() => {
     return logs.reduce((acc, log) => {
-      const isCancelled = isNoClassStatus(log.attendance_status);
-      if (isCancelled) return acc;
-      if (log.is_present === false) return acc;
+      const isFullDayNoClass = isFullDayNoClassStatus(log.attendance_status);
+      const hasRealCheckIn = Boolean(log.check_in_time) && !isSyntheticCancellationRecord(log);
+      if (isFullDayNoClass) return acc;
+      if (log.is_present === false && !hasRealCheckIn) return acc;
       if (!acc[log.date]) {
         acc[log.date] = new Set<string>();
       }
@@ -601,15 +636,19 @@ export default function AttendancePage() {
 
   const summaryRows = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
-    const noClassCounts = new Map<string, { cancelledDays: number; holidayDays: number }>();
+    const noClassCounts = new Map<string, { cancelledDays: number; halfDayCount: number; holidayDays: number }>();
 
     logs.forEach((log) => {
       const normalizedStatus = String(log.attendance_status || '').toLowerCase();
-      if (!isNoClassStatus(normalizedStatus)) return;
+      const partialCancellationStatus = getPartialCancellationStatus(log);
+      if (!isNoClassStatus(normalizedStatus) && !partialCancellationStatus) return;
 
-      const existing = noClassCounts.get(log.student_lrn) || { cancelledDays: 0, holidayDays: 0 };
+      const existing = noClassCounts.get(log.student_lrn) || { cancelledDays: 0, halfDayCount: 0, holidayDays: 0 };
       if (normalizedStatus === 'cancelled_class') {
         existing.cancelledDays += 1;
+      }
+      if (partialCancellationStatus) {
+        existing.halfDayCount += 1;
       }
       if (normalizedStatus === 'holiday') {
         existing.holidayDays += 1;
@@ -627,8 +666,9 @@ export default function AttendancePage() {
       )
       .map((student) => {
         const presentDays = attendanceByStudent[student.lrn]?.size || 0;
-        const noClass = noClassCounts.get(student.lrn) || { cancelledDays: 0, holidayDays: 0 };
+        const noClass = noClassCounts.get(student.lrn) || { cancelledDays: 0, halfDayCount: 0, holidayDays: 0 };
         const cancelledDays = noClass.cancelledDays;
+        const halfDayCount = noClass.halfDayCount;
         const holidayDays = noClass.holidayDays;
         const absentDays = Math.max(effectiveSchoolDays.length - presentDays, 0);
         const attendanceRateValue = effectiveSchoolDays.length
@@ -645,6 +685,7 @@ export default function AttendancePage() {
           ...student,
           presentDays,
           cancelledDays,
+          halfDayCount,
           holidayDays,
           absentDays,
           attendanceRate: Number(attendanceRateValue.toFixed(1)),
@@ -698,8 +739,9 @@ export default function AttendancePage() {
   }, [students, attendanceByStudent, effectiveSchoolDays.length]);
 
   const totalCheckIns = logs.filter((log) => {
-    const isCancelled = isNoClassStatus(log.attendance_status);
-    return !isCancelled && log.is_present !== false;
+    const isFullDayNoClass = isFullDayNoClassStatus(log.attendance_status);
+    const hasRealCheckIn = Boolean(log.check_in_time) && !isSyntheticCancellationRecord(log);
+    return !isFullDayNoClass && (log.is_present !== false || hasRealCheckIn);
   }).length;
   const totalStudents = students.length;
   const averageAttendance = totalStudents && effectiveSchoolDays.length
@@ -809,7 +851,14 @@ export default function AttendancePage() {
     }
 
     setSubmittingCancelClasses(true);
-    const selectedStatus = cancelAsHoliday ? 'holiday' : 'cancelled_class';
+    const selectedStatus = cancelAsHoliday
+      ? 'holiday'
+      : cancelHalfDay
+        ? `cancelled_${cancelHalfDayPeriod}`
+        : 'cancelled_class';
+    const cancellationWindow = cancelHalfDay
+      ? cancelHalfDayPeriod === 'morning' ? 'morning classes (8:00 AM-12:00 PM)' : 'afternoon classes (1:00 PM-5:00 PM)'
+      : 'all classes';
     const operationLabel = selectedStatus === 'holiday' ? 'holiday schedule' : 'class cancellation';
     const notificationTitle = cancelAsHoliday ? 'School Holiday' : 'Classes Cancelled';
     const notificationKind = cancelAsHoliday ? 'school_holiday' : 'class_cancellation';
@@ -837,22 +886,40 @@ export default function AttendancePage() {
         return;
       }
 
+      const existingRows = cancelHalfDay
+        ? await fetchAllRows<any>(supabase
+            .from('attendance_logs')
+            .select('id, student_lrn, date, check_in_time, check_in_temperature, check_out_time, is_present, attendance_status, is_late, is_invalid_timeout')
+            .in('student_lrn', studentLrns)
+            .in('date', datesToCancel))
+        : [];
+      const existingByKey = new Map(
+        existingRows.map((row) => [`${row.student_lrn}:${row.date}`, row])
+      );
+
       const rows = studentLrns.flatMap((lrn) =>
         datesToCancel.map((date) => ({
-          student_lrn: lrn,
-          date,
-          check_in_time: `${date}T00:00:00.000Z`,
-          check_out_time: null,
-          is_present: false,
-          attendance_status: selectedStatus,
-          is_late: false,
-          is_invalid_timeout: false,
+          ...(cancelHalfDay && existingByKey.has(`${lrn}:${date}`)
+            ? existingByKey.get(`${lrn}:${date}`)
+            : {
+                student_lrn: lrn,
+                date,
+                check_in_time: `${date}T00:00:00.000Z`,
+                check_out_time: null,
+                is_present: false,
+                attendance_status: selectedStatus,
+                is_late: false,
+                is_invalid_timeout: false,
+              }),
+          ...(cancelHalfDay
+            ? { cancellation_status: selectedStatus }
+            : { attendance_status: selectedStatus, cancellation_status: null }),
         }))
       );
 
       const { error: upsertError } = await supabase
         .from('attendance_logs')
-        .upsert(rows, { onConflict: 'student_lrn,date' });
+        .upsert(rows, { onConflict: 'student_lrn,date', ignoreDuplicates: false });
 
       if (upsertError) throw upsertError;
 
@@ -862,10 +929,10 @@ export default function AttendancePage() {
           startDate === endDate
             ? cancelAsHoliday
               ? `${startDate} is marked as a school holiday.`
-              : `Classes on ${startDate} are cancelled.`
+              : `${cancellationWindow} on ${startDate} are cancelled.`
             : cancelAsHoliday
               ? `${startDate} to ${endDate} are marked as school holidays.`
-              : `Classes from ${startDate} to ${endDate} are cancelled.`,
+              : `${cancellationWindow} from ${startDate} to ${endDate} are cancelled.`,
         targetRoles: ['parent'],
         createdBy: user?.username || 'admin',
         meta: {
@@ -874,6 +941,8 @@ export default function AttendancePage() {
           cancelled_end_date: endDate,
           cancelled_dates: datesToCancel,
           attendance_status: selectedStatus,
+          cancellation_window: cancelHalfDay ? cancellationWindow : null,
+          overrides_existing_status: true,
           reason: cancelReason.trim() || null,
           href: '/parent-attendance',
         },
@@ -882,11 +951,13 @@ export default function AttendancePage() {
       cancelToast.update({
         id: cancelToast.id,
         title: `${cancelAsHoliday ? 'Holiday' : 'Class cancellation'} saved`,
-        description: `Marked ${datesToCancel.length} day(s) as ${cancelAsHoliday ? 'holiday' : 'cancelled'} and notified parents.`,
+        description: `Marked ${datesToCancel.length} day(s) as ${cancelAsHoliday ? 'holiday' : cancellationWindow + ' cancelled'} and notified parents.`,
       });
       setCancelClassesOpen(false);
       setCancelReason('');
       setCancelAsHoliday(false);
+      setCancelHalfDay(false);
+      setCancelHalfDayPeriod('morning');
       await fetchData();
     } catch (error) {
       console.error('Failed to cancel classes:', error);
@@ -945,8 +1016,8 @@ export default function AttendancePage() {
                     Cancel Classes
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="w-[90%] max-w-sm sm:max-w-md p-4 sm:p-6 overflow-hidden border-orange-200 dark:border-orange-800/60 p-0">
-                  <DialogHeader className="border-b border-orange-200/70 dark:border-orange-800/60 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-900/30 px-6 py-5">
+                <DialogContent className="w-[calc(100vw-1rem)] max-w-[34rem] max-h-[92vh] overflow-y-auto overflow-x-hidden p-0 border-orange-200 dark:border-orange-800/60">
+                  <DialogHeader className="border-b border-orange-200/70 dark:border-orange-800/60 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-900/30 px-4 py-4 sm:px-6 sm:py-5">
                     <DialogTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
                       <Calendar className="h-5 w-5" />
                       Cancel Classes
@@ -956,14 +1027,14 @@ export default function AttendancePage() {
                     </DialogDescription>
                   </DialogHeader>
 
-                  <div className="space-y-5 px-6 py-5">
+                  <div className="space-y-4 px-4 py-4 sm:space-y-5 sm:px-6 sm:py-5">
                     <div className="rounded-lg border border-blue-200/70 dark:border-blue-800/60 bg-blue-50/60 dark:bg-blue-950/20 px-4 py-3">
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                         <div className="space-y-1">
                           <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Mark as holiday</p>
                           <p className="text-xs text-slate-600 dark:text-slate-400">Turn this on to save status as holiday. Turn off to save as cancelled class.</p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
                           <Switch checked={cancelAsHoliday} onCheckedChange={setCancelAsHoliday} />
                           <span className="text-sm text-muted-foreground">{cancelAsHoliday ? 'Holiday' : 'Cancelled'}</span>
                         </div>
@@ -977,6 +1048,35 @@ export default function AttendancePage() {
                         </span>
                       </div>
                     </div>
+
+                    {!cancelAsHoliday && (
+                      <div className="rounded-lg border border-orange-200/70 dark:border-orange-800/60 bg-orange-50/60 dark:bg-orange-950/20 px-4 py-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                          <div className="space-y-1">
+                            <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">Half-day cancellation</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400">Cancel only the morning or afternoon classes. This replaces any existing cancellation or holiday for these dates.</p>
+                          </div>
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
+                            <Switch checked={cancelHalfDay} onCheckedChange={setCancelHalfDay} />
+                            <span className="text-sm text-muted-foreground">{cancelHalfDay ? 'Half day' : 'Full day'}</span>
+                          </div>
+                        </div>
+                        {cancelHalfDay && (
+                          <div className="mt-3 space-y-2">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">Cancelled session</label>
+                            <Select value={cancelHalfDayPeriod} onValueChange={(value: 'morning' | 'afternoon') => setCancelHalfDayPeriod(value)}>
+                              <SelectTrigger className="w-full bg-white dark:bg-slate-900 border-orange-200/80 dark:border-orange-800/70">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="morning">Morning classes (8:00 AM - 12:00 PM)</SelectItem>
+                                <SelectItem value="afternoon">Afternoon classes (1:00 PM - 5:00 PM)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-2">
@@ -1000,12 +1100,15 @@ export default function AttendancePage() {
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-2 border-t border-orange-200/70 dark:border-orange-800/60 bg-slate-50/70 dark:bg-slate-900/40 px-6 py-4">
+                  <div className="flex flex-col-reverse gap-2 border-t border-orange-200/70 dark:border-orange-800/60 bg-slate-50/70 dark:bg-slate-900/40 px-4 py-4 sm:flex-row sm:justify-end sm:px-6">
                     <Button
                       variant="outline"
+                      className="w-full sm:w-auto"
                       onClick={() => {
                         setCancelClassesOpen(false);
                         setCancelAsHoliday(false);
+                        setCancelHalfDay(false);
+                        setCancelHalfDayPeriod('morning');
                       }}
                       disabled={submittingCancelClasses}
                     >
@@ -1014,9 +1117,9 @@ export default function AttendancePage() {
                     <Button
                       onClick={() => void handleCancelClasses()}
                       disabled={submittingCancelClasses}
-                      className={cancelAsHoliday ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-orange-600 hover:bg-orange-700 text-white'}
+                      className={`w-full sm:w-auto ${cancelAsHoliday ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-orange-600 hover:bg-orange-700 text-white'}`}
                     >
-                      {submittingCancelClasses ? 'Saving...' : cancelAsHoliday ? 'Save Holiday' : 'Save Cancellation'}
+                      {submittingCancelClasses ? 'Saving...' : cancelAsHoliday ? 'Save Holiday' : cancelHalfDay ? `Save ${cancelHalfDayPeriod === 'morning' ? 'Morning' : 'Afternoon'} Cancellation` : 'Save Cancellation'}
                     </Button>
                   </div>
                 </DialogContent>
@@ -1448,12 +1551,14 @@ export default function AttendancePage() {
                     const enrollment = summerEnrollments[log.student_lrn];
                     const isSummerRow = isDateInSummerEnrollment(enrollment, log.date);
                     const normalizedStatus = String(log.attendance_status || '').toLowerCase();
+                    const partialCancellationStatus = getPartialCancellationStatus(log);
+                    const hasRealCheckIn = Boolean(log.check_in_time) && !isSyntheticCancellationRecord(log);
                     const isHoliday = normalizedStatus === 'holiday';
-                    const isCancelled = normalizedStatus === 'cancelled_class';
+                    const isCancelled = normalizedStatus === 'cancelled_class' || (isCancellationStatus(normalizedStatus) && !hasRealCheckIn);
                     const checkIn = new Date(log.check_in_time);
                     const checkOut = log.check_out_time ? new Date(log.check_out_time) : null;
                     const duration = checkOut ? Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60)) : null;
-                    const isLate = !isCancelled && isLateCheckIn(log.check_in_time, studentSchedules[log.student_lrn]);
+                    const isLate = !isCancelled && !isHoliday && isLateCheckIn(log.check_in_time, studentSchedules[log.student_lrn]);
 
                     return (
                       <div key={log.id} className="bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 rounded-xl p-3 shadow-sm">
@@ -1466,9 +1571,10 @@ export default function AttendancePage() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-sm">
-                              {isCancelled ? (isHoliday ? 'Holiday' : 'Cancelled') : (checkOut ? 'Completed' : 'Active')}
-                            </div>
+                            <div className="text-sm">{isCancelled ? getCancellationLabel(normalizedStatus) : (checkOut ? 'Completed' : 'Active')}</div>
+                            {partialCancellationStatus && !isCancelled && (
+                              <div className="text-xs font-medium text-orange-700 dark:text-orange-300">{getCancellationLabel(partialCancellationStatus)}</div>
+                            )}
                             <div className="text-xs text-muted-foreground">{isLate ? 'Late • ' : ''}{formatTime12h(checkIn)}{checkOut ? ` • ${formatTime12h(checkOut)}` : ''}</div>
                             {duration && <div className="text-xs text-muted-foreground">{duration} min</div>}
                           </div>
@@ -1561,6 +1667,15 @@ export default function AttendancePage() {
                     </TableHead>
                     <TableHead 
                       className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
+                      onClick={() => handleSort('halfDayCount')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Half Day
+                        <ArrowUpDown className="w-3 h-3" />
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
                       onClick={() => handleSort('holidayDays')}
                     >
                       <div className="flex items-center gap-1">
@@ -1587,10 +1702,11 @@ export default function AttendancePage() {
                       <TableRow key={i}>
                         <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32 animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-16 animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-20 animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-12 animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-12 animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-12 animate-pulse"></div></TableCell>
-                        <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-12 animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-16 animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-16 animate-pulse"></div></TableCell>
                         <TableCell><div className="h-6 bg-slate-200 dark:bg-slate-700 rounded-full w-20 animate-pulse"></div></TableCell>
                         <TableCell><div className="h-6 bg-slate-200 dark:bg-slate-700 rounded-full w-20 animate-pulse"></div></TableCell>
@@ -1598,7 +1714,7 @@ export default function AttendancePage() {
                     ))
                   ) : summaryRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-12">
+                      <TableCell colSpan={10} className="text-center py-12">
                         <div className="flex flex-col items-center gap-2">
                           <Users className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 dark:text-gray-400">No students match your filters</p>
@@ -1648,6 +1764,15 @@ export default function AttendancePage() {
                             <Badge className="bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0">
                               {row.cancelledDays}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {row.halfDayCount > 0 ? (
+                              <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-0 capitalize">
+                                {row.halfDayCount}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">
@@ -1807,7 +1932,7 @@ export default function AttendancePage() {
                 <TableBody>
                   {logs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-12">
+                      <TableCell colSpan={9} className="text-center py-12">
                         <div className="flex flex-col items-center gap-2">
                           <ClipboardList className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 dark:text-gray-400">No attendance logs found</p>
@@ -1820,15 +1945,17 @@ export default function AttendancePage() {
                       const enrollment = summerEnrollments[log.student_lrn];
                       const isSummerRow = isDateInSummerEnrollment(enrollment, log.date);
                       const normalizedStatus = String(log.attendance_status || '').toLowerCase();
+                      const partialCancellationStatus = getPartialCancellationStatus(log);
+                      const hasRealCheckIn = Boolean(log.check_in_time) && !isSyntheticCancellationRecord(log);
                       const isHoliday = normalizedStatus === 'holiday';
-                      const isCancelled = normalizedStatus === 'cancelled_class';
+                      const isCancelled = normalizedStatus === 'cancelled_class' || (isCancellationStatus(normalizedStatus) && !hasRealCheckIn);
                       const checkIn = new Date(log.check_in_time);
                       const checkOut = log.check_out_time ? new Date(log.check_out_time) : null;
                       const duration = checkOut 
                         ? Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60)) 
                         : null;
                       
-                      const isLate = !isCancelled && isLateCheckIn(log.check_in_time, studentSchedules[log.student_lrn]);
+                      const isLate = !isCancelled && !isHoliday && isLateCheckIn(log.check_in_time, studentSchedules[log.student_lrn]);
 
                       return (
                         <TableRow key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
@@ -1852,7 +1979,7 @@ export default function AttendancePage() {
                             <div className="flex flex-col gap-1">
                               {isCancelled ? (
                                 <Badge className={isHoliday ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0'}>
-                                  {isHoliday ? 'Holiday' : 'Cancelled'}
+                                  {getCancellationLabel(normalizedStatus)}
                                 </Badge>
                               ) : checkOut && log.is_early_out ? (
                                 <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-0">
@@ -1870,6 +1997,11 @@ export default function AttendancePage() {
                               {isLate && (
                                 <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0 text-xs">
                                   Late
+                                </Badge>
+                              )}
+                              {partialCancellationStatus && !isCancelled && (
+                                <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-0 text-xs">
+                                  {getCancellationLabel(partialCancellationStatus)}
                                 </Badge>
                               )}
                             </div>

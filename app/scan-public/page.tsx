@@ -20,6 +20,7 @@ import { getOfflineQueueCount } from '@/lib/offline-secure-queue';
 import { queueAttendanceScan, syncOfflineQueue } from '@/lib/offline-sync';
 import { formatTime12h } from '@/lib/time-format';
 import { formatLocalDateKey } from '@/lib/utils';
+import { isSyntheticCancellationRecord } from '@/lib/attendance-status';
 
 interface ScanResult {
   status: 'success' | 'error';
@@ -147,7 +148,7 @@ export default function ScanPage() {
     const date = formatLocalDateKey(new Date(scanIsoTime));
     const { data: existing, error: existingError } = await supabase
       .from('attendance_logs')
-      .select('id, check_in_time, check_out_time')
+      .select('id, check_in_time, check_in_temperature, check_out_time, attendance_status, cancellation_status, is_present')
       .eq('student_lrn', studentLrn)
       .eq('date', date)
       .order('check_in_time', { ascending: false })
@@ -175,6 +176,21 @@ export default function ScanPage() {
       return {
         action: 'Checked In' as const,
       };
+    }
+
+    if (isSyntheticCancellationRecord(existing[0])) {
+      const { error } = await supabase
+        .from('attendance_logs')
+        .update({
+          check_in_time: scanIsoTime,
+          check_out_time: null,
+          is_present: true,
+          attendance_status: 'present',
+        })
+        .eq('id', existing[0].id);
+
+      if (error) throw error;
+      return { action: 'Checked In' as const };
     }
 
     if (existing[0].check_out_time) {

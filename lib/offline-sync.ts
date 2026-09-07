@@ -6,6 +6,7 @@ import {
   requestBackgroundSync,
 } from '@/lib/offline-secure-queue';
 import { formatLocalDateKey } from '@/lib/utils';
+import { isSyntheticCancellationRecord } from '@/lib/attendance-status';
 
 type SupabaseClientLike = {
   from: (table: string) => any;
@@ -29,7 +30,7 @@ async function applyAttendanceScan(supabase: SupabaseClientLike, payload: Attend
 
   const { data: existing, error: existingError } = await supabase
     .from('attendance_logs')
-    .select('id, check_in_time, check_out_time')
+    .select('id, check_in_time, check_in_temperature, check_out_time, attendance_status, cancellation_status, is_present')
     .eq('student_lrn', payload.student_lrn)
     .eq('date', scanDate)
     .order('check_in_time', { ascending: false })
@@ -58,6 +59,24 @@ async function applyAttendanceScan(supabase: SupabaseClientLike, payload: Attend
   }
 
   const latest = existing[0];
+  if (isSyntheticCancellationRecord(latest)) {
+    const { error: checkInError } = await supabase
+      .from('attendance_logs')
+      .update({
+        check_in_time: payload.scanned_at,
+        check_in_temperature: payload.temperature ?? null,
+        check_out_time: null,
+        is_present: true,
+        attendance_status: 'present',
+      })
+      .eq('id', latest.id);
+
+    if (checkInError) {
+      throw new Error(checkInError.message || 'Failed updating half-day check-in.');
+    }
+    return;
+  }
+
   if (latest.check_out_time) {
     return;
   }

@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
   is_present BOOLEAN DEFAULT true,
   -- Status based on scheduled attendance
   attendance_status VARCHAR(30) DEFAULT 'present', -- 'present', 'late', 'absent', 'invalid_timeout'
+  cancellation_status VARCHAR(30), -- optional partial cancellation: 'cancelled_morning' or 'cancelled_afternoon'
   is_late BOOLEAN DEFAULT false,
   is_invalid_timeout BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -126,6 +127,7 @@ ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS check_in_temperature NUMERI
 ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS check_out_temperature NUMERIC(4,1);
 ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS is_early_out BOOLEAN DEFAULT false;
 ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS early_out_reason TEXT;
+ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS cancellation_status VARCHAR(30);
 
 -- Parent-attached notes on attendance logs
 CREATE TABLE IF NOT EXISTS parent_attendance_notes (

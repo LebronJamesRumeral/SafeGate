@@ -38,6 +38,7 @@ import { DateLevelFilter } from '@/components/date-level-filter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { calculateStudentRiskScore, detectAbsencePatterns, getAttendanceMetrics } from '@/lib/ml-risk-calculator';
+import { isCancellationStatus, isHolidayStatus, isNoClassStatus, isSyntheticCancellationRecord } from '@/lib/attendance-status';
 import type { Cell as ExcelCell } from 'exceljs';
 import { 
   AreaChart, 
@@ -430,7 +431,7 @@ export default function AnalyticsPage() {
 
       let attendanceQuery = supabase
         .from('attendance_logs')
-        .select('id, student_lrn, check_in_time, check_out_time, date, attendance_status, is_present')
+        .select('id, student_lrn, check_in_time, check_in_temperature, check_out_time, date, attendance_status, cancellation_status, is_present')
         .gte('date', dateRange[0])
         .lte('date', dateRange[dateRange.length - 1])
         .order('date', { ascending: true });
@@ -492,9 +493,13 @@ export default function AnalyticsPage() {
       // students without a logged scan are still included in the school total.
       const attendanceByDate = new Map<string, {
         present: Set<string>;
+        morningPresent: Set<string>;
+        afternoonPresent: Set<string>;
         late: Set<string>;
         absent: Set<string>;
         cancelled: Set<string>;
+        cancelledMorning: Set<string>;
+        cancelledAfternoon: Set<string>;
         holiday: Set<string>;
       }>();
 
@@ -511,25 +516,46 @@ export default function AnalyticsPage() {
 
         const bucket = attendanceByDate.get(dateKey) || {
           present: new Set<string>(),
+          morningPresent: new Set<string>(),
+          afternoonPresent: new Set<string>(),
           late: new Set<string>(),
           absent: new Set<string>(),
           cancelled: new Set<string>(),
+          cancelledMorning: new Set<string>(),
+          cancelledAfternoon: new Set<string>(),
           holiday: new Set<string>(),
         };
 
-        if (status === 'holiday') {
+        const cancellationStatus = String(record.cancellation_status || '').trim().toLowerCase();
+        const partialCancellationStatus = cancellationStatus === 'cancelled_morning' || cancellationStatus === 'cancelled_afternoon'
+          ? cancellationStatus
+          : status === 'cancelled_morning' || status === 'cancelled_afternoon' ? status : '';
+        const hasRealCheckIn = Boolean(record.check_in_time) && !isSyntheticCancellationRecord(record);
+
+        if (partialCancellationStatus === 'cancelled_morning') {
+          bucket.cancelledMorning.add(studentLrn);
+        } else if (partialCancellationStatus === 'cancelled_afternoon') {
+          bucket.cancelledAfternoon.add(studentLrn);
+        }
+
+        if (isHolidayStatus(status)) {
           bucket.holiday.add(studentLrn);
         } else if (status === 'cancelled_class') {
           bucket.cancelled.add(studentLrn);
-        } else if (record.is_present === false || status === 'absent') {
-          bucket.absent.add(studentLrn);
-        } else if (record.check_in_time) {
+        } else if (hasRealCheckIn) {
+          if (partialCancellationStatus === 'cancelled_afternoon') {
+            bucket.morningPresent.add(studentLrn);
+          } else if (partialCancellationStatus === 'cancelled_morning') {
+            bucket.afternoonPresent.add(studentLrn);
+          }
           if (isLateForSchedule(record.check_in_time, scheduleByLrn.get(studentLrn))) {
             bucket.late.add(studentLrn);
           } else {
             bucket.present.add(studentLrn);
           }
-        } else {
+        } else if (!partialCancellationStatus && (record.is_present === false || status === 'absent')) {
+          bucket.absent.add(studentLrn);
+        } else if (!partialCancellationStatus) {
           bucket.present.add(studentLrn);
         }
 
@@ -548,9 +574,13 @@ export default function AnalyticsPage() {
       const weeklyData = last7Days.map(date => {
         const dayStats = attendanceByDate.get(date) || {
           present: new Set<string>(),
+          morningPresent: new Set<string>(),
+          afternoonPresent: new Set<string>(),
           late: new Set<string>(),
           absent: new Set<string>(),
           cancelled: new Set<string>(),
+          cancelledMorning: new Set<string>(),
+          cancelledAfternoon: new Set<string>(),
           holiday: new Set<string>(),
         };
 
@@ -561,7 +591,7 @@ export default function AnalyticsPage() {
         const lateCount = hasNoClass ? 0 : dayStats.late.size;
         const cancelledCount = hasCancellation ? totalStudents : 0;
         const holidayCount = hasHoliday ? totalStudents : 0;
-        const absentCount = hasNoClass ? 0 : Math.max(totalStudents - presentCount - lateCount - cancelledCount - holidayCount, 0);
+        const absentCount = hasNoClass ? 0 : Math.max(totalStudents - presentCount - lateCount, 0);
         const attendanceRate = hasNoClass ? 0 : (totalStudents > 0 ? ((presentCount + lateCount) / totalStudents) * 100 : 0);
 
         return {
@@ -569,9 +599,13 @@ export default function AnalyticsPage() {
           day: formatDateLabelUTC(date, { weekday: 'short' }),
           date,
           present: presentCount,
+          morningPresent: hasNoClass ? 0 : dayStats.morningPresent.size,
+          afternoonPresent: hasNoClass ? 0 : dayStats.afternoonPresent.size,
           absent: absentCount,
           late: lateCount,
           cancelled: cancelledCount,
+          cancelledMorning: hasNoClass ? 0 : dayStats.cancelledMorning.size,
+          cancelledAfternoon: hasNoClass ? 0 : dayStats.cancelledAfternoon.size,
           holiday: holidayCount,
           attendanceRate
         };
@@ -581,9 +615,13 @@ export default function AnalyticsPage() {
       const monthlyTrend = dateRange.map(date => {
         const dayStats = attendanceByDate.get(date) || {
           present: new Set<string>(),
+          morningPresent: new Set<string>(),
+          afternoonPresent: new Set<string>(),
           late: new Set<string>(),
           absent: new Set<string>(),
           cancelled: new Set<string>(),
+          cancelledMorning: new Set<string>(),
+          cancelledAfternoon: new Set<string>(),
           holiday: new Set<string>(),
         };
 
@@ -601,7 +639,11 @@ export default function AnalyticsPage() {
           date: formatDateLabelUTC(date, { month: 'short', day: 'numeric' }),
           attendance: attendancePct,
           present: presentCount + lateCount,
+          morningPresent: hasNoClass ? 0 : dayStats.morningPresent.size,
+          afternoonPresent: hasNoClass ? 0 : dayStats.afternoonPresent.size,
           cancelled: cancelledCount,
+          cancelledMorning: hasNoClass ? 0 : dayStats.cancelledMorning.size,
+          cancelledAfternoon: hasNoClass ? 0 : dayStats.cancelledAfternoon.size,
           holiday: holidayCount
         };
       });
@@ -628,11 +670,11 @@ export default function AnalyticsPage() {
         (levelAttendance || []).forEach((a: any) => {
           const status = String(a.attendance_status || '').toLowerCase();
           const rowDateKey = toDateKey(a.date);
-          if (status === 'cancelled_class') {
+          if (isCancellationStatus(status)) {
             if (rowDateKey) cancelledDates.add(rowDateKey);
             return;
           }
-          if (status === 'holiday') {
+          if (isHolidayStatus(status)) {
             if (rowDateKey) holidayDates.add(rowDateKey);
             return;
           }
@@ -765,16 +807,16 @@ export default function AnalyticsPage() {
           const status = String(entry.attendance_status || '').trim().toLowerCase();
           studentSchoolDays.add(entryDate);
 
-          if (status === 'cancelled_class') {
+          if (isCancellationStatus(status)) {
             studentCancelledDays.add(entryDate);
             return;
           }
-          if (status === 'holiday') {
+          if (isHolidayStatus(status)) {
             studentHolidayDays.add(entryDate);
             return;
           }
 
-          if (entry.is_present !== false && entry.attendance_status !== 'absent') {
+          if (!isNoClassStatus(status) && entry.is_present !== false && status !== 'absent') {
             studentPresentDays.add(entryDate);
           }
         });
@@ -1843,9 +1885,13 @@ export default function AnalyticsPage() {
                                 <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
                                 <Legend />
                                 <Bar dataKey="present" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="morningPresent" name="morning present" fill="#14b8a6" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="afternoonPresent" name="afternoon present" fill="#22c55e" radius={[4, 4, 0, 0]} />
                                 <Bar dataKey="late" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                                 <Bar dataKey="absent" fill="#ef4444" radius={[4, 4, 0, 0]} />
                                 <Bar dataKey="cancelled" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="cancelledMorning" name="morning cancelled" fill="#f97316" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="cancelledAfternoon" name="afternoon cancelled" fill="#c084fc" radius={[4, 4, 0, 0]} />
                                 <Bar dataKey="holiday" fill="#60a5fa" radius={[4, 4, 0, 0]} />
                               </BarChart>
                             </ResponsiveContainer>
@@ -1977,9 +2023,13 @@ export default function AnalyticsPage() {
                               <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
                               <Legend />
                               <Bar dataKey="present" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="morningPresent" name="morning present" fill="#14b8a6" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="afternoonPresent" name="afternoon present" fill="#22c55e" radius={[4, 4, 0, 0]} />
                               <Bar dataKey="late" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                               <Bar dataKey="absent" fill="#ef4444" radius={[4, 4, 0, 0]} />
                               <Bar dataKey="cancelled" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="cancelledMorning" name="morning cancelled" fill="#f97316" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="cancelledAfternoon" name="afternoon cancelled" fill="#c084fc" radius={[4, 4, 0, 0]} />
                               <Bar dataKey="holiday" fill="#60a5fa" radius={[4, 4, 0, 0]} />
                             </BarChart>
                           </ResponsiveContainer>
