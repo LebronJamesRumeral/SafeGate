@@ -30,6 +30,16 @@ const FALLBACK_WEATHER_COORDS = {
   longitude: 120.2725,
 };
 
+const WEATHER_LOCATION_CACHE_KEY = 'safegate_weather_location';
+const WEATHER_LOCATION_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
+
+type CachedWeatherLocation = {
+  latitude: number;
+  longitude: number;
+  permission: 'granted';
+  savedAt: number;
+};
+
 function getWeatherDetails(code: number) {
   if (code === 0) return { condition: 'Clear sky', icon: Sun };
   if ([1, 2].includes(code)) return { condition: 'Mostly sunny', icon: Sun };
@@ -135,8 +145,44 @@ export default function Dashboard() {
         };
       };
 
+      const getCachedLocation = (): CachedWeatherLocation | null => {
+        try {
+          const cached = JSON.parse(localStorage.getItem(WEATHER_LOCATION_CACHE_KEY) ?? 'null') as Partial<CachedWeatherLocation> | null;
+          if (
+            cached?.permission === 'granted' &&
+            typeof cached.latitude === 'number' &&
+            typeof cached.longitude === 'number' &&
+            typeof cached.savedAt === 'number' &&
+            Date.now() - cached.savedAt < WEATHER_LOCATION_CACHE_MAX_AGE
+          ) {
+            return cached as CachedWeatherLocation;
+          }
+        } catch {
+          // Ignore malformed or unavailable local storage.
+        }
+
+        return null;
+      };
+
+      const cacheLocation = (latitude: number, longitude: number) => {
+        try {
+          localStorage.setItem(
+            WEATHER_LOCATION_CACHE_KEY,
+            JSON.stringify({ latitude, longitude, permission: 'granted', savedAt: Date.now() })
+          );
+        } catch {
+          // Weather still works when local storage is unavailable.
+        }
+      };
+
       try {
         const weatherData = await new Promise<{ temp: number | null; condition: string; icon: typeof Cloud }>((resolve, reject) => {
+          const cachedLocation = getCachedLocation();
+          if (cachedLocation) {
+            fetchWeather(cachedLocation.latitude, cachedLocation.longitude).then(resolve).catch(reject);
+            return;
+          }
+
           if (!navigator.geolocation) {
             fetchWeather(FALLBACK_WEATHER_COORDS.latitude, FALLBACK_WEATHER_COORDS.longitude).then(resolve).catch(reject);
             return;
@@ -144,6 +190,7 @@ export default function Dashboard() {
 
           navigator.geolocation.getCurrentPosition(
             (position) => {
+              cacheLocation(position.coords.latitude, position.coords.longitude);
               fetchWeather(position.coords.latitude, position.coords.longitude).then(resolve).catch(reject);
             },
             () => {

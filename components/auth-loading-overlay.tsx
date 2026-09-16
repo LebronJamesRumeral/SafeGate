@@ -11,8 +11,9 @@ interface MobileLoadingShellProps {
 
 export function MobileLoadingShell({ progress }: MobileLoadingShellProps) {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-linear-to-br from-sky-50 via-white to-amber-50 px-5 py-6 text-slate-900 dark:from-[#0f172a] dark:via-[#172554] dark:to-[#1e3a8a] dark:text-white md:hidden">
-      <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white/80 px-6 py-8 text-center shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-white/8">
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-linear-to-br from-sky-50 via-white to-amber-50 px-5 py-6 text-slate-900 dark:from-[#0f172a] dark:via-[#172554] dark:to-[#1e3a8a] dark:text-white md:hidden">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(100,116,139,0.09)_1px,transparent_1px),linear-gradient(90deg,rgba(100,116,139,0.09)_1px,transparent_1px)] bg-[size:48px_48px] dark:bg-[linear-gradient(rgba(148,163,184,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.05)_1px,transparent_1px)]" />
+      <div className="relative z-10 w-full max-w-sm rounded-3xl border border-slate-200 bg-white/80 px-6 py-8 text-center shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-white/8">
         <div className="mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-lg dark:border-white/15 dark:bg-white/10">
           <Image
             src="/SGCDC.png"
