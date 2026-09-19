@@ -78,6 +78,16 @@ const COLORS = {
 };
 
 const TYPE_CHART_LIMIT = 6;
+
+function isCulminatingActivityAttendanceStatus(status?: string | null) {
+  const normalized = String(status || '').trim().toLowerCase().replace(/[-\s]/g, '_');
+  return normalized === 'culminating_activity' || normalized === 'culmact';
+}
+
+function isExcusedAttendanceStatus(status?: string | null) {
+  const normalized = String(status || '').trim().toLowerCase().replace(/[-\s]/g, '_');
+  return normalized === 'excused' || normalized === 'culm_act_excused';
+}
 const TYPE_COLORS = [COLORS.emerald[0], COLORS.amber[0], COLORS.rose[0], COLORS.blue[0], COLORS.violet[0], '#14b8a6'];
 
 function normalizeText(value: string | null | undefined) {
@@ -501,6 +511,8 @@ export default function AnalyticsPage() {
         cancelledMorning: Set<string>;
         cancelledAfternoon: Set<string>;
         holiday: Set<string>;
+        culminatingActivity: Set<string>;
+        excused: Set<string>;
       }>();
 
       (attendance || []).forEach((record: any) => {
@@ -524,6 +536,8 @@ export default function AnalyticsPage() {
           cancelledMorning: new Set<string>(),
           cancelledAfternoon: new Set<string>(),
           holiday: new Set<string>(),
+          culminatingActivity: new Set<string>(),
+          excused: new Set<string>(),
         };
 
         const cancellationStatus = String(record.cancellation_status || '').trim().toLowerCase();
@@ -542,6 +556,10 @@ export default function AnalyticsPage() {
           bucket.holiday.add(studentLrn);
         } else if (status === 'cancelled_class') {
           bucket.cancelled.add(studentLrn);
+        } else if (isCulminatingActivityAttendanceStatus(status)) {
+          bucket.culminatingActivity.add(studentLrn);
+        } else if (isExcusedAttendanceStatus(status)) {
+          bucket.excused.add(studentLrn);
         } else if (hasRealCheckIn) {
           if (partialCancellationStatus === 'cancelled_afternoon') {
             bucket.morningPresent.add(studentLrn);
@@ -582,6 +600,8 @@ export default function AnalyticsPage() {
           cancelledMorning: new Set<string>(),
           cancelledAfternoon: new Set<string>(),
           holiday: new Set<string>(),
+          culminatingActivity: new Set<string>(),
+          excused: new Set<string>(),
         };
 
         const hasHoliday = dayStats.holiday.size > 0;
@@ -591,8 +611,11 @@ export default function AnalyticsPage() {
         const lateCount = hasNoClass ? 0 : dayStats.late.size;
         const cancelledCount = hasCancellation ? totalStudents : 0;
         const holidayCount = hasHoliday ? totalStudents : 0;
-        const absentCount = hasNoClass ? 0 : Math.max(totalStudents - presentCount - lateCount, 0);
-        const attendanceRate = hasNoClass ? 0 : (totalStudents > 0 ? ((presentCount + lateCount) / totalStudents) * 100 : 0);
+        const culminatingActivityCount = hasNoClass ? 0 : dayStats.culminatingActivity.size;
+        const excusedCount = hasNoClass ? 0 : dayStats.excused.size;
+        const attendanceDenominator = Math.max(totalStudents - excusedCount, 0);
+        const absentCount = hasNoClass ? 0 : Math.max(attendanceDenominator - presentCount - lateCount - culminatingActivityCount, 0);
+        const attendanceRate = hasNoClass ? 0 : (attendanceDenominator > 0 ? ((presentCount + lateCount + culminatingActivityCount) / attendanceDenominator) * 100 : 0);
 
         return {
           // FIX: label formatted in UTC so the weekday never shifts for viewers outside UTC
@@ -607,6 +630,8 @@ export default function AnalyticsPage() {
           cancelledMorning: hasNoClass ? 0 : dayStats.cancelledMorning.size,
           cancelledAfternoon: hasNoClass ? 0 : dayStats.cancelledAfternoon.size,
           holiday: holidayCount,
+          culminatingActivity: culminatingActivityCount,
+          excused: excusedCount,
           attendanceRate
         };
       });
@@ -623,6 +648,8 @@ export default function AnalyticsPage() {
           cancelledMorning: new Set<string>(),
           cancelledAfternoon: new Set<string>(),
           holiday: new Set<string>(),
+          culminatingActivity: new Set<string>(),
+          excused: new Set<string>(),
         };
 
         const hasHoliday = dayStats.holiday.size > 0;
@@ -632,7 +659,10 @@ export default function AnalyticsPage() {
         const lateCount = hasNoClass ? 0 : dayStats.late.size;
         const cancelledCount = hasCancellation ? totalStudents : 0;
         const holidayCount = hasHoliday ? totalStudents : 0;
-        const attendancePct = hasNoClass ? 0 : (totalStudents > 0 ? ((presentCount + lateCount) / totalStudents) * 100 : 0);
+        const culminatingActivityCount = hasNoClass ? 0 : dayStats.culminatingActivity.size;
+        const excusedCount = hasNoClass ? 0 : dayStats.excused.size;
+        const attendanceDenominator = Math.max(totalStudents - excusedCount, 0);
+        const attendancePct = hasNoClass ? 0 : (attendanceDenominator > 0 ? ((presentCount + lateCount + culminatingActivityCount) / attendanceDenominator) * 100 : 0);
 
         return {
           // FIX: label formatted in UTC
@@ -644,7 +674,9 @@ export default function AnalyticsPage() {
           cancelled: cancelledCount,
           cancelledMorning: hasNoClass ? 0 : dayStats.cancelledMorning.size,
           cancelledAfternoon: hasNoClass ? 0 : dayStats.cancelledAfternoon.size,
-          holiday: holidayCount
+          holiday: holidayCount,
+          culminatingActivity: culminatingActivityCount,
+          excused: excusedCount
         };
       });
 
@@ -676,6 +708,15 @@ export default function AnalyticsPage() {
           }
           if (isHolidayStatus(status)) {
             if (rowDateKey) holidayDates.add(rowDateKey);
+            return;
+          }
+
+          if (isExcusedAttendanceStatus(status)) {
+            return;
+          }
+
+          if (isCulminatingActivityAttendanceStatus(status)) {
+            presentSet.add(a.student_lrn);
             return;
           }
 
@@ -1866,8 +1907,9 @@ export default function AnalyticsPage() {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -16 }}
                       transition={{ duration: 0.24 }}
+                      className="min-w-0"
                     >
-                      <Card className="overflow-hidden border-0 shadow-xl">
+                      <Card className="w-full min-w-0 overflow-hidden border-0 shadow-xl">
                         <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
                           <CardTitle className="flex items-center gap-2 text-lg">
                             <BarChart3 className="w-5 h-5 text-emerald-500" />
@@ -1875,15 +1917,22 @@ export default function AnalyticsPage() {
                           </CardTitle>
                           <CardDescription>Daily attendance breakdown for the last 7 days</CardDescription>
                         </CardHeader>
-                        <CardContent className="p-4">
-                          <div className="h-60">
+                        <CardContent className="min-w-0 p-3 sm:p-4">
+                          <div className="h-[420px] w-full min-w-0 sm:h-80">
                             <ResponsiveContainer width="100%" height="100%">
-                              <BarChart data={stats.weeklyData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                              <BarChart data={stats.weeklyData} margin={{ top: 12, right: 4, left: -12, bottom: 8 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
                                 <XAxis dataKey="day" stroke="#6B7280" />
                                 <YAxis stroke="#6B7280" />
-                                <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
-                                <Legend />
+                                <Tooltip
+                                  wrapperStyle={{ maxWidth: 'calc(100% - 16px)', zIndex: 20 }}
+                                  contentStyle={{ maxWidth: '100%', backgroundColor: 'rgba(255, 255, 255, 0.97)', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', fontSize: 12 }}
+                                />
+                                <Legend
+                                  verticalAlign="bottom"
+                                  align="center"
+                                  wrapperStyle={{ width: '100%', paddingTop: 14, fontSize: 11, lineHeight: '20px' }}
+                                />
                                 <Bar dataKey="present" fill="#10b981" radius={[4, 4, 0, 0]} />
                                 <Bar dataKey="morningPresent" name="morning present" fill="#14b8a6" radius={[4, 4, 0, 0]} />
                                 <Bar dataKey="afternoonPresent" name="afternoon present" fill="#22c55e" radius={[4, 4, 0, 0]} />
@@ -1893,6 +1942,8 @@ export default function AnalyticsPage() {
                                 <Bar dataKey="cancelledMorning" name="morning cancelled" fill="#f97316" radius={[4, 4, 0, 0]} />
                                 <Bar dataKey="cancelledAfternoon" name="afternoon cancelled" fill="#c084fc" radius={[4, 4, 0, 0]} />
                                 <Bar dataKey="holiday" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="culminatingActivity" name="CulmAct" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="excused" name="Excused" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                               </BarChart>
                             </ResponsiveContainer>
                           </div>
@@ -1908,8 +1959,9 @@ export default function AnalyticsPage() {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -16 }}
                       transition={{ duration: 0.24 }}
+                      className="min-w-0"
                     >
-                      <Card className="overflow-hidden border-0 shadow-xl">
+                      <Card className="w-full min-w-0 overflow-hidden border-0 shadow-xl">
                         <CardHeader className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-slate-950/40 dark:to-slate-900/30 border-b border-slate-200/60 dark:border-slate-700/40">
                           <CardTitle className="flex items-center gap-2 text-lg">
                             <AreaChart className="w-5 h-5 text-blue-500" />
@@ -1917,15 +1969,19 @@ export default function AnalyticsPage() {
                           </CardTitle>
                           <CardDescription>Monthly behavioral event pattern</CardDescription>
                         </CardHeader>
-                        <CardContent className="p-4">
-                          <div className="h-60">
+                        <CardContent className="min-w-0 p-3 sm:p-4">
+                          <div className="h-[320px] w-full min-w-0 sm:h-80">
                             <ResponsiveContainer width="100%" height="100%">
-                              <AreaChart data={behavioralStats.weeklyTrend} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                              <AreaChart data={behavioralStats.weeklyTrend} margin={{ top: 12, right: 4, left: -12, bottom: 8 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
                                 <XAxis dataKey="date" stroke="#6B7280" />
                                 <YAxis stroke="#6B7280" />
                                 <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
-                                <Legend />
+                                <Legend
+                                  verticalAlign="bottom"
+                                  align="center"
+                                  wrapperStyle={{ width: '100%', paddingTop: 14, fontSize: 11, lineHeight: '20px' }}
+                                />
                                 <Area type="monotone" dataKey="positive" stackId="a" stroke="#10b981" fill="#a7f3d0" />
                                 <Area type="monotone" dataKey="minor" stackId="a" stroke="#f59e0b" fill="#fde68a" />
                                 <Area type="monotone" dataKey="major" stackId="a" stroke="#fb923c" fill="#ffedd5" />
@@ -2021,7 +2077,7 @@ export default function AnalyticsPage() {
                               <XAxis dataKey="day" stroke="#6B7280" />
                               <YAxis stroke="#6B7280" />
                               <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
-                              <Legend />
+                              <Legend wrapperStyle={{ fontSize: 12, lineHeight: '22px' }} />
                               <Bar dataKey="present" fill="#10b981" radius={[4, 4, 0, 0]} />
                                 <Bar dataKey="morningPresent" name="morning present" fill="#14b8a6" radius={[4, 4, 0, 0]} />
                                 <Bar dataKey="afternoonPresent" name="afternoon present" fill="#22c55e" radius={[4, 4, 0, 0]} />
@@ -2031,6 +2087,8 @@ export default function AnalyticsPage() {
                                 <Bar dataKey="cancelledMorning" name="morning cancelled" fill="#f97316" radius={[4, 4, 0, 0]} />
                                 <Bar dataKey="cancelledAfternoon" name="afternoon cancelled" fill="#c084fc" radius={[4, 4, 0, 0]} />
                               <Bar dataKey="holiday" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="culminatingActivity" name="CulmAct" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="excused" name="Excused" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                             </BarChart>
                           </ResponsiveContainer>
                         </div>

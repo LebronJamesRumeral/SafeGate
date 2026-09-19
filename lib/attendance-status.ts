@@ -19,6 +19,8 @@ export function getAttendanceStatusLabel(status?: string | null) {
   if (normalizedStatus === 'cancelled_afternoon') return 'Cancelled Afternoon';
   if (normalizedStatus === 'holiday') return 'Holiday';
   if (normalizedStatus === 'cancelled_class') return 'Cancelled';
+  if (normalizedStatus === 'culminating_activity') return 'CulmAct';
+  if (normalizedStatus === 'excused') return 'Excused';
   return normalizedStatus ? normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1) : 'Unknown';
 }
 

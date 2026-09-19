@@ -864,7 +864,6 @@ export default function MasterlistPage() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 flex items-center gap-2">
-              <Archive size={32} className="text-primary" />
               Student Masterlist
             </h1>
             <p className="text-muted-foreground font-medium">Complete archive of all recorded students from previous to current generations</p>

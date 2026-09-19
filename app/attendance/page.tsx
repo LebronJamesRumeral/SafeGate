@@ -28,6 +28,7 @@ import {
   AlertCircle,
   BarChart3,
   Calendar,
+  CalendarCheck2,
   ChevronDown,
   ChevronUp,
   Eye,
@@ -92,10 +93,19 @@ type AttendanceLog = {
   is_present?: boolean | null;
   is_early_out?: boolean | null;
   early_out_reason?: string | null;
+  activity_name?: string | null;
+  is_auto_generated?: boolean | null;
 };
 
 const weekdayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
+const ATTENDANCE_LEVELS = [
+  'Toddler & Nursery',
+  'Pre-K',
+  'Kinder 1',
+  'Kinder 2',
+  ...Array.from({ length: 8 }, (_, index) => `Grade ${index + 1}`),
+];
 const NO_CLASS_STATUSES = new Set(['cancelled_class', 'holiday']);
 const HALF_DAY_CANCELLATION_STATUSES = new Set(['cancelled_morning', 'cancelled_afternoon']);
 const YEAR_LEVEL_START_TIMES: Record<string, string> = {
@@ -121,6 +131,14 @@ function isNoClassStatus(status?: string | null) {
 function isFullDayNoClassStatus(status?: string | null) {
   const normalizedStatus = String(status || '').toLowerCase();
   return normalizedStatus === 'cancelled_class' || normalizedStatus === 'holiday';
+}
+
+function isCulminatingActivityStatus(status?: string | null) {
+  return String(status || '').trim().toLowerCase() === 'culminating_activity';
+}
+
+function isExcusedStatus(status?: string | null) {
+  return String(status || '').trim().toLowerCase() === 'excused';
 }
 
 function isCancellationStatus(status?: string | null) {
@@ -277,6 +295,11 @@ export default function AttendancePage() {
   const [cancelHalfDay, setCancelHalfDay] = useState(false);
   const [cancelHalfDayPeriod, setCancelHalfDayPeriod] = useState<'morning' | 'afternoon'>('morning');
   const [submittingCancelClasses, setSubmittingCancelClasses] = useState(false);
+  const [culminatingActivityOpen, setCulminatingActivityOpen] = useState(false);
+  const [culminatingActivityDate, setCulminatingActivityDate] = useState(today);
+  const [culminatingActivityLevels, setCulminatingActivityLevels] = useState<string[]>([]);
+  const [culminatingActivityName, setCulminatingActivityName] = useState('');
+  const [submittingCulminatingActivity, setSubmittingCulminatingActivity] = useState(false);
   const [summaryPage, setSummaryPage] = useState(1);
   const [logPage, setLogPage] = useState(1);
   const SUMMARY_PAGE_SIZE = 10;
@@ -372,7 +395,7 @@ export default function AttendancePage() {
       if (sortedStudents.length > 0) {
         let attendanceQuery = supabase
           .from('attendance_logs')
-          .select('id, student_lrn, check_in_time, check_in_temperature, check_out_time, date, attendance_status, cancellation_status, is_present, is_early_out, early_out_reason')
+          .select('id, student_lrn, check_in_time, check_in_temperature, check_out_time, date, attendance_status, cancellation_status, is_present, is_early_out, early_out_reason, activity_name, is_auto_generated')
           .gte('date', start)
           .lte('date', end)
           .order('date', { ascending: false })
@@ -636,14 +659,14 @@ export default function AttendancePage() {
 
   const summaryRows = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
-    const noClassCounts = new Map<string, { cancelledDays: number; halfDayCount: number; holidayDays: number }>();
+    const noClassCounts = new Map<string, { cancelledDays: number; halfDayCount: number; holidayDays: number; culminatingActivityDays: number; excusedDays: number }>();
 
     logs.forEach((log) => {
       const normalizedStatus = String(log.attendance_status || '').toLowerCase();
       const partialCancellationStatus = getPartialCancellationStatus(log);
-      if (!isNoClassStatus(normalizedStatus) && !partialCancellationStatus) return;
+      if (!isNoClassStatus(normalizedStatus) && !partialCancellationStatus && !isCulminatingActivityStatus(normalizedStatus) && !isExcusedStatus(normalizedStatus)) return;
 
-      const existing = noClassCounts.get(log.student_lrn) || { cancelledDays: 0, halfDayCount: 0, holidayDays: 0 };
+      const existing = noClassCounts.get(log.student_lrn) || { cancelledDays: 0, halfDayCount: 0, holidayDays: 0, culminatingActivityDays: 0, excusedDays: 0 };
       if (normalizedStatus === 'cancelled_class') {
         existing.cancelledDays += 1;
       }
@@ -652,6 +675,12 @@ export default function AttendancePage() {
       }
       if (normalizedStatus === 'holiday') {
         existing.holidayDays += 1;
+      }
+      if (isCulminatingActivityStatus(normalizedStatus)) {
+        existing.culminatingActivityDays += 1;
+      }
+      if (isExcusedStatus(normalizedStatus)) {
+        existing.excusedDays += 1;
       }
       noClassCounts.set(log.student_lrn, existing);
     });
@@ -666,13 +695,14 @@ export default function AttendancePage() {
       )
       .map((student) => {
         const presentDays = attendanceByStudent[student.lrn]?.size || 0;
-        const noClass = noClassCounts.get(student.lrn) || { cancelledDays: 0, halfDayCount: 0, holidayDays: 0 };
+        const noClass = noClassCounts.get(student.lrn) || { cancelledDays: 0, halfDayCount: 0, holidayDays: 0, culminatingActivityDays: 0, excusedDays: 0 };
         const cancelledDays = noClass.cancelledDays;
         const halfDayCount = noClass.halfDayCount;
         const holidayDays = noClass.holidayDays;
-        const absentDays = Math.max(effectiveSchoolDays.length - presentDays, 0);
-        const attendanceRateValue = effectiveSchoolDays.length
-          ? (presentDays / effectiveSchoolDays.length) * 100
+        const effectiveDaysForStudent = Math.max(effectiveSchoolDays.length - noClass.excusedDays, 0);
+        const absentDays = Math.max(effectiveDaysForStudent - presentDays, 0);
+        const attendanceRateValue = effectiveDaysForStudent
+          ? (presentDays / effectiveDaysForStudent) * 100
           : 0;
         // Severity logic: classify by attendance rate
         let severity = 'Positive';
@@ -687,6 +717,8 @@ export default function AttendancePage() {
           cancelledDays,
           halfDayCount,
           holidayDays,
+          culminatingActivityDays: noClass.culminatingActivityDays,
+          excusedDays: noClass.excusedDays,
           absentDays,
           attendanceRate: Number(attendanceRateValue.toFixed(1)),
           severity,
@@ -734,9 +766,10 @@ export default function AttendancePage() {
   const totalAbsences = useMemo(() => {
     return students.reduce((sum, student) => {
       const presentDays = attendanceByStudent[student.lrn]?.size || 0;
-      return sum + Math.max(effectiveSchoolDays.length - presentDays, 0);
+      const excusedDays = logs.filter((log) => log.student_lrn === student.lrn && isExcusedStatus(log.attendance_status)).length;
+      return sum + Math.max(effectiveSchoolDays.length - excusedDays - presentDays, 0);
     }, 0);
-  }, [students, attendanceByStudent, effectiveSchoolDays.length]);
+  }, [students, attendanceByStudent, effectiveSchoolDays.length, logs]);
 
   const totalCheckIns = logs.filter((log) => {
     const isFullDayNoClass = isFullDayNoClassStatus(log.attendance_status);
@@ -744,8 +777,10 @@ export default function AttendancePage() {
     return !isFullDayNoClass && (log.is_present !== false || hasRealCheckIn);
   }).length;
   const totalStudents = students.length;
-  const averageAttendance = totalStudents && effectiveSchoolDays.length
-    ? ((totalCheckIns / (totalStudents * effectiveSchoolDays.length)) * 100).toFixed(1)
+  const totalExcusedDays = logs.filter((log) => isExcusedStatus(log.attendance_status)).length;
+  const averageAttendanceDenominator = totalStudents * effectiveSchoolDays.length - totalExcusedDays;
+  const averageAttendance = totalStudents && averageAttendanceDenominator > 0
+    ? ((totalCheckIns / averageAttendanceDenominator) * 100).toFixed(1)
     : '0.0';
 
   const weekdayStats = useMemo(() => {
@@ -972,6 +1007,57 @@ export default function AttendancePage() {
     }
   };
 
+  const handleCulminatingActivity = async () => {
+    if (!isAdmin || !supabase) return;
+    if (!culminatingActivityDate || culminatingActivityLevels.length === 0) {
+      toast({
+        title: 'Incomplete activity details',
+        description: 'Choose a date and at least one participating level.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSubmittingCulminatingActivity(true);
+    try {
+      const { data: existingActivity, error: existingError } = await supabase
+        .from('culminating_activities')
+        .select('id, activity_name, levels_included')
+        .eq('activity_date', culminatingActivityDate)
+        .maybeSingle();
+
+      if (existingError && existingError.code !== 'PGRST116') throw existingError;
+      if (existingActivity && !window.confirm(`An activity already exists for ${culminatingActivityDate}. Replace it with this activity?`)) {
+        return;
+      }
+
+      const { error } = await supabase.rpc('apply_culminating_activity', {
+        p_activity_date: culminatingActivityDate,
+        p_levels_included: culminatingActivityLevels,
+        p_activity_name: culminatingActivityName.trim() || null,
+      });
+      if (error) throw error;
+
+      toast({
+        title: 'Culminating activity saved',
+        description: `${new Date(`${culminatingActivityDate}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} was applied to ${culminatingActivityLevels.length} level(s).`,
+      });
+      setCulminatingActivityOpen(false);
+      setCulminatingActivityLevels([]);
+      setCulminatingActivityName('');
+      await fetchData();
+    } catch (error) {
+      console.error('Failed to save culminating activity:', error);
+      toast({
+        title: 'Failed to save culminating activity',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmittingCulminatingActivity(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <motion.div
@@ -1005,6 +1091,69 @@ export default function AttendancePage() {
               Export Data
             </Button>
             {isAdmin && (
+              <Dialog open={culminatingActivityOpen} onOpenChange={setCulminatingActivityOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-2 rounded-full border-0 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700">
+                    <CalendarCheck2 className="h-4 w-4" />
+                    Culminating Activity
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="w-[94vw] sm:w-[92vw] max-w-2xl p-0 flex flex-col max-h-[86dvh] sm:max-h-[90vh] overflow-hidden">
+                  <div className="flex-1 max-h-[86dvh] sm:max-h-[90vh] overflow-y-auto p-6 md:p-8 space-y-4">
+                  <DialogHeader>
+                    <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                      <CalendarCheck2 className="h-5 w-5" />
+                      Culminating Activity
+                    </DialogTitle>
+                    <DialogDescription className="text-sm">
+                      Participating levels are marked CulmAct attendance. All other active students are marked Excused.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Activity date</label>
+                      <Input type="date" value={culminatingActivityDate} onChange={(event) => setCulminatingActivityDate(event.target.value)} className="h-12 rounded-[18px] border-orange-200 bg-white dark:bg-slate-950" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Activity name (optional)</label>
+                      <Input placeholder="e.g. Foundation Day" value={culminatingActivityName} onChange={(event) => setCulminatingActivityName(event.target.value)} className="h-12 rounded-[18px] border-orange-200 bg-white dark:bg-slate-950" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Participating levels</label>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setCulminatingActivityLevels(culminatingActivityLevels.length === ATTENDANCE_LEVELS.length ? [] : ATTENDANCE_LEVELS)}>
+                          {culminatingActivityLevels.length === ATTENDANCE_LEVELS.length ? 'Clear all' : 'Select all'}
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 rounded-[20px] border border-orange-200/70 bg-orange-50/20 p-4 dark:border-orange-800/60 dark:bg-orange-950/10 sm:grid-cols-3">
+                        {ATTENDANCE_LEVELS.map((level) => {
+                          const selected = culminatingActivityLevels.includes(level);
+                          return (
+                            <button
+                              key={level}
+                              type="button"
+                              aria-pressed={selected}
+                              onClick={() => setCulminatingActivityLevels((current) => selected ? current.filter((item) => item !== level) : [...current, level])}
+                              className={`rounded-[18px] border px-3 py-2.5 text-left text-xs transition-colors ${selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}
+                            >
+                              {level}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  </div>
+                  <div className="flex-shrink-0 border-t bg-white px-6 py-4 dark:bg-slate-900/80 md:px-8 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-end items-stretch sm:items-center">
+                    <Button variant="outline" className="w-full sm:w-auto" onClick={() => setCulminatingActivityOpen(false)} disabled={submittingCulminatingActivity}>Close</Button>
+                    <Button onClick={() => void handleCulminatingActivity()} disabled={submittingCulminatingActivity || culminatingActivityLevels.length === 0} className="w-full bg-emerald-600 text-white hover:bg-emerald-700 sm:w-auto">
+                      {submittingCulminatingActivity ? 'Saving...' : 'Apply Activity'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+            {isAdmin && (
               <Dialog open={cancelClassesOpen} onOpenChange={setCancelClassesOpen}>
                 <DialogTrigger asChild>
                   <Button
@@ -1016,18 +1165,19 @@ export default function AttendancePage() {
                     Cancel Classes
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="w-[calc(100vw-1rem)] max-w-[34rem] max-h-[92vh] overflow-y-auto overflow-x-hidden p-0 border-orange-200 dark:border-orange-800/60">
-                  <DialogHeader className="border-b border-orange-200/70 dark:border-orange-800/60 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-900/30 px-4 py-4 sm:px-6 sm:py-5">
-                    <DialogTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
+                <DialogContent className="w-[94vw] sm:w-[92vw] max-w-2xl p-0 flex flex-col max-h-[86dvh] sm:max-h-[90vh] overflow-hidden">
+                  <div className="flex-1 max-h-[86dvh] sm:max-h-[90vh] overflow-y-auto p-6 md:p-8 space-y-4">
+                  <DialogHeader>
+                    <DialogTitle className="text-xl font-bold flex items-center gap-2">
                       <Calendar className="h-5 w-5" />
                       Cancel Classes
                     </DialogTitle>
-                    <DialogDescription className="text-slate-600 dark:text-slate-300">
+                    <DialogDescription className="text-sm">
                       Set a date range and choose whether this should be recorded as a regular class cancellation or as a holiday.
                     </DialogDescription>
                   </DialogHeader>
 
-                  <div className="space-y-4 px-4 py-4 sm:space-y-5 sm:px-6 sm:py-5">
+                  <div className="space-y-4 sm:space-y-5">
                     <div className="rounded-lg border border-blue-200/70 dark:border-blue-800/60 bg-blue-50/60 dark:bg-blue-950/20 px-4 py-3">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                         <div className="space-y-1">
@@ -1078,14 +1228,14 @@ export default function AttendancePage() {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">Start date</label>
-                        <Input type="date" value={cancelDateStart} onChange={(e) => setCancelDateStart(e.target.value)} className="border-orange-200/80 dark:border-orange-800/70" />
+                        <Input type="date" value={cancelDateStart} onChange={(e) => setCancelDateStart(e.target.value)} className="h-12 rounded-[18px] border-orange-200 bg-white dark:bg-slate-950" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">End date</label>
-                        <Input type="date" value={cancelDateEnd} onChange={(e) => setCancelDateEnd(e.target.value)} className="border-orange-200/80 dark:border-orange-800/70" />
+                        <Input type="date" value={cancelDateEnd} onChange={(e) => setCancelDateEnd(e.target.value)} className="h-12 rounded-[18px] border-orange-200 bg-white dark:bg-slate-950" />
                       </div>
                     </div>
 
@@ -1095,12 +1245,13 @@ export default function AttendancePage() {
                         placeholder={cancelAsHoliday ? 'Reason for holiday declaration (e.g., national holiday, local ordinance).' : 'Reason for cancellation (e.g., typhoon warning, maintenance).'}
                         value={cancelReason}
                         onChange={(e) => setCancelReason(e.target.value)}
-                        className="min-h-24 border-orange-200/80 dark:border-orange-800/70"
+                        className="min-h-24 rounded-[18px] border-orange-200 bg-white dark:bg-slate-950"
                       />
                     </div>
                   </div>
 
-                  <div className="flex flex-col-reverse gap-2 border-t border-orange-200/70 dark:border-orange-800/60 bg-slate-50/70 dark:bg-slate-900/40 px-4 py-4 sm:flex-row sm:justify-end sm:px-6">
+                  </div>
+                  <div className="flex-shrink-0 border-t bg-white px-6 py-4 dark:bg-slate-900/80 md:px-8 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-end items-stretch sm:items-center">
                     <Button
                       variant="outline"
                       className="w-full sm:w-auto"
@@ -1480,6 +1631,8 @@ export default function AttendancePage() {
                               </div>
                               <div className="text-xs text-muted-foreground">
                                 {row.presentDays} present • {row.absentDays} absent
+                                {row.culminatingActivityDays ? ` • ${row.culminatingActivityDays} CulmAct` : ''}
+                                {row.excusedDays ? ` • ${row.excusedDays} excused` : ''}
                                 {(row.cancelledDays || row.holidayDays) ? ` • ${row.cancelledDays + row.holidayDays} no class` : ''}
                               </div>
                             </div>
@@ -1554,6 +1707,8 @@ export default function AttendancePage() {
                     const partialCancellationStatus = getPartialCancellationStatus(log);
                     const hasRealCheckIn = Boolean(log.check_in_time) && !isSyntheticCancellationRecord(log);
                     const isHoliday = normalizedStatus === 'holiday';
+                    const isCulmAct = isCulminatingActivityStatus(normalizedStatus);
+                    const isExcused = isExcusedStatus(normalizedStatus);
                     const isCancelled = normalizedStatus === 'cancelled_class' || (isCancellationStatus(normalizedStatus) && !hasRealCheckIn);
                     const checkIn = new Date(log.check_in_time);
                     const checkOut = log.check_out_time ? new Date(log.check_out_time) : null;
@@ -1571,7 +1726,7 @@ export default function AttendancePage() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-sm">{isCancelled ? getCancellationLabel(normalizedStatus) : (checkOut ? 'Completed' : 'Active')}</div>
+                            <div className={`text-sm ${isCulmAct ? 'font-semibold text-violet-700 dark:text-violet-300' : isExcused ? 'font-semibold text-amber-700 dark:text-amber-300' : ''}`}>{isCulmAct ? 'CulmAct' : isExcused ? 'Excused' : isCancelled ? getCancellationLabel(normalizedStatus) : (checkOut ? 'Completed' : 'Active')}</div>
                             {partialCancellationStatus && !isCancelled && (
                               <div className="text-xs font-medium text-orange-700 dark:text-orange-300">{getCancellationLabel(partialCancellationStatus)}</div>
                             )}
@@ -1683,6 +1838,24 @@ export default function AttendancePage() {
                         <ArrowUpDown className="w-3 h-3" />
                       </div>
                     </TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
+                      onClick={() => handleSort('culminatingActivityDays')}
+                    >
+                      <div className="flex items-center gap-1">
+                        CulmAct
+                        <ArrowUpDown className="w-3 h-3" />
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
+                      onClick={() => handleSort('excusedDays')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Excused
+                        <ArrowUpDown className="w-3 h-3" />
+                      </div>
+                    </TableHead>
                     <TableHead 
                       className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
                       onClick={() => handleSort('attendanceRate')}
@@ -1714,7 +1887,7 @@ export default function AttendancePage() {
                     ))
                   ) : summaryRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center py-12">
+                        <TableCell colSpan={12} className="text-center py-12">
                         <div className="flex flex-col items-center gap-2">
                           <Users className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 dark:text-gray-400">No students match your filters</p>
@@ -1777,6 +1950,16 @@ export default function AttendancePage() {
                           <TableCell>
                             <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">
                               {row.holidayDays}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border-0">
+                              {row.culminatingActivityDays}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-0">
+                              {row.excusedDays}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -1948,6 +2131,8 @@ export default function AttendancePage() {
                       const partialCancellationStatus = getPartialCancellationStatus(log);
                       const hasRealCheckIn = Boolean(log.check_in_time) && !isSyntheticCancellationRecord(log);
                       const isHoliday = normalizedStatus === 'holiday';
+                      const isCulmAct = isCulminatingActivityStatus(normalizedStatus);
+                      const isExcused = isExcusedStatus(normalizedStatus);
                       const isCancelled = normalizedStatus === 'cancelled_class' || (isCancellationStatus(normalizedStatus) && !hasRealCheckIn);
                       const checkIn = new Date(log.check_in_time);
                       const checkOut = log.check_out_time ? new Date(log.check_out_time) : null;
@@ -1977,7 +2162,15 @@ export default function AttendancePage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-1">
-                              {isCancelled ? (
+                              {isCulmAct ? (
+                                <Badge className="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border-0">
+                                  CulmAct
+                                </Badge>
+                              ) : isExcused ? (
+                                <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-0">
+                                  Excused
+                                </Badge>
+                              ) : isCancelled ? (
                                 <Badge className={isHoliday ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0'}>
                                   {getCancellationLabel(normalizedStatus)}
                                 </Badge>
@@ -2017,7 +2210,15 @@ export default function AttendancePage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {isCancelled ? (
+                            {isCulmAct ? (
+                              <Badge className="border-0 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                                CulmAct
+                              </Badge>
+                            ) : isExcused ? (
+                              <Badge className="border-0 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                Excused
+                              </Badge>
+                            ) : isCancelled ? (
                               <span className="text-gray-400">--</span>
                             ) : checkOut ? (
                               formatTime12h(checkOut)

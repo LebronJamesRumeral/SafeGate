@@ -547,7 +547,7 @@ export default function ScanPage() {
     const date = formatLocalDateKey(scanTime);
     const { data: existing, error: existingError } = await supabase
       .from('attendance_logs')
-      .select('id, check_in_time, check_in_temperature, check_out_time, attendance_status, cancellation_status, is_present')
+      .select('id, check_in_time, check_in_temperature, check_out_time, attendance_status, cancellation_status, is_present, is_auto_generated')
       .eq('student_lrn', studentLrn)
       .eq('date', date)
       .order('check_in_time', { ascending: false })
@@ -597,7 +597,7 @@ export default function ScanPage() {
       };
     }
 
-    if (isSyntheticCancellationRecord(existing[0])) {
+    if (isSyntheticCancellationRecord(existing[0]) || (existing[0].is_auto_generated && ['culminating_activity', 'excused'].includes(existing[0].attendance_status))) {
       const validation = validateAttendanceStatus(schedule, scanTime);
       const { error } = await supabase
         .from('attendance_logs')
@@ -607,6 +607,7 @@ export default function ScanPage() {
           check_out_time: null,
           is_present: true,
           attendance_status: validation.attendance_status,
+          is_auto_generated: false,
           is_late: validation.is_late,
           is_invalid_timeout: false,
         })
