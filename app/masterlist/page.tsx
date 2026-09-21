@@ -979,23 +979,10 @@ export default function MasterlistPage() {
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.28 }}
             >
-              <Card className="overflow-hidden rounded-[28px] border-0 bg-white shadow-[0_24px_70px_-30px_rgba(15,23,42,0.28)] dark:bg-slate-950/70 dark:shadow-[0_24px_70px_-30px_rgba(15,23,42,0.58)]">
-                <CardHeader className="border-b border-blue-100/70 bg-linear-to-r from-white via-blue-50/60 to-white py-3 dark:border-blue-900/30 dark:from-slate-950/80 dark:via-blue-950/10 dark:to-slate-950/80">
-                  <div className="flex w-full items-start justify-between">
-                    <CardTitle className="flex items-center gap-3 text-lg font-semibold text-slate-900 dark:text-slate-100">
-                      <span className="hidden sm:flex h-10 w-10 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/20 ring-4 ring-blue-100/70 dark:ring-blue-950/40">
-                        <Filter className="w-5 h-5" />
-                      </span>
-                      Search & Filter Masterlist
-                    </CardTitle>
-                    <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="gap-2">
-                      Hide
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-5">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                    <div className="relative md:col-span-2">
+              <Card className="overflow-hidden rounded-xl border-0 bg-card/50 shadow-lg backdrop-blur-sm dark:bg-slate-950/60">
+                <CardContent className="space-y-3 p-4 sm:p-5">
+                  <div className="grid grid-cols-1 items-center gap-4 md:grid-cols-12">
+                    <div className="relative md:col-span-6">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         placeholder="Search by LRN, name, or parent..."
@@ -1004,7 +991,7 @@ export default function MasterlistPage() {
                         className="pl-10 bg-muted/30 border-border/50 focus:border-primary focus:ring-primary hover:border-border transition-colors"
                       />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 md:col-span-4">
                       <Select value={filterGrade} onValueChange={setFilterGrade}>
                         <SelectTrigger className="bg-muted/30 border-border/50 focus:border-primary focus:ring-primary hover:border-border transition-colors">
                           <SelectValue placeholder="Filter by level" />
@@ -1036,6 +1023,9 @@ export default function MasterlistPage() {
                           <SelectItem value="undergrad">Undergrad</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="flex justify-end md:col-span-2">
+                      <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="h-8 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">Hide</Button>
                     </div>
                     <div className="text-sm font-medium text-muted-foreground flex items-center md:col-span-4">
                       Showing <span className="mx-1 font-bold text-foreground">{filteredStudents.length}</span> of <span className="mx-1 font-bold text-foreground">{students.length}</span> records

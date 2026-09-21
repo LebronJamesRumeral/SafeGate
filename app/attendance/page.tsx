@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { clampDateRange, getSchoolYearForDate, schoolYearLabel, type SchoolYear } from '@/lib/school-year';
 import { 
   CalendarDays, 
   CheckCircle, 
@@ -73,7 +74,7 @@ import {
   Cell
 } from 'recharts';
 
-type DateMode = 'all' | 'single' | 'range' | 'month';
+type DateMode = 'all' | 'single' | 'range';
 
 type StudentRow = {
   lrn: string;
@@ -183,18 +184,6 @@ function normalizeRange(start: string, end: string) {
   return start <= end ? [start, end] : [end, start];
 }
 
-function getMonthRange(monthValue: string) {
-  if (!monthValue) return null;
-  const [year, month] = monthValue.split('-').map(Number);
-  if (!year || !month) return null;
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 0);
-  return {
-    start: formatLocalDate(start),
-    end: formatLocalDate(end),
-  };
-}
-
 function isActiveStudentStatus(status?: string | null) {
   const normalized = (status ?? 'active').toString().trim().toLowerCase();
   return normalized === 'active' || normalized === 'enrolled' || normalized === 'current' || normalized === 'on_roll' || normalized === 'student' || normalized === '' || normalized === 'null';
@@ -271,7 +260,8 @@ export default function AttendancePage() {
   const [rangeStart, setRangeStart] = useState(today);
   const [rangeEnd, setRangeEnd] = useState(today);
   const [singleDate, setSingleDate] = useState(today);
-  const [monthValue, setMonthValue] = useState(today.slice(0, 7));
+    const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
+    const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -304,6 +294,8 @@ export default function AttendancePage() {
   const [logPage, setLogPage] = useState(1);
   const SUMMARY_PAGE_SIZE = 10;
   const LOG_PAGE_SIZE = 10;
+  const activeSchoolYear = schoolYears.find((year) => String(year.id) === selectedSchoolYearId)
+    || getSchoolYearForDate(schoolYears, today);
 
   useEffect(() => {
     if (isMobile) {
@@ -313,7 +305,7 @@ export default function AttendancePage() {
 
   useEffect(() => {
     fetchData();
-  }, [dateMode, rangeStart, rangeEnd, singleDate, monthValue, selectedLevel, severityFilter]);
+  }, [dateMode, rangeStart, rangeEnd, singleDate, selectedLevel, severityFilter, selectedSchoolYearId]);
 
   useEffect(() => {
     setSummaryPage(1);
@@ -321,7 +313,7 @@ export default function AttendancePage() {
 
   useEffect(() => {
     setLogPage(1);
-  }, [dateMode, rangeStart, rangeEnd, singleDate, monthValue, selectedLevel, severityFilter, search]);
+  }, [dateMode, rangeStart, rangeEnd, singleDate, selectedLevel, severityFilter, search, selectedSchoolYearId]);
 
   const fetchData = async () => {
     if (!supabase) {
@@ -333,34 +325,39 @@ export default function AttendancePage() {
       setLoading(true);
 
 
-      // Resolve school year end date and fetch students in parallel
+      // Resolve school years and fetch students in parallel. The selected year
+      // is the boundary for every attendance query on this page.
       let studentsQuery = supabase.from('students').select('lrn, name, level, status');
       if (selectedLevel !== 'all') {
         studentsQuery = studentsQuery.eq('level', selectedLevel);
       }
 
-      const [studentsData, resolvedEnd] = await Promise.all([
+      const [studentsData, schoolYearsResult] = await Promise.all([
         fetchAllRows<any>(studentsQuery),
-        resolveSchoolYearEndDate()
+        supabase.from('school_years').select('id, label, start_date, end_date, is_current').order('start_date', { ascending: false }),
       ]);
 
-      const schoolYearData = { end_date: resolvedEnd };
+      if (schoolYearsResult.error) throw schoolYearsResult.error;
+      const availableSchoolYears = (schoolYearsResult.data || []) as SchoolYear[];
+      setSchoolYears(availableSchoolYears);
+      const selectedSchoolYear = availableSchoolYears.find((year) => String(year.id) === selectedSchoolYearId)
+        || getSchoolYearForDate(availableSchoolYears, today);
+      if (!selectedSchoolYearId && selectedSchoolYear?.id != null) {
+        setSelectedSchoolYearId(String(selectedSchoolYear.id));
+      }
 
       const sortedStudents = sortByLevel((studentsData || []).filter((student) => isActiveStudentStatus(student.status)));
 
       let start = rangeStart;
       let end = rangeEnd;
 
-      if (dateMode === 'single') {
+      if (selectedSchoolYear && dateMode === 'all') {
+        start = selectedSchoolYear.start_date;
+        end = selectedSchoolYear.end_date < today ? selectedSchoolYear.end_date : today;
+      } else if (dateMode === 'single') {
         start = singleDate;
         end = singleDate;
-      } else if (dateMode === 'month') {
-        const monthRange = getMonthRange(monthValue);
-        if (monthRange) {
-          start = monthRange.start;
-          end = monthRange.end;
-        }
-      } else if (dateMode === 'all') {
+        } else if (dateMode === 'all') {
         const { data: earliest, error: earliestError } = await supabase
           .from('attendance_logs')
           .select('date')
@@ -384,11 +381,10 @@ export default function AttendancePage() {
       }
 
       // Constrain end date to school year end date if present
-      if (schoolYearData?.end_date) {
-        const schoolYearEndStr = schoolYearData.end_date;
-        if (end > schoolYearEndStr) {
-          end = schoolYearEndStr;
-        }
+      if (selectedSchoolYear) {
+        const scopedRange = clampDateRange(start, end, selectedSchoolYear);
+        start = scopedRange.start;
+        end = scopedRange.end;
       }
 
       let attendanceData: AttendanceLog[] = [];
@@ -686,6 +682,7 @@ export default function AttendancePage() {
     });
 
     let rows = students
+      .filter((student) => logs.some((log) => log.student_lrn === student.lrn))
       .filter((student) => (selectedLevel === 'all' ? true : student.level === selectedLevel))
       .filter((student) =>
         normalizedSearch
@@ -764,7 +761,8 @@ export default function AttendancePage() {
   const selectedStudentSummary = null;
 
   const totalAbsences = useMemo(() => {
-    return students.reduce((sum, student) => {
+    const studentsWithAttendance = students.filter((student) => logs.some((log) => log.student_lrn === student.lrn));
+    return studentsWithAttendance.reduce((sum, student) => {
       const presentDays = attendanceByStudent[student.lrn]?.size || 0;
       const excusedDays = logs.filter((log) => log.student_lrn === student.lrn && isExcusedStatus(log.attendance_status)).length;
       return sum + Math.max(effectiveSchoolDays.length - excusedDays - presentDays, 0);
@@ -776,7 +774,7 @@ export default function AttendancePage() {
     const hasRealCheckIn = Boolean(log.check_in_time) && !isSyntheticCancellationRecord(log);
     return !isFullDayNoClass && (log.is_present !== false || hasRealCheckIn);
   }).length;
-  const totalStudents = students.length;
+  const totalStudents = new Set(logs.map((log) => log.student_lrn)).size;
   const totalExcusedDays = logs.filter((log) => isExcusedStatus(log.attendance_status)).length;
   const averageAttendanceDenominator = totalStudents * effectiveSchoolDays.length - totalExcusedDays;
   const averageAttendance = totalStudents && averageAttendanceDenominator > 0
@@ -1324,102 +1322,66 @@ export default function AttendancePage() {
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-800/50 rounded-2xl p-2 md:p-6">
-                <CardHeader className="pb-1 px-3 md:px-4">
-                  <div className="flex items-start justify-between w-full">
-                    <div>
-                      <CardTitle className="flex items-center gap-2 text-lg px-0 md:px-1">
-                        <Filter className="w-5 h-5 text-blue-500" />
-                        Filters
-                      </CardTitle>
-                      <CardDescription className="mt-1">Customize your attendance view</CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="gap-2">
-                        Hide
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-1 pt-2 px-3 md:px-4">
+              <Card className="border-0 bg-card/50 dark:bg-slate-950/60 rounded-xl p-4 md:p-5 shadow-lg backdrop-blur-sm">
+                <CardContent className="space-y-4 p-0">
                   {/* Date Mode Tabs */}
-                  <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-slate-100/40 dark:bg-slate-800/50 p-2 md:p-3">
-                    {(['all', 'single', 'range', 'month'] as DateMode[]).map((mode) => (
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                    {(['all', 'single', 'range'] as DateMode[]).map((mode) => (
                       <button
                         key={mode}
                         type="button"
                         onClick={() => setDateMode(mode)}
-                        className={`px-4 py-2 text-sm font-semibold rounded-full h-11 flex items-center justify-center transition-all whitespace-nowrap ${
+                        className={`px-4 py-2 text-xs sm:text-sm font-semibold rounded-full transition whitespace-nowrap ${
                           dateMode === mode
-                            ? 'bg-blue-600 dark:bg-blue-700 text-white shadow-md'
-                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/40 dark:hover:bg-slate-700/40'
+                            ? 'bg-primary text-primary-foreground shadow-lg'
+                            : 'text-muted-foreground hover:text-foreground border border-border/40 hover:border-border/60'
                         }`}
                       >
-                        {mode === 'all' ? 'All dates' : mode === 'single' ? 'Single date' : mode === 'range' ? 'Date range' : 'Month'}
+                        {mode === 'all' ? 'All dates' : mode === 'single' ? 'Single date' : 'Date range'}
                       </button>
                     ))}
+                    <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="ml-auto h-8 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">
+                      Hide
+                    </Button>
                   </div>
 
                   {/* Input Fields Grid */}
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-4">
                     {/* Date pickers row (if any) */}
-                    <div className="flex flex-wrap gap-4">
-                      {dateMode === 'single' && (
-                        <div className="flex flex-col gap-2">
-                          <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
-                            Single date
-                          </label>
-                          <Input 
-                            type="date" 
-                            value={singleDate} 
-                            onChange={(e) => setSingleDate(e.target.value)}
-                            className="h-11 dark:bg-slate-800 dark:border-slate-600 dark:text-white border-slate-300 rounded-full"
-                          />
-                        </div>
-                      )}
-                      {dateMode === 'range' && (
-                        <>
-                          <div className="flex flex-col gap-2">
-                            <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
-                              Range start
-                            </label>
-                            <Input 
-                              type="date" 
-                              value={rangeStart} 
-                              onChange={(e) => setRangeStart(e.target.value)}
-                              className="h-11 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 rounded-full"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-2">
-                            <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
-                              Range end
-                            </label>
-                            <Input 
-                              type="date" 
-                              value={rangeEnd} 
-                              onChange={(e) => setRangeEnd(e.target.value)}
-                              className="h-11 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 rounded-full"
-                            />
-                          </div>
-                        </>
-                      )}
-                      {dateMode === 'month' && (
-                        <div className="flex flex-col gap-2">
-                          <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
-                            Month
-                          </label>
-                          <Input 
-                            type="month" 
-                            value={monthValue} 
-                            onChange={(e) => setMonthValue(e.target.value)}
-                            className="h-11 dark:bg-slate-800 dark:border-border/40 dark:text-slate-200 rounded-full"
-                          />
-                        </div>
-                      )}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-5">
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Range Start</label>
+                        <Input type="date" value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} disabled={dateMode === 'single' || dateMode === 'all'} min={activeSchoolYear?.start_date} max={activeSchoolYear?.end_date} className="h-11 bg-muted/30 dark:bg-slate-800/40 border-border/40 dark:border-slate-700/60 text-foreground dark:text-slate-200 disabled:opacity-50 rounded-full" />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Range End</label>
+                        <Input type="date" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} disabled={dateMode === 'single' || dateMode === 'all'} min={activeSchoolYear?.start_date} max={activeSchoolYear?.end_date} className="h-11 bg-muted/30 dark:bg-slate-800/40 border-border/40 dark:border-slate-700/60 text-foreground dark:text-slate-200 disabled:opacity-50 rounded-full" />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Single Date</label>
+                        <Input type="date" value={singleDate} onChange={(e) => setSingleDate(e.target.value)} disabled={dateMode === 'range' || dateMode === 'all'} min={activeSchoolYear?.start_date} max={activeSchoolYear?.end_date} className="h-11 bg-muted/30 dark:bg-slate-800/40 border-border/40 dark:border-slate-700/60 text-foreground dark:text-slate-200 disabled:opacity-50 rounded-full" />
+                      </div>
                     </div>
                     {/* Main filter row */}
-                    <div className="flex flex-col md:flex-row gap-4 w-full">
-                      <div className="flex-1 min-w-[200px]">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-end w-full">
+                      <div className="w-full md:flex-[1.35] md:min-w-0">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-2 block">
+                          School Year
+                        </label>
+                        <Select value={selectedSchoolYearId} onValueChange={setSelectedSchoolYearId}>
+                          <SelectTrigger className="h-11 w-full dark:bg-slate-800 dark:text-slate-200 rounded-full border border-slate-200 dark:border-slate-700">
+                            <SelectValue placeholder="Select school year" />
+                          </SelectTrigger>
+                          <SelectContent className="dark:bg-slate-800 dark:border-border/40">
+                            {schoolYears.map((year) => (
+                              <SelectItem key={year.id ?? year.label} value={String(year.id ?? year.label)}>
+                                {schoolYearLabel(year)} ({year.start_date} - {year.end_date})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-full md:flex-[0.85] md:min-w-0">
                         <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-2 block">
                           Student Level
                         </label>
@@ -1450,7 +1412,7 @@ export default function AttendancePage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="flex-1 min-w-[200px]">
+                      <div className="w-full md:flex-[0.75] md:min-w-0">
                         <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-2 block">
                           Severity
                         </label>
@@ -1468,7 +1430,7 @@ export default function AttendancePage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="flex-1 min-w-[200px]">
+                      <div className="w-full md:flex-[1.1] md:min-w-0">
                         <label className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-2 block">
                           Search
                         </label>
@@ -2093,7 +2055,7 @@ export default function AttendancePage() {
               Detailed Attendance Logs
             </CardTitle>
             <CardDescription>
-              {logs.length} check-in records • Most recent first
+              {logs.length} check-in records • {activeSchoolYear ? `Showing: ${schoolYearLabel(activeSchoolYear)}` : 'School year not selected'} • Most recent first
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">

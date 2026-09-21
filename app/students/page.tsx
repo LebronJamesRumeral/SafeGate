@@ -66,7 +66,7 @@ import { useState, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { calculateAgeWithDecimal, shouldShowAge } from '@/lib/age-calculator';
-import { supabase, type Student as BaseStudent } from '@/lib/supabase';
+import { fetchAllSupabaseRows, supabase, type Student as BaseStudent } from '@/lib/supabase';
 import { getAttendanceStatusLabel, isCancellationStatus, isHolidayStatus } from '@/lib/attendance-status';
 
 // Extend Student type to include isLinked for local use
@@ -90,6 +90,7 @@ type SchoolYearUndoState = {
 import { toast } from '@/hooks/use-toast';
 import { formatTime12h } from '@/lib/time-format';
 import { formatLocalDateKey, parseLocalDateKey } from '@/lib/utils';
+import { getSchoolYearForDate, schoolYearLabel, type SchoolYear } from '@/lib/school-year';
 import { sortByLevel } from '@/lib/level-order';
 import { calculateStudentRiskScore, getActionRecommendations, type RiskScore } from '@/lib/ml-risk-calculator';
 import { StudentRiskCard } from '@/components/ml-dashboard';
@@ -782,6 +783,8 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true);
   const [currentSchoolYearLabel, setCurrentSchoolYearLabel] = useState('');
   const [currentSchoolYear, setCurrentSchoolYear] = useState<{ label: string, start_date: string, end_date: string } | null>(null);
+  const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
+  const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('');
   const [endSchoolYearOpen, setEndSchoolYearOpen] = useState(false);
   const [includeSummerStudentsOnEnd, setIncludeSummerStudentsOnEnd] = useState(false);
   const [endingSchoolYear, setEndingSchoolYear] = useState(false);
@@ -1490,6 +1493,18 @@ export default function StudentsPage() {
       throw error;
     }
 
+    const { data: yearRows, error: yearsError } = await supabase
+      .from('school_years')
+      .select('id, label, start_date, end_date, is_current')
+      .order('start_date', { ascending: false });
+    if (yearsError) throw yearsError;
+    const availableYears = (yearRows || []) as SchoolYear[];
+    setSchoolYears(availableYears);
+    const defaultYear = getSchoolYearForDate(availableYears);
+    if (!selectedSchoolYearId && defaultYear?.id != null) {
+      setSelectedSchoolYearId(String(defaultYear.id));
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const forcedEndDate = typeof window !== 'undefined' ? localStorage.getItem(schoolYearClosureKey) : null;
@@ -1589,6 +1604,12 @@ export default function StudentsPage() {
       console.error('Failed to load school year metadata:', error);
     });
   }, [isMobile]);
+
+  useEffect(() => {
+    if (detailsOpen && selectedStudent?.lrn) {
+      void fetchBehavioralData(selectedStudent.lrn);
+    }
+  }, [selectedSchoolYearId]);
 
   useEffect(() => {
     const restore = async () => {
@@ -3017,22 +3038,13 @@ export default function StudentsPage() {
     try {
       setLoadingBehavioral(true);
 
-      // Use the closed/current school year cutoff if available so we do not
-      // synthesize absences beyond the end of the school year.
-      const knownSchoolYearEnd = await resolveSchoolYearEndDate();
-      let schoolYearEnd = knownSchoolYearEnd ? new Date(knownSchoolYearEnd) : null;
-      schoolYearEnd?.setHours(0, 0, 0, 0);
-
-      if (!schoolYearEnd) {
-        const { data: schoolYearData } = await supabase
-          .from('school_years')
-          .select('end_date')
-          .eq('is_current', true)
-          .maybeSingle();
-
-        schoolYearEnd = schoolYearData?.end_date ? new Date(schoolYearData.end_date) : null;
-        schoolYearEnd?.setHours(0, 0, 0, 0);
-      }
+      const selectedSchoolYear = schoolYears.find((year) => String(year.id) === selectedSchoolYearId)
+        || getSchoolYearForDate(schoolYears);
+      const schoolYearStart = selectedSchoolYear?.start_date || '1900-01-01';
+      const todayKey = formatLocalDate(new Date());
+      const schoolYearEnd = selectedSchoolYear
+        ? (selectedSchoolYear.end_date < todayKey ? selectedSchoolYear.end_date : todayKey)
+        : todayKey;
       
       // Fetch recent behavioral events
       const { data: events, error: eventsError } = await supabase
@@ -3048,17 +3060,17 @@ export default function StudentsPage() {
 
       if (eventsError) throw eventsError;
 
-      // Fetch attendance data for the month
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const startDateStr = formatLocalDate(thirtyDaysAgo);
-      
-      const { data: attendance, error: attendanceError } = await supabase
-        .from('attendance_logs')
-        .select('*')
-        .eq('student_lrn', studentLrn)
-        .gte('date', startDateStr)
-        .order('date', { ascending: false });
+      // Fetch the complete attendance history, matching the attendance page's
+      // paginated Supabase loading instead of relying on the default row limit.
+      const { data: attendance, error: attendanceError } = await fetchAllSupabaseRows<any>(
+        supabase
+          .from('attendance_logs')
+          .select('*')
+          .eq('student_lrn', studentLrn)
+          .gte('date', schoolYearStart)
+          .lte('date', schoolYearEnd)
+          .order('date', { ascending: false })
+      );
 
       if (attendanceError) throw attendanceError;
 
@@ -3066,8 +3078,8 @@ export default function StudentsPage() {
       const enrichedAttendance = [...(attendance || [])];
       const existingDates = new Set((attendance || []).map(a => a.date));
       
-      // Generate all weekdays in the 30-day period
-      const current = new Date(thirtyDaysAgo);
+      // Generate absent weekdays from the start of the loaded attendance history.
+      const current = new Date(schoolYearStart);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -3090,9 +3102,9 @@ export default function StudentsPage() {
           isInSummerWindow = currCopy >= s && currCopy <= e;
         }
 
-        const isBeforeSchoolYearEnd = !schoolYearEnd || current <= schoolYearEnd || isInSummerWindow;
+        const isWithinSelectedSchoolYear = dateStr >= schoolYearStart && dateStr <= schoolYearEnd;
 
-        if (dayOfWeek >= 1 && dayOfWeek <= 5 && !existingDates.has(dateStr) && isBeforeSchoolYearEnd) {
+        if (dayOfWeek >= 1 && dayOfWeek <= 5 && !existingDates.has(dateStr) && isWithinSelectedSchoolYear) {
           // Add an absent entry for this missing weekday
           enrichedAttendance.push({
             student_lrn: studentLrn,
@@ -3109,25 +3121,7 @@ export default function StudentsPage() {
         current.setDate(current.getDate() + 1);
       }
       
-      // Filter attendance records to exclude dates after school year end
-      let filteredAttendance = enrichedAttendance;
-      if (schoolYearEnd) {
-        filteredAttendance = enrichedAttendance.filter(a => {
-          const recordDate = new Date(a.date);
-          recordDate.setHours(0, 0, 0, 0);
-          if (recordDate <= schoolYearEnd) return true;
-          // allow records that are within student's summer enrollment window
-          const enrollmentForStudent = summerEnrollments[studentLrn];
-          if (enrollmentForStudent && enrollmentForStudent.start_date && enrollmentForStudent.end_date) {
-            const s = new Date(enrollmentForStudent.start_date);
-            const e = new Date(enrollmentForStudent.end_date);
-            s.setHours(0,0,0,0);
-            e.setHours(0,0,0,0);
-            if (recordDate >= s && recordDate <= e) return true;
-          }
-          return false;
-        });
-      }
+      const filteredAttendance = enrichedAttendance.filter((entry) => entry.date >= schoolYearStart && entry.date <= schoolYearEnd);
       
       // Sort by date descending (most recent first)
       filteredAttendance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -4203,6 +4197,21 @@ export default function StudentsPage() {
             <p className="text-base text-gray-600 dark:text-gray-300 mt-2">
               Active students enrolled in {currentSchoolYearLabel} • {filteredStudents.length} students
             </p>
+            <div className="mt-3 flex items-center gap-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Attendance school year</label>
+              <Select value={selectedSchoolYearId} onValueChange={setSelectedSchoolYearId}>
+                <SelectTrigger className="h-9 w-64">
+                  <SelectValue placeholder="Select school year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {schoolYears.map((year) => (
+                    <SelectItem key={year.id ?? year.label} value={String(year.id ?? year.label)}>
+                      {schoolYearLabel(year)} ({year.start_date} - {year.end_date})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -5208,19 +5217,8 @@ export default function StudentsPage() {
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <Card className="border-0 shadow-lg">
-                    <CardHeader>
-                      <div className="flex w-full items-start justify-between gap-3">
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                          <Filter className="w-5 h-5 text-blue-500" />
-                          Search & Filter Students
-                        </CardTitle>
-                        <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="gap-2">
-                          Hide
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
+                  <Card className="overflow-hidden rounded-xl border-0 bg-card/50 shadow-lg backdrop-blur-sm dark:bg-slate-950/60">
+                    <CardContent className="space-y-3 p-4 sm:p-5">
                       <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
                         <div className="relative lg:col-span-5">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -5256,7 +5254,7 @@ export default function StudentsPage() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="lg:col-span-3">
+                        <div className="lg:col-span-2">
                           <Select value={filterRisk} onValueChange={setFilterRisk}>
                             <SelectTrigger className="h-10 w-full">
                               <SelectValue placeholder="Filter By Risk" />
@@ -5270,8 +5268,11 @@ export default function StudentsPage() {
                             </SelectContent>
                           </Select>
                         </div>
+                        <div className="flex justify-end lg:col-span-1">
+                          <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="h-8 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">Hide</Button>
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:text-sm">
                         <p>
                           Showing <span className="font-bold text-foreground">{filteredStudents.length}</span> of{' '}
                           <span className="font-bold text-foreground">{students.length}</span> students
@@ -8033,19 +8034,8 @@ export default function StudentsPage() {
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <Card className="border-0 shadow-lg mb-3">
-                    <CardHeader>
-                      <div className="flex w-full items-start justify-between gap-3">
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                          <Filter className="w-5 h-5 text-blue-500" />
-                          Search & Filter Students
-                        </CardTitle>
-                        <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="gap-2">
-                          Hide
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
+                  <Card className="mb-3 overflow-hidden rounded-xl border-0 bg-card/50 shadow-lg backdrop-blur-sm dark:bg-slate-950/60">
+                    <CardContent className="space-y-3 p-4 sm:p-5">
                       <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
                         <div className="relative lg:col-span-5">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -8078,7 +8068,7 @@ export default function StudentsPage() {
                           </SelectContent>
                         </Select>
                         <Select value={filterRisk} onValueChange={setFilterRisk}>
-                          <SelectTrigger className="h-10 lg:col-span-3 w-full">
+                          <SelectTrigger className="h-10 lg:col-span-2 w-full">
                             <SelectValue placeholder="Filter By Risk" />
                           </SelectTrigger>
                           <SelectContent>
@@ -8089,8 +8079,11 @@ export default function StudentsPage() {
                             <SelectItem value="critical">Critical Risk</SelectItem>
                           </SelectContent>
                         </Select>
+                        <div className="flex justify-end lg:col-span-1">
+                          <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="h-8 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">Hide</Button>
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:text-sm">
                         <p>
                           Showing <span className="font-bold text-foreground">{filteredSummerStudents.length}</span> of{' '}
                           <span className="font-bold text-foreground">{summerStudents.length}</span> summer students

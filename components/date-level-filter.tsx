@@ -2,7 +2,7 @@
 
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -21,6 +21,9 @@ interface DateLevelFilterProps {
   setSelectedLevel: (level: string) => void;
   forceExpanded?: boolean;
   noWrapper?: boolean;
+  hideLevel?: boolean;
+  additionalFilters?: ReactNode;
+  trailingControl?: ReactNode;
 }
 
 export function DateLevelFilter({
@@ -36,6 +39,9 @@ export function DateLevelFilter({
   setSelectedLevel,
   forceExpanded,
   noWrapper,
+  hideLevel = false,
+  additionalFilters,
+  trailingControl,
 }: DateLevelFilterProps) {
   const [levels, setLevels] = useState<string[]>([]);
   const isMobile = useIsMobile();
@@ -133,10 +139,11 @@ export function DateLevelFilter({
             >
               Date range
             </button>
+            {trailingControl}
           </div>
 
           {/* Input Fields Grid - Always show all 3 */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:gap-6">
+          <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 ${hideLevel ? 'lg:grid-cols-3' : 'md:grid-cols-3 lg:grid-cols-4'}`}>
             {/* Range Start - Always visible */}
             <div className="flex flex-col gap-3">
               <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -147,7 +154,7 @@ export function DateLevelFilter({
                 value={rangeStart}
                 onChange={(e) => setRangeStart(e.target.value)}
                 disabled={dateMode === 'single' || dateMode === 'all'}
-                className="h-11 bg-muted/30 dark:bg-slate-800/40 border-border/40 dark:border-slate-700/60 text-foreground dark:text-slate-200 placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed font-mono text-base sm:text-lg"
+                className="h-11 bg-muted/30 dark:bg-slate-800/40 border-border/40 dark:border-slate-700/60 text-foreground dark:text-slate-200 placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm sm:text-base"
               />
             </div>
 
@@ -161,7 +168,7 @@ export function DateLevelFilter({
                 value={rangeEnd}
                 onChange={(e) => setRangeEnd(e.target.value)}
                 disabled={dateMode === 'single' || dateMode === 'all'}
-                className="h-11 bg-muted/30 dark:bg-slate-800/40 border-border/40 dark:border-slate-700/60 text-foreground dark:text-slate-200 placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed font-mono text-base sm:text-lg"
+                className="h-11 bg-muted/30 dark:bg-slate-800/40 border-border/40 dark:border-slate-700/60 text-foreground dark:text-slate-200 placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm sm:text-base"
               />
             </div>
 
@@ -175,30 +182,33 @@ export function DateLevelFilter({
                 value={singleDate}
                 onChange={(e) => setSingleDate(e.target.value)}
                 disabled={dateMode === 'range' || dateMode === 'all'}
-                className="h-11 bg-muted/30 dark:bg-slate-800/40 border-border/40 dark:border-slate-700/60 text-foreground dark:text-slate-200 placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed font-mono text-base sm:text-lg"
+                className="h-11 bg-muted/30 dark:bg-slate-800/40 border-border/40 dark:border-slate-700/60 text-foreground dark:text-slate-200 placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm sm:text-base"
               />
             </div>
 
-            {/* Student Level */}
-            <div className="flex flex-col gap-3">
-              <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Student Level
-              </label>
-              <Select value={selectedLevel} onValueChange={setSelectedLevel}>
-                <SelectTrigger className="h-11 bg-muted/30 dark:bg-slate-800/40 border-border/40 dark:border-slate-700/60 text-foreground dark:text-slate-200 font-mono text-base sm:text-lg">
-                  <SelectValue placeholder="All Levels" />
-                </SelectTrigger>
-                <SelectContent className="bg-background dark:bg-slate-900 border-border/40 dark:border-slate-800/60">
-                  <SelectItem value="all">All Levels</SelectItem>
-                  {levels.map((level) => (
-                    <SelectItem key={level} value={level}>
-                      {level}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!hideLevel && (
+              <div className="flex flex-col gap-3">
+                <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Student Level
+                </label>
+                <Select value={selectedLevel} onValueChange={setSelectedLevel}>
+                  <SelectTrigger className="h-11 bg-muted/30 dark:bg-slate-800/40 border-border/40 dark:border-slate-700/60 text-foreground dark:text-slate-200 font-mono text-sm sm:text-base">
+                    <SelectValue placeholder="All Levels" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background dark:bg-slate-900 border-border/40 dark:border-slate-800/60">
+                    <SelectItem value="all">All Levels</SelectItem>
+                    {levels.map((level) => (
+                      <SelectItem key={level} value={level}>
+                        {level}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
+
+          {additionalFilters && <div className="mt-5">{additionalFilters}</div>}
         </>
       )}
     </>

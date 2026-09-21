@@ -3079,55 +3079,45 @@ function BehavioralEventsPageContent() {
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.28 }}
             >
-              <Card className="overflow-hidden rounded-[28px] border-0 bg-white shadow-[0_24px_70px_-30px_rgba(15,23,42,0.28)] dark:bg-slate-950/70 dark:shadow-[0_24px_70px_-30px_rgba(15,23,42,0.58)]">
-                <CardHeader className="border-b border-orange-100/70 bg-linear-to-r from-white via-orange-50/60 to-white py-3 dark:border-orange-900/30 dark:from-slate-950/80 dark:via-orange-950/10 dark:to-slate-950/80">
-                  <div className="flex items-start justify-between w-full">
-                    <CardTitle className="flex items-center gap-3 text-lg font-semibold text-slate-900 dark:text-slate-100">
-                      <span className="hidden sm:flex h-10 w-10 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/20 ring-4 ring-blue-100/70 dark:ring-blue-950/40">
-                        <Filter className="w-5 h-5" />
-                      </span>
-                      Search & Filter Events
-                    </CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="gap-2">
-                        Hide
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="mt-4 w-full">
+              <Card className="overflow-hidden rounded-xl border-0 bg-card/50 shadow-lg backdrop-blur-sm dark:bg-slate-950/60">
+                <div className="px-4 pt-4 sm:px-5 sm:pt-5">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-400" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
                       <Input
                         id="search"
                         placeholder="Search events..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9 h-11 rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] transition-colors focus-visible:border-orange-300 focus-visible:ring-orange-200 dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none w-full"
+                        className="pl-9 h-11 w-full rounded-full border-slate-200 bg-white transition-colors focus-visible:border-blue-300 focus-visible:ring-blue-200 dark:border-slate-700 dark:bg-slate-950/60 sm:w-[min(42rem,calc(100vw-12rem))]"
                       />
                     </div>
+                    <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="h-8 shrink-0 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">
+                      Hide
+                    </Button>
                   </div>
-                </CardHeader>
-                <CardContent className="pt-3 pb-4">
+                </div>
+                <CardContent className="space-y-3 px-4 pb-4 pt-4 sm:px-5">
                   <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-slate-100/40 dark:bg-slate-800/50 p-2">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                       <button
                         type="button"
                         onClick={() => setDateMode('all')}
-                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${dateMode === 'all' ? 'bg-orange-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-white/40 dark:hover:bg-slate-700/40'}`}
+                        className={`px-4 py-2 text-xs sm:text-sm font-semibold rounded-full transition whitespace-nowrap ${dateMode === 'all' ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground border border-border/40 hover:border-border/60 hover:text-foreground'}`}
                       >
                         All dates
                       </button>
                       <button
                         type="button"
                         onClick={() => setDateMode('single')}
-                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${dateMode === 'single' ? 'bg-orange-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-white/40 dark:hover:bg-slate-700/40'}`}
+                        className={`px-4 py-2 text-xs sm:text-sm font-semibold rounded-full transition whitespace-nowrap ${dateMode === 'single' ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground border border-border/40 hover:border-border/60 hover:text-foreground'}`}
                       >
                         Single date
                       </button>
                       <button
                         type="button"
                         onClick={() => setDateMode('range')}
-                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${dateMode === 'range' ? 'bg-orange-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-white/40 dark:hover:bg-slate-700/40'}`}
+                        className={`px-4 py-2 text-xs sm:text-sm font-semibold rounded-full transition whitespace-nowrap ${dateMode === 'range' ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground border border-border/40 hover:border-border/60 hover:text-foreground'}`}
                       >
                         Date range
                       </button>
@@ -3161,7 +3151,7 @@ function BehavioralEventsPageContent() {
                     <div className="space-y-1">
                       <Label htmlFor="severity-filter">Severity</Label>
                       <Select value={severityFilter} onValueChange={setSeverityFilter}>
-                        <SelectTrigger id="severity-filter" className="h-11 w-full rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
+                        <SelectTrigger id="severity-filter" className="h-11 w-full rounded-full border-border/40 bg-muted/30 text-foreground dark:border-slate-700/60 dark:bg-slate-800/40">
                           <SelectValue placeholder="All Severities" />
                         </SelectTrigger>
                         <SelectContent>
@@ -3180,7 +3170,7 @@ function BehavioralEventsPageContent() {
                     <div className="space-y-1">
                       <Label htmlFor="category-filter">Category</Label>
                       <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                        <SelectTrigger id="category-filter" className="h-11 w-full rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
+                        <SelectTrigger id="category-filter" className="h-11 w-full rounded-full border-border/40 bg-muted/30 text-foreground dark:border-slate-700/60 dark:bg-slate-800/40">
                           <SelectValue placeholder="All Categories" />
                         </SelectTrigger>
                         <SelectContent>
@@ -3196,7 +3186,7 @@ function BehavioralEventsPageContent() {
                     <div className="space-y-1">
                       <Label htmlFor="event-type-category-filter">Event Type Category</Label>
                       <Select value={eventCategoryFilter} onValueChange={setEventCategoryFilter}>
-                        <SelectTrigger id="event-type-category-filter" className="h-11 w-full rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
+                        <SelectTrigger id="event-type-category-filter" className="h-11 w-full rounded-full border-border/40 bg-muted/30 text-foreground dark:border-slate-700/60 dark:bg-slate-800/40">
                           <SelectValue placeholder="All Event Categories" />
                         </SelectTrigger>
                         <SelectContent>
@@ -3212,7 +3202,7 @@ function BehavioralEventsPageContent() {
                     <div className="space-y-1">
                       <Label htmlFor="student-level-filter">Student Level</Label>
                       <Select value={studentLevelFilter} onValueChange={setStudentLevelFilter}>
-                        <SelectTrigger id="student-level-filter" className="h-11 w-full rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
+                        <SelectTrigger id="student-level-filter" className="h-11 w-full rounded-full border-border/40 bg-muted/30 text-foreground dark:border-slate-700/60 dark:bg-slate-800/40">
                           <SelectValue placeholder="All Levels" />
                         </SelectTrigger>
                         <SelectContent>
@@ -3228,7 +3218,7 @@ function BehavioralEventsPageContent() {
                     <div className="space-y-1">
                       <Label htmlFor="date-filter">Date Range</Label>
                       <Select value={dateFilter} onValueChange={setDateFilter}>
-                        <SelectTrigger id="date-filter" className="h-11 w-full rounded-full border-orange-200 bg-white shadow-[0_10px_24px_-18px_rgba(251,146,60,0.65)] dark:border-orange-900/40 dark:bg-slate-950/60 dark:shadow-none">
+                        <SelectTrigger id="date-filter" className="h-11 w-full rounded-full border-border/40 bg-muted/30 text-foreground dark:border-slate-700/60 dark:bg-slate-800/40">
                           <SelectValue placeholder="All Time" />
                         </SelectTrigger>
                         <SelectContent>

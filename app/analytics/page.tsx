@@ -39,6 +39,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { calculateStudentRiskScore, detectAbsencePatterns, getAttendanceMetrics } from '@/lib/ml-risk-calculator';
 import { isCancellationStatus, isHolidayStatus, isNoClassStatus, isSyntheticCancellationRecord } from '@/lib/attendance-status';
+import { clampDateRange, getSchoolYearForDate, schoolYearLabel, type SchoolYear } from '@/lib/school-year';
 import type { Cell as ExcelCell } from 'exceljs';
 import { 
   AreaChart, 
@@ -250,6 +251,8 @@ export default function AnalyticsPage() {
   const [rangeStart, setRangeStart] = useState(today);
   const [rangeEnd, setRangeEnd] = useState(today);
   const [singleDate, setSingleDate] = useState(today);
+  const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
+  const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('all');
   const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -294,7 +297,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     fetchAnalyticsData();
-  }, [dateMode, rangeStart, rangeEnd, singleDate, selectedLevel]);
+  }, [dateMode, rangeStart, rangeEnd, singleDate, selectedLevel, selectedSchoolYearId]);
 
   const getDateRangeText = () => {
     if (dateMode === 'all') return 'All dates';
@@ -339,34 +342,27 @@ export default function AnalyticsPage() {
       if (selectedLevel !== 'all') {
         studentsQuery = studentsQuery.eq('level', selectedLevel);
       }
-      const currentYearQuery = supabase
+      const schoolYearsQuery = supabase
         .from('school_years')
-        .select('end_date, is_current')
-        .eq('is_current', true)
-        .maybeSingle();
-      const latestYearQuery = supabase
-        .from('school_years')
-        .select('end_date, is_current')
-        .order('start_date', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const earliestAttendanceQuery = supabase
-        .from('attendance_logs')
-        .select('date')
-        .order('date', { ascending: true })
-        .limit(1);
+        .select('id, label, start_date, end_date, is_current')
+        .order('start_date', { ascending: false });
 
-      const [studentsRes, currentSchoolYearRes, latestSchoolYearRes, earliestAttendanceRes] = await Promise.all([
+      const [studentsRes, schoolYearsRes] = await Promise.all([
         studentsQuery,
-        currentYearQuery,
-        latestYearQuery,
-        earliestAttendanceQuery
+        schoolYearsQuery
       ]);
 
       const { data: students, error: studentsError } = studentsRes || {};
-      const { data: currentSchoolYear } = currentSchoolYearRes || {};
-      const { data: latestSchoolYear } = latestSchoolYearRes || {};
-      const { data: earliestAttendance } = earliestAttendanceRes || {};
+      const { data: availableSchoolYears, error: schoolYearsError } = schoolYearsRes || {};
+
+      if (schoolYearsError) throw schoolYearsError;
+      const years = (availableSchoolYears || []) as SchoolYear[];
+      setSchoolYears(years);
+      const selectedSchoolYear = years.find((year) => String(year.id) === selectedSchoolYearId)
+        || getSchoolYearForDate(years, today);
+      if (!selectedSchoolYearId && selectedSchoolYear?.id != null) {
+        setSelectedSchoolYearId(String(selectedSchoolYear.id));
+      }
 
       if (studentsError) {
         toast({
@@ -384,8 +380,6 @@ export default function AnalyticsPage() {
       });
       const totalStudents = studentsForAnalytics.length;
 
-      let schoolYearEndDate = currentSchoolYear?.end_date || latestSchoolYear?.end_date || null;
-
       const normalizeRange = (start: string, end: string) => {
         if (!start || !end) return [end, end];
         return start <= end ? [start, end] : [end, start];
@@ -396,30 +390,17 @@ export default function AnalyticsPage() {
           ? normalizeRange(rangeStart, rangeEnd)
           : dateMode === 'single'
             ? [singleDate, singleDate]
-            : [earliestAttendance?.[0]?.date || today, today];
+            : selectedSchoolYear
+              ? [selectedSchoolYear.start_date, selectedSchoolYear.end_date < today ? selectedSchoolYear.end_date : today]
+              : [today, today];
 
       let constrainedStart = normalizedStart;
       let constrainedEnd = normalizedEnd;
       
-      // Constrain dates to school year boundaries
-      if (schoolYearEndDate) {
-        const schoolYearEnd = new Date(schoolYearEndDate);
-        schoolYearEnd.setHours(0, 0, 0, 0);
-        const endDateObj = new Date(normalizedEnd);
-        endDateObj.setHours(0, 0, 0, 0);
-        const startDateObj = new Date(normalizedStart);
-        startDateObj.setHours(0, 0, 0, 0);
-        
-        // If end date is after school year end, constrain it
-        if (endDateObj > schoolYearEnd) {
-          constrainedEnd = schoolYearEndDate;
-        }
-        
-        // If start date is after school year end, show no data (beyond school year)
-        if (startDateObj > schoolYearEnd) {
-          constrainedStart = schoolYearEndDate;
-          constrainedEnd = schoolYearEndDate;
-        }
+      if (selectedSchoolYear) {
+        const scopedRange = clampDateRange(constrainedStart, constrainedEnd, selectedSchoolYear);
+        constrainedStart = scopedRange.start;
+        constrainedEnd = scopedRange.end;
       }
 
       // FIX: use the UTC-safe range builder instead of the old local-timezone-dependent one
@@ -1650,6 +1631,40 @@ export default function AnalyticsPage() {
     );
   }
 
+  const analyticsDropdownFilters = (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-5">
+      <div className="flex flex-col gap-2">
+        <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">School Year</label>
+        <Select value={selectedSchoolYearId} onValueChange={setSelectedSchoolYearId}>
+          <SelectTrigger className="h-11 w-full rounded-full border-border/40 bg-muted/30 text-sm">
+            <SelectValue placeholder="Select school year" />
+          </SelectTrigger>
+          <SelectContent>
+            {schoolYears.map((year) => (
+              <SelectItem key={year.id ?? year.label} value={String(year.id ?? year.label)}>
+                {schoolYearLabel(year)} ({year.start_date} - {year.end_date})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-2">
+        <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Student Level</label>
+        <Select value={selectedLevel} onValueChange={setSelectedLevel}>
+          <SelectTrigger className="h-11 w-full rounded-full border-border/40 bg-muted/30 text-sm">
+            <SelectValue placeholder="All Levels" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Levels</SelectItem>
+            {['Toddler & Nursery', 'Pre-K', 'Kinder 1', 'Kinder 2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'].map((level) => (
+              <SelectItem key={level} value={level}>{level}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+
   return (
     <DashboardLayout>
       <motion.div
@@ -1745,14 +1760,8 @@ export default function AnalyticsPage() {
                 transition={{ duration: 0.28 }}
               >
                 <div className="mb-2">
-                  <Card className="overflow-hidden rounded-xl border-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm p-0 shadow-lg">
-                    <CardHeader className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200/60 dark:border-slate-700/40">
-                      <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Filter Dates</CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)}>Hide</Button>
-                      </div>
-                    </CardHeader>
-                    <div className="p-4">
+                  <Card className="overflow-hidden rounded-xl border-0 bg-card/50 p-4 shadow-lg backdrop-blur-sm dark:bg-slate-950/60">
+                    <div className="pt-3">
                       <DateLevelFilter
                         dateMode={dateMode}
                         setDateMode={setDateMode}
@@ -1766,6 +1775,9 @@ export default function AnalyticsPage() {
                         setSelectedLevel={setSelectedLevel}
                         forceExpanded={true}
                         noWrapper={true}
+                        hideLevel={true}
+                        additionalFilters={analyticsDropdownFilters}
+                        trailingControl={<Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="ml-auto h-8 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">Hide</Button>}
                       />
                     </div>
                   </Card>
@@ -1774,18 +1786,27 @@ export default function AnalyticsPage() {
             )}
           </AnimatePresence>
         ) : (
-          <DateLevelFilter
-            dateMode={dateMode}
-            setDateMode={setDateMode}
-            singleDate={singleDate}
-            setSingleDate={setSingleDate}
-            rangeStart={rangeStart}
-            setRangeStart={setRangeStart}
-            rangeEnd={rangeEnd}
-            setRangeEnd={setRangeEnd}
-            selectedLevel={selectedLevel}
-            setSelectedLevel={setSelectedLevel}
-          />
+          <Card className="w-full overflow-hidden rounded-xl border-0 bg-card/50 p-4 shadow-lg backdrop-blur-sm dark:bg-slate-950/60 sm:p-5">
+            <div className="pt-3">
+              <DateLevelFilter
+                dateMode={dateMode}
+                setDateMode={setDateMode}
+                singleDate={singleDate}
+                setSingleDate={setSingleDate}
+                rangeStart={rangeStart}
+                setRangeStart={setRangeStart}
+                rangeEnd={rangeEnd}
+                setRangeEnd={setRangeEnd}
+                selectedLevel={selectedLevel}
+                setSelectedLevel={setSelectedLevel}
+                forceExpanded={true}
+                noWrapper={true}
+                hideLevel={true}
+                additionalFilters={analyticsDropdownFilters}
+                trailingControl={<Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="ml-auto h-8 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">Hide</Button>}
+              />
+            </div>
+          </Card>
         )}
 
         <AnimatePresence mode="wait">
