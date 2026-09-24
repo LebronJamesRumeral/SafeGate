@@ -13,6 +13,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import DatePickerInput from '@/components/date-picker-input';
 import { humanizeEventType } from '@/lib/event-types';
 import { supabase as sharedSupabase } from '@/lib/supabase';
+import { recalculateAllRiskScores } from '@/lib/risk-score-refresh';
 
 interface StudentRisk {
   lrn: string;
@@ -72,7 +73,7 @@ interface DashboardMLSettings {
 const DEFAULT_DASHBOARD_ML_SETTINGS: DashboardMLSettings = {
   riskAlertsEnabled: true,
   predictionsEnabled: true,
-  riskThreshold: 'high',
+  riskThreshold: 'medium',
   updateFrequency: 'daily',
 };
 
@@ -683,7 +684,11 @@ export function MLDashboard() {
   // Filtered students (match fixed student level labels)
   const filteredStudents = highRiskStudents.filter(s => {
     let matches = true;
-    matches = matches && allowedRiskLevels.has(String(s.riskLevel || '').toLowerCase());
+    if (riskFilter === 'all') {
+      matches = true;
+    } else {
+      matches = matches && allowedRiskLevels.has(String(s.riskLevel || '').toLowerCase());
+    }
 
     if (!mlSettings.riskAlertsEnabled) {
       matches = matches && s.riskLevel !== 'critical';
@@ -797,7 +802,12 @@ export function MLDashboard() {
   ].join(' • ');
 
   useEffect(() => {
-    void fetchHighRiskStudents(false);
+    const loadRiskData = async () => {
+      await recalculateAllRiskScores();
+      await fetchHighRiskStudents(false);
+    };
+
+    void loadRiskData();
   }, []);
 
   useEffect(() => {
@@ -1144,7 +1154,7 @@ export function MLDashboard() {
       </div>
 
       {/* Stats Summary (filtered) */}
-      {!error && filteredStudents.length > 0 && (
+      {!error && highRiskStudents.length > 0 && (
         <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <Card className="border-0 bg-linear-to-br from-red-50 to-white dark:from-red-950/30 dark:to-slate-800/80 shadow-lg overflow-hidden relative group hover:shadow-xl transition-all duration-300">
             <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/15 dark:bg-red-400/10 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500" />

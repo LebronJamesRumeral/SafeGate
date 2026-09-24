@@ -15,6 +15,7 @@ import { DateLevelFilter } from '@/components/date-level-filter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTheme } from '@/components/theme-provider';
+import { recalculateAllRiskScores } from '@/lib/risk-score-refresh';
 
 type DateMode = 'all' | 'single' | 'range';
 
@@ -231,6 +232,9 @@ export default function Dashboard() {
 
     try {
       setLoading(true);
+      if (isInitialLoad) {
+        await recalculateAllRiskScores();
+      }
 
       // Build independent Supabase query builders first (do not await yet)
       let studentsQuery = supabase.from('students').select('*', { count: 'exact' });

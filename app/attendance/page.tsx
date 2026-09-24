@@ -288,6 +288,7 @@ export default function AttendancePage() {
   const [culminatingActivityOpen, setCulminatingActivityOpen] = useState(false);
   const [culminatingActivityDate, setCulminatingActivityDate] = useState(today);
   const [culminatingActivityLevels, setCulminatingActivityLevels] = useState<string[]>([]);
+  const [culminatingRegularLevels, setCulminatingRegularLevels] = useState<string[]>([]);
   const [culminatingActivityName, setCulminatingActivityName] = useState('');
   const [submittingCulminatingActivity, setSubmittingCulminatingActivity] = useState(false);
   const [summaryPage, setSummaryPage] = useState(1);
@@ -1033,6 +1034,7 @@ export default function AttendancePage() {
         p_activity_date: culminatingActivityDate,
         p_levels_included: culminatingActivityLevels,
         p_activity_name: culminatingActivityName.trim() || null,
+        p_regular_levels: culminatingRegularLevels,
       });
       if (error) throw error;
 
@@ -1042,6 +1044,7 @@ export default function AttendancePage() {
       });
       setCulminatingActivityOpen(false);
       setCulminatingActivityLevels([]);
+      setCulminatingRegularLevels([]);
       setCulminatingActivityName('');
       await fetchData();
     } catch (error) {
@@ -1096,7 +1099,7 @@ export default function AttendancePage() {
                     Culminating Activity
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="w-[94vw] sm:w-[92vw] max-w-2xl p-0 flex flex-col max-h-[86dvh] sm:max-h-[90vh] overflow-hidden">
+                <DialogContent className="w-[94vw] sm:w-[92vw] sm:max-w-4xl p-0 flex flex-col max-h-[86dvh] sm:max-h-[90vh] overflow-hidden">
                   <div className="flex-1 max-h-[86dvh] sm:max-h-[90vh] overflow-y-auto p-6 md:p-8 space-y-4">
                   <DialogHeader>
                     <DialogTitle className="text-xl font-bold flex items-center gap-2">
@@ -1104,7 +1107,7 @@ export default function AttendancePage() {
                       Culminating Activity
                     </DialogTitle>
                     <DialogDescription className="text-sm">
-                      Participating levels are marked CulmAct attendance. All other active students are marked Excused.
+                      Participating levels are marked CulmAct attendance. Choose regular-class levels below; other active students are marked Excused.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
@@ -1119,11 +1122,15 @@ export default function AttendancePage() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <label className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Participating levels</label>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setCulminatingActivityLevels(culminatingActivityLevels.length === ATTENDANCE_LEVELS.length ? [] : ATTENDANCE_LEVELS)}>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => {
+                          const selectAll = culminatingActivityLevels.length !== ATTENDANCE_LEVELS.length;
+                          setCulminatingActivityLevels(selectAll ? ATTENDANCE_LEVELS : []);
+                          if (selectAll) setCulminatingRegularLevels([]);
+                        }}>
                           {culminatingActivityLevels.length === ATTENDANCE_LEVELS.length ? 'Clear all' : 'Select all'}
                         </Button>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 rounded-[20px] border border-orange-200/70 bg-orange-50/20 p-4 dark:border-orange-800/60 dark:bg-orange-950/10 sm:grid-cols-3">
+                      <div className="grid grid-cols-2 gap-2 rounded-[20px] border border-orange-200/70 bg-orange-50/20 p-4 dark:border-orange-800/60 dark:bg-orange-950/10 sm:grid-cols-3 lg:grid-cols-4">
                         {ATTENDANCE_LEVELS.map((level) => {
                           const selected = culminatingActivityLevels.includes(level);
                           return (
@@ -1131,8 +1138,38 @@ export default function AttendancePage() {
                               key={level}
                               type="button"
                               aria-pressed={selected}
-                              onClick={() => setCulminatingActivityLevels((current) => selected ? current.filter((item) => item !== level) : [...current, level])}
+                              onClick={() => {
+                                setCulminatingActivityLevels((current) => selected ? current.filter((item) => item !== level) : [...current, level]);
+                                if (!selected) setCulminatingRegularLevels((current) => current.filter((item) => item !== level));
+                              }}
                               className={`rounded-[18px] border px-3 py-2.5 text-left text-xs transition-colors ${selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}
+                            >
+                              {level}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <label className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Regular class levels (optional)</label>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">These levels keep their normal class attendance instead of being excused.</p>
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setCulminatingRegularLevels([])} disabled={culminatingRegularLevels.length === 0}>Clear</Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 rounded-[20px] border border-emerald-200/70 bg-emerald-50/20 p-4 dark:border-emerald-800/60 dark:bg-emerald-950/10 sm:grid-cols-3 lg:grid-cols-4">
+                        {ATTENDANCE_LEVELS.map((level) => {
+                          const selected = culminatingRegularLevels.includes(level);
+                          const participating = culminatingActivityLevels.includes(level);
+                          return (
+                            <button
+                              key={level}
+                              type="button"
+                              aria-pressed={selected}
+                              disabled={participating}
+                              onClick={() => setCulminatingRegularLevels((current) => selected ? current.filter((item) => item !== level) : [...current, level])}
+                              className={`rounded-[18px] border px-3 py-2.5 text-left text-xs transition-colors ${participating ? 'cursor-not-allowed border-slate-100 bg-slate-100 text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500' : selected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}
                             >
                               {level}
                             </button>
