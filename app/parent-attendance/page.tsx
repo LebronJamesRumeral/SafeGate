@@ -14,6 +14,7 @@ import ParentAttendanceSkeleton from '@/components/parent-attendance-skeleton';
 import DatePickerInput from '@/components/date-picker-input';
 import { getParentStudents } from '@/lib/parent-data';
 import { fetchAllSupabaseRows, supabase } from '@/lib/supabase';
+import { logAudit } from '@/lib/audit-log';
 import { humanizeEventType } from '@/lib/event-types';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { formatTime12h } from '@/lib/time-format';
@@ -232,11 +233,17 @@ export default function ParentAttendancePage() {
 
     try {
       if (!noteValue) {
-        await supabase
+        const { error } = await supabase
           .from('parent_attendance_notes')
           .delete()
           .eq('attendance_log_id', Number(attendanceLogId))
           .eq('parent_email', user.username);
+        if (error) throw error;
+        void logAudit({
+          actor: user,
+          actionType: 'parent_attendance_note',
+          target: { student_id: studentLrn, student_name: children.find((child) => child.lrn === studentLrn)?.name, removed: true },
+        });
 
         setAttachedNotes((prev) => {
           const next = { ...prev };
@@ -247,7 +254,7 @@ export default function ParentAttendancePage() {
         return;
       }
 
-      await supabase
+      const { error } = await supabase
         .from('parent_attendance_notes')
         .upsert(
           {
@@ -259,6 +266,12 @@ export default function ParentAttendancePage() {
           },
           { onConflict: 'attendance_log_id,parent_email' }
         );
+      if (error) throw error;
+      void logAudit({
+        actor: user,
+        actionType: 'parent_attendance_note',
+        target: { student_id: studentLrn, student_name: children.find((child) => child.lrn === studentLrn)?.name },
+      });
 
       setAttachedNotes((prev) => ({
         ...prev,
@@ -297,7 +310,7 @@ export default function ParentAttendancePage() {
       const title = `Parent Excuse Letter (${excuseStatus === 'late' ? 'Late' : 'Absence'})`;
       const message = `${parentDisplayName} submitted an excuse letter for ${selectedChild.name} on ${excuseDate}.`;
 
-      await createRoleNotification({
+      const notificationCreated = await createRoleNotification({
         title,
         message,
         targetRoles: ['teacher', 'admin'],
@@ -315,6 +328,19 @@ export default function ParentAttendancePage() {
           href: '/students',
         },
       });
+
+      if (notificationCreated) {
+        void logAudit({
+          actor: user,
+          actionType: 'parent_excuse_letter',
+          target: {
+            student_id: selectedChild.lrn,
+            student_name: selectedChild.name,
+            excuse_date: excuseDate,
+            excuse_status: excuseStatus,
+          },
+        });
+      }
 
       setExcuseModalOpen(false);
       resetExcuseForm();

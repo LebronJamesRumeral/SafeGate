@@ -17,6 +17,7 @@ import {
   ClipboardCheck,
   MapPinned,
   Megaphone,
+  ClipboardList,
   Menu,
   X,
   Home,
@@ -79,6 +80,12 @@ const allNavItems: NavItem[] = [
     label: 'Analytics',
     href: '/analytics',
     roles: ['admin', 'guidance'],
+  },
+  {
+    icon: <ClipboardList size={18} />,
+    label: 'Audit Log',
+    href: '/audit-log',
+    roles: ['admin'],
   },
   {
     icon: <Megaphone size={18} />,

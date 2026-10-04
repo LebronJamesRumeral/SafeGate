@@ -68,6 +68,7 @@ import { formatReporterLabel, humanizeEventType } from '@/lib/event-types';
 import { toast } from '@/hooks/use-toast';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { buildEarlyPreventionNote } from '@/lib/prevention-notes';
+import { logAudit } from '@/lib/audit-log';
 import { MLDashboard } from '@/components/ml-dashboard';
 import BehavioralEventsSkeleton from '@/components/behavioral-events-skeleton';
 import { getOfflineQueueCount } from '@/lib/offline-secure-queue';
@@ -1957,6 +1958,17 @@ function BehavioralEventsPageContent() {
       if (updateError) {
         throw updateError;
       }
+
+      void logAudit({
+        actor: currentUser,
+        actionType: 'guidance_review',
+        target: {
+          student_id: selectedEvent.student_lrn,
+          student_name: selectedEvent.student_lrn,
+          event_id: selectedEvent.id,
+          decision,
+        },
+      });
 
       if (decision === 'approved_for_ml') {
         const automationResult = await triggerParentAutomation({

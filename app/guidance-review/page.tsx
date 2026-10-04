@@ -34,6 +34,7 @@ import { formatTime12h } from '@/lib/time-format';
 import { toast } from '@/hooks/use-toast';
 import { createRoleNotification } from '@/lib/role-notifications';
 import { buildEarlyPreventionNote } from '@/lib/prevention-notes';
+import { logAudit } from '@/lib/audit-log';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type GuidanceStatus = 'pending_guidance' | 'approved_for_ml' | 'denied_by_guidance';
@@ -800,6 +801,17 @@ export default function GuidanceReviewPage() {
         .eq('id', reviewEvent.id);
 
       if (updateError) throw updateError;
+
+      void logAudit({
+        actor: currentUser,
+        actionType: 'guidance_review',
+        target: {
+          student_id: reviewEvent.student_lrn,
+          student_name: reviewStudentIdentity?.name || reviewEvent.student_lrn,
+          event_id: reviewEvent.id,
+          decision,
+        },
+      });
 
       if (decision === 'approved_for_ml') {
         const automationResult = await triggerParentAutomation({

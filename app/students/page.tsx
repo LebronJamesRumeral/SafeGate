@@ -98,6 +98,7 @@ import StudentsSkeleton from '@/components/students-skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/lib/auth-context';
+import { logAudit } from '@/lib/audit-log';
 import { dedupeStudentImportRows, extractStudentImportRows, getStudentImportRequiredFieldsHint, parseStudentImportRows } from '@/lib/student-import';
 import { 
   AreaChart, 
@@ -496,6 +497,11 @@ export default function StudentsPage() {
       }
       const { error } = await supabase.from('students').update({ status: 'inactive', substatus: 'dropped' }).eq('id', selectedStudent.id);
       if (error) throw error;
+      void logAudit({
+        actor: user,
+        actionType: 'student_deleted',
+        target: { student_id: selectedStudent.lrn, student_name: selectedStudent.name, lifecycle_status: 'dropped' },
+      });
       setDropDialogOpen(false);
       setSelectedStudent(null);
       setDetailsOpen(false);
@@ -587,6 +593,12 @@ export default function StudentsPage() {
         .eq('id', selectedStudent.id);
 
       if (error) throw error;
+
+      void logAudit({
+        actor: user,
+        actionType: 'student_deleted',
+        target: { student_id: selectedStudent.lrn, student_name: selectedStudent.name, lifecycle_status: 'transferred' },
+      });
 
       setTransferDialogOpen(false);
       setSelectedStudent(null);
@@ -1176,6 +1188,12 @@ export default function StudentsPage() {
         return;
       }
 
+      void logAudit({
+        actor: user,
+        actionType: 'student_updated',
+        target: { student_id: selectedStudent.lrn, student_name: updatedName },
+      });
+
       setSelectedStudent({
         ...selectedStudent,
         name: updatedName,
@@ -1240,6 +1258,11 @@ export default function StudentsPage() {
         return;
       }
 
+      void logAudit({
+        actor: user,
+        actionType: 'student_updated',
+        target: { student_id: selectedStudent.lrn, student_name: selectedStudent.name, lifecycle_status: 'inactive' },
+      });
       setSelectedStudent(prev => prev ? { ...prev, status: 'inactive', inactive_confirmed: true } : prev);
       await fetchStudents();
       toast({ title: 'Student marked inactive', description: 'Student will be excluded from next year processing.' });
@@ -1264,6 +1287,11 @@ export default function StudentsPage() {
         return;
       }
 
+      void logAudit({
+        actor: user,
+        actionType: 'student_updated',
+        target: { student_id: selectedStudent.lrn, student_name: selectedStudent.name, lifecycle_status: 'active' },
+      });
       setSelectedStudent(prev => prev ? { ...prev, status: 'active', inactive_confirmed: false } : prev);
       await fetchStudents();
       toast({ title: 'Student reactivated', description: 'Student is now active.' });
@@ -1288,6 +1316,12 @@ export default function StudentsPage() {
         return;
       }
 
+      const reactivatedStudent = students.find((student) => student.id === studentId);
+      void logAudit({
+        actor: user,
+        actionType: 'student_updated',
+        target: { student_id: reactivatedStudent?.lrn, student_name: reactivatedStudent?.name, lifecycle_status: 'active' },
+      });
       await fetchStudents();
       toast({ title: 'Student reactivated', description: 'Student is now active.' });
     } catch (err) {
@@ -2711,6 +2745,11 @@ export default function StudentsPage() {
       if (error) {
         throw error;
       }
+      void logAudit({
+        actor: user,
+        actionType: 'student_created',
+        target: { student_id: tempLrn, student_name: fullName },
+      });
       if (shouldCreateSchedule) {
         const { data: currentSchoolYear } = await supabase
           .from('school_years')
@@ -2967,6 +3006,11 @@ export default function StudentsPage() {
     if (error) {
       throw error;
     }
+    void logAudit({
+      actor: user,
+      actionType: 'student_created',
+      target: { student_id: studentLrn, student_name: fullName },
+    });
     
     if (shouldCreateSchedule) {
       const { data: currentSchoolYear } = await supabase
@@ -5217,21 +5261,21 @@ export default function StudentsPage() {
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <Card className="overflow-hidden rounded-xl border-0 bg-card/50 shadow-lg backdrop-blur-sm dark:bg-slate-950/60">
-                    <CardContent className="space-y-3 p-4 sm:p-5">
-                      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
-                        <div className="relative lg:col-span-5">
+                  <Card className="overflow-hidden rounded-xl border border-orange-200/70 bg-white/75 shadow-sm backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-950/60">
+                    <CardContent className="space-y-2.5 p-3 sm:p-3.5">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-12">
+                        <div className="relative min-w-0 xl:col-span-5">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                           <Input
                             placeholder="Search by LRN, name, or parent..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="pl-9 h-10 w-full"
+                            className="h-10 w-full rounded-full border-orange-200/80 bg-white/80 pl-9 text-sm dark:border-slate-700 dark:bg-slate-900/70"
                           />
                         </div>
-                        <div className="lg:col-span-2">
+                        <div className="min-w-0 xl:col-span-2">
                           <Select value={filterGrade} onValueChange={setFilterGrade}>
-                            <SelectTrigger className="h-10 w-full">
+                            <SelectTrigger className="h-10 w-full rounded-full border-orange-200/80 bg-white/80 text-sm dark:border-slate-700 dark:bg-slate-900/70">
                               <SelectValue placeholder="Filter By Level" />
                             </SelectTrigger>
                             <SelectContent>
@@ -5242,9 +5286,9 @@ export default function StudentsPage() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="lg:col-span-2">
+                        <div className="min-w-0 xl:col-span-2">
                           <Select value={filterGender} onValueChange={setFilterGender}>
-                            <SelectTrigger className="h-10 w-full">
+                            <SelectTrigger className="h-10 w-full rounded-full border-orange-200/80 bg-white/80 text-sm dark:border-slate-700 dark:bg-slate-900/70">
                               <SelectValue placeholder="Filter By Gender" />
                             </SelectTrigger>
                             <SelectContent>
@@ -5254,9 +5298,9 @@ export default function StudentsPage() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="lg:col-span-2">
+                        <div className="min-w-0 xl:col-span-2">
                           <Select value={filterRisk} onValueChange={setFilterRisk}>
-                            <SelectTrigger className="h-10 w-full">
+                            <SelectTrigger className="h-10 w-full rounded-full border-orange-200/80 bg-white/80 text-sm dark:border-slate-700 dark:bg-slate-900/70">
                               <SelectValue placeholder="Filter By Risk" />
                             </SelectTrigger>
                             <SelectContent>
@@ -5268,11 +5312,11 @@ export default function StudentsPage() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="flex justify-end lg:col-span-1">
-                          <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="h-8 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">Hide</Button>
+                        <div className="flex items-center justify-end xl:col-span-1">
+                          <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="h-8 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground">Hide</Button>
                         </div>
                       </div>
-                      <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:text-sm">
+                      <div className="flex min-h-5 flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                         <p>
                           Showing <span className="font-bold text-foreground">{filteredStudents.length}</span> of{' '}
                           <span className="font-bold text-foreground">{students.length}</span> students

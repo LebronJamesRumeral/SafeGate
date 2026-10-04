@@ -16,6 +16,7 @@ import {
   ClipboardCheck,
   MapPinned,
   Megaphone,
+  ClipboardList,
   ChevronLeft,
   ChevronRight
 } from "lucide-react"
@@ -36,6 +37,7 @@ const allNavItems = [
   { icon: Users, label: "Students", href: "/students", roles: ["teacher", "admin", "guidance"] },
   { icon: MapPinned, label: "School Heatmap", href: "/school-heatmap", roles: ["teacher", "admin", "guidance"] },
   { icon: BarChart3, label: "Analytics", href: "/analytics", roles: ["admin", "guidance"] },
+  { icon: ClipboardList, label: "Audit Log", href: "/audit-log", roles: ["admin"] },
   { icon: Megaphone, label: "School Events", href: "/events", roles: ["teacher", "admin"] },
   // Parent dashboard nav item
   { icon: Users, label: "Parent Dashboard", href: "/parent", roles: ["parent"] },

@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { getParentStudents } from '@/lib/parent-data';
 import { fetchAllSupabaseRows, supabase } from '@/lib/supabase';
+import { logAudit } from '@/lib/audit-log';
 import { formatReporterLabel, humanizeEventType } from '@/lib/event-types';
 import { toast } from '@/hooks/use-toast';
 import { GraduationCap, Search } from 'lucide-react';
@@ -441,6 +442,11 @@ export default function ParentBehaviorPage() {
       });
       return;
     }
+    void logAudit({
+      actor: user,
+      actionType: 'parent_behavior_checkin',
+      target: { student_id: student?.lrn, student_name: student?.name },
+    });
     setSelected((prev) => ({ ...prev, [selectedStudentId]: [] }));
     setOtherActivity((prev) => ({ ...prev, [selectedStudentId]: "" }));
     setMoodByStudent((prev) => ({ ...prev, [selectedStudentId]: '' }));

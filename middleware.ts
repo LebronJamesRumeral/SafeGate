@@ -20,6 +20,17 @@ export default function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  if (request.nextUrl.pathname === '/audit-log') {
+    try {
+      const user = JSON.parse(userCookie?.value || '{}');
+      if (String(user.role || '').toLowerCase() !== 'admin') {
+        return NextResponse.redirect(new URL('/', request.url));
+      }
+    } catch {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+  }
+
   // If authenticated, allow access to any page (including last visited)
   return NextResponse.next();
 }

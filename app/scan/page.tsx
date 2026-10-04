@@ -16,6 +16,8 @@ import { QrCode, Camera, CheckCircle, XCircle, User, Clock, Hash, Wifi, WifiOff,
 import { useState, useRef, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth-context';
+import { logAudit } from '@/lib/audit-log';
 import { toast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 import { getOfflineQueueCount } from '@/lib/offline-secure-queue';
@@ -66,6 +68,7 @@ type AttendanceAccessCheck = {
 };
 
 export default function ScanPage() {
+  const { user } = useAuth();
   const [scanning, setScanning] = useState(false);
   const [qrText, setQrText] = useState<string | null>(null);
   const [lastScan, setLastScan] = useState<ScanResult | null>(null);
@@ -82,6 +85,7 @@ export default function ScanPage() {
   const [offlineAttendanceState, setOfflineAttendanceState] = useState<Record<string, 'in' | 'out'>>({});
   const [temperatureModalOpen, setTemperatureModalOpen] = useState(false);
   const [pendingTemperatureStudent, setPendingTemperatureStudent] = useState<any | null>(null);
+  const [attendanceActionType, setAttendanceActionType] = useState<'student_scan' | 'manual_attendance'>('student_scan');
   const [temperatureInput, setTemperatureInput] = useState('');
   const [submittingTemperature, setSubmittingTemperature] = useState(false);
   const [earlyOutModalOpen, setEarlyOutModalOpen] = useState(false);
@@ -116,6 +120,7 @@ export default function ScanPage() {
     const uid = normalizeRfidUid(uidMatch[1]);
     if (uid.length < 4) return;
 
+    setAttendanceActionType('student_scan');
     setManualId(uid);
   };
 
@@ -698,7 +703,8 @@ export default function ScanPage() {
     student: any,
     temperature: number,
     earlyOutReason?: string,
-    overrideTime?: string
+    overrideTime?: string,
+    actionType: 'student_scan' | 'manual_attendance' = 'student_scan'
   ) => {
     const now = new Date();
     let scanTime = now;
@@ -758,6 +764,18 @@ export default function ScanPage() {
       const result = await applyAttendanceOnline(student.lrn, nowIso, temperature, {
         earlyOutReason,
       });
+
+      if (result.action === 'Checked In' || result.action === 'Checked Out') {
+        void logAudit({
+          actor: user,
+          actionType,
+          target: {
+            student_id: student.lrn,
+            student_name: student.name,
+            attendance_action: result.action,
+          },
+        });
+      }
 
       if (result.action === 'NeedsEarlyOutReason') {
         setPendingEarlyOutStudent(student);
@@ -925,6 +943,7 @@ export default function ScanPage() {
   const promptTemperatureForStudent = (student: any) => {
     // Pause continuous scanning while temperature is being encoded for this scan.
     setScanning(false);
+    setAttendanceActionType('student_scan');
     setPendingTemperatureStudent(student);
     setTemperatureInput('');
     setTemperatureModalOpen(true);
@@ -944,7 +963,13 @@ export default function ScanPage() {
 
     setSubmittingTemperature(true);
     try {
-      const outcome = await recordAttendance(pendingTemperatureStudent, Number(parsed.toFixed(1)), undefined, overrideTime);
+      const outcome = await recordAttendance(
+        pendingTemperatureStudent,
+        Number(parsed.toFixed(1)),
+        undefined,
+        overrideTime,
+        attendanceActionType
+      );
       setTemperatureModalOpen(false);
       setPendingTemperatureStudent(null);
       setTemperatureInput('');
@@ -979,7 +1004,8 @@ export default function ScanPage() {
         pendingEarlyOutStudent,
         pendingEarlyOutTemperature,
         trimmedReason,
-        overrideTime
+        overrideTime,
+        attendanceActionType
       );
 
       if (outcome === 'completed') {
@@ -1188,7 +1214,7 @@ export default function ScanPage() {
           });
           return false;
         }
-        await recordAttendance(student, Number(parsed.toFixed(1)), undefined, overrideTime);
+        await recordAttendance(student, Number(parsed.toFixed(1)), undefined, overrideTime, attendanceActionType);
         setManualId('');
         setTemperatureInput('');
         setOverrideTime('');
@@ -1606,7 +1632,10 @@ export default function ScanPage() {
                         placeholder="Tap card to scan UID"
                         value={manualId}
                         disabled={submittingManual}
-                        onChange={(e) => setManualId(normalizeRfidUid(e.target.value))}
+                        onChange={(e) => {
+                          setAttendanceActionType('manual_attendance');
+                          setManualId(normalizeRfidUid(e.target.value));
+                        }}
                         className="bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500/20 h-11"
                       />
                     </div>
@@ -1711,7 +1740,10 @@ export default function ScanPage() {
                         placeholder="Enter Student LRN or RFID UID"
                         value={manualId}
                         disabled={submittingManual}
-                        onChange={(e) => setManualId(normalizeRfidUid(e.target.value))}
+                        onChange={(e) => {
+                          setAttendanceActionType('manual_attendance');
+                          setManualId(normalizeRfidUid(e.target.value));
+                        }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             void handleManualEntry();

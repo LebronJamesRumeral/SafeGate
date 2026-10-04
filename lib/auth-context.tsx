@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useRouter, usePathname } from 'next/navigation';
 import Cookies from 'js-cookie';
 import { supabase } from '@/lib/supabase';
+import { logAudit } from '@/lib/audit-log';
 
 interface User {
   id: string;
@@ -86,6 +87,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         console.warn('Authentication cookie not set: user has declined cookies');
       }
+      void logAudit({
+        actor: {
+          id: data.user.id,
+          full_name: data.user.user_metadata?.full_name || data.user.email || 'User',
+          email: data.user.email,
+          role,
+        },
+        actionType: 'login',
+      });
       sessionStorage.setItem('safegate_just_logged_in', role);
       // Redirect parent to /parent, others to home
       if (role === 'parent') {
@@ -104,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     setLoading(true);
+    void logAudit({ actor: user, actionType: 'logout' });
     setUser(null);
     localStorage.removeItem('safegate_user');
     sessionStorage.removeItem('safegate_just_logged_in');

@@ -1728,86 +1728,79 @@ export default function AnalyticsPage() {
           ))}
         </div>
 
-        {/* Date and Level Filter - Mobile Optimized (collapsible). On desktop show full filter without hide/show. */}
-        {isMobile ? (
-          <AnimatePresence>
-            {!showFilters ? (
-              <motion.div
-                key="analytics-filters-summary"
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                className="mb-2"
-              >
-                <div className="flex items-center justify-between gap-3 px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-700/40">
-                  <div className="text-sm truncate">
-                    <strong className="mr-2">Filters</strong>
-                    <span className="text-muted-foreground">{getDateRangeText()} • {selectedLevel === 'all' ? 'All Levels' : selectedLevel}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => setShowFilters(true)} className="gap-2">
-                      Show
-                    </Button>
-                  </div>
+        {/* Date and Level Filter */}
+        <AnimatePresence initial={false}>
+          {!showFilters ? (
+            <motion.div
+              key="analytics-filters-summary"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="mb-2"
+            >
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/60 bg-slate-50 px-4 py-2 dark:border-slate-700/40 dark:bg-slate-900/50">
+                <div className="min-w-0 truncate text-sm">
+                  <strong className="mr-2">Filters</strong>
+                  <span className="text-muted-foreground">{getDateRangeText()} • {selectedLevel === 'all' ? 'All Levels' : selectedLevel}</span>
                 </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="analytics-filters-expanded"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.28 }}
-              >
-                <div className="mb-2">
-                  <Card className="overflow-hidden rounded-xl border-0 bg-card/50 p-4 shadow-lg backdrop-blur-sm dark:bg-slate-950/60">
-                    <div className="pt-3">
-                      <DateLevelFilter
-                        dateMode={dateMode}
-                        setDateMode={setDateMode}
-                        singleDate={singleDate}
-                        setSingleDate={setSingleDate}
-                        rangeStart={rangeStart}
-                        setRangeStart={setRangeStart}
-                        rangeEnd={rangeEnd}
-                        setRangeEnd={setRangeEnd}
-                        selectedLevel={selectedLevel}
-                        setSelectedLevel={setSelectedLevel}
-                        forceExpanded={true}
-                        noWrapper={true}
-                        hideLevel={true}
-                        additionalFilters={analyticsDropdownFilters}
-                        trailingControl={<Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="ml-auto h-8 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">Hide</Button>}
-                      />
-                    </div>
-                  </Card>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  aria-expanded={showFilters}
+                  aria-controls="analytics-filters-panel"
+                  onClick={() => setShowFilters((visible) => !visible)}
+                  className="gap-2"
+                >
+                  Show
+                </Button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="analytics-filters-expanded"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.28 }}
+              className="mb-2"
+            >
+              <Card id="analytics-filters-panel" className="w-full overflow-hidden rounded-xl border-0 bg-card/50 p-4 shadow-lg backdrop-blur-sm dark:bg-slate-950/60 sm:p-5">
+                <div className="pt-3">
+                  <DateLevelFilter
+                    dateMode={dateMode}
+                    setDateMode={setDateMode}
+                    singleDate={singleDate}
+                    setSingleDate={setSingleDate}
+                    rangeStart={rangeStart}
+                    setRangeStart={setRangeStart}
+                    rangeEnd={rangeEnd}
+                    setRangeEnd={setRangeEnd}
+                    selectedLevel={selectedLevel}
+                    setSelectedLevel={setSelectedLevel}
+                    forceExpanded={true}
+                    noWrapper={true}
+                    hideLevel={true}
+                    additionalFilters={analyticsDropdownFilters}
+                    trailingControl={(
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        aria-expanded={showFilters}
+                        aria-controls="analytics-filters-panel"
+                        onClick={() => setShowFilters((visible) => !visible)}
+                        className="ml-auto h-8 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                      >
+                        Hide
+                      </Button>
+                    )}
+                  />
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        ) : (
-          <Card className="w-full overflow-hidden rounded-xl border-0 bg-card/50 p-4 shadow-lg backdrop-blur-sm dark:bg-slate-950/60 sm:p-5">
-            <div className="pt-3">
-              <DateLevelFilter
-                dateMode={dateMode}
-                setDateMode={setDateMode}
-                singleDate={singleDate}
-                setSingleDate={setSingleDate}
-                rangeStart={rangeStart}
-                setRangeStart={setRangeStart}
-                rangeEnd={rangeEnd}
-                setRangeEnd={setRangeEnd}
-                selectedLevel={selectedLevel}
-                setSelectedLevel={setSelectedLevel}
-                forceExpanded={true}
-                noWrapper={true}
-                hideLevel={true}
-                additionalFilters={analyticsDropdownFilters}
-                trailingControl={<Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="ml-auto h-8 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">Hide</Button>}
-              />
-            </div>
-          </Card>
-        )}
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence mode="wait">
           {activeTab === 'overview' && (

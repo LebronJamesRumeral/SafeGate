@@ -13,6 +13,8 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
+import { useAuth } from '@/lib/auth-context';
+import { logAudit } from '@/lib/audit-log';
 import {
   Dialog,
   DialogContent,
@@ -53,6 +55,7 @@ const DEFAULT_ML_SETTINGS: MLSettings = {
 };
 
 export default function SettingsPage() {
+  const { user } = useAuth();
   const MIN_SKELETON_DURATION_MS = 650;
   const [initialLoading, setInitialLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('account');
@@ -260,6 +263,11 @@ export default function SettingsPage() {
         });
         const data = await res.json();
         if (data.success) {
+          void logAudit({
+            actor: user,
+            actionType: 'user_deleted',
+            target: { user_id: userId, user_name: userName, role: targetUser.role },
+          });
           toast({
             title: 'User Deleted',
             description: `${userName} was deleted successfully.`,
@@ -362,6 +370,11 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (data.success) {
+        void logAudit({
+          actor: user,
+          actionType: 'user_created',
+          target: { user_id: data.user?.id, user_name: newUser.full_name || newUser.email, email: newUser.email, role: newUser.role },
+        });
         toast({
           title: 'User added',
           description: `${newUser.full_name || newUser.email} was added successfully.`,
@@ -433,6 +446,17 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (data.success) {
+        void logAudit({
+          actor: user,
+          actionType: editingUser.role !== editRole ? 'role_changed' : 'user_updated',
+          target: {
+            user_id: editingUser.id,
+            user_name: editFullName.trim() || editingUser.name,
+            email: editEmail.trim(),
+            previous_role: editingUser.role,
+            role: editRole,
+          },
+        });
         toast({
           title: 'User updated',
           description: 'The user account details have been successfully updated.',
@@ -579,6 +603,13 @@ export default function SettingsPage() {
         body: JSON.stringify({ key: 'mlSettings', value: mlSettings }),
       });
       const mlJson = await mlRes.json();
+
+      if (timesJson.success) {
+        void logAudit({ actor: user, actionType: 'settings_changed', target: { key: 'yearLevelCheckoutTimes' } });
+      }
+      if (mlJson.success) {
+        void logAudit({ actor: user, actionType: 'settings_changed', target: { key: 'mlSettings' } });
+      }
 
       if (timesJson.success && mlJson.success) {
         window.localStorage.setItem('mlSettings', JSON.stringify(mlSettings));

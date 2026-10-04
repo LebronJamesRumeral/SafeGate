@@ -979,21 +979,21 @@ export default function MasterlistPage() {
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.28 }}
             >
-              <Card className="overflow-hidden rounded-xl border-0 bg-card/50 shadow-lg backdrop-blur-sm dark:bg-slate-950/60">
-                <CardContent className="space-y-3 p-4 sm:p-5">
-                  <div className="grid grid-cols-1 items-center gap-4 md:grid-cols-12">
-                    <div className="relative md:col-span-6">
+              <Card className="overflow-hidden rounded-xl border border-slate-200/70 bg-white/75 shadow-sm backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-950/60">
+                <CardContent className="space-y-2.5 p-3 sm:p-3.5">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-12">
+                    <div className="relative min-w-0 xl:col-span-6">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         placeholder="Search by LRN, name, or parent..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="pl-10 bg-muted/30 border-border/50 focus:border-primary focus:ring-primary hover:border-border transition-colors"
+                        className="h-10 rounded-full border-slate-200 bg-white/80 pl-10 text-sm transition-colors hover:border-slate-300 focus:border-primary focus:ring-primary dark:border-slate-700 dark:bg-slate-900/70"
                       />
                     </div>
-                    <div className="flex gap-2 md:col-span-4">
+                    <div className="min-w-0 xl:col-span-2">
                       <Select value={filterGrade} onValueChange={setFilterGrade}>
-                        <SelectTrigger className="bg-muted/30 border-border/50 focus:border-primary focus:ring-primary hover:border-border transition-colors">
+                        <SelectTrigger className="h-10 w-full rounded-full border-slate-200 bg-white/80 text-sm transition-colors hover:border-slate-300 focus:border-primary focus:ring-primary dark:border-slate-700 dark:bg-slate-900/70">
                           <SelectValue placeholder="Filter by level" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1012,8 +1012,10 @@ export default function MasterlistPage() {
                           <SelectItem value="Grade 8">Grade 8</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="min-w-0 xl:col-span-2">
                       <Select value={filterStatus} onValueChange={setFilterStatus}>
-                        <SelectTrigger className="bg-muted/30 border-border/50 focus:border-primary focus:ring-primary hover:border-border transition-colors">
+                        <SelectTrigger className="h-10 w-full rounded-full border-slate-200 bg-white/80 text-sm transition-colors hover:border-slate-300 focus:border-primary focus:ring-primary dark:border-slate-700 dark:bg-slate-900/70">
                           <SelectValue placeholder="Filter by status" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1024,12 +1026,12 @@ export default function MasterlistPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex justify-end md:col-span-2">
-                      <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="h-8 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">Hide</Button>
+                    <div className="flex items-center justify-end xl:col-span-2">
+                      <Button size="sm" variant="ghost" onClick={() => setShowFilters(false)} className="h-8 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground">Hide</Button>
                     </div>
-                    <div className="text-sm font-medium text-muted-foreground flex items-center md:col-span-4">
+                  </div>
+                  <div className="flex min-h-5 items-center text-xs font-medium text-muted-foreground">
                       Showing <span className="mx-1 font-bold text-foreground">{filteredStudents.length}</span> of <span className="mx-1 font-bold text-foreground">{students.length}</span> records
-                    </div>
                   </div>
                 </CardContent>
               </Card>

@@ -15,6 +15,7 @@ import { fetchActiveSchoolEvents, ensureUpcomingSchoolEventReminders, type Schoo
 import { toast } from '@/hooks/use-toast';
 import { createRoleNotification, fetchRoleNotifications, type RoleNotification } from '@/lib/role-notifications';
 import { fetchAllSupabaseRows, supabase } from '@/lib/supabase';
+import { logAudit } from '@/lib/audit-log';
 import { getParentStudents } from '@/lib/parent-data';
 import { formatTime12h } from '@/lib/time-format';
 
@@ -637,6 +638,16 @@ export default function ParentAnnouncementPage() {
         },
       });
       if (success) {
+        void logAudit({
+          actor: user,
+          actionType: 'event_rsvp',
+          target: {
+            event_id: event.id,
+            event_title: event.title,
+            student_name: selectedChildNames,
+            response: isJoin ? 'joining' : 'not_joining',
+          },
+        });
         if (isJoin) {
           setJoinNotifiedByEventId((p) => ({ ...p, [event.id]: true }));
         } else {
